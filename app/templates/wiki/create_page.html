@@ -6,20 +6,20 @@
 <form method="POST">
     <div class="form-group">
         <label>Title</label>
-        <input type="text" name="title" class="input" required>
+        <input type="text" name="title" class="input" required value="{{ form.title if form else '' }}">
     </div>
     <div class="form-group">
         <label>Category</label>
         <select name="category_id" class="input">
             <option value="">Uncategorized</option>
             {% for cat in all_categories %}
-            <option value="{{ cat.id }}">{{ cat.name }}</option>
+            <option value="{{ cat.id }}" {% if form and form.category_id|string == cat.id|string %}selected{% endif %}>{{ cat.name }}</option>
             {% endfor %}
         </select>
     </div>
     <div class="form-group">
         <label>Content (Markdown)</label>
-        <textarea name="content" class="editor-area-legacy" placeholder="Write your page in markdown..."></textarea>
+        <textarea name="content" class="editor-area-legacy" placeholder="Write your page in markdown...">{{ form.content if form else '' }}</textarea>
     </div>
     <div class="form-actions">
         <button type="submit" class="btn">Create Page</button>

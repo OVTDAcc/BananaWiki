@@ -217,6 +217,9 @@ def setup():
         if len(username) < 3:
             flash("Username must be at least 3 characters.", "error")
             return render_template("auth/setup.html")
+        if len(username) > 50:
+            flash("Username must be 50 characters or fewer.", "error")
+            return render_template("auth/setup.html")
         if password != confirm:
             flash("Passwords do not match.", "error")
             return render_template("auth/setup.html")
@@ -299,6 +302,9 @@ def signup():
         if len(username) < 3:
             flash("Username must be at least 3 characters.", "error")
             return render_template("auth/signup.html")
+        if len(username) > 50:
+            flash("Username must be 50 characters or fewer.", "error")
+            return render_template("auth/signup.html")
         if password != confirm:
             flash("Passwords do not match.", "error")
             return render_template("auth/signup.html")
@@ -361,6 +367,8 @@ def account_settings():
             flash("Incorrect password.", "error")
         elif len(new_username) < 3:
             flash("Username must be at least 3 characters.", "error")
+        elif len(new_username) > 50:
+            flash("Username must be 50 characters or fewer.", "error")
         elif db.get_user_by_username(new_username) and new_username.lower() != user["username"].lower():
             flash("Username already taken.", "error")
         else:
@@ -562,6 +570,8 @@ def edit_page(slug):
         db.delete_draft(page["id"], user["id"])
         log_action("edit_page", request, user=user, page=slug, message=edit_message)
         flash("Page updated.", "success")
+        if page["is_home"]:
+            return redirect(url_for("home"))
         return redirect(url_for("view_page", slug=slug))
 
     # Load draft if exists
@@ -586,10 +596,16 @@ def edit_page_title(slug):
         abort(404)
     user = get_current_user()
     new_title = request.form.get("title", "").strip()
-    if new_title:
+    if not new_title:
+        flash("Title is required.", "error")
+    elif len(new_title) > 200:
+        flash("Title must be 200 characters or fewer.", "error")
+    else:
         db.update_page_title(page["id"], new_title, user["id"])
         log_action("edit_page_title", request, user=user, page=slug, new_title=new_title)
         flash("Title updated.", "success")
+    if page["is_home"]:
+        return redirect(url_for("home"))
     return redirect(url_for("view_page", slug=slug))
 
 
@@ -608,20 +624,29 @@ def create_page():
         title = request.form.get("title", "").strip()
         content = request.form.get("content", "")
         cat_id = request.form.get("category_id")
+        form_data = {"title": title, "content": content, "category_id": cat_id or ""}
         try:
             cat_id = int(cat_id) if cat_id else None
         except (TypeError, ValueError):
             flash("Invalid category.", "error")
             return render_template("wiki/create_page.html", categories=categories,
-                                   uncategorized=uncategorized, all_categories=all_cats)
+                                   uncategorized=uncategorized, all_categories=all_cats,
+                                   form=form_data)
         if not title:
             flash("Title is required.", "error")
             return render_template("wiki/create_page.html", categories=categories,
-                                   uncategorized=uncategorized, all_categories=all_cats)
+                                   uncategorized=uncategorized, all_categories=all_cats,
+                                   form=form_data)
+        if len(title) > 200:
+            flash("Title must be 200 characters or fewer.", "error")
+            return render_template("wiki/create_page.html", categories=categories,
+                                   uncategorized=uncategorized, all_categories=all_cats,
+                                   form=form_data)
         if cat_id and not db.get_category(cat_id):
             flash("Selected category does not exist.", "error")
             return render_template("wiki/create_page.html", categories=categories,
-                                   uncategorized=uncategorized, all_categories=all_cats)
+                                   uncategorized=uncategorized, all_categories=all_cats,
+                                   form=form_data)
         slug = slugify(title)
         # ensure unique slug
         base_slug = slug
@@ -690,6 +715,9 @@ def create_category():
     if not name:
         flash("Category name is required.", "error")
         return redirect(request.referrer or url_for("home"))
+    if len(name) > 100:
+        flash("Category name must be 100 characters or fewer.", "error")
+        return redirect(request.referrer or url_for("home"))
     if parent_id and not db.get_category(parent_id):
         flash("Selected parent category does not exist.", "error")
         return redirect(request.referrer or url_for("home"))
@@ -710,6 +738,9 @@ def edit_category(cat_id):
     name = request.form.get("name", "").strip()
     if not name:
         flash("Category name is required.", "error")
+        return redirect(request.referrer or url_for("home"))
+    if len(name) > 100:
+        flash("Category name must be 100 characters or fewer.", "error")
         return redirect(request.referrer or url_for("home"))
     db.update_category(cat_id, name)
     user = get_current_user()
@@ -878,8 +909,11 @@ def delete_upload():
     if not data:
         return jsonify({"error": "invalid request"}), 400
     filename = data.get("filename", "")
-    filepath = os.path.join(config.UPLOAD_FOLDER, secure_filename(filename))
-    if os.path.exists(filepath):
+    safe_name = secure_filename(filename)
+    if not safe_name:
+        return jsonify({"error": "invalid filename"}), 400
+    filepath = os.path.join(config.UPLOAD_FOLDER, safe_name)
+    if os.path.isfile(filepath):
         os.remove(filepath)
     return jsonify({"ok": True})
 
@@ -914,6 +948,8 @@ def admin_edit_user(user_id):
         new_name = request.form.get("username", "").strip()
         if not new_name or len(new_name) < 3:
             flash("Username must be at least 3 characters.", "error")
+        elif len(new_name) > 50:
+            flash("Username must be 50 characters or fewer.", "error")
         else:
             existing = db.get_user_by_username(new_name)
             if existing and existing["id"] != user_id:
@@ -931,26 +967,30 @@ def admin_edit_user(user_id):
 
     elif action == "change_password":
         new_pw = request.form.get("password", "")
-        if len(new_pw) >= 6:
+        confirm_pw = request.form.get("confirm_password", "")
+        if len(new_pw) < 6:
+            flash("Password must be at least 6 characters.", "error")
+        elif new_pw != confirm_pw:
+            flash("Passwords do not match.", "error")
+        else:
             db.update_user(user_id, password=generate_password_hash(new_pw))
             log_action("admin_change_password", request, user=current_user,
                        target_user=target["username"])
             flash("Password updated.", "success")
-        else:
-            flash("Password must be at least 6 characters.", "error")
 
     elif action == "change_role":
         new_role = request.form.get("role", "")
-        if new_role in ("user", "editor", "admin"):
-            if user_id == current_user["id"] and new_role != current_user["role"]:
-                flash("Cannot change your own role.", "error")
-            elif target["role"] == "admin" and new_role != "admin" and db.count_admins() <= 1:
-                flash("Cannot demote the last admin.", "error")
-            else:
-                db.update_user(user_id, role=new_role)
-                log_action("admin_change_role", request, user=current_user,
-                           target_user=target["username"], new_role=new_role)
-                flash("Role updated.", "success")
+        if new_role not in ("user", "editor", "admin"):
+            flash("Invalid role.", "error")
+        elif user_id == current_user["id"] and new_role != current_user["role"]:
+            flash("Cannot change your own role.", "error")
+        elif target["role"] == "admin" and new_role != "admin" and db.count_admins() <= 1:
+            flash("Cannot demote the last admin.", "error")
+        else:
+            db.update_user(user_id, role=new_role)
+            log_action("admin_change_role", request, user=current_user,
+                       target_user=target["username"], new_role=new_role)
+            flash("Role updated.", "success")
 
     elif action == "suspend":
         if user_id == current_user["id"]:
@@ -996,6 +1036,8 @@ def admin_create_user():
         flash("Username and password are required.", "error")
     elif len(username) < 3:
         flash("Username must be at least 3 characters.", "error")
+    elif len(username) > 50:
+        flash("Username must be 50 characters or fewer.", "error")
     elif password != confirm:
         flash("Passwords do not match.", "error")
     elif len(password) < 6:
