@@ -850,7 +850,7 @@ def test_edit_home_redirects_to_root(logged_in_admin):
                                 data={"title": "Home", "content": "Updated",
                                       "edit_message": "test"})
     assert resp.status_code == 302
-    assert resp.location.endswith("/") or resp.location == "/"
+    assert resp.location.endswith("/")
 
 
 def test_edit_title_home_redirects_to_root(logged_in_admin):
@@ -859,7 +859,7 @@ def test_edit_title_home_redirects_to_root(logged_in_admin):
     resp = logged_in_admin.post(f"/page/{home['slug']}/edit/title",
                                 data={"title": "Updated Home"})
     assert resp.status_code == 302
-    assert resp.location.endswith("/") or resp.location == "/"
+    assert resp.location.endswith("/")
 
 
 # -----------------------------------------------------------------------
