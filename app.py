@@ -91,7 +91,7 @@ def _is_valid_hex_color(value):
     return bool(re.fullmatch(r"#[0-9a-fA-F]{6}", value))
 
 
-_USERNAME_RE = re.compile(r"^[A-Za-z0-9_\-]+$")
+_USERNAME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
 def _is_valid_username(value):
