@@ -222,7 +222,8 @@ function initImageUpload(contentEl) {
     function uploadFile(file) {
         var fd = new FormData();
         fd.append('file', file);
-        return fetch('/api/upload', { method: 'POST', body: fd, headers: { 'X-CSRFToken': getCsrfToken() } })
+        fd.append('csrf_token', getCsrfToken());
+        return fetch('/api/upload', { method: 'POST', body: fd })
             .then(function(r) { return r.json().then(function(data) { return { ok: r.ok, data: data }; }); })
             .then(function(result) {
                 if (!result.ok || result.data.error) {

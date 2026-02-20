@@ -912,10 +912,11 @@ def test_csrf_meta_tag_in_page(logged_in_admin):
     assert b'meta name="csrf-token"' in resp.data
 
 
-def test_csrf_rejects_post_without_token(client, admin_user):
+def test_csrf_rejects_post_without_token(admin_user):
     """POST requests without a CSRF token should be rejected when CSRF is enabled."""
     from app import app
     app.config["WTF_CSRF_ENABLED"] = True
+    app.config["TESTING"] = True
     try:
         with app.test_client() as c:
             c.post("/login", data={"username": "admin", "password": "admin123"})
