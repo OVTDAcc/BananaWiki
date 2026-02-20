@@ -51,9 +51,9 @@ def log_request(request, user=None):
     if not config.LOGGING_ENABLED:
         return
     logger = get_logger()
-    ip = request.remote_addr
-    method = request.method
-    path = request.path
+    ip = _sanitize(request.remote_addr or "")
+    method = _sanitize(request.method)
+    path = _sanitize(request.path)
     ua = _sanitize(request.headers.get("User-Agent", ""))
     username = _sanitize(user["username"]) if user else "anonymous"
     logger.info(
@@ -70,12 +70,13 @@ def log_action(action, request, user=None, **details):
     if not config.LOGGING_ENABLED:
         return
     logger = get_logger()
-    ip = request.remote_addr
+    ip = _sanitize(request.remote_addr or "")
     now = datetime.now(timezone.utc).isoformat()
     username = _sanitize(user["username"]) if user else "anonymous"
+    safe_action = _sanitize(action)
     safe_details = {k: ("***" if k in _SENSITIVE_FIELDS else _sanitize(v))
                     for k, v in details.items()}
     detail_str = " ".join(f"{k}={v}" for k, v in safe_details.items())
     logger.info(
-        f"ACTION  | time={now} ip={ip} user={username} action={action} {detail_str}"
+        f"ACTION  | time={now} ip={ip} user={username} action={safe_action} {detail_str}"
     )
