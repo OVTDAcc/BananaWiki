@@ -79,7 +79,7 @@ def allowed_file(filename):
 
 
 def _is_valid_hex_color(value):
-    """Return True if value is a valid 7-char hex colour like #aabbcc."""
+    """Return True if value is a valid 7-char hex color like #aabbcc."""
     return bool(re.fullmatch(r"#[0-9a-fA-F]{6}", value))
 
 
@@ -888,7 +888,7 @@ def admin_edit_user(user_id):
 
     elif action == "delete":
         if user_id == current_user["id"]:
-            flash("Cannot delete your own account from the admin panel.", "error")
+            flash("Cannot delete your own account from here. Use account settings instead.", "error")
         elif target["role"] == "admin" and db.count_admins() <= 1:
             flash("Cannot delete the last admin.", "error")
         else:
