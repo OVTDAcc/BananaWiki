@@ -151,7 +151,13 @@ def get_user_by_username(username):
     return user
 
 
+_ALLOWED_USER_COLUMNS = {"username", "password", "role", "suspended"}
+
+
 def update_user(user_id, **kwargs):
+    for k in kwargs:
+        if k not in _ALLOWED_USER_COLUMNS:
+            raise ValueError(f"Invalid column: {k}")
     conn = get_db()
     sets = ", ".join(f"{k}=?" for k in kwargs)
     vals = list(kwargs.values()) + [user_id]
@@ -525,7 +531,16 @@ def get_site_settings():
     return row
 
 
+_ALLOWED_SETTINGS_COLUMNS = {
+    "site_name", "primary_color", "secondary_color", "accent_color",
+    "text_color", "sidebar_color", "bg_color", "setup_done",
+}
+
+
 def update_site_settings(**kwargs):
+    for k in kwargs:
+        if k not in _ALLOWED_SETTINGS_COLUMNS:
+            raise ValueError(f"Invalid column: {k}")
     conn = get_db()
     sets = ", ".join(f"{k}=?" for k in kwargs)
     vals = list(kwargs.values())

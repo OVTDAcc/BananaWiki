@@ -16,40 +16,51 @@
         <h3>Theme Colors</h3>
         <div class="color-group">
             <label>Primary (highlights, logo)</label>
-            <input type="color" name="primary_color" value="{{ settings.primary_color }}">
-            <input type="text" name="primary_color_text" value="{{ settings.primary_color }}" class="input input-sm"
+            <input type="color" name="primary_color" value="{{ settings.primary_color }}"
+                   oninput="this.nextElementSibling.value=this.value">
+            <input type="text" value="{{ settings.primary_color }}" class="input input-sm"
                    oninput="this.previousElementSibling.value=this.value"
                    onchange="this.previousElementSibling.value=this.value">
         </div>
         <div class="color-group">
             <label>Secondary (header, cards)</label>
-            <input type="color" name="secondary_color" value="{{ settings.secondary_color }}">
+            <input type="color" name="secondary_color" value="{{ settings.secondary_color }}"
+                   oninput="this.nextElementSibling.value=this.value">
             <input type="text" value="{{ settings.secondary_color }}" class="input input-sm"
-                   oninput="this.previousElementSibling.value=this.value">
+                   oninput="this.previousElementSibling.value=this.value"
+                   onchange="this.previousElementSibling.value=this.value">
         </div>
         <div class="color-group">
             <label>Accent (links)</label>
-            <input type="color" name="accent_color" value="{{ settings.accent_color }}">
+            <input type="color" name="accent_color" value="{{ settings.accent_color }}"
+                   oninput="this.nextElementSibling.value=this.value">
             <input type="text" value="{{ settings.accent_color }}" class="input input-sm"
-                   oninput="this.previousElementSibling.value=this.value">
+                   oninput="this.previousElementSibling.value=this.value"
+                   onchange="this.previousElementSibling.value=this.value">
         </div>
         <div class="color-group">
             <label>Text</label>
-            <input type="color" name="text_color" value="{{ settings.text_color }}">
+            <input type="color" name="text_color" value="{{ settings.text_color }}"
+                   oninput="this.nextElementSibling.value=this.value">
             <input type="text" value="{{ settings.text_color }}" class="input input-sm"
-                   oninput="this.previousElementSibling.value=this.value">
+                   oninput="this.previousElementSibling.value=this.value"
+                   onchange="this.previousElementSibling.value=this.value">
         </div>
         <div class="color-group">
             <label>Sidebar</label>
-            <input type="color" name="sidebar_color" value="{{ settings.sidebar_color }}">
+            <input type="color" name="sidebar_color" value="{{ settings.sidebar_color }}"
+                   oninput="this.nextElementSibling.value=this.value">
             <input type="text" value="{{ settings.sidebar_color }}" class="input input-sm"
-                   oninput="this.previousElementSibling.value=this.value">
+                   oninput="this.previousElementSibling.value=this.value"
+                   onchange="this.previousElementSibling.value=this.value">
         </div>
         <div class="color-group">
             <label>Background</label>
-            <input type="color" name="bg_color" value="{{ settings.bg_color }}">
+            <input type="color" name="bg_color" value="{{ settings.bg_color }}"
+                   oninput="this.nextElementSibling.value=this.value">
             <input type="text" value="{{ settings.bg_color }}" class="input input-sm"
-                   oninput="this.previousElementSibling.value=this.value">
+                   oninput="this.previousElementSibling.value=this.value"
+                   onchange="this.previousElementSibling.value=this.value">
         </div>
     </div>
 
