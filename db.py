@@ -168,7 +168,7 @@ def update_user(user_id, **kwargs):
 
 def delete_user(user_id):
     conn = get_db()
-    conn.execute("DELETE FROM invite_codes WHERE used_by=?", (user_id,))
+    conn.execute("UPDATE invite_codes SET used_by=NULL WHERE used_by=?", (user_id,))
     conn.execute("DELETE FROM users WHERE id=?", (user_id,))
     conn.commit()
     conn.close()
@@ -220,7 +220,7 @@ def validate_invite_code(code):
     """Return the invite row if valid, else None."""
     conn = get_db()
     row = conn.execute(
-        "SELECT * FROM invite_codes WHERE code=? AND used_by IS NULL AND deleted=0",
+        "SELECT * FROM invite_codes WHERE code=? AND used_by IS NULL AND used_at IS NULL AND deleted=0",
         (code,),
     ).fetchone()
     conn.close()
@@ -235,12 +235,14 @@ def validate_invite_code(code):
 def use_invite_code(code, user_id):
     now = datetime.now(timezone.utc).isoformat()
     conn = get_db()
-    conn.execute(
-        "UPDATE invite_codes SET used_by=?, used_at=? WHERE code=?",
+    cur = conn.execute(
+        "UPDATE invite_codes SET used_by=?, used_at=? WHERE code=? AND used_by IS NULL AND used_at IS NULL AND deleted=0",
         (user_id, now, code),
     )
     conn.commit()
+    updated = cur.rowcount > 0
     conn.close()
+    return updated
 
 
 def delete_invite_code(code_id):
@@ -282,7 +284,7 @@ def list_expired_codes():
         "FROM invite_codes ic "
         "LEFT JOIN users u ON ic.created_by=u.id "
         "LEFT JOIN users u2 ON ic.used_by=u2.id "
-        "WHERE ic.used_by IS NOT NULL OR ic.deleted=1 OR ic.expires_at <= ? "
+        "WHERE ic.used_by IS NOT NULL OR ic.used_at IS NOT NULL OR ic.deleted=1 OR ic.expires_at <= ? "
         "ORDER BY ic.created_at DESC",
         (now,),
     ).fetchall()
