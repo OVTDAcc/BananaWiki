@@ -168,6 +168,7 @@ def update_user(user_id, **kwargs):
 
 def delete_user(user_id):
     conn = get_db()
+    conn.execute("DELETE FROM invite_codes WHERE used_by=?", (user_id,))
     conn.execute("DELETE FROM users WHERE id=?", (user_id,))
     conn.commit()
     conn.close()

@@ -80,6 +80,13 @@ LOGGING_ENABLED = True
 LOG_FILE = os.path.join(BASE_DIR, "logs", "bananawiki.log")
 
 # =============================================================================
+# Page History
+# =============================================================================
+# Whether to enable the page history viewer and revert functionality.
+# When disabled, the "last edited by" info is still shown on pages.
+PAGE_HISTORY_ENABLED = False
+
+# =============================================================================
 # Invite Codes
 # =============================================================================
 # How long invite codes last before expiring (in hours)

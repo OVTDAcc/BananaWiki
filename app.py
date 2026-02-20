@@ -180,6 +180,7 @@ def inject_globals():
         "current_user": user,
         "settings": settings,
         "time_ago": time_ago,
+        "page_history_enabled": config.PAGE_HISTORY_ENABLED,
     }
 
 
@@ -463,6 +464,8 @@ def view_page(slug):
 @app.route("/page/<slug>/history")
 @login_required
 def page_history(slug):
+    if not config.PAGE_HISTORY_ENABLED:
+        abort(404)
     page = db.get_page_by_slug(slug)
     if not page:
         abort(404)
@@ -480,6 +483,8 @@ def page_history(slug):
 @app.route("/page/<slug>/history/<int:entry_id>")
 @login_required
 def view_history_entry(slug, entry_id):
+    if not config.PAGE_HISTORY_ENABLED:
+        abort(404)
     page = db.get_page_by_slug(slug)
     if not page:
         abort(404)
@@ -502,6 +507,8 @@ def view_history_entry(slug, entry_id):
 @login_required
 @editor_required
 def revert_page(slug, entry_id):
+    if not config.PAGE_HISTORY_ENABLED:
+        abort(404)
     page = db.get_page_by_slug(slug)
     if not page:
         abort(404)
@@ -986,7 +993,7 @@ def admin_create_user():
 # ---------------------------------------------------------------------------
 @app.route("/admin/codes")
 @login_required
-@editor_required
+@admin_required
 def admin_codes():
     codes = db.list_invite_codes(active_only=True)
     categories, uncategorized = db.get_category_tree()
@@ -996,7 +1003,7 @@ def admin_codes():
 
 @app.route("/admin/codes/expired")
 @login_required
-@editor_required
+@admin_required
 def admin_codes_expired():
     codes = db.list_expired_codes()
     categories, uncategorized = db.get_category_tree()
@@ -1017,7 +1024,7 @@ def admin_generate_code():
 
 @app.route("/admin/codes/<int:code_id>/delete", methods=["POST"])
 @login_required
-@editor_required
+@admin_required
 def admin_delete_code(code_id):
     user = get_current_user()
     db.delete_invite_code(code_id)
