@@ -8,6 +8,52 @@ document.addEventListener('DOMContentLoaded', function() {
             setTimeout(function() { el.remove(); }, 300);
         });
     }, 5000);
+
+    // Sidebar toggle for mobile
+    var toggleBtn = document.getElementById('sidebar-toggle');
+    var sidebar = document.getElementById('sidebar');
+    var overlay = document.getElementById('sidebar-overlay');
+    if (toggleBtn && sidebar) {
+        toggleBtn.addEventListener('click', function() {
+            sidebar.classList.toggle('open');
+            if (overlay) overlay.classList.toggle('active');
+        });
+        if (overlay) {
+            overlay.addEventListener('click', function() {
+                sidebar.classList.remove('open');
+                overlay.classList.remove('active');
+            });
+        }
+    }
+
+    // Sidebar resize handle
+    var resizeHandle = document.getElementById('sidebar-resize-handle');
+    if (resizeHandle && sidebar) {
+        var isResizing = false;
+        resizeHandle.addEventListener('mousedown', function(e) {
+            isResizing = true;
+            resizeHandle.classList.add('resizing');
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+            e.preventDefault();
+        });
+        document.addEventListener('mousemove', function(e) {
+            if (!isResizing) return;
+            var newWidth = e.clientX;
+            if (newWidth >= 180 && newWidth <= 500) {
+                sidebar.style.width = newWidth + 'px';
+                sidebar.style.minWidth = newWidth + 'px';
+            }
+        });
+        document.addEventListener('mouseup', function() {
+            if (isResizing) {
+                isResizing = false;
+                resizeHandle.classList.remove('resizing');
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+            }
+        });
+    }
 });
 
 // Autosave for editor
@@ -64,7 +110,7 @@ function initAutosave(pageId) {
                 var notice = document.getElementById('other-drafts-notice');
                 if (notice && drafts.length > 0) {
                     notice.innerHTML = '';
-                    notice.appendChild(document.createTextNode('\u26A0\uFE0F Other users editing this page: '));
+                    notice.appendChild(document.createTextNode('Warning: Other users editing this page: '));
                     drafts.forEach(function(d, idx) {
                         if (idx > 0) notice.appendChild(document.createTextNode(', '));
                         notice.appendChild(document.createTextNode(d.username));
