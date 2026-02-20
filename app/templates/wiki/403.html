@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}Access Denied – {{ settings.site_name }}{% endblock %}
+{% block content %}
+<h1>403 – Access Denied</h1>
+<p>You do not have permission to access this page.</p>
+<p><a href="{{ url_for('home') }}">← Go home</a></p>
+{% endblock %}

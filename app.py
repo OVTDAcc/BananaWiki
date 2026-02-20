@@ -322,7 +322,11 @@ def signup():
         except sqlite3.IntegrityError:
             flash("Username already taken.", "error")
             return render_template("auth/signup.html")
-        db.use_invite_code(invite, user_id)
+        if not db.use_invite_code(invite, user_id):
+            # Race condition: code was used between validation and here
+            db.delete_user(user_id)
+            flash("Invalid or expired invite code.", "error")
+            return render_template("auth/signup.html")
 
         log_action("signup_success", request, username=username, invite_code=invite)
         flash("Account created! Please log in.", "success")
@@ -676,11 +680,13 @@ def create_category():
     except (TypeError, ValueError):
         flash("Invalid parent category.", "error")
         return redirect(request.referrer or url_for("home"))
-    if name:
-        db.create_category(name, parent_id)
-        user = get_current_user()
-        log_action("create_category", request, user=user, category=name)
-        flash("Category created.", "success")
+    if not name:
+        flash("Category name is required.", "error")
+        return redirect(request.referrer or url_for("home"))
+    db.create_category(name, parent_id)
+    user = get_current_user()
+    log_action("create_category", request, user=user, category=name)
+    flash("Category created.", "success")
     return redirect(request.referrer or url_for("home"))
 
 
@@ -689,11 +695,13 @@ def create_category():
 @editor_required
 def edit_category(cat_id):
     name = request.form.get("name", "").strip()
-    if name:
-        db.update_category(cat_id, name)
-        user = get_current_user()
-        log_action("edit_category", request, user=user, category_id=cat_id, new_name=name)
-        flash("Category updated.", "success")
+    if not name:
+        flash("Category name is required.", "error")
+        return redirect(request.referrer or url_for("home"))
+    db.update_category(cat_id, name)
+    user = get_current_user()
+    log_action("edit_category", request, user=user, category_id=cat_id, new_name=name)
+    flash("Category updated.", "success")
     return redirect(request.referrer or url_for("home"))
 
 
@@ -913,7 +921,9 @@ def admin_edit_user(user_id):
     elif action == "change_role":
         new_role = request.form.get("role", "")
         if new_role in ("user", "editor", "admin"):
-            if target["role"] == "admin" and new_role != "admin" and db.count_admins() <= 1:
+            if user_id == current_user["id"] and new_role != current_user["role"]:
+                flash("Cannot change your own role.", "error")
+            elif target["role"] == "admin" and new_role != "admin" and db.count_admins() <= 1:
                 flash("Cannot demote the last admin.", "error")
             else:
                 db.update_user(user_id, role=new_role)
@@ -1085,7 +1095,7 @@ def not_found(e):
 @app.errorhandler(403)
 def forbidden(e):
     categories, uncategorized = db.get_category_tree()
-    return render_template("wiki/404.html", categories=categories,
+    return render_template("wiki/403.html", categories=categories,
                            uncategorized=uncategorized), 403
 
 
