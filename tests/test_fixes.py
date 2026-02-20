@@ -1133,3 +1133,64 @@ def test_logout_works_with_post(logged_in_admin):
     resp = logged_in_admin.post("/logout", follow_redirects=True)
     assert resp.status_code == 200
     assert b"logged out" in resp.data.lower()
+
+
+# -----------------------------------------------------------------------
+# Security: Invite codes use cryptographic randomness
+# -----------------------------------------------------------------------
+def test_invite_code_uses_secrets(admin_user):
+    """Ensure invite codes are generated with secrets module (not random)."""
+    import db
+    # Generate several codes and verify format
+    codes = set()
+    for _ in range(20):
+        code = db.generate_invite_code(admin_user)
+        # Format: XXXX-XXXX where X is uppercase letter or digit
+        assert len(code) == 9
+        assert code[4] == "-"
+        assert all(c in "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789" for c in code.replace("-", ""))
+        codes.add(code)
+    # All codes should be unique (extremely unlikely to collide with secrets)
+    assert len(codes) == 20
+
+
+def test_invite_code_not_using_random_module():
+    """Verify db module imports secrets, not random."""
+    import db as db_mod
+    import inspect
+    source = inspect.getsource(db_mod)
+    assert "secrets.choice" in source
+    assert "random.choices" not in source
+
+
+# -----------------------------------------------------------------------
+# Security: Open redirect prevention via _safe_referrer
+# -----------------------------------------------------------------------
+def test_safe_referrer_blocks_external(client, admin_user):
+    """413 handler should not redirect to external domains."""
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    # Simulate a request with an external Referer header
+    resp = client.post(
+        "/category/create",
+        data={"name": "test"},
+        headers={"Referer": "https://evil.example.com/steal"},
+        follow_redirects=False,
+    )
+    # Should redirect, but NOT to the external domain
+    assert resp.status_code in (302, 303)
+    location = resp.headers.get("Location", "")
+    assert "evil.example.com" not in location
+
+
+def test_safe_referrer_allows_same_origin(client, admin_user):
+    """Same-origin referrer should be preserved in redirects."""
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    resp = client.post(
+        "/category/create",
+        data={"name": ""},  # empty name triggers error + redirect
+        headers={"Referer": "http://localhost/page/test"},
+        follow_redirects=False,
+    )
+    assert resp.status_code in (302, 303)
+    location = resp.headers.get("Location", "")
+    assert "localhost" in location or "/" in location

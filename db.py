@@ -5,7 +5,7 @@ BananaWiki – Database layer (SQLite)
 import sqlite3
 import os
 import string
-import random
+import secrets
 from datetime import datetime, timedelta, timezone
 
 import config
@@ -203,7 +203,7 @@ def count_admins():
 # ---------------------------------------------------------------------------
 def generate_invite_code(created_by):
     chars = string.ascii_uppercase + string.digits
-    code = "".join(random.choices(chars, k=4)) + "-" + "".join(random.choices(chars, k=4))
+    code = "".join(secrets.choice(chars) for _ in range(4)) + "-" + "".join(secrets.choice(chars) for _ in range(4))
     now = datetime.now(timezone.utc)
     expires = now + timedelta(hours=config.INVITE_CODE_EXPIRY_HOURS)
     conn = get_db()

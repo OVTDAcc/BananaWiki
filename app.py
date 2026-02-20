@@ -9,6 +9,7 @@ import json
 import sqlite3
 import functools
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 
 from flask import (
     Flask, render_template, request, redirect, url_for,
@@ -88,6 +89,17 @@ def allowed_file(filename):
 def _is_valid_hex_color(value):
     """Return True if value is a valid 7-char hex color like #aabbcc."""
     return bool(re.fullmatch(r"#[0-9a-fA-F]{6}", value))
+
+
+def _safe_referrer():
+    """Return request.referrer only if it is same-origin; otherwise return None."""
+    ref = request.referrer
+    if not ref:
+        return None
+    parsed = urlparse(ref)
+    if parsed.netloc and parsed.netloc != request.host:
+        return None
+    return ref
 
 
 def get_current_user():
@@ -763,22 +775,22 @@ def create_category():
         parent_id = int(parent_id) if parent_id else None
     except (TypeError, ValueError):
         flash("Invalid parent category.", "error")
-        return redirect(request.referrer or url_for("home"))
+        return redirect(_safe_referrer() or url_for("home"))
     if not name:
         flash("Category name is required.", "error")
-        return redirect(request.referrer or url_for("home"))
+        return redirect(_safe_referrer() or url_for("home"))
     if len(name) > 100:
         flash("Category name must be 100 characters or fewer.", "error")
-        return redirect(request.referrer or url_for("home"))
+        return redirect(_safe_referrer() or url_for("home"))
     if parent_id and not db.get_category(parent_id):
         flash("Selected parent category does not exist.", "error")
-        return redirect(request.referrer or url_for("home"))
+        return redirect(_safe_referrer() or url_for("home"))
     db.create_category(name, parent_id)
     user = get_current_user()
     log_action("create_category", request, user=user, category=name)
     notify_change("category_create", f"Category '{name}' created")
     flash("Category created.", "success")
-    return redirect(request.referrer or url_for("home"))
+    return redirect(_safe_referrer() or url_for("home"))
 
 
 @app.route("/category/<int:cat_id>/edit", methods=["POST"])
@@ -791,16 +803,16 @@ def edit_category(cat_id):
     name = request.form.get("name", "").strip()
     if not name:
         flash("Category name is required.", "error")
-        return redirect(request.referrer or url_for("home"))
+        return redirect(_safe_referrer() or url_for("home"))
     if len(name) > 100:
         flash("Category name must be 100 characters or fewer.", "error")
-        return redirect(request.referrer or url_for("home"))
+        return redirect(_safe_referrer() or url_for("home"))
     db.update_category(cat_id, name)
     user = get_current_user()
     log_action("edit_category", request, user=user, category_id=cat_id, new_name=name)
     notify_change("category_edit", f"Category {cat_id} renamed to '{name}'")
     flash("Category updated.", "success")
-    return redirect(request.referrer or url_for("home"))
+    return redirect(_safe_referrer() or url_for("home"))
 
 
 @app.route("/category/<int:cat_id>/delete", methods=["POST"])
@@ -815,7 +827,7 @@ def delete_category_route(cat_id):
     log_action("delete_category", request, user=user, category_id=cat_id)
     notify_change("category_delete", f"Category {cat_id} deleted")
     flash("Category deleted.", "success")
-    return redirect(request.referrer or url_for("home"))
+    return redirect(_safe_referrer() or url_for("home"))
 
 
 # ---------------------------------------------------------------------------
@@ -1233,7 +1245,7 @@ def forbidden(e):
 @app.errorhandler(413)
 def request_entity_too_large(e):
     flash("File too large. Maximum upload size is 16 MB.", "error")
-    return redirect(request.referrer or url_for("home"))
+    return redirect(_safe_referrer() or url_for("home"))
 
 
 # ---------------------------------------------------------------------------
