@@ -935,7 +935,10 @@ def upload_image():
     os.makedirs(config.UPLOAD_FOLDER, exist_ok=True)
     ext = f.filename.rsplit(".", 1)[1].lower()
     filename = f"{uuid.uuid4().hex}.{ext}"
-    filepath = os.path.join(config.UPLOAD_FOLDER, filename)
+    upload_root = os.path.abspath(config.UPLOAD_FOLDER)
+    filepath = os.path.abspath(os.path.normpath(os.path.join(upload_root, filename)))
+    if os.path.commonpath([upload_root, filepath]) != upload_root:
+        return jsonify({"error": "Invalid upload path"}), 400
     f.save(filepath)
     user = get_current_user()
     log_action("upload_image", request, user=user, filename=filename)
