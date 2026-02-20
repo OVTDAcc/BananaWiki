@@ -91,3 +91,17 @@ PAGE_HISTORY_ENABLED = False
 # =============================================================================
 # How long invite codes last before expiring (in hours)
 INVITE_CODE_EXPIRY_HOURS = 48
+
+# =============================================================================
+# Telegram Sync / Backup
+# =============================================================================
+# It is STRONGLY RECOMMENDED to enable sync so that runtime data (database,
+# uploads, config, logs) is automatically backed up to Telegram whenever a
+# significant change occurs (user signup, page edit, settings change, etc.).
+#
+# SYNC         – Enable or disable the sync feature (default: off)
+# SYNC_TOKEN   – Telegram Bot API token (from @BotFather)
+# SYNC_USERID  – Telegram user/chat ID to receive backups
+SYNC = False
+SYNC_TOKEN = ""
+SYNC_USERID = ""

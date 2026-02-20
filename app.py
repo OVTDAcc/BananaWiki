@@ -23,6 +23,7 @@ from PIL import Image
 import config
 import db
 from wiki_logger import log_request, log_action, get_logger
+from sync import notify_change
 
 app = Flask(
     __name__,
@@ -240,6 +241,7 @@ def setup():
             return render_template("auth/setup.html")
         db.update_site_settings(setup_done=1)
         log_action("setup_complete", request, username=username)
+        notify_change("setup_complete", f"Admin account '{username}' created")
         flash("Admin account created! Please log in.", "success")
         return redirect(url_for("login"))
 
@@ -335,6 +337,7 @@ def signup():
             return render_template("auth/signup.html")
 
         log_action("signup_success", request, username=username, invite_code=invite)
+        notify_change("user_signup", f"New user '{username}' registered")
         flash("Account created! Please log in.", "success")
         return redirect(url_for("login"))
 
@@ -379,6 +382,7 @@ def account_settings():
                 return redirect(url_for("account_settings"))
             else:
                 log_action("change_username", request, user=user, new_username=new_username)
+                notify_change("user_change_username", f"User '{user['username']}' renamed to '{new_username}'")
                 flash("Username updated.", "success")
         return redirect(url_for("account_settings"))
 
@@ -395,6 +399,7 @@ def account_settings():
         else:
             db.update_user(user["id"], password=generate_password_hash(new_pw))
             log_action("change_password", request, user=user)
+            notify_change("user_change_password", f"User '{user['username']}' changed password")
             flash("Password updated.", "success")
         return redirect(url_for("account_settings"))
 
@@ -407,6 +412,7 @@ def account_settings():
             flash("Cannot delete the last admin account.", "error")
             return redirect(url_for("account_settings"))
         log_action("delete_account", request, user=user)
+        notify_change("user_delete_account", f"User '{user['username']}' deleted their account")
         db.delete_user(user["id"])
         session.clear()
         flash("Your account has been deleted.", "info")
@@ -538,6 +544,7 @@ def revert_page(slug, entry_id):
     db.update_page(page["id"], entry["title"], entry["content"], user["id"],
                    f"Reverted to version from {entry['created_at']}")
     log_action("revert_page", request, user=user, page=slug, entry_id=entry_id)
+    notify_change("page_revert", f"Page '{slug}' reverted")
     flash("Page reverted.", "success")
     return redirect(url_for("view_page", slug=slug))
 
@@ -569,6 +576,7 @@ def edit_page(slug):
         db.update_page(page["id"], title, content, user["id"], edit_message)
         db.delete_draft(page["id"], user["id"])
         log_action("edit_page", request, user=user, page=slug, message=edit_message)
+        notify_change("page_edit", f"Page '{slug}' edited")
         flash("Page updated.", "success")
         if page["is_home"]:
             return redirect(url_for("home"))
@@ -603,6 +611,7 @@ def edit_page_title(slug):
     else:
         db.update_page_title(page["id"], new_title, user["id"])
         log_action("edit_page_title", request, user=user, page=slug, new_title=new_title)
+        notify_change("page_title_edit", f"Page '{slug}' title changed to '{new_title}'")
         flash("Title updated.", "success")
     if page["is_home"]:
         return redirect(url_for("home"))
@@ -656,6 +665,7 @@ def create_page():
             counter += 1
         db.create_page(title, slug, content, cat_id, user["id"])
         log_action("create_page", request, user=user, page=slug)
+        notify_change("page_create", f"Page '{slug}' created")
         flash("Page created.", "success")
         return redirect(url_for("view_page", slug=slug))
 
@@ -676,6 +686,7 @@ def delete_page_route(slug):
     user = get_current_user()
     db.delete_page(page["id"])
     log_action("delete_page", request, user=user, page=slug)
+    notify_change("page_delete", f"Page '{slug}' deleted")
     flash("Page deleted.", "success")
     return redirect(url_for("home"))
 
@@ -697,6 +708,7 @@ def move_page(slug):
         flash("Selected category does not exist.", "error")
         return redirect(url_for("view_page", slug=slug))
     db.update_page_category(page["id"], cat_id)
+    notify_change("page_move", f"Page '{slug}' moved")
     flash("Page moved.", "success")
     return redirect(url_for("view_page", slug=slug))
 
@@ -724,6 +736,7 @@ def create_category():
     db.create_category(name, parent_id)
     user = get_current_user()
     log_action("create_category", request, user=user, category=name)
+    notify_change("category_create", f"Category '{name}' created")
     flash("Category created.", "success")
     return redirect(request.referrer or url_for("home"))
 
@@ -745,6 +758,7 @@ def edit_category(cat_id):
     db.update_category(cat_id, name)
     user = get_current_user()
     log_action("edit_category", request, user=user, category_id=cat_id, new_name=name)
+    notify_change("category_edit", f"Category {cat_id} renamed to '{name}'")
     flash("Category updated.", "success")
     return redirect(request.referrer or url_for("home"))
 
@@ -759,6 +773,7 @@ def delete_category_route(cat_id):
     db.delete_category(cat_id)
     user = get_current_user()
     log_action("delete_category", request, user=user, category_id=cat_id)
+    notify_change("category_delete", f"Category {cat_id} deleted")
     flash("Category deleted.", "success")
     return redirect(request.referrer or url_for("home"))
 
@@ -897,6 +912,7 @@ def upload_image():
     f.save(filepath)
     user = get_current_user()
     log_action("upload_image", request, user=user, filename=filename)
+    notify_change("file_upload", f"Image '{filename}' uploaded")
     url = url_for("static", filename=f"uploads/{filename}")
     return jsonify({"url": url, "filename": filename})
 
@@ -915,6 +931,7 @@ def delete_upload():
     filepath = os.path.join(config.UPLOAD_FOLDER, safe_name)
     if os.path.isfile(filepath):
         os.remove(filepath)
+        notify_change("file_delete", f"Upload '{safe_name}' deleted")
     return jsonify({"ok": True})
 
 
@@ -963,6 +980,7 @@ def admin_edit_user(user_id):
                 else:
                     log_action("admin_change_username", request, user=current_user,
                                target_user=target["username"], new_username=new_name)
+                    notify_change("admin_change_username", f"User '{target['username']}' renamed to '{new_name}'")
                     flash("Username updated.", "success")
 
     elif action == "change_password":
@@ -976,6 +994,7 @@ def admin_edit_user(user_id):
             db.update_user(user_id, password=generate_password_hash(new_pw))
             log_action("admin_change_password", request, user=current_user,
                        target_user=target["username"])
+            notify_change("admin_change_password", f"Password changed for '{target['username']}'")
             flash("Password updated.", "success")
 
     elif action == "change_role":
@@ -990,6 +1009,7 @@ def admin_edit_user(user_id):
             db.update_user(user_id, role=new_role)
             log_action("admin_change_role", request, user=current_user,
                        target_user=target["username"], new_role=new_role)
+            notify_change("admin_change_role", f"User '{target['username']}' role changed to '{new_role}'")
             flash("Role updated.", "success")
 
     elif action == "suspend":
@@ -1001,12 +1021,14 @@ def admin_edit_user(user_id):
             db.update_user(user_id, suspended=1)
             log_action("admin_suspend", request, user=current_user,
                        target_user=target["username"])
+            notify_change("admin_suspend", f"User '{target['username']}' suspended")
             flash("User suspended.", "success")
 
     elif action == "unsuspend":
         db.update_user(user_id, suspended=0)
         log_action("admin_unsuspend", request, user=current_user,
                    target_user=target["username"])
+        notify_change("admin_unsuspend", f"User '{target['username']}' unsuspended")
         flash("User unsuspended.", "success")
 
     elif action == "delete":
@@ -1018,6 +1040,7 @@ def admin_edit_user(user_id):
             db.delete_user(user_id)
             log_action("admin_delete_user", request, user=current_user,
                        target_user=target["username"])
+            notify_change("admin_delete_user", f"User '{target['username']}' deleted")
             flash("User deleted.", "success")
 
     return redirect(url_for("admin_users"))
@@ -1056,6 +1079,7 @@ def admin_create_user():
         current_user = get_current_user()
         log_action("admin_create_user", request, user=current_user,
                    new_username=username, role=role)
+        notify_change("admin_create_user", f"User '{username}' created with role '{role}'")
         flash(f"User '{username}' created.", "success")
 
     return redirect(url_for("admin_users"))
@@ -1136,6 +1160,7 @@ def admin_settings():
         )
         user = get_current_user()
         log_action("update_settings", request, user=user, site_name=site_name)
+        notify_change("settings_update", f"Site settings updated (name='{site_name}')")
         flash("Settings updated.", "success")
         return redirect(url_for("admin_settings"))
 
