@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}{{ page.title }} – {{ settings.site_name }}{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>{{ page.title }}</h1>
+    {% if current_user and current_user.role in ('editor', 'admin') %}
+        <button class="btn-icon" onclick="document.getElementById('titleModal').style.display='flex'" title="Edit title">✏️</button>
+        {% if not page.is_home %}
+        <a href="{{ url_for('edit_page', slug=page.slug) }}" class="btn btn-sm">✏️ Edit</a>
+        <form method="POST" action="{{ url_for('delete_page_route', slug=page.slug) }}" style="display:inline" onsubmit="return confirm('Delete this page?')">
+            <button class="btn btn-sm btn-danger">🗑 Delete</button>
+        </form>
+        {% else %}
+        <a href="{{ url_for('edit_page', slug=page.slug) }}" class="btn btn-sm">✏️ Edit</a>
+        {% endif %}
+    {% endif %}
+</div>
+
+<div class="wiki-content">
+    {{ content_html|safe }}
+</div>
+
+{% if editor_info %}
+<div class="edit-info">
+    Last edit by <strong>{{ editor_info.username }}</strong> {{ editor_info.time_ago }}
+    · <a href="{{ url_for('page_history', slug=page.slug) }}">View history</a>
+</div>
+{% elif page.last_edited_at %}
+<div class="edit-info">
+    <a href="{{ url_for('page_history', slug=page.slug) }}">View history</a>
+</div>
+{% endif %}
+
+{% if current_user and current_user.role in ('editor', 'admin') %}
+<!-- Title edit modal -->
+<div class="modal" id="titleModal" style="display:none">
+    <div class="modal-content">
+        <h3>Edit Title</h3>
+        <form method="POST" action="{{ url_for('edit_page_title', slug=page.slug) }}">
+            <div class="form-group">
+                <label>Page Title</label>
+                <input type="text" name="title" value="{{ page.title }}" class="input" required>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn">Save</button>
+                <button type="button" class="btn btn-outline" onclick="this.closest('.modal').style.display='none'">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

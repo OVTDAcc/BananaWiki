@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}History: {{ page.title }} – {{ settings.site_name }}{% endblock %}
+{% block content %}
+<h1>History: {{ page.title }}</h1>
+<p style="margin-bottom:1rem"><a href="{{ url_for('view_page', slug=page.slug) }}">← Back to page</a></p>
+
+{% if history %}
+<table class="admin-table">
+    <thead>
+        <tr>
+            <th>Date</th>
+            <th>Editor</th>
+            <th>Summary</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for entry in history %}
+        <tr>
+            <td>{{ time_ago(entry.created_at) }}</td>
+            <td>{{ entry.username }}</td>
+            <td>{{ entry.edit_message or '—' }}</td>
+            <td>
+                <a href="{{ url_for('view_history_entry', slug=page.slug, entry_id=entry.id) }}" class="btn btn-sm btn-outline">View</a>
+                {% if current_user and current_user.role in ('editor', 'admin') %}
+                <form method="POST" action="{{ url_for('revert_page', slug=page.slug, entry_id=entry.id) }}" style="display:inline" onsubmit="return confirm('Revert to this version?')">
+                    <button class="btn btn-sm">Revert</button>
+                </form>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p style="opacity:.5">No history yet.</p>
+{% endif %}
+{% endblock %}

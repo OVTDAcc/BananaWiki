@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}Manage Users – {{ settings.site_name }}{% endblock %}
+{% block content %}
+<h1>Manage Users</h1>
+
+<div class="tabs">
+    <a href="{{ url_for('admin_users') }}" class="tab {% if not role_filter and not status_filter %}active{% endif %}">All</a>
+    <a href="{{ url_for('admin_users', role='admin') }}" class="tab {% if role_filter == 'admin' %}active{% endif %}">Admins</a>
+    <a href="{{ url_for('admin_users', role='editor') }}" class="tab {% if role_filter == 'editor' %}active{% endif %}">Editors</a>
+    <a href="{{ url_for('admin_users', role='user') }}" class="tab {% if role_filter == 'user' %}active{% endif %}">Users</a>
+    <a href="{{ url_for('admin_users', status='active') }}" class="tab {% if status_filter == 'active' %}active{% endif %}">Active</a>
+    <a href="{{ url_for('admin_users', status='suspended') }}" class="tab {% if status_filter == 'suspended' %}active{% endif %}">Suspended</a>
+</div>
+
+<!-- Create user -->
+<div class="settings-section" style="margin-bottom:1rem">
+    <h3>Create User</h3>
+    <form method="POST" action="{{ url_for('admin_create_user') }}" style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:flex-end">
+        <div class="form-group" style="margin-bottom:0">
+            <label>Username</label>
+            <input type="text" name="username" class="input input-sm" required minlength="3" style="width:140px">
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+            <label>Password</label>
+            <input type="password" name="password" class="input input-sm" required minlength="6" style="width:140px" autocomplete="new-password">
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+            <label>Confirm</label>
+            <input type="password" name="confirm_password" class="input input-sm" required minlength="6" style="width:140px" autocomplete="new-password">
+        </div>
+        <div class="form-group" style="margin-bottom:0">
+            <label>Role</label>
+            <select name="role" class="input input-sm" style="width:100px">
+                <option value="user">User</option>
+                <option value="editor">Editor</option>
+                <option value="admin">Admin</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-sm">Create</button>
+    </form>
+</div>
+
+<table class="admin-table">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Username</th>
+            <th>Role</th>
+            <th>Status</th>
+            <th>Invite Code</th>
+            <th>Created</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for u in users %}
+        <tr>
+            <td>{{ u.id }}</td>
+            <td>{{ u.username }}</td>
+            <td><span class="badge badge-{{ u.role }}">{{ u.role }}</span></td>
+            <td>
+                {% if u.suspended %}
+                <span class="badge badge-suspended">Suspended</span>
+                {% else %}
+                Active
+                {% endif %}
+            </td>
+            <td style="font-size:.8rem">{{ u.invite_code or '—' }}</td>
+            <td>{{ time_ago(u.created_at) }}</td>
+            <td>
+                <button class="btn btn-sm btn-outline" onclick="document.getElementById('editUser{{ u.id }}').style.display=document.getElementById('editUser{{ u.id }}').style.display==='none'?'table-row':'none'">Edit</button>
+            </td>
+        </tr>
+        <tr id="editUser{{ u.id }}" style="display:none;background:rgba(255,255,255,.02)">
+            <td colspan="7" style="padding:.8rem">
+                <div style="display:flex;gap:1rem;flex-wrap:wrap">
+                    <!-- Change username -->
+                    <form method="POST" action="{{ url_for('admin_edit_user', user_id=u.id) }}" class="inline-form">
+                        <input type="hidden" name="action" value="change_username">
+                        <input type="text" name="username" value="{{ u.username }}" class="input input-sm" style="width:120px">
+                        <button class="btn btn-sm">Rename</button>
+                    </form>
+                    <!-- Change password -->
+                    <form method="POST" action="{{ url_for('admin_edit_user', user_id=u.id) }}" class="inline-form">
+                        <input type="hidden" name="action" value="change_password">
+                        <input type="password" name="password" placeholder="New password" class="input input-sm" style="width:120px" autocomplete="new-password">
+                        <button class="btn btn-sm">Set PW</button>
+                    </form>
+                    <!-- Change role -->
+                    <form method="POST" action="{{ url_for('admin_edit_user', user_id=u.id) }}" class="inline-form">
+                        <input type="hidden" name="action" value="change_role">
+                        <select name="role" class="input input-sm" style="width:90px">
+                            <option value="user" {% if u.role == 'user' %}selected{% endif %}>User</option>
+                            <option value="editor" {% if u.role == 'editor' %}selected{% endif %}>Editor</option>
+                            <option value="admin" {% if u.role == 'admin' %}selected{% endif %}>Admin</option>
+                        </select>
+                        <button class="btn btn-sm">Set Role</button>
+                    </form>
+                    <!-- Suspend / Unsuspend -->
+                    {% if u.suspended %}
+                    <form method="POST" action="{{ url_for('admin_edit_user', user_id=u.id) }}">
+                        <input type="hidden" name="action" value="unsuspend">
+                        <button class="btn btn-sm">Unsuspend</button>
+                    </form>
+                    {% else %}
+                    <form method="POST" action="{{ url_for('admin_edit_user', user_id=u.id) }}" onsubmit="return confirm('Suspend this user?')">
+                        <input type="hidden" name="action" value="suspend">
+                        <button class="btn btn-sm btn-outline">Suspend</button>
+                    </form>
+                    {% endif %}
+                    <!-- Delete -->
+                    <form method="POST" action="{{ url_for('admin_edit_user', user_id=u.id) }}" onsubmit="return confirm('Delete this user permanently?')">
+                        <input type="hidden" name="action" value="delete">
+                        <button class="btn btn-sm btn-danger">Delete</button>
+                    </form>
+                </div>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Invite Codes – {{ settings.site_name }}{% endblock %}
+{% block content %}
+<h1>Invite Codes</h1>
+
+<div class="tabs">
+    <a href="{{ url_for('admin_codes') }}" class="tab active">Active Codes</a>
+    <a href="{{ url_for('admin_codes_expired') }}" class="tab">Expired / Used</a>
+</div>
+
+{% if current_user.role == 'admin' %}
+<form method="POST" action="{{ url_for('admin_generate_code') }}" style="margin-bottom:1rem">
+    <button type="submit" class="btn">+ Generate Invite Code</button>
+</form>
+{% endif %}
+
+{% if codes %}
+<table class="admin-table">
+    <thead>
+        <tr>
+            <th>Code</th>
+            <th>Created By</th>
+            <th>Created</th>
+            <th>Expires</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for c in codes %}
+        <tr>
+            <td style="font-family:monospace;font-weight:600">{{ c.code }}</td>
+            <td>{{ c.creator_name }}</td>
+            <td>{{ time_ago(c.created_at) }}</td>
+            <td>{{ time_ago(c.expires_at) }}</td>
+            <td>
+                <form method="POST" action="{{ url_for('admin_delete_code', code_id=c.id) }}" style="display:inline" onsubmit="return confirm('Delete this code?')">
+                    <button class="btn btn-sm btn-danger">Delete</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p style="opacity:.5">No active invite codes.</p>
+{% endif %}
+{% endblock %}

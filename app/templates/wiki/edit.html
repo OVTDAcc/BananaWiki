@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Edit: {{ page.title }} – {{ settings.site_name }}{% endblock %}
+{% block content %}
+<h1>Edit: {{ page.title }}</h1>
+
+{% if other_drafts %}
+<div class="draft-notice" id="other-drafts-notice">
+    ⚠️ Other users have drafts for this page:
+    {% for d in other_drafts %}
+    <strong>{{ d.username }}</strong> (updated {{ time_ago(d.updated_at) }})
+    <button class="btn btn-sm" onclick="transferDraft({{ page.id }}, {{ d.user_id }})">Transfer draft</button>
+    {% endfor %}
+</div>
+{% else %}
+<div class="draft-notice" id="other-drafts-notice" style="display:none"></div>
+{% endif %}
+
+{% if draft %}
+<div class="draft-notice">
+    📝 You have a saved draft (updated {{ time_ago(draft.updated_at) }}).
+    <button class="btn btn-sm btn-outline" onclick="deleteDraft({{ page.id }})">Discard draft</button>
+</div>
+{% endif %}
+
+<form method="POST" id="editForm">
+    <div class="form-group">
+        <label>Title</label>
+        <input type="text" name="title" id="edit-title" value="{{ draft.title if draft and draft.title else page.title }}" class="input">
+    </div>
+
+    <div class="editor-toolbar">
+        <button type="button" id="attach-btn" title="Attach image">📎 Attach</button>
+        <span id="save-indicator" style="margin-left:auto;font-size:.8rem;opacity:.6"></span>
+    </div>
+    <input type="file" id="file-input" accept="image/*" multiple style="display:none">
+    <div class="drop-zone" id="drop-zone">Drop images here or use the attach button</div>
+    <textarea name="content" id="edit-content" class="editor-area">{{ draft.content if draft and draft.content else page.content }}</textarea>
+
+    <div class="form-group" style="margin-top:.8rem">
+        <label>Edit summary (optional)</label>
+        <input type="text" name="edit_message" class="input" placeholder="Describe what you changed...">
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn">💾 Commit Changes</button>
+        <a href="{{ url_for('view_page', slug=page.slug) }}" class="btn btn-outline">Cancel</a>
+    </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        initAutosave({{ page.id }});
+        initImageUpload(document.getElementById('edit-content'));
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Account Settings – {{ settings.site_name }}{% endblock %}
+{% block content %}
+<h1>Account Settings</h1>
+
+<div class="settings-section">
+    <h3>Account Status</h3>
+    <p>Role: <span class="badge badge-{{ user.role }}">{{ user.role }}</span></p>
+    <p style="font-size:.85rem;opacity:.7">Member since {{ time_ago(user.created_at) }}</p>
+</div>
+
+<div class="settings-section">
+    <h3>Change Username</h3>
+    <form method="POST">
+        <input type="hidden" name="action" value="change_username">
+        <div class="form-group">
+            <label>New Username</label>
+            <input type="text" name="new_username" class="input" value="{{ user.username }}" required minlength="3">
+        </div>
+        <div class="form-group">
+            <label>Current Password</label>
+            <input type="password" name="password" class="input" required autocomplete="current-password">
+        </div>
+        <button type="submit" class="btn">Update Username</button>
+    </form>
+</div>
+
+<div class="settings-section">
+    <h3>Change Password</h3>
+    <form method="POST">
+        <input type="hidden" name="action" value="change_password">
+        <div class="form-group">
+            <label>Current Password</label>
+            <input type="password" name="current_password" class="input" required autocomplete="current-password">
+        </div>
+        <div class="form-group">
+            <label>New Password</label>
+            <input type="password" name="new_password" class="input" required minlength="6" autocomplete="new-password">
+        </div>
+        <div class="form-group">
+            <label>Confirm New Password</label>
+            <input type="password" name="confirm_password" class="input" required minlength="6" autocomplete="new-password">
+        </div>
+        <button type="submit" class="btn">Update Password</button>
+    </form>
+</div>
+
+{% if current_user.role in ('editor', 'admin') %}
+<div class="settings-section">
+    <h3>Admin Operations</h3>
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+        {% if current_user.role == 'admin' %}
+        <a href="{{ url_for('admin_users') }}" class="btn btn-outline">👥 Manage Users</a>
+        <a href="{{ url_for('admin_settings') }}" class="btn btn-outline">⚙ Site Settings</a>
+        {% endif %}
+        <a href="{{ url_for('admin_codes') }}" class="btn btn-outline">🔑 Invite Codes</a>
+    </div>
+</div>
+{% endif %}
+
+<div class="settings-section" style="border-color:#f38ba8">
+    <h3 style="color:#f38ba8">Delete Account</h3>
+    <p style="font-size:.85rem;margin-bottom:.8rem;opacity:.7">This action is irreversible. Your username will be freed for registration.</p>
+    <form method="POST" onsubmit="return confirm('Are you absolutely sure you want to delete your account?')">
+        <input type="hidden" name="action" value="delete_account">
+        <div class="form-group">
+            <label>Enter your password to confirm</label>
+            <input type="password" name="password" class="input" required autocomplete="current-password">
+        </div>
+        <button type="submit" class="btn btn-danger">Delete My Account</button>
+    </form>
+</div>
+{% endblock %}
