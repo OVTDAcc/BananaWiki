@@ -590,9 +590,9 @@ def edit_page(slug):
         if contributors:
             contributor_list = ", ".join(contributors)
             if edit_message:
-                edit_message = f"{edit_message} (contributors: {user['username']}, {contributor_list})"
+                edit_message = f"{edit_message} (contributors: {contributor_list})"
             else:
-                edit_message = f"Contributors: {user['username']}, {contributor_list}"
+                edit_message = f"Contributors: {contributor_list}"
 
         db.update_page(page["id"], title, content, user["id"], edit_message)
 

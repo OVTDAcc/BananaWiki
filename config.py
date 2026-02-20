@@ -82,8 +82,9 @@ LOG_FILE = os.path.join(BASE_DIR, "logs", "bananawiki.log")
 # =============================================================================
 # Page History
 # =============================================================================
-# Whether to enable the page history viewer and revert functionality.
-# When disabled, the "last edited by" info is still shown on pages.
+# Page history is always active. All page edits, title changes, and reverts are
+# logged and can be viewed. Rolling back a page creates a new history entry;
+# nothing is ever deleted from page history.
 PAGE_HISTORY_ENABLED = True
 
 # =============================================================================
