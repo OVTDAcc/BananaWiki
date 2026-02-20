@@ -48,6 +48,9 @@ ALLOWED_ATTRS = {
     "th": ["align"],
 }
 
+# Pre-computed dummy hash for constant-time login checks
+_DUMMY_HASH = generate_password_hash("dummy-constant-time-check")
+
 
 # ---------------------------------------------------------------------------
 #  Helpers
@@ -227,8 +230,8 @@ def login():
         user = db.get_user_by_username(username)
 
         if not user:
-            # Constant-time: run a dummy hash check to prevent timing enumeration
-            generate_password_hash("dummy")
+            # Constant-time: check against dummy hash to prevent timing enumeration
+            check_password_hash(_DUMMY_HASH, password)
             log_action("login_failed", request, username=username)
             flash("Invalid username or password.", "error")
             return render_template("auth/login.html")

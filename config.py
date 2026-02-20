@@ -51,6 +51,7 @@ def _load_secret_key():
     new_key = secrets.token_hex(32)
     with open(SECRET_KEY_FILE, "w", encoding="utf-8") as f:
         f.write(new_key)
+    os.chmod(SECRET_KEY_FILE, 0o600)
     return new_key
 
 
