@@ -14,6 +14,7 @@ from flask import (
     Flask, render_template, request, redirect, url_for,
     session, flash, jsonify, send_from_directory, abort,
 )
+from flask_wtf.csrf import CSRFProtect
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 import markdown
@@ -32,6 +33,10 @@ app = Flask(
 )
 app.secret_key = config.SECRET_KEY
 app.config["MAX_CONTENT_LENGTH"] = config.MAX_CONTENT_LENGTH
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+
+csrf = CSRFProtect(app)
 
 ALLOWED_TAGS = list(bleach.ALLOWED_TAGS) + [
     "h1", "h2", "h3", "h4", "h5", "h6",
@@ -200,6 +205,14 @@ def inject_globals():
 # ---------------------------------------------------------------------------
 #  Request hooks
 # ---------------------------------------------------------------------------
+@app.after_request
+def set_security_headers(response):
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
+
+
 @app.before_request
 def before_request_hook():
     settings = db.get_site_settings()
@@ -356,7 +369,7 @@ def signup():
     return render_template("auth/signup.html")
 
 
-@app.route("/logout")
+@app.route("/logout", methods=["POST"])
 def logout():
     user = get_current_user()
     if user:
