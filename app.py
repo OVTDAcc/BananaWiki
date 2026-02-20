@@ -6,6 +6,7 @@ import os
 import re
 import uuid
 import json
+import sqlite3
 import functools
 from datetime import datetime, timezone
 
@@ -132,7 +133,7 @@ def admin_required(f):
 
 
 def time_ago(dt_str):
-    """Return a human-readable 'X ago' string."""
+    """Return a human-readable 'X ago' or 'in X' string."""
     if not dt_str:
         return "never"
     try:
@@ -141,6 +142,20 @@ def time_ago(dt_str):
         return "unknown"
     diff = datetime.now(timezone.utc) - dt
     secs = int(diff.total_seconds())
+    if secs < 0:
+        # Future date
+        secs = abs(secs)
+        if secs < 60:
+            return "in a moment"
+        elif secs < 3600:
+            m = secs // 60
+            return f"in {m} minute{'s' if m != 1 else ''}"
+        elif secs < 86400:
+            h = secs // 3600
+            return f"in {h} hour{'s' if h != 1 else ''}"
+        else:
+            d = secs // 86400
+            return f"in {d} day{'s' if d != 1 else ''}"
     if secs < 60:
         return "just now"
     elif secs < 3600:
@@ -214,7 +229,11 @@ def setup():
         if settings["setup_done"]:
             flash("Setup already completed.", "info")
             return redirect(url_for("login"))
-        db.create_user(username, hashed, role="admin")
+        try:
+            db.create_user(username, hashed, role="admin")
+        except sqlite3.IntegrityError:
+            flash("Username already taken.", "error")
+            return render_template("auth/setup.html")
         db.update_site_settings(setup_done=1)
         log_action("setup_complete", request, username=username)
         flash("Admin account created! Please log in.", "success")
@@ -297,7 +316,11 @@ def signup():
             return render_template("auth/signup.html")
 
         hashed = generate_password_hash(password)
-        user_id = db.create_user(username, hashed, invite_code=invite)
+        try:
+            user_id = db.create_user(username, hashed, invite_code=invite)
+        except sqlite3.IntegrityError:
+            flash("Username already taken.", "error")
+            return render_template("auth/signup.html")
         db.use_invite_code(invite, user_id)
 
         log_action("signup_success", request, username=username, invite_code=invite)
@@ -572,6 +595,10 @@ def create_page():
             flash("Title is required.", "error")
             return render_template("wiki/create_page.html", categories=categories,
                                    uncategorized=uncategorized, all_categories=all_cats)
+        if cat_id and not db.get_category(cat_id):
+            flash("Selected category does not exist.", "error")
+            return render_template("wiki/create_page.html", categories=categories,
+                                   uncategorized=uncategorized, all_categories=all_cats)
         slug = slugify(title)
         # ensure unique slug
         base_slug = slug
@@ -614,6 +641,9 @@ def move_page(slug):
         abort(404)
     cat_id = request.form.get("category_id")
     cat_id = int(cat_id) if cat_id else None
+    if cat_id and not db.get_category(cat_id):
+        flash("Selected category does not exist.", "error")
+        return redirect(url_for("view_page", slug=slug))
     db.update_page_category(page["id"], cat_id)
     flash("Page moved.", "success")
     return redirect(url_for("view_page", slug=slug))
@@ -838,7 +868,9 @@ def admin_edit_user(user_id):
 
     if action == "change_username":
         new_name = request.form.get("username", "").strip()
-        if new_name and len(new_name) >= 3:
+        if not new_name or len(new_name) < 3:
+            flash("Username must be at least 3 characters.", "error")
+        else:
             existing = db.get_user_by_username(new_name)
             if existing and existing["id"] != user_id:
                 flash("Username already taken.", "error")
@@ -923,7 +955,11 @@ def admin_create_user():
         flash("Username already taken.", "error")
     else:
         hashed = generate_password_hash(password)
-        db.create_user(username, hashed, role=role)
+        try:
+            db.create_user(username, hashed, role=role)
+        except sqlite3.IntegrityError:
+            flash("Username already taken.", "error")
+            return redirect(url_for("admin_users"))
         current_user = get_current_user()
         log_action("admin_create_user", request, user=current_user,
                    new_username=username, role=role)
@@ -1028,6 +1064,12 @@ def forbidden(e):
     categories, uncategorized = db.get_category_tree()
     return render_template("wiki/404.html", categories=categories,
                            uncategorized=uncategorized), 403
+
+
+@app.errorhandler(413)
+def request_entity_too_large(e):
+    flash("File too large. Maximum upload size is 16 MB.", "error")
+    return redirect(request.referrer or url_for("home"))
 
 
 # ---------------------------------------------------------------------------
