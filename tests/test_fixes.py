@@ -900,3 +900,77 @@ def test_admin_change_password_success(logged_in_admin, admin_user):
                                 follow_redirects=True)
     assert resp.status_code == 200
     assert b"Password updated" in resp.data
+
+
+# -----------------------------------------------------------------------
+# UI Theme switching
+# -----------------------------------------------------------------------
+def test_theme_default_on_new_user(logged_in_admin):
+    import db
+    user = db.get_user_by_username("admin")
+    assert user["ui_theme"] == "default"
+
+
+def test_change_theme_github(logged_in_admin):
+    import db
+    resp = logged_in_admin.post("/account",
+                                data={"action": "change_theme", "theme": "github"},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"Theme updated" in resp.data
+    user = db.get_user_by_username("admin")
+    assert user["ui_theme"] == "github"
+
+
+def test_change_theme_hackernews(logged_in_admin):
+    import db
+    resp = logged_in_admin.post("/account",
+                                data={"action": "change_theme", "theme": "hackernews"},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"Theme updated" in resp.data
+    user = db.get_user_by_username("admin")
+    assert user["ui_theme"] == "hackernews"
+
+
+def test_change_theme_reddit(logged_in_admin):
+    import db
+    resp = logged_in_admin.post("/account",
+                                data={"action": "change_theme", "theme": "reddit"},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"Theme updated" in resp.data
+    user = db.get_user_by_username("admin")
+    assert user["ui_theme"] == "reddit"
+
+
+def test_change_theme_invalid(logged_in_admin):
+    import db
+    resp = logged_in_admin.post("/account",
+                                data={"action": "change_theme", "theme": "invalid_theme"},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"Invalid theme" in resp.data
+    user = db.get_user_by_username("admin")
+    assert user["ui_theme"] == "default"
+
+
+def test_theme_class_in_body(logged_in_admin):
+    import db
+    db.update_user(db.get_user_by_username("admin")["id"], ui_theme="github")
+    resp = logged_in_admin.get("/account")
+    assert b'class="theme-github"' in resp.data
+
+
+def test_theme_css_linked(logged_in_admin):
+    resp = logged_in_admin.get("/account")
+    assert b"themes.css" in resp.data
+
+
+def test_account_settings_shows_theme_selector(logged_in_admin):
+    resp = logged_in_admin.get("/account")
+    assert b"UI Theme" in resp.data
+    assert b"change_theme" in resp.data
+    assert b"github" in resp.data
+    assert b"hackernews" in resp.data
+    assert b"reddit" in resp.data

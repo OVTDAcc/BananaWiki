@@ -1,0 +1,519 @@
+/* ==========================================================================
+   BananaWiki – Switchable UI Themes
+   Three dark themes: GitHub, Hacker News, 2005 Reddit
+   Applied via body class: .theme-github, .theme-hackernews, .theme-reddit
+   ========================================================================== */
+
+/* ==========================================================================
+   1. GitHub Dark Theme
+   Developer-focused, clean lines, modern and minimal
+   ========================================================================== */
+.theme-github {
+    --primary: #58a6ff;
+    --secondary: #161b22;
+    --accent: #58a6ff;
+    --text: #c9d1d9;
+    --sidebar: #0d1117;
+    --bg: #0d1117;
+}
+
+.theme-github .topbar {
+    background: #161b22;
+    border-bottom: 1px solid #30363d;
+}
+
+.theme-github .sidebar {
+    border-right: 1px solid #30363d;
+}
+
+.theme-github .sidebar-header {
+    border-bottom: 1px solid #30363d;
+}
+
+.theme-github .nav-item:hover {
+    background: rgba(56, 139, 253, .06);
+}
+
+.theme-github .nav-item.active {
+    background: rgba(56, 139, 253, .1);
+    border-left-color: #58a6ff;
+}
+
+.theme-github .btn {
+    background: #238636;
+    color: #fff;
+    border-radius: 6px;
+}
+
+.theme-github .btn:hover {
+    background: #2ea043;
+}
+
+.theme-github .btn-outline {
+    background: transparent;
+    border: 1px solid #30363d;
+    color: #c9d1d9;
+}
+
+.theme-github .btn-outline:hover {
+    border-color: #58a6ff;
+    color: #58a6ff;
+}
+
+.theme-github .input {
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+}
+
+.theme-github .input:focus {
+    border-color: #58a6ff;
+    box-shadow: 0 0 0 3px rgba(56, 139, 253, .15);
+    background: #0d1117;
+}
+
+.theme-github .settings-section {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+}
+
+.theme-github .modal-content {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 12px;
+}
+
+.theme-github .admin-table th,
+.theme-github .admin-table td {
+    border-bottom: 1px solid #21262d;
+}
+
+.theme-github .admin-table tr:hover {
+    background: rgba(56, 139, 253, .04);
+}
+
+.theme-github .wiki-content pre {
+    background: #161b22;
+    border: 1px solid #30363d;
+}
+
+.theme-github .wiki-content code {
+    background: rgba(110, 118, 129, .2);
+    border-radius: 6px;
+}
+
+.theme-github .wiki-content th {
+    background: #161b22;
+}
+
+.theme-github .wiki-content th,
+.theme-github .wiki-content td {
+    border-color: #30363d;
+}
+
+.theme-github .wiki-content blockquote {
+    border-left-color: #30363d;
+    color: #8b949e;
+}
+
+.theme-github .auth-box {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 12px;
+}
+
+.theme-github .flash-success { background: rgba(46, 160, 67, .1); border-color: rgba(46, 160, 67, .3); color: #3fb950; }
+.theme-github .flash-error   { background: rgba(248, 81, 73, .1); border-color: rgba(248, 81, 73, .3); color: #f85149; }
+.theme-github .flash-warning { background: rgba(210, 153, 34, .1); border-color: rgba(210, 153, 34, .3); color: #d29922; }
+.theme-github .flash-info    { background: rgba(56, 139, 253, .1); border-color: rgba(56, 139, 253, .3); color: #58a6ff; }
+
+.theme-github .tabs {
+    border-bottom-color: #21262d;
+}
+
+.theme-github .tab.active {
+    border-bottom-color: #f78166;
+}
+
+.theme-github .editor-container {
+    border-color: #30363d;
+    border-radius: 6px;
+}
+
+.theme-github .editor-pane-header {
+    background: #161b22;
+    border-bottom-color: #30363d;
+}
+
+.theme-github .editor-toolbar {
+    background: #161b22;
+    border-bottom-color: #30363d;
+}
+
+.theme-github .editor-divider {
+    background: #30363d;
+}
+
+/* ==========================================================================
+   2. Hacker News Dark Theme
+   Colorful, text-dense, lightweight navigation
+   ========================================================================== */
+.theme-hackernews {
+    --primary: #ff6600;
+    --secondary: #1a1a2e;
+    --accent: #ff6600;
+    --text: #e0e0e0;
+    --sidebar: #12121f;
+    --bg: #0f0f1a;
+}
+
+.theme-hackernews .topbar {
+    background: #ff6600;
+    border-bottom: 2px solid #cc5200;
+}
+
+.theme-hackernews .topbar-left .logo {
+    color: #000;
+    font-weight: 700;
+    letter-spacing: 0;
+}
+
+.theme-hackernews .topbar-right .btn,
+.theme-hackernews .topbar-right .btn-outline {
+    color: #000;
+    border-color: rgba(0, 0, 0, .3);
+    font-weight: 600;
+}
+
+.theme-hackernews .user-info {
+    color: #000;
+    opacity: .7;
+}
+
+.theme-hackernews .sidebar {
+    border-right: 1px solid #2a2a40;
+}
+
+.theme-hackernews .sidebar-header {
+    border-bottom: 1px solid #2a2a40;
+    color: #ff6600;
+    opacity: .8;
+}
+
+.theme-hackernews .nav-item {
+    font-size: .84rem;
+    padding: .3rem .8rem .3rem 1rem;
+    line-height: 1.6;
+}
+
+.theme-hackernews .nav-item:hover {
+    background: rgba(255, 102, 0, .08);
+}
+
+.theme-hackernews .nav-item.active {
+    background: rgba(255, 102, 0, .12);
+    border-left-color: #ff6600;
+}
+
+.theme-hackernews a {
+    color: #ff6600;
+}
+
+.theme-hackernews .btn {
+    background: #ff6600;
+    color: #000;
+    border-radius: 3px;
+    font-weight: 700;
+}
+
+.theme-hackernews .btn:hover {
+    background: #e65c00;
+}
+
+.theme-hackernews .btn-outline {
+    background: transparent;
+    border: 1px solid #ff6600;
+    color: #ff6600;
+}
+
+.theme-hackernews .btn-outline:hover {
+    background: rgba(255, 102, 0, .1);
+}
+
+.theme-hackernews .input {
+    background: #12121f;
+    border: 1px solid #2a2a40;
+    border-radius: 2px;
+}
+
+.theme-hackernews .input:focus {
+    border-color: #ff6600;
+    background: #15152a;
+}
+
+.theme-hackernews .settings-section {
+    background: #1a1a2e;
+    border: 1px solid #2a2a40;
+    border-radius: 3px;
+}
+
+.theme-hackernews .modal-content {
+    background: #1a1a2e;
+    border: 1px solid #2a2a40;
+    border-radius: 4px;
+}
+
+.theme-hackernews .admin-table th,
+.theme-hackernews .admin-table td {
+    border-bottom: 1px solid #2a2a40;
+}
+
+.theme-hackernews .admin-table tr:hover {
+    background: rgba(255, 102, 0, .04);
+}
+
+.theme-hackernews .wiki-content pre {
+    background: #12121f;
+    border: 1px solid #2a2a40;
+    border-radius: 2px;
+}
+
+.theme-hackernews .wiki-content code {
+    background: rgba(255, 102, 0, .1);
+}
+
+.theme-hackernews .wiki-content th {
+    background: rgba(255, 102, 0, .05);
+}
+
+.theme-hackernews .wiki-content th,
+.theme-hackernews .wiki-content td {
+    border-color: #2a2a40;
+}
+
+.theme-hackernews .wiki-content blockquote {
+    border-left-color: #ff6600;
+}
+
+.theme-hackernews .auth-box {
+    background: #1a1a2e;
+    border: 1px solid #2a2a40;
+    border-radius: 4px;
+}
+
+.theme-hackernews .flash-success { background: rgba(100, 200, 100, .08); border-color: rgba(100, 200, 100, .25); color: #64c864; }
+.theme-hackernews .flash-error   { background: rgba(255, 80, 80, .08); border-color: rgba(255, 80, 80, .25); color: #ff5050; }
+.theme-hackernews .flash-warning { background: rgba(255, 170, 50, .08); border-color: rgba(255, 170, 50, .25); color: #ffaa32; }
+.theme-hackernews .flash-info    { background: rgba(255, 102, 0, .08); border-color: rgba(255, 102, 0, .25); color: #ff6600; }
+
+.theme-hackernews .tabs {
+    border-bottom-color: #2a2a40;
+}
+
+.theme-hackernews .tab.active {
+    border-bottom-color: #ff6600;
+}
+
+.theme-hackernews .editor-container {
+    border-color: #2a2a40;
+    border-radius: 2px;
+}
+
+.theme-hackernews .editor-pane-header {
+    background: #1a1a2e;
+    border-bottom-color: #2a2a40;
+}
+
+.theme-hackernews .editor-toolbar {
+    background: #1a1a2e;
+    border-bottom-color: #2a2a40;
+}
+
+.theme-hackernews .editor-divider {
+    background: #2a2a40;
+}
+
+.theme-hackernews .badge-admin { background: rgba(255, 102, 0, .15); color: #ff6600; }
+.theme-hackernews .badge-editor { background: rgba(100, 180, 255, .15); color: #64b4ff; }
+.theme-hackernews .badge-user { background: rgba(100, 200, 100, .15); color: #64c864; }
+
+/* ==========================================================================
+   3. 2005 Reddit Dark Theme
+   Boxy, retro, classic forum aesthetic
+   ========================================================================== */
+.theme-reddit {
+    --primary: #ff4500;
+    --secondary: #1a1a1b;
+    --accent: #4fbcff;
+    --text: #d7dadc;
+    --sidebar: #1a1a1b;
+    --bg: #030303;
+}
+
+.theme-reddit .topbar {
+    background: #1a1a1b;
+    border-bottom: 2px solid #343536;
+}
+
+.theme-reddit .topbar-left .logo {
+    color: #ff4500;
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 1rem;
+    letter-spacing: 1px;
+}
+
+.theme-reddit .sidebar {
+    border-right: 2px solid #343536;
+}
+
+.theme-reddit .sidebar-header {
+    border-bottom: 2px solid #343536;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.theme-reddit .nav-item:hover {
+    background: rgba(255, 69, 0, .06);
+}
+
+.theme-reddit .nav-item.active {
+    background: rgba(255, 69, 0, .1);
+    border-left: 3px solid #ff4500;
+}
+
+.theme-reddit a {
+    color: #4fbcff;
+}
+
+.theme-reddit .btn {
+    background: #ff4500;
+    color: #fff;
+    border-radius: 9999px;
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: .78rem;
+    letter-spacing: .5px;
+    padding: .45rem 1rem;
+}
+
+.theme-reddit .btn:hover {
+    background: #e63e00;
+}
+
+.theme-reddit .btn-outline {
+    background: transparent;
+    border: 1px solid #d7dadc;
+    color: #d7dadc;
+    border-radius: 9999px;
+    text-transform: uppercase;
+    font-size: .78rem;
+    letter-spacing: .5px;
+}
+
+.theme-reddit .btn-outline:hover {
+    border-color: #ff4500;
+    color: #ff4500;
+}
+
+.theme-reddit .input {
+    background: #272729;
+    border: 1px solid #343536;
+    border-radius: 4px;
+}
+
+.theme-reddit .input:focus {
+    border-color: #ff4500;
+    background: #272729;
+}
+
+.theme-reddit .settings-section {
+    background: #1a1a1b;
+    border: 1px solid #343536;
+    border-radius: 4px;
+}
+
+.theme-reddit .modal-content {
+    background: #1a1a1b;
+    border: 1px solid #343536;
+    border-radius: 8px;
+}
+
+.theme-reddit .admin-table th,
+.theme-reddit .admin-table td {
+    border-bottom: 1px solid #343536;
+}
+
+.theme-reddit .admin-table tr:hover {
+    background: rgba(255, 69, 0, .04);
+}
+
+.theme-reddit .wiki-content h2 {
+    border-bottom-color: #343536;
+}
+
+.theme-reddit .wiki-content pre {
+    background: #272729;
+    border: 1px solid #343536;
+}
+
+.theme-reddit .wiki-content code {
+    background: rgba(215, 218, 220, .1);
+}
+
+.theme-reddit .wiki-content th {
+    background: #272729;
+}
+
+.theme-reddit .wiki-content th,
+.theme-reddit .wiki-content td {
+    border-color: #343536;
+}
+
+.theme-reddit .wiki-content blockquote {
+    border-left: 3px solid #ff4500;
+    background: rgba(255, 69, 0, .03);
+}
+
+.theme-reddit .auth-box {
+    background: #1a1a1b;
+    border: 1px solid #343536;
+    border-radius: 8px;
+}
+
+.theme-reddit .flash-success { background: rgba(70, 209, 96, .08); border-color: rgba(70, 209, 96, .25); color: #46d160; }
+.theme-reddit .flash-error   { background: rgba(255, 69, 0, .08); border-color: rgba(255, 69, 0, .25); color: #ff4500; }
+.theme-reddit .flash-warning { background: rgba(255, 176, 0, .08); border-color: rgba(255, 176, 0, .25); color: #ffb000; }
+.theme-reddit .flash-info    { background: rgba(79, 188, 255, .08); border-color: rgba(79, 188, 255, .25); color: #4fbcff; }
+
+.theme-reddit .tabs {
+    border-bottom-color: #343536;
+}
+
+.theme-reddit .tab.active {
+    border-bottom-color: #ff4500;
+}
+
+.theme-reddit .editor-container {
+    border-color: #343536;
+    border-radius: 4px;
+}
+
+.theme-reddit .editor-pane-header {
+    background: #1a1a1b;
+    border-bottom-color: #343536;
+}
+
+.theme-reddit .editor-toolbar {
+    background: #1a1a1b;
+    border-bottom-color: #343536;
+}
+
+.theme-reddit .editor-divider {
+    background: #343536;
+}
+
+.theme-reddit .badge-admin { background: rgba(255, 69, 0, .15); color: #ff4500; }
+.theme-reddit .badge-editor { background: rgba(79, 188, 255, .15); color: #4fbcff; }
+.theme-reddit .badge-user { background: rgba(70, 209, 96, .15); color: #46d160; }

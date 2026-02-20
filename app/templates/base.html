@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}{{ settings.site_name }}{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/themes.css') }}">
     <style>
         :root {
             --primary: {{ settings.primary_color }};
@@ -16,7 +17,7 @@
         }
     </style>
 </head>
-<body>
+<body class="theme-{{ user_theme }}">
     <header class="topbar">
         <div class="topbar-left">
             {% if current_user %}

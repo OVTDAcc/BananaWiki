@@ -38,6 +38,8 @@ def init_db():
                             CHECK(role IN ('user','editor','admin')),
         suspended   INTEGER NOT NULL DEFAULT 0,
         invite_code TEXT,
+        ui_theme    TEXT    NOT NULL DEFAULT 'default'
+                            CHECK(ui_theme IN ('default','github','hackernews','reddit')),
         created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
     );
 
@@ -109,6 +111,13 @@ def init_db():
     INSERT OR IGNORE INTO site_settings (id) VALUES (1);
     """)
 
+    # Migration: add ui_theme column to existing users table
+    cols = [r[1] for r in cur.execute("PRAGMA table_info(users)").fetchall()]
+    if "ui_theme" not in cols:
+        cur.execute(
+            "ALTER TABLE users ADD COLUMN ui_theme TEXT NOT NULL DEFAULT 'default'"
+        )
+
     # Ensure home page exists
     home = cur.execute("SELECT id FROM pages WHERE is_home=1").fetchone()
     if not home:
@@ -151,7 +160,7 @@ def get_user_by_username(username):
     return user
 
 
-_ALLOWED_USER_COLUMNS = {"username", "password", "role", "suspended"}
+_ALLOWED_USER_COLUMNS = {"username", "password", "role", "suspended", "ui_theme"}
 
 
 def update_user(user_id, **kwargs):

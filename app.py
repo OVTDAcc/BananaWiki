@@ -176,11 +176,13 @@ def time_ago(dt_str):
 def inject_globals():
     settings = db.get_site_settings()
     user = get_current_user()
+    user_theme = user["ui_theme"] if user else "default"
     return {
         "current_user": user,
         "settings": settings,
         "time_ago": time_ago,
         "page_history_enabled": config.PAGE_HISTORY_ENABLED,
+        "user_theme": user_theme,
     }
 
 
@@ -396,6 +398,15 @@ def account_settings():
             db.update_user(user["id"], password=generate_password_hash(new_pw))
             log_action("change_password", request, user=user)
             flash("Password updated.", "success")
+        return redirect(url_for("account_settings"))
+
+    if action == "change_theme":
+        new_theme = request.form.get("theme", "default")
+        if new_theme not in ("default", "github", "hackernews", "reddit"):
+            flash("Invalid theme.", "error")
+        else:
+            db.update_user(user["id"], ui_theme=new_theme)
+            flash("Theme updated.", "success")
         return redirect(url_for("account_settings"))
 
     if action == "delete_account":

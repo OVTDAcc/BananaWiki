@@ -10,6 +10,20 @@
 </div>
 
 <div class="settings-section">
+    <h3>UI Theme</h3>
+    <p style="font-size:.85rem;opacity:.7;margin-bottom:.8rem">Choose a visual style for your interface.</p>
+    <form method="POST">
+        <input type="hidden" name="action" value="change_theme">
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+            <button type="submit" name="theme" value="default" class="btn {% if user.ui_theme == 'default' %}{% else %}btn-outline{% endif %}">🎨 Default</button>
+            <button type="submit" name="theme" value="github" class="btn {% if user.ui_theme == 'github' %}{% else %}btn-outline{% endif %}">🐙 GitHub</button>
+            <button type="submit" name="theme" value="hackernews" class="btn {% if user.ui_theme == 'hackernews' %}{% else %}btn-outline{% endif %}">📰 Hacker News</button>
+            <button type="submit" name="theme" value="reddit" class="btn {% if user.ui_theme == 'reddit' %}{% else %}btn-outline{% endif %}">👽 Reddit 2005</button>
+        </div>
+    </form>
+</div>
+
+<div class="settings-section">
     <h3>Change Username</h3>
     <form method="POST">
         <input type="hidden" name="action" value="change_username">
