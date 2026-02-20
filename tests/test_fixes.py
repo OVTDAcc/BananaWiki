@@ -1346,3 +1346,57 @@ def test_delete_upload_path_traversal_blocked(logged_in_admin):
     assert resp.status_code in (200, 400)
     if resp.status_code == 400:
         assert data["error"] == "invalid filename"
+
+
+# -----------------------------------------------------------------------
+# Security: Content-Security-Policy header is set
+# -----------------------------------------------------------------------
+def test_csp_header_present(logged_in_admin):
+    """Responses should include a Content-Security-Policy header."""
+    resp = logged_in_admin.get("/")
+    csp = resp.headers.get("Content-Security-Policy", "")
+    assert "default-src 'self'" in csp
+    assert "script-src" in csp
+    assert "object-src 'none'" in csp
+    assert "base-uri 'self'" in csp
+    assert "form-action 'self'" in csp
+
+
+# -----------------------------------------------------------------------
+# Security: Log sanitization covers path, method, and IP
+# -----------------------------------------------------------------------
+def test_log_sanitize_covers_all_request_fields():
+    """log_request should sanitize path, method, and IP — not just UA."""
+    import inspect
+    from wiki_logger import log_request
+    source = inspect.getsource(log_request)
+    # Verify _sanitize is applied to path, method, and remote_addr
+    assert "_sanitize(request.remote_addr" in source or "_sanitize(request.remote_addr or" in source
+    assert "_sanitize(request.method)" in source
+    assert "_sanitize(request.path)" in source
+
+
+def test_log_action_sanitizes_ip_and_action():
+    """log_action should sanitize the IP and action parameter."""
+    import inspect
+    from wiki_logger import log_action
+    source = inspect.getsource(log_action)
+    assert "_sanitize(request.remote_addr" in source or "_sanitize(request.remote_addr or" in source
+    assert "_sanitize(action)" in source
+
+
+def test_log_sanitize_prevents_injection_at_runtime():
+    """Verify _sanitize actually strips newlines from values at runtime."""
+    from wiki_logger import _sanitize
+    # Simulate a malicious path with newline injection
+    malicious_path = "/page/test\nFAKE ACTION | user=admin action=admin_delete_user"
+    sanitized = _sanitize(malicious_path)
+    assert "\n" not in sanitized
+    assert "\r" not in sanitized
+    # The sanitized value should be a single line
+    assert sanitized == "/page/testFAKE ACTION | user=admin action=admin_delete_user"
+
+    # Simulate a malicious action string
+    malicious_action = "login_success\nACTION  | user=admin action=delete_all"
+    sanitized = _sanitize(malicious_action)
+    assert "\n" not in sanitized
