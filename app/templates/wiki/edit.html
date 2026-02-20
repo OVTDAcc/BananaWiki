@@ -96,7 +96,7 @@
         function updatePreview() {
             fetch('/api/preview', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
                 body: JSON.stringify({ content: content.value })
             })
             .then(function(r) { return r.json(); })

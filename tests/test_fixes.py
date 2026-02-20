@@ -1075,3 +1075,61 @@ def test_sync_caption_includes_descriptions(tmp_path, monkeypatch):
     body_text = captured["data"].decode("utf-8", errors="replace")
     assert "Details" in body_text
     assert "Page 'test' edited" in body_text
+
+
+# -----------------------------------------------------------------------
+# Security: CSRF protection is enabled
+# -----------------------------------------------------------------------
+def test_csrf_protection_enabled():
+    from app import app, csrf
+    assert csrf is not None
+
+
+def test_csrf_rejects_post_without_token():
+    """POST requests without a CSRF token should be rejected (400)."""
+    from app import app
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = True
+    with app.test_client() as c:
+        import db
+        from werkzeug.security import generate_password_hash
+        db.create_user("csrfadmin", generate_password_hash("admin123"), role="admin")
+        db.update_site_settings(setup_done=1)
+        c.post("/login", data={"username": "csrfadmin", "password": "admin123",
+                               "csrf_token": "invalid"})
+        # Without a valid CSRF token, a POST should be rejected
+        resp = c.post("/create-page", data={"title": "Bad", "content": "x"})
+        assert resp.status_code == 400
+
+
+# -----------------------------------------------------------------------
+# Security: Security headers are set
+# -----------------------------------------------------------------------
+def test_security_headers(logged_in_admin):
+    resp = logged_in_admin.get("/")
+    assert resp.headers.get("X-Content-Type-Options") == "nosniff"
+    assert resp.headers.get("X-Frame-Options") == "SAMEORIGIN"
+    assert resp.headers.get("Referrer-Policy") == "strict-origin-when-cross-origin"
+
+
+# -----------------------------------------------------------------------
+# Security: Session cookie configuration
+# -----------------------------------------------------------------------
+def test_session_cookie_config():
+    from app import app
+    assert app.config.get("SESSION_COOKIE_HTTPONLY") is True
+    assert app.config.get("SESSION_COOKIE_SAMESITE") == "Lax"
+
+
+# -----------------------------------------------------------------------
+# Security: Logout requires POST
+# -----------------------------------------------------------------------
+def test_logout_rejects_get(logged_in_admin):
+    resp = logged_in_admin.get("/logout")
+    assert resp.status_code == 405
+
+
+def test_logout_works_with_post(logged_in_admin):
+    resp = logged_in_admin.post("/logout", follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"logged out" in resp.data.lower()

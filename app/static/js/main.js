@@ -1,5 +1,11 @@
 /* BananaWiki – Main JS */
 
+// CSRF token helper
+function getCsrfToken() {
+    var meta = document.querySelector('meta[name="csrf-token"]');
+    return meta ? meta.getAttribute('content') : '';
+}
+
 // Auto-dismiss flash messages after 5 seconds
 document.addEventListener('DOMContentLoaded', function() {
     setTimeout(function() {
@@ -111,7 +117,7 @@ function initAutosave(pageId) {
     function doSave() {
         fetch('/api/draft/save', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
             body: JSON.stringify({
                 page_id: pageId,
                 title: titleEl.value,
@@ -180,7 +186,7 @@ function transferDraft(pageId, fromUserId) {
     if (!confirm('Transfer this draft to your account? Your current draft will be replaced.')) return;
     fetch('/api/draft/transfer', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
         body: JSON.stringify({ page_id: pageId, from_user_id: fromUserId })
     }).then(function(r) {
         if (!r.ok) throw new Error('Transfer failed');
@@ -195,7 +201,7 @@ function transferDraft(pageId, fromUserId) {
 function deleteDraft(pageId) {
     fetch('/api/draft/delete', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
         body: JSON.stringify({ page_id: pageId })
     }).then(function(r) {
         if (!r.ok) throw new Error('Delete failed');
@@ -216,6 +222,7 @@ function initImageUpload(contentEl) {
     function uploadFile(file) {
         var fd = new FormData();
         fd.append('file', file);
+        fd.append('csrf_token', getCsrfToken());
         return fetch('/api/upload', { method: 'POST', body: fd })
             .then(function(r) { return r.json().then(function(data) { return { ok: r.ok, data: data }; }); })
             .then(function(result) {
