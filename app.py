@@ -17,6 +17,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 import markdown
 import bleach
+from PIL import Image
 
 import config
 import db
@@ -40,7 +41,7 @@ ALLOWED_TAGS = list(bleach.ALLOWED_TAGS) + [
     "del", "ins", "sup", "sub",
 ]
 ALLOWED_ATTRS = {
-    "*": ["class", "id", "style"],
+    "*": ["class", "id"],
     "a": ["href", "title", "target", "rel"],
     "img": ["src", "alt", "title", "width", "height"],
     "td": ["align"],
@@ -55,7 +56,7 @@ def render_markdown(text):
     """Convert markdown to sanitised HTML."""
     html = markdown.markdown(
         text,
-        extensions=["tables", "fenced_code", "codehilite", "toc", "nl2br"],
+        extensions=["tables", "fenced_code", "toc", "nl2br"],
     )
     return bleach.clean(html, tags=ALLOWED_TAGS, attributes=ALLOWED_ATTRS)
 
@@ -197,6 +198,11 @@ def setup():
             return render_template("auth/setup.html")
 
         hashed = generate_password_hash(password)
+        # Re-check setup_done to prevent race condition
+        settings = db.get_site_settings()
+        if settings["setup_done"]:
+            flash("Setup already completed.", "info")
+            return redirect(url_for("login"))
         db.create_user(username, hashed, role="admin")
         db.update_site_settings(setup_done=1)
         log_action("setup_complete", request, username=username)
@@ -220,7 +226,14 @@ def login():
         password = request.form.get("password", "")
         user = db.get_user_by_username(username)
 
-        if not user or not check_password_hash(user["password"], password):
+        if not user:
+            # Constant-time: run a dummy hash check to prevent timing enumeration
+            generate_password_hash("dummy")
+            log_action("login_failed", request, username=username)
+            flash("Invalid username or password.", "error")
+            return render_template("auth/login.html")
+
+        if not check_password_hash(user["password"], password):
             log_action("login_failed", request, username=username)
             flash("Invalid username or password.", "error")
             return render_template("auth/login.html")
@@ -646,9 +659,18 @@ def api_save_draft():
     if not data:
         return jsonify({"error": "invalid request"}), 400
     page_id = data.get("page_id")
+    if page_id is None:
+        return jsonify({"error": "missing page_id"}), 400
+    try:
+        page_id = int(page_id)
+    except (TypeError, ValueError):
+        return jsonify({"error": "invalid page_id"}), 400
     title = data.get("title", "")
     content = data.get("content", "")
     user = get_current_user()
+    page = db.get_page(page_id)
+    if not page:
+        return jsonify({"error": "page not found"}), 404
     db.save_draft(page_id, user["id"], title, content)
     return jsonify({"ok": True})
 
@@ -685,7 +707,17 @@ def api_transfer_draft():
         return jsonify({"error": "invalid request"}), 400
     page_id = data.get("page_id")
     from_user = data.get("from_user_id")
+    try:
+        page_id = int(page_id)
+        from_user = int(from_user)
+    except (TypeError, ValueError):
+        return jsonify({"error": "invalid page_id or from_user_id"}), 400
     user = get_current_user()
+    if from_user == user["id"]:
+        return jsonify({"error": "cannot transfer draft from yourself"}), 400
+    source_draft = db.get_draft(page_id, from_user)
+    if not source_draft:
+        return jsonify({"error": "draft not found"}), 404
     db.transfer_draft(page_id, from_user, user["id"])
     log_action("transfer_draft", request, user=user, page_id=page_id, from_user=from_user)
     return jsonify({"ok": True})
@@ -716,6 +748,13 @@ def upload_image():
     f = request.files["file"]
     if not f.filename or not allowed_file(f.filename):
         return jsonify({"error": "Invalid file type"}), 400
+    # Validate that the file is a genuine image by reading it with Pillow
+    try:
+        img = Image.open(f.stream)
+        img.verify()
+        f.stream.seek(0)
+    except Exception:
+        return jsonify({"error": "File is not a valid image"}), 400
     os.makedirs(config.UPLOAD_FOLDER, exist_ok=True)
     ext = f.filename.rsplit(".", 1)[1].lower()
     filename = f"{uuid.uuid4().hex}.{ext}"

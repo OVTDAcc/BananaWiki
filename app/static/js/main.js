@@ -27,11 +27,20 @@ function initAutosave(pageId) {
                 title: titleEl.value,
                 content: contentEl.value
             })
-        }).then(function(r) { return r.json(); }).then(function(d) {
+        }).then(function(r) {
+            if (!r.ok) throw new Error('Save failed');
+            return r.json();
+        }).then(function(d) {
             var indicator = document.getElementById('save-indicator');
             if (indicator) {
                 indicator.textContent = 'Draft saved';
                 setTimeout(function() { indicator.textContent = ''; }, 2000);
+            }
+        }).catch(function(err) {
+            var indicator = document.getElementById('save-indicator');
+            if (indicator) {
+                indicator.textContent = 'Save error';
+                setTimeout(function() { indicator.textContent = ''; }, 3000);
             }
         });
     }
@@ -47,18 +56,33 @@ function initAutosave(pageId) {
     // Check for other drafts periodically
     setInterval(function() {
         fetch('/api/draft/others/' + pageId)
-            .then(function(r) { return r.json(); })
+            .then(function(r) {
+                if (!r.ok) throw new Error('Failed to check drafts');
+                return r.json();
+            })
             .then(function(drafts) {
                 var notice = document.getElementById('other-drafts-notice');
                 if (notice && drafts.length > 0) {
-                    var names = drafts.map(function(d) { return d.username; }).join(', ');
-                    notice.innerHTML = '⚠️ Other users editing this page: ' + names +
-                        drafts.map(function(d) {
-                            return ' <button class="btn btn-sm" onclick="transferDraft(' + pageId + ',' + d.user_id + ')">Transfer ' + d.username + '\'s draft</button>';
-                        }).join('');
+                    notice.innerHTML = '';
+                    notice.appendChild(document.createTextNode('\u26A0\uFE0F Other users editing this page: '));
+                    drafts.forEach(function(d, idx) {
+                        if (idx > 0) notice.appendChild(document.createTextNode(', '));
+                        notice.appendChild(document.createTextNode(d.username));
+                    });
+                    drafts.forEach(function(d) {
+                        notice.appendChild(document.createTextNode(' '));
+                        var btn = document.createElement('button');
+                        btn.className = 'btn btn-sm';
+                        btn.textContent = "Transfer " + d.username + "'s draft";
+                        btn.addEventListener('click', function() {
+                            transferDraft(pageId, d.user_id);
+                        });
+                        notice.appendChild(btn);
+                    });
                     notice.style.display = 'block';
                 }
-            });
+            })
+            .catch(function() { /* silently ignore polling errors */ });
     }, 10000);
 }
 
@@ -68,8 +92,13 @@ function transferDraft(pageId, fromUserId) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ page_id: pageId, from_user_id: fromUserId })
-    }).then(function(r) { return r.json(); }).then(function() {
+    }).then(function(r) {
+        if (!r.ok) throw new Error('Transfer failed');
+        return r.json();
+    }).then(function() {
         location.reload();
+    }).catch(function() {
+        alert('Failed to transfer draft.');
     });
 }
 
@@ -78,8 +107,13 @@ function deleteDraft(pageId) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ page_id: pageId })
-    }).then(function(r) { return r.json(); }).then(function() {
+    }).then(function(r) {
+        if (!r.ok) throw new Error('Delete failed');
+        return r.json();
+    }).then(function() {
         location.reload();
+    }).catch(function() {
+        alert('Failed to delete draft.');
     });
 }
 

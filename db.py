@@ -44,7 +44,7 @@ def init_db():
     CREATE TABLE IF NOT EXISTS invite_codes (
         id          INTEGER PRIMARY KEY AUTOINCREMENT,
         code        TEXT    NOT NULL UNIQUE,
-        created_by  INTEGER NOT NULL REFERENCES users(id),
+        created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
         created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
         expires_at  TEXT    NOT NULL,
         used_by     INTEGER REFERENCES users(id),
@@ -69,7 +69,7 @@ def init_db():
         category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
         is_home     INTEGER NOT NULL DEFAULT 0,
         sort_order  INTEGER NOT NULL DEFAULT 0,
-        last_edited_by INTEGER REFERENCES users(id),
+        last_edited_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
         last_edited_at TEXT,
         created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
     );
@@ -79,7 +79,7 @@ def init_db():
         page_id     INTEGER NOT NULL REFERENCES pages(id) ON DELETE CASCADE,
         title       TEXT    NOT NULL,
         content     TEXT    NOT NULL,
-        edited_by   INTEGER NOT NULL REFERENCES users(id),
+        edited_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
         edit_message TEXT   NOT NULL DEFAULT '',
         created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
     );
@@ -255,17 +255,17 @@ def list_invite_codes(active_only=True):
     now = datetime.now(timezone.utc).isoformat()
     if active_only:
         rows = conn.execute(
-            "SELECT ic.*, u.username AS creator_name FROM invite_codes ic "
-            "JOIN users u ON ic.created_by=u.id "
+            "SELECT ic.*, COALESCE(u.username, 'deleted user') AS creator_name FROM invite_codes ic "
+            "LEFT JOIN users u ON ic.created_by=u.id "
             "WHERE ic.used_by IS NULL AND ic.deleted=0 AND ic.expires_at > ? "
             "ORDER BY ic.created_at DESC",
             (now,),
         ).fetchall()
     else:
         rows = conn.execute(
-            "SELECT ic.*, u.username AS creator_name, u2.username AS used_by_name "
+            "SELECT ic.*, COALESCE(u.username, 'deleted user') AS creator_name, u2.username AS used_by_name "
             "FROM invite_codes ic "
-            "JOIN users u ON ic.created_by=u.id "
+            "LEFT JOIN users u ON ic.created_by=u.id "
             "LEFT JOIN users u2 ON ic.used_by=u2.id "
             "ORDER BY ic.created_at DESC"
         ).fetchall()
@@ -277,9 +277,9 @@ def list_expired_codes():
     conn = get_db()
     now = datetime.now(timezone.utc).isoformat()
     rows = conn.execute(
-        "SELECT ic.*, u.username AS creator_name, u2.username AS used_by_name "
+        "SELECT ic.*, COALESCE(u.username, 'deleted user') AS creator_name, u2.username AS used_by_name "
         "FROM invite_codes ic "
-        "JOIN users u ON ic.created_by=u.id "
+        "LEFT JOIN users u ON ic.created_by=u.id "
         "LEFT JOIN users u2 ON ic.used_by=u2.id "
         "WHERE ic.used_by IS NOT NULL OR ic.deleted=1 OR ic.expires_at <= ? "
         "ORDER BY ic.created_at DESC",
@@ -446,8 +446,8 @@ def delete_page(page_id):
 def get_page_history(page_id):
     conn = get_db()
     rows = conn.execute(
-        "SELECT ph.*, u.username FROM page_history ph "
-        "JOIN users u ON ph.edited_by=u.id "
+        "SELECT ph.*, COALESCE(u.username, 'deleted user') AS username FROM page_history ph "
+        "LEFT JOIN users u ON ph.edited_by=u.id "
         "WHERE ph.page_id=? ORDER BY ph.created_at DESC",
         (page_id,),
     ).fetchall()
@@ -505,19 +505,15 @@ def delete_draft(page_id, user_id):
 
 
 def transfer_draft(page_id, from_user, to_user):
-    """Transfer a draft from one user to another."""
+    """Transfer a draft from one user to another (atomic)."""
     conn = get_db()
-    draft = conn.execute(
-        "SELECT * FROM drafts WHERE page_id=? AND user_id=?", (page_id, from_user)
-    ).fetchone()
-    if draft:
-        now = datetime.now(timezone.utc).isoformat()
-        conn.execute("DELETE FROM drafts WHERE page_id=? AND user_id=?", (page_id, to_user))
-        conn.execute(
-            "UPDATE drafts SET user_id=?, updated_at=? WHERE page_id=? AND user_id=?",
-            (to_user, now, page_id, from_user),
-        )
-        conn.commit()
+    now = datetime.now(timezone.utc).isoformat()
+    conn.execute("DELETE FROM drafts WHERE page_id=? AND user_id=?", (page_id, to_user))
+    conn.execute(
+        "UPDATE drafts SET user_id=?, updated_at=? WHERE page_id=? AND user_id=?",
+        (to_user, now, page_id, from_user),
+    )
+    conn.commit()
     conn.close()
 
 

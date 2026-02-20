@@ -51,15 +51,21 @@ def log_request(request, user=None):
     )
 
 
+_SENSITIVE_FIELDS = {"password", "current_password", "new_password",
+                     "confirm_password", "secret", "token", "session"}
+
+
 def log_action(action, request, user=None, **details):
-    """Log a specific action with extra detail."""
+    """Log a specific action with extra detail (sensitive fields are redacted)."""
     if not config.LOGGING_ENABLED:
         return
     logger = get_logger()
     ip = request.remote_addr
     now = datetime.now(timezone.utc).isoformat()
     username = user["username"] if user else "anonymous"
-    detail_str = " ".join(f"{k}={v}" for k, v in details.items())
+    safe_details = {k: ("***" if k in _SENSITIVE_FIELDS else v)
+                    for k, v in details.items()}
+    detail_str = " ".join(f"{k}={v}" for k, v in safe_details.items())
     logger.info(
         f"ACTION  | time={now} ip={ip} user={username} action={action} {detail_str}"
     )
