@@ -287,3 +287,120 @@ def test_admin_create_user_duplicate(logged_in_admin, admin_user):
     }, follow_redirects=True)
     assert resp.status_code == 200
     assert b"already taken" in resp.data
+
+
+# -----------------------------------------------------------------------
+# Fix 15: Create page with non-numeric category_id doesn't crash
+# -----------------------------------------------------------------------
+def test_create_page_nonnumeric_category(logged_in_admin):
+    resp = logged_in_admin.post("/create-page",
+                                data={"title": "Test Page", "content": "test",
+                                      "category_id": "abc"},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"Invalid category" in resp.data
+
+
+# -----------------------------------------------------------------------
+# Fix 16: Move page with non-numeric category_id doesn't crash
+# -----------------------------------------------------------------------
+def test_move_page_nonnumeric_category(logged_in_admin):
+    import db
+    db.create_page("Test Move2", "test-move2", "content", user_id=1)
+    resp = logged_in_admin.post("/page/test-move2/move",
+                                data={"category_id": "abc"},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"Invalid category" in resp.data
+
+
+# -----------------------------------------------------------------------
+# Fix 17: Create category with non-numeric parent_id doesn't crash
+# -----------------------------------------------------------------------
+def test_create_category_nonnumeric_parent(logged_in_admin):
+    resp = logged_in_admin.post("/category/create",
+                                data={"name": "TestCat", "parent_id": "abc"},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"Invalid parent category" in resp.data
+
+
+# -----------------------------------------------------------------------
+# Fix 18: Admin settings rejects overly long site name
+# -----------------------------------------------------------------------
+def test_admin_settings_rejects_long_site_name(logged_in_admin):
+    resp = logged_in_admin.post("/admin/settings", data={
+        "site_name": "A" * 101,
+        "primary_color": "#aabbcc",
+        "secondary_color": "#112233",
+        "accent_color": "#445566",
+        "text_color": "#778899",
+        "sidebar_color": "#001122",
+        "bg_color": "#334455",
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"100 characters" in resp.data
+
+
+# -----------------------------------------------------------------------
+# Fix 19: Admin cannot demote the last admin (self)
+# -----------------------------------------------------------------------
+def test_admin_cannot_demote_last_admin(logged_in_admin, admin_user):
+    resp = logged_in_admin.post(f"/admin/users/{admin_user}/edit",
+                                data={"action": "change_role", "role": "user"},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"Cannot demote the last admin" in resp.data
+
+
+# -----------------------------------------------------------------------
+# Fix 20: Move page to uncategorized (empty category_id) works
+# -----------------------------------------------------------------------
+def test_move_page_to_uncategorized(logged_in_admin):
+    import db
+    cat_id = db.create_category("TempCat")
+    db.create_page("TestMove3", "test-move3", "content", category_id=cat_id, user_id=1)
+    resp = logged_in_admin.post("/page/test-move3/move",
+                                data={"category_id": ""},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"Page moved" in resp.data
+    page = db.get_page_by_slug("test-move3")
+    assert page["category_id"] is None
+
+
+# -----------------------------------------------------------------------
+# Fix 21: Signup with empty invite code shows error
+# -----------------------------------------------------------------------
+def test_signup_empty_invite_code(client, admin_user):
+    resp = client.post("/signup", data={
+        "username": "newuser",
+        "password": "password123",
+        "confirm_password": "password123",
+        "invite_code": "",
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"All fields are required" in resp.data
+
+
+# -----------------------------------------------------------------------
+# Fix 22: Login with empty fields shows error
+# -----------------------------------------------------------------------
+def test_login_empty_fields(client, admin_user):
+    resp = client.post("/login", data={
+        "username": "",
+        "password": "password123",
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"Invalid username or password" in resp.data
+
+
+# -----------------------------------------------------------------------
+# Fix 23: Deleting last admin account from account settings is blocked
+# -----------------------------------------------------------------------
+def test_last_admin_cannot_delete_own_account(logged_in_admin, admin_user):
+    resp = logged_in_admin.post("/account",
+                                data={"action": "delete_account", "password": "admin123"},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"Cannot delete the last admin" in resp.data

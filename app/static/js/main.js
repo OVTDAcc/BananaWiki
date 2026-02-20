@@ -127,15 +127,23 @@ function initImageUpload(contentEl) {
         var fd = new FormData();
         fd.append('file', file);
         return fetch('/api/upload', { method: 'POST', body: fd })
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-                if (data.url) {
+            .then(function(r) { return r.json().then(function(data) { return { ok: r.ok, data: data }; }); })
+            .then(function(result) {
+                if (!result.ok || result.data.error) {
+                    alert('Upload failed: ' + (result.data.error || 'Unknown error'));
+                    return result.data;
+                }
+                if (result.data.url) {
                     var pos = contentEl.selectionStart || contentEl.value.length;
-                    var md = '\n![' + file.name + '](' + data.url + ')\n';
+                    var md = '\n![' + file.name + '](' + result.data.url + ')\n';
                     contentEl.value = contentEl.value.substring(0, pos) + md + contentEl.value.substring(pos);
                     contentEl.dispatchEvent(new Event('input'));
                 }
-                return data;
+                return result.data;
+            })
+            .catch(function(err) {
+                console.error('Upload error:', err);
+                alert('Upload failed: could not reach server.');
             });
     }
 
