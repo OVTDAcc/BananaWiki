@@ -84,7 +84,7 @@ LOG_FILE = os.path.join(BASE_DIR, "logs", "bananawiki.log")
 # =============================================================================
 # Whether to enable the page history viewer and revert functionality.
 # When disabled, the "last edited by" info is still shown on pages.
-PAGE_HISTORY_ENABLED = False
+PAGE_HISTORY_ENABLED = True
 
 # =============================================================================
 # Invite Codes

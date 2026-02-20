@@ -3,7 +3,7 @@
 {% block content %}
 <h1>{{ entry.title }}</h1>
 <p style="margin-bottom:1rem;font-size:.85rem;opacity:.7">
-    Saved {{ time_ago(entry.created_at) }}
+    Saved <span title="{{ format_datetime(entry.created_at) }}">{{ time_ago(entry.created_at) }}</span>
     · <a href="{{ url_for('page_history', slug=page.slug) }}">← Back to history</a>
 </p>
 <div class="wiki-content">
