@@ -174,3 +174,116 @@ def test_admin_settings_accepts_valid_colors(logged_in_admin):
     }, follow_redirects=True)
     assert resp.status_code == 200
     assert b"Settings updated" in resp.data
+
+
+# -----------------------------------------------------------------------
+# Fix 9: time_ago handles future dates
+# -----------------------------------------------------------------------
+def test_time_ago_future_dates():
+    from app import time_ago
+    from datetime import datetime, timezone, timedelta
+    future = (datetime.now(timezone.utc) + timedelta(hours=5)).isoformat()
+    result = time_ago(future)
+    assert result.startswith("in ")
+    assert "hour" in result
+
+    far_future = (datetime.now(timezone.utc) + timedelta(days=3)).isoformat()
+    result = time_ago(far_future)
+    assert result.startswith("in ")
+    assert "day" in result
+
+
+def test_time_ago_edge_cases():
+    from app import time_ago
+    assert time_ago(None) == "never"
+    assert time_ago("") == "never"
+    assert time_ago("not-a-date") == "unknown"
+
+
+# -----------------------------------------------------------------------
+# Fix 10: Admin rename user with invalid username shows error
+# -----------------------------------------------------------------------
+def test_admin_rename_user_short_username(logged_in_admin, admin_user):
+    from werkzeug.security import generate_password_hash
+    import db
+    uid = db.create_user("testuser", generate_password_hash("pass123"), role="user")
+    resp = logged_in_admin.post(f"/admin/users/{uid}/edit",
+                                data={"action": "change_username", "username": "ab"},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"Username must be at least 3 characters" in resp.data
+
+
+def test_admin_rename_user_empty_username(logged_in_admin, admin_user):
+    from werkzeug.security import generate_password_hash
+    import db
+    uid = db.create_user("testuser2", generate_password_hash("pass123"), role="user")
+    resp = logged_in_admin.post(f"/admin/users/{uid}/edit",
+                                data={"action": "change_username", "username": ""},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"Username must be at least 3 characters" in resp.data
+
+
+# -----------------------------------------------------------------------
+# Fix 11: Create page with invalid category shows error
+# -----------------------------------------------------------------------
+def test_create_page_invalid_category(logged_in_admin):
+    resp = logged_in_admin.post("/create-page",
+                                data={"title": "Test Page", "content": "test",
+                                      "category_id": "9999"},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"Selected category does not exist" in resp.data
+
+
+# -----------------------------------------------------------------------
+# Fix 12: Move page to invalid category shows error
+# -----------------------------------------------------------------------
+def test_move_page_invalid_category(logged_in_admin):
+    import db
+    db.create_page("Test Move", "test-move", "content", user_id=1)
+    resp = logged_in_admin.post("/page/test-move/move",
+                                data={"category_id": "9999"},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"Selected category does not exist" in resp.data
+
+
+# -----------------------------------------------------------------------
+# Fix 13: Signup handles IntegrityError gracefully
+# -----------------------------------------------------------------------
+def test_signup_duplicate_username_race(client, admin_user):
+    import db
+    from werkzeug.security import generate_password_hash
+    # Generate a valid invite code
+    code = db.generate_invite_code(admin_user)
+    # Pre-create the user to simulate a race
+    db.create_user("raceuser", generate_password_hash("pass123"))
+
+    resp = client.post("/signup", data={
+        "username": "raceuser",
+        "password": "password123",
+        "confirm_password": "password123",
+        "invite_code": code,
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"already taken" in resp.data
+
+
+# -----------------------------------------------------------------------
+# Fix 14: Admin create user handles IntegrityError gracefully
+# -----------------------------------------------------------------------
+def test_admin_create_user_duplicate(logged_in_admin, admin_user):
+    import db
+    from werkzeug.security import generate_password_hash
+    db.create_user("dupuser", generate_password_hash("pass123"))
+
+    resp = logged_in_admin.post("/admin/users/create", data={
+        "username": "dupuser",
+        "password": "password123",
+        "confirm_password": "password123",
+        "role": "user",
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"already taken" in resp.data
