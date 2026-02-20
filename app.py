@@ -590,7 +590,12 @@ def create_page():
         title = request.form.get("title", "").strip()
         content = request.form.get("content", "")
         cat_id = request.form.get("category_id")
-        cat_id = int(cat_id) if cat_id else None
+        try:
+            cat_id = int(cat_id) if cat_id else None
+        except (TypeError, ValueError):
+            flash("Invalid category.", "error")
+            return render_template("wiki/create_page.html", categories=categories,
+                                   uncategorized=uncategorized, all_categories=all_cats)
         if not title:
             flash("Title is required.", "error")
             return render_template("wiki/create_page.html", categories=categories,
@@ -640,7 +645,11 @@ def move_page(slug):
     if not page:
         abort(404)
     cat_id = request.form.get("category_id")
-    cat_id = int(cat_id) if cat_id else None
+    try:
+        cat_id = int(cat_id) if cat_id else None
+    except (TypeError, ValueError):
+        flash("Invalid category.", "error")
+        return redirect(url_for("view_page", slug=slug))
     if cat_id and not db.get_category(cat_id):
         flash("Selected category does not exist.", "error")
         return redirect(url_for("view_page", slug=slug))
@@ -655,7 +664,11 @@ def move_page(slug):
 def create_category():
     name = request.form.get("name", "").strip()
     parent_id = request.form.get("parent_id")
-    parent_id = int(parent_id) if parent_id else None
+    try:
+        parent_id = int(parent_id) if parent_id else None
+    except (TypeError, ValueError):
+        flash("Invalid parent category.", "error")
+        return redirect(request.referrer or url_for("home"))
     if name:
         db.create_category(name, parent_id)
         user = get_current_user()
@@ -1022,6 +1035,9 @@ def admin_delete_code(code_id):
 def admin_settings():
     if request.method == "POST":
         site_name = request.form.get("site_name", "").strip() or "BananaWiki"
+        if len(site_name) > 100:
+            flash("Site name must be 100 characters or fewer.", "error")
+            return redirect(url_for("admin_settings"))
         color_fields = {
             "primary_color": request.form.get("primary_color", "#7c8dc6"),
             "secondary_color": request.form.get("secondary_color", "#151520"),
@@ -1075,7 +1091,8 @@ def request_entity_too_large(e):
 # ---------------------------------------------------------------------------
 #  Main
 # ---------------------------------------------------------------------------
+db.init_db()
+get_logger()
+
 if __name__ == "__main__":
-    db.init_db()
-    get_logger()
     app.run(host=config.HOST, port=config.PORT, debug=False)
