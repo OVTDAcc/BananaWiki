@@ -7,6 +7,7 @@
         <button class="btn-icon" onclick="document.getElementById('titleModal').style.display='flex'" title="Edit title">Edit title</button>
         {% if not page.is_home %}
         <a href="{{ url_for('edit_page', slug=page.slug) }}" class="btn btn-sm">Edit</a>
+        <button class="btn btn-sm btn-outline" onclick="document.getElementById('moveModal').style.display='flex'">Move</button>
         <form method="POST" action="{{ url_for('delete_page_route', slug=page.slug) }}" style="display:inline" onsubmit="return confirm('Delete this page?')">
             <button class="btn btn-sm btn-danger">Delete</button>
         </form>
@@ -50,5 +51,28 @@
         </form>
     </div>
 </div>
+{% if not page.is_home %}
+<!-- Move page modal -->
+<div class="modal" id="moveModal" style="display:none">
+    <div class="modal-content">
+        <h3>Move Page</h3>
+        <form method="POST" action="{{ url_for('move_page', slug=page.slug) }}">
+            <div class="form-group">
+                <label>Category</label>
+                <select name="category_id" class="input">
+                    <option value="" {% if not page.category_id %}selected{% endif %}>Uncategorized</option>
+                    {% for cat in all_categories %}
+                    <option value="{{ cat.id }}" {% if page.category_id == cat.id %}selected{% endif %}>{{ cat.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn">Move</button>
+                <button type="button" class="btn btn-outline" onclick="this.closest('.modal').style.display='none'">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
 {% endif %}
 {% endblock %}
