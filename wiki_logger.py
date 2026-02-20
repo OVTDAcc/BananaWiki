@@ -5,11 +5,16 @@ Logs requests, actions and events in detail.
 
 import logging
 import os
+import re
 from datetime import datetime, timezone
 
 import config
 
+
 _logger = None
+
+# Pattern to strip characters that could forge log entries
+_LOG_UNSAFE_RE = re.compile(r"[\r\n\x00-\x1f\x7f]")
 
 
 def get_logger():
@@ -36,6 +41,11 @@ def get_logger():
     return _logger
 
 
+def _sanitize(value):
+    """Strip control characters (newlines, etc.) to prevent log injection."""
+    return _LOG_UNSAFE_RE.sub("", str(value))
+
+
 def log_request(request, user=None):
     """Log an incoming HTTP request."""
     if not config.LOGGING_ENABLED:
@@ -44,8 +54,8 @@ def log_request(request, user=None):
     ip = request.remote_addr
     method = request.method
     path = request.path
-    ua = request.headers.get("User-Agent", "")
-    username = user["username"] if user else "anonymous"
+    ua = _sanitize(request.headers.get("User-Agent", ""))
+    username = _sanitize(user["username"]) if user else "anonymous"
     logger.info(
         f"REQUEST | ip={ip} method={method} path={path} user={username} ua={ua}"
     )
@@ -62,8 +72,8 @@ def log_action(action, request, user=None, **details):
     logger = get_logger()
     ip = request.remote_addr
     now = datetime.now(timezone.utc).isoformat()
-    username = user["username"] if user else "anonymous"
-    safe_details = {k: ("***" if k in _SENSITIVE_FIELDS else v)
+    username = _sanitize(user["username"]) if user else "anonymous"
+    safe_details = {k: ("***" if k in _SENSITIVE_FIELDS else _sanitize(v))
                     for k, v in details.items()}
     detail_str = " ".join(f"{k}={v}" for k, v in safe_details.items())
     logger.info(
