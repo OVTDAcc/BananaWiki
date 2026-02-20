@@ -8,7 +8,7 @@
 
 {% if other_drafts %}
 <div class="draft-notice" id="other-drafts-notice">
-    ⚠ Other users have drafts for this page:
+    Warning: Other users have drafts for this page:
     {% for d in other_drafts %}
     <strong>{{ d.username }}</strong> (updated {{ time_ago(d.updated_at) }})
     <button class="btn btn-sm" onclick="transferDraft({{ page.id }}, {{ d.user_id }})">Transfer draft</button>
@@ -20,7 +20,7 @@
 
 {% if draft %}
 <div class="draft-notice">
-    📝 You have a saved draft (updated {{ time_ago(draft.updated_at) }}).
+    You have a saved draft (updated {{ time_ago(draft.updated_at) }}).
     <button class="btn btn-sm btn-outline" onclick="deleteDraft({{ page.id }})">Discard draft</button>
 </div>
 {% endif %}
@@ -48,11 +48,11 @@
                 <button type="button" onclick="insertLine('- ')" title="Bullet list">•&nbsp;List</button>
                 <button type="button" onclick="insertLine('1. ')" title="Numbered list">1.&nbsp;List</button>
                 <button type="button" onclick="insertFormat('\n```\n','\n```\n')" title="Code block">&lt;/&gt;</button>
-                <button type="button" onclick="insertFormat('[','](url)')" title="Link">🔗</button>
-                <button type="button" onclick="insertLine('> ')" title="Blockquote">❝</button>
+                <button type="button" onclick="insertFormat('[','](url)')" title="Link">Link</button>
+                <button type="button" onclick="insertLine('> ')" title="Blockquote">Quote</button>
                 <button type="button" onclick="insertLine('---')" title="Horizontal rule">─</button>
                 <span class="sep"></span>
-                <button type="button" id="attach-btn" title="Attach image">📎 Image</button>
+                <button type="button" id="attach-btn" title="Attach image">Attach Image</button>
             </div>
             <div class="drop-zone" id="drop-zone">Drop images here</div>
             <textarea name="content" id="edit-content" class="editor-area">{{ draft.content if draft and draft.content else page.content }}</textarea>

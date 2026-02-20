@@ -19,12 +19,17 @@
 <body>
     <header class="topbar">
         <div class="topbar-left">
+            {% if current_user %}
+            <button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle sidebar">
+                <span></span><span></span><span></span>
+            </button>
+            {% endif %}
             <a href="{{ url_for('home') }}" class="logo">{{ settings.site_name }}</a>
         </div>
         <div class="topbar-right">
             {% if current_user %}
                 <span class="user-info">{{ current_user.username }} ({{ current_user.role }})</span>
-                <a href="{{ url_for('account_settings') }}" class="btn btn-sm">⚙ Account</a>
+                <a href="{{ url_for('account_settings') }}" class="btn btn-sm">Account</a>
                 <a href="{{ url_for('logout') }}" class="btn btn-sm btn-outline">Logout</a>
             {% endif %}
         </div>
@@ -36,13 +41,13 @@
                 <span>Explorer</span>
                 {% if current_user and current_user.role in ('editor', 'admin') %}
                 <div class="sidebar-actions">
-                    <button class="btn-icon" onclick="document.getElementById('createCatModal').style.display='flex'" title="New Category">+📁</button>
-                    <a href="{{ url_for('create_page') }}" class="btn-icon" title="New Page">+📄</a>
+                    <button class="btn-icon" onclick="document.getElementById('createCatModal').style.display='flex'" title="New Category">+ Folder</button>
+                    <a href="{{ url_for('create_page') }}" class="btn-icon" title="New Page">+ Page</a>
                 </div>
                 {% endif %}
             </div>
             <nav class="sidebar-nav">
-                <a href="{{ url_for('home') }}" class="nav-item {% if page and page.is_home %}active{% endif %}">🏠 Home</a>
+                <a href="{{ url_for('home') }}" class="nav-item {% if page and page.is_home %}active{% endif %}">Home</a>
                 {% for cat in categories %}
                     {% include "wiki/_category.html" %}
                 {% endfor %}
@@ -51,13 +56,15 @@
                     <span class="nav-section-title">Uncategorized</span>
                     {% for p in uncategorized %}
                     <a href="{{ url_for('view_page', slug=p.slug) }}" class="nav-item {% if page and page.id == p.id %}active{% endif %}">
-                        📄 {{ p.title }}
+                        {{ p.title }}
                     </a>
                     {% endfor %}
                 </div>
                 {% endif %}
             </nav>
         </aside>
+        <div class="sidebar-resize-handle" id="sidebar-resize-handle"></div>
+        <div class="sidebar-overlay" id="sidebar-overlay"></div>
         {% endif %}
         <main class="content">
             {% with messages = get_flashed_messages(with_categories=true) %}
