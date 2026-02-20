@@ -13,15 +13,59 @@ document.addEventListener('DOMContentLoaded', function() {
     var toggleBtn = document.getElementById('sidebar-toggle');
     var sidebar = document.getElementById('sidebar');
     var overlay = document.getElementById('sidebar-overlay');
+
+    // Helper to get the first focusable element inside a container
+    function getFirstFocusableElement(container) {
+        if (!container) return null;
+        return container.querySelector(
+            'a[href], button:not([disabled]), textarea:not([disabled]), ' +
+            'input:not([disabled]), select:not([disabled]), ' +
+            '[tabindex]:not([tabindex="-1"])'
+        );
+    }
+
+    var lastFocusedElementBeforeSidebar = null;
+
     if (toggleBtn && sidebar) {
         toggleBtn.addEventListener('click', function() {
+            // Remember what was focused before toggling
+            if (!sidebar.classList.contains('open')) {
+                lastFocusedElementBeforeSidebar = document.activeElement;
+            }
+
             sidebar.classList.toggle('open');
-            if (overlay) overlay.classList.toggle('active');
+            var isOpen = sidebar.classList.contains('open');
+
+            if (overlay) {
+                overlay.classList.toggle('active', isOpen);
+            }
+
+            if (isOpen) {
+                // Move focus into the sidebar
+                var focusTarget = getFirstFocusableElement(sidebar) || sidebar;
+                if (focusTarget === sidebar && !focusTarget.hasAttribute('tabindex')) {
+                    focusTarget.setAttribute('tabindex', '-1');
+                }
+                if (typeof focusTarget.focus === 'function') {
+                    focusTarget.focus();
+                }
+            } else {
+                // Restore focus to the element that opened the sidebar
+                var toFocus = lastFocusedElementBeforeSidebar || toggleBtn;
+                if (toFocus && typeof toFocus.focus === 'function') {
+                    toFocus.focus();
+                }
+            }
         });
         if (overlay) {
             overlay.addEventListener('click', function() {
+                // Close sidebar and overlay
                 sidebar.classList.remove('open');
                 overlay.classList.remove('active');
+                // Return focus to the toggle button
+                if (toggleBtn && typeof toggleBtn.focus === 'function') {
+                    toggleBtn.focus();
+                }
             });
         }
     }
