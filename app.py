@@ -91,6 +91,19 @@ def _is_valid_hex_color(value):
     return bool(re.fullmatch(r"#[0-9a-fA-F]{6}", value))
 
 
+_USERNAME_RE = re.compile(r"^[A-Za-z0-9_\-]+$")
+
+
+def _is_valid_username(value):
+    """Return True if the username contains only safe characters.
+
+    Allowed: letters, digits, underscores and hyphens.
+    This prevents log-injection (newlines / control chars) and
+    avoids confusing Unicode look-alikes.
+    """
+    return bool(_USERNAME_RE.fullmatch(value))
+
+
 def _safe_referrer():
     """Return request.referrer only if it is same-origin; otherwise return None."""
     ref = request.referrer
@@ -258,6 +271,9 @@ def setup():
         if len(username) > 50:
             flash("Username must be 50 characters or fewer.", "error")
             return render_template("auth/setup.html")
+        if not _is_valid_username(username):
+            flash("Username may only contain letters, digits, underscores and hyphens.", "error")
+            return render_template("auth/setup.html")
         if password != confirm:
             flash("Passwords do not match.", "error")
             return render_template("auth/setup.html")
@@ -344,6 +360,9 @@ def signup():
         if len(username) > 50:
             flash("Username must be 50 characters or fewer.", "error")
             return render_template("auth/signup.html")
+        if not _is_valid_username(username):
+            flash("Username may only contain letters, digits, underscores and hyphens.", "error")
+            return render_template("auth/signup.html")
         if password != confirm:
             flash("Passwords do not match.", "error")
             return render_template("auth/signup.html")
@@ -409,6 +428,8 @@ def account_settings():
             flash("Username must be at least 3 characters.", "error")
         elif len(new_username) > 50:
             flash("Username must be 50 characters or fewer.", "error")
+        elif not _is_valid_username(new_username):
+            flash("Username may only contain letters, digits, underscores and hyphens.", "error")
         elif db.get_user_by_username(new_username) and new_username.lower() != user["username"].lower():
             flash("Username already taken.", "error")
         else:
@@ -984,6 +1005,10 @@ def delete_upload():
     if not safe_name:
         return jsonify({"error": "invalid filename"}), 400
     filepath = os.path.join(config.UPLOAD_FOLDER, safe_name)
+    upload_root = os.path.abspath(config.UPLOAD_FOLDER)
+    filepath = os.path.abspath(os.path.normpath(filepath))
+    if os.path.commonpath([upload_root, filepath]) != upload_root:
+        return jsonify({"error": "invalid filename"}), 400
     if os.path.isfile(filepath):
         os.remove(filepath)
         notify_change("file_delete", f"Upload '{safe_name}' deleted")
@@ -1022,6 +1047,8 @@ def admin_edit_user(user_id):
             flash("Username must be at least 3 characters.", "error")
         elif len(new_name) > 50:
             flash("Username must be 50 characters or fewer.", "error")
+        elif not _is_valid_username(new_name):
+            flash("Username may only contain letters, digits, underscores and hyphens.", "error")
         else:
             existing = db.get_user_by_username(new_name)
             if existing and existing["id"] != user_id:
@@ -1116,6 +1143,8 @@ def admin_create_user():
         flash("Username must be at least 3 characters.", "error")
     elif len(username) > 50:
         flash("Username must be 50 characters or fewer.", "error")
+    elif not _is_valid_username(username):
+        flash("Username may only contain letters, digits, underscores and hyphens.", "error")
     elif password != confirm:
         flash("Passwords do not match.", "error")
     elif len(password) < 6:

@@ -1194,3 +1194,155 @@ def test_safe_referrer_allows_same_origin(client, admin_user):
     assert resp.status_code in (302, 303)
     location = resp.headers.get("Location", "")
     assert "localhost" in location or "/" in location
+
+
+# -----------------------------------------------------------------------
+# Security: Username character validation
+# -----------------------------------------------------------------------
+def test_username_rejects_special_characters(client, admin_user):
+    """Usernames with special chars should be rejected to prevent log injection."""
+    import db
+    code = db.generate_invite_code(admin_user)
+    resp = client.post("/signup", data={
+        "username": "user<script>",
+        "password": "password123",
+        "confirm_password": "password123",
+        "invite_code": code,
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"letters, digits, underscores and hyphens" in resp.data
+
+
+def test_username_rejects_newlines(client, admin_user):
+    """Usernames with newlines should be rejected to prevent log injection."""
+    import db
+    code = db.generate_invite_code(admin_user)
+    resp = client.post("/signup", data={
+        "username": "user\nfake",
+        "password": "password123",
+        "confirm_password": "password123",
+        "invite_code": code,
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"letters, digits, underscores and hyphens" in resp.data
+
+
+def test_username_rejects_spaces(client, admin_user):
+    """Usernames with spaces should be rejected."""
+    import db
+    code = db.generate_invite_code(admin_user)
+    resp = client.post("/signup", data={
+        "username": "user name",
+        "password": "password123",
+        "confirm_password": "password123",
+        "invite_code": code,
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"letters, digits, underscores and hyphens" in resp.data
+
+
+def test_username_allows_valid_chars(client, admin_user):
+    """Usernames with letters, digits, underscores, hyphens should be accepted."""
+    import db
+    code = db.generate_invite_code(admin_user)
+    resp = client.post("/signup", data={
+        "username": "valid_user-123",
+        "password": "password123",
+        "confirm_password": "password123",
+        "invite_code": code,
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"Account created" in resp.data
+
+
+def test_setup_rejects_invalid_username(client):
+    """Setup should reject usernames with special characters."""
+    resp = client.post("/setup", data={
+        "username": "admin user",
+        "password": "admin123",
+        "confirm_password": "admin123",
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"letters, digits, underscores and hyphens" in resp.data
+
+
+def test_account_change_rejects_invalid_username(client, admin_user):
+    """Account settings should reject usernames with special characters."""
+    from werkzeug.security import generate_password_hash
+    import db
+    db.create_user("validuser", generate_password_hash("pass123"), role="user")
+    client.post("/login", data={"username": "validuser", "password": "pass123"})
+    resp = client.post("/account", data={
+        "action": "change_username",
+        "new_username": "invalid user!",
+        "password": "pass123",
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"letters, digits, underscores and hyphens" in resp.data
+
+
+def test_admin_create_user_rejects_invalid_username(logged_in_admin):
+    """Admin create user should reject usernames with special characters."""
+    resp = logged_in_admin.post("/admin/users/create", data={
+        "username": "bad<name",
+        "password": "password123",
+        "confirm_password": "password123",
+        "role": "user",
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"letters, digits, underscores and hyphens" in resp.data
+
+
+def test_admin_rename_rejects_invalid_username(logged_in_admin, admin_user):
+    """Admin rename user should reject usernames with special characters."""
+    from werkzeug.security import generate_password_hash
+    import db
+    uid = db.create_user("goodname", generate_password_hash("pass123"), role="user")
+    resp = logged_in_admin.post(f"/admin/users/{uid}/edit",
+                                data={"action": "change_username", "username": "bad name"},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"letters, digits, underscores and hyphens" in resp.data
+
+
+def test_is_valid_username_helper():
+    """Test the _is_valid_username helper function directly."""
+    from app import _is_valid_username
+    assert _is_valid_username("admin") is True
+    assert _is_valid_username("user_123") is True
+    assert _is_valid_username("my-user") is True
+    assert _is_valid_username("A") is True
+    assert _is_valid_username("user name") is False
+    assert _is_valid_username("user<script>") is False
+    assert _is_valid_username("user\nfake") is False
+    assert _is_valid_username("") is False
+    assert _is_valid_username("user@name") is False
+
+
+# -----------------------------------------------------------------------
+# Security: Log injection prevention
+# -----------------------------------------------------------------------
+def test_log_sanitize_strips_newlines():
+    """Log sanitizer should strip newlines and control characters."""
+    from wiki_logger import _sanitize
+    assert _sanitize("normal text") == "normal text"
+    assert _sanitize("line1\nline2") == "line1line2"
+    assert _sanitize("line1\r\nline2") == "line1line2"
+    assert _sanitize("tab\there") == "tabhere"
+    assert _sanitize("null\x00byte") == "nullbyte"
+
+
+# -----------------------------------------------------------------------
+# Security: delete_upload path traversal defense-in-depth
+# -----------------------------------------------------------------------
+def test_delete_upload_path_traversal_blocked(logged_in_admin):
+    """delete_upload should block path traversal attempts."""
+    resp = logged_in_admin.post("/api/upload/delete",
+                                json={"filename": "../../../etc/passwd"},
+                                content_type="application/json")
+    # secure_filename strips path components, so this should be safe
+    # but the filename may still end up empty or blocked
+    data = resp.get_json()
+    assert resp.status_code in (200, 400)
+    if resp.status_code == 400:
+        assert data["error"] == "invalid filename"
