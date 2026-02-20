@@ -404,3 +404,96 @@ def test_last_admin_cannot_delete_own_account(logged_in_admin, admin_user):
                                 follow_redirects=True)
     assert resp.status_code == 200
     assert b"Cannot delete the last admin" in resp.data
+
+
+# -----------------------------------------------------------------------
+# Fix 24: Deleting a user who used an invite code does not crash
+# -----------------------------------------------------------------------
+def test_delete_user_with_invite_code(logged_in_admin, admin_user):
+    import db
+    from werkzeug.security import generate_password_hash
+    code = db.generate_invite_code(admin_user)
+    uid = db.create_user("inviteduser", generate_password_hash("pass123"))
+    db.use_invite_code(code, uid)
+    # Admin deletes the user via the admin panel
+    resp = logged_in_admin.post(f"/admin/users/{uid}/edit",
+                                data={"action": "delete"},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"User deleted" in resp.data
+    assert db.get_user_by_id(uid) is None
+
+
+def test_self_delete_account_with_invite_code(client, admin_user):
+    import db
+    from werkzeug.security import generate_password_hash
+    # Create a second admin so the first can stay
+    db.create_user("admin2", generate_password_hash("admin123"), role="admin")
+    code = db.generate_invite_code(admin_user)
+    uid = db.create_user("selfdeleter", generate_password_hash("pass123"))
+    db.use_invite_code(code, uid)
+    # Log in as the regular user
+    client.post("/login", data={"username": "selfdeleter", "password": "pass123"})
+    resp = client.post("/account",
+                       data={"action": "delete_account", "password": "pass123"},
+                       follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"Your account has been deleted" in resp.data
+    assert db.get_user_by_id(uid) is None
+
+
+# -----------------------------------------------------------------------
+# Fix 25: Page history routes return 404 when disabled (default)
+# -----------------------------------------------------------------------
+def test_page_history_disabled_by_default(logged_in_admin):
+    import config
+    assert config.PAGE_HISTORY_ENABLED is False
+    resp = logged_in_admin.get("/page/home/history")
+    assert resp.status_code == 404
+
+
+def test_page_history_entry_disabled_by_default(logged_in_admin):
+    resp = logged_in_admin.get("/page/home/history/1")
+    assert resp.status_code == 404
+
+
+def test_page_revert_disabled_by_default(logged_in_admin):
+    resp = logged_in_admin.post("/page/home/revert/1")
+    assert resp.status_code == 404
+
+
+def test_page_history_enabled(logged_in_admin, monkeypatch):
+    import config
+    monkeypatch.setattr(config, "PAGE_HISTORY_ENABLED", True)
+    resp = logged_in_admin.get("/page/home/history")
+    assert resp.status_code == 200
+
+
+# -----------------------------------------------------------------------
+# Fix 26: Editors cannot access invite codes pages
+# -----------------------------------------------------------------------
+def test_editor_cannot_access_invite_codes(client, admin_user):
+    import db
+    from werkzeug.security import generate_password_hash
+    db.create_user("editor1", generate_password_hash("pass123"), role="editor")
+    client.post("/login", data={"username": "editor1", "password": "pass123"})
+    resp = client.get("/admin/codes", follow_redirects=True)
+    assert b"Admin access required" in resp.data
+
+    resp = client.get("/admin/codes/expired", follow_redirects=True)
+    assert b"Admin access required" in resp.data
+
+
+# -----------------------------------------------------------------------
+# Fix 27: "Last edit by" always shown even when history is disabled
+# -----------------------------------------------------------------------
+def test_editor_info_shown_with_history_disabled(logged_in_admin):
+    import db
+    import config
+    assert config.PAGE_HISTORY_ENABLED is False
+    home = db.get_home_page()
+    db.update_page(home["id"], "Home", "Updated content", 1, "test edit")
+    resp = logged_in_admin.get("/")
+    assert resp.status_code == 200
+    assert b"Last edit by" in resp.data
+    assert b"View history" not in resp.data

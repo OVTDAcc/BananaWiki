@@ -23,9 +23,11 @@
 {% if editor_info %}
 <div class="edit-info">
     Last edit by <strong>{{ editor_info.username }}</strong> {{ editor_info.time_ago }}
+    {% if page_history_enabled %}
     · <a href="{{ url_for('page_history', slug=page.slug) }}">View history</a>
+    {% endif %}
 </div>
-{% elif page.last_edited_at %}
+{% elif page.last_edited_at and page_history_enabled %}
 <div class="edit-info">
     <a href="{{ url_for('page_history', slug=page.slug) }}">View history</a>
 </div>
