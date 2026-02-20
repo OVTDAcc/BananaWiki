@@ -1383,3 +1383,20 @@ def test_log_action_sanitizes_ip_and_action():
     source = inspect.getsource(log_action)
     assert "_sanitize(request.remote_addr" in source or "_sanitize(request.remote_addr or" in source
     assert "_sanitize(action)" in source
+
+
+def test_log_sanitize_prevents_injection_at_runtime():
+    """Verify _sanitize actually strips newlines from values at runtime."""
+    from wiki_logger import _sanitize
+    # Simulate a malicious path with newline injection
+    malicious_path = "/page/test\nFAKE ACTION | user=admin action=admin_delete_user"
+    sanitized = _sanitize(malicious_path)
+    assert "\n" not in sanitized
+    assert "\r" not in sanitized
+    # The sanitized value should be a single line
+    assert sanitized == "/page/testFAKE ACTION | user=admin action=admin_delete_user"
+
+    # Simulate a malicious action string
+    malicious_action = "login_success\nACTION  | user=admin action=delete_all"
+    sanitized = _sanitize(malicious_action)
+    assert "\n" not in sanitized

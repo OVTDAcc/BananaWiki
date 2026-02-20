@@ -239,7 +239,7 @@ def set_security_headers(response):
         "default-src 'self'; "
         "script-src 'self' 'unsafe-inline'; "
         "style-src 'self' 'unsafe-inline'; "
-        "img-src 'self' data: https: http:; "
+        "img-src 'self' data: https:; "
         "font-src 'self'; "
         "object-src 'none'; "
         "base-uri 'self'; "
