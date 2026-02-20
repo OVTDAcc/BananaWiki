@@ -622,6 +622,20 @@ def delete_category_route(cat_id):
 
 
 # ---------------------------------------------------------------------------
+#  Live preview API
+# ---------------------------------------------------------------------------
+@app.route("/api/preview", methods=["POST"])
+@login_required
+def api_preview():
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"html": ""}), 400
+    content = data.get("content", "")
+    html = render_markdown(content)
+    return jsonify({"html": html})
+
+
+# ---------------------------------------------------------------------------
 #  Drafts / autosave API
 # ---------------------------------------------------------------------------
 @app.route("/api/draft/save", methods=["POST"])

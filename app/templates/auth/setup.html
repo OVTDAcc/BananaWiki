@@ -5,13 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Setup – BananaWiki</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <style>:root{--primary:#f4c542;--secondary:#1e1e2e;--accent:#89b4fa;--text:#cdd6f4;--sidebar:#181825;--bg:#11111b}</style>
+    <style>:root{--primary:#7c8dc6;--secondary:#151520;--accent:#6e8aca;--text:#b8bcc8;--sidebar:#111118;--bg:#0d0d14}</style>
 </head>
 <body>
     <div class="auth-container">
         <div class="auth-box">
-            <h1>🍌 BananaWiki Setup</h1>
-            <p style="text-align:center;margin-bottom:1rem;font-size:.85rem;opacity:.7">Create your admin account to get started.</p>
+            <h1>BananaWiki Setup</h1>
+            <p class="subtitle">Create your admin account to get started.</p>
             {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
             {% for category, message in messages %}

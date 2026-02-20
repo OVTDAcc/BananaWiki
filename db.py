@@ -97,12 +97,12 @@ def init_db():
     CREATE TABLE IF NOT EXISTS site_settings (
         id          INTEGER PRIMARY KEY CHECK (id = 1),
         site_name   TEXT    NOT NULL DEFAULT 'BananaWiki',
-        primary_color    TEXT NOT NULL DEFAULT '#f4c542',
-        secondary_color  TEXT NOT NULL DEFAULT '#1e1e2e',
-        accent_color     TEXT NOT NULL DEFAULT '#89b4fa',
-        text_color       TEXT NOT NULL DEFAULT '#cdd6f4',
-        sidebar_color    TEXT NOT NULL DEFAULT '#181825',
-        bg_color         TEXT NOT NULL DEFAULT '#11111b',
+        primary_color    TEXT NOT NULL DEFAULT '#7c8dc6',
+        secondary_color  TEXT NOT NULL DEFAULT '#151520',
+        accent_color     TEXT NOT NULL DEFAULT '#6e8aca',
+        text_color       TEXT NOT NULL DEFAULT '#b8bcc8',
+        sidebar_color    TEXT NOT NULL DEFAULT '#111118',
+        bg_color         TEXT NOT NULL DEFAULT '#0d0d14',
         setup_done  INTEGER NOT NULL DEFAULT 0
     );
 
