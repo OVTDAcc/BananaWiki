@@ -141,7 +141,8 @@ function initImageUpload(contentEl) {
                 }
                 return result.data;
             })
-            .catch(function() {
+            .catch(function(err) {
+                console.error('Upload error:', err);
                 alert('Upload failed: could not reach server.');
             });
     }
