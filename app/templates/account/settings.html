@@ -52,8 +52,8 @@
         {% if current_user.role == 'admin' %}
         <a href="{{ url_for('admin_users') }}" class="btn btn-outline">👥 Manage Users</a>
         <a href="{{ url_for('admin_settings') }}" class="btn btn-outline">⚙ Site Settings</a>
-        {% endif %}
         <a href="{{ url_for('admin_codes') }}" class="btn btn-outline">🔑 Invite Codes</a>
+        {% endif %}
     </div>
 </div>
 {% endif %}

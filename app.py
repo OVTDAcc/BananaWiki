@@ -364,9 +364,14 @@ def account_settings():
         elif db.get_user_by_username(new_username) and new_username.lower() != user["username"].lower():
             flash("Username already taken.", "error")
         else:
-            db.update_user(user["id"], username=new_username)
-            log_action("change_username", request, user=user, new_username=new_username)
-            flash("Username updated.", "success")
+            try:
+                db.update_user(user["id"], username=new_username)
+            except sqlite3.IntegrityError:
+                flash("Username already taken.", "error")
+                return redirect(url_for("account_settings"))
+            else:
+                log_action("change_username", request, user=user, new_username=new_username)
+                flash("Username updated.", "success")
         return redirect(url_for("account_settings"))
 
     if action == "change_password":
@@ -432,6 +437,7 @@ def home():
         categories=categories,
         uncategorized=uncategorized,
         editor_info=editor_info,
+        all_categories=db.list_categories(),
     )
 
 
@@ -462,6 +468,7 @@ def view_page(slug):
         categories=categories,
         uncategorized=uncategorized,
         editor_info=editor_info,
+        all_categories=db.list_categories(),
     )
 
 
@@ -683,6 +690,9 @@ def create_category():
     if not name:
         flash("Category name is required.", "error")
         return redirect(request.referrer or url_for("home"))
+    if parent_id and not db.get_category(parent_id):
+        flash("Selected parent category does not exist.", "error")
+        return redirect(request.referrer or url_for("home"))
     db.create_category(name, parent_id)
     user = get_current_user()
     log_action("create_category", request, user=user, category=name)
@@ -694,6 +704,9 @@ def create_category():
 @login_required
 @editor_required
 def edit_category(cat_id):
+    cat = db.get_category(cat_id)
+    if not cat:
+        abort(404)
     name = request.form.get("name", "").strip()
     if not name:
         flash("Category name is required.", "error")
@@ -709,6 +722,9 @@ def edit_category(cat_id):
 @login_required
 @editor_required
 def delete_category_route(cat_id):
+    cat = db.get_category(cat_id)
+    if not cat:
+        abort(404)
     db.delete_category(cat_id)
     user = get_current_user()
     log_action("delete_category", request, user=user, category_id=cat_id)
@@ -903,10 +919,15 @@ def admin_edit_user(user_id):
             if existing and existing["id"] != user_id:
                 flash("Username already taken.", "error")
             else:
-                db.update_user(user_id, username=new_name)
-                log_action("admin_change_username", request, user=current_user,
-                           target_user=target["username"], new_username=new_name)
-                flash("Username updated.", "success")
+                try:
+                    db.update_user(user_id, username=new_name)
+                except sqlite3.IntegrityError:
+                    flash("Username already taken.", "error")
+                    return redirect(url_for("admin_users"))
+                else:
+                    log_action("admin_change_username", request, user=current_user,
+                               target_user=target["username"], new_username=new_name)
+                    flash("Username updated.", "success")
 
     elif action == "change_password":
         new_pw = request.form.get("password", "")

@@ -600,3 +600,101 @@ def test_cannot_demote_last_admin_via_other(logged_in_admin, admin_user):
         # admin_user is an admin; there are 2 admins now (admin_user + admin3)
         # so this should succeed
         assert b"Role updated" in resp.data
+
+
+# -----------------------------------------------------------------------
+# Fix 34: Editor should not see invite codes link in account settings
+# -----------------------------------------------------------------------
+def test_editor_does_not_see_invite_codes_link(client, admin_user):
+    import db
+    from werkzeug.security import generate_password_hash
+    db.create_user("editor2", generate_password_hash("pass123"), role="editor")
+    client.post("/login", data={"username": "editor2", "password": "pass123"})
+    resp = client.get("/account")
+    assert resp.status_code == 200
+    assert b"Invite Codes" not in resp.data
+
+
+def test_admin_sees_invite_codes_link(logged_in_admin):
+    resp = logged_in_admin.get("/account")
+    assert resp.status_code == 200
+    assert b"Invite Codes" in resp.data
+
+
+# -----------------------------------------------------------------------
+# Fix 35: Create category with non-existent parent_id shows error
+# -----------------------------------------------------------------------
+def test_create_category_nonexistent_parent(logged_in_admin):
+    resp = logged_in_admin.post("/category/create",
+                                data={"name": "TestCat", "parent_id": "9999"},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"Selected parent category does not exist" in resp.data
+
+
+# -----------------------------------------------------------------------
+# Fix 36: Admin rename user handles IntegrityError (race condition)
+# -----------------------------------------------------------------------
+def test_admin_rename_user_integrity_error(logged_in_admin, admin_user):
+    import db
+    from werkzeug.security import generate_password_hash
+    db.create_user("user_a", generate_password_hash("pass123"), role="user")
+    uid_b = db.create_user("user_b", generate_password_hash("pass123"), role="user")
+    # Try to rename user_b to user_a (duplicate)
+    resp = logged_in_admin.post(f"/admin/users/{uid_b}/edit",
+                                data={"action": "change_username", "username": "user_a"},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"already taken" in resp.data
+
+
+# -----------------------------------------------------------------------
+# Fix 37: Account change username handles IntegrityError (race condition)
+# -----------------------------------------------------------------------
+def test_account_change_username_duplicate(client, admin_user):
+    import db
+    from werkzeug.security import generate_password_hash
+    db.create_user("existing_user", generate_password_hash("pass123"), role="user")
+    uid = db.create_user("changer", generate_password_hash("pass123"), role="user")
+    client.post("/login", data={"username": "changer", "password": "pass123"})
+    resp = client.post("/account", data={
+        "action": "change_username",
+        "new_username": "existing_user",
+        "password": "pass123",
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"already taken" in resp.data
+
+
+# -----------------------------------------------------------------------
+# Fix 38: Edit non-existent category returns 404
+# -----------------------------------------------------------------------
+def test_edit_nonexistent_category(logged_in_admin):
+    resp = logged_in_admin.post("/category/9999/edit",
+                                data={"name": "NewName"})
+    assert resp.status_code == 404
+
+
+# -----------------------------------------------------------------------
+# Fix 39: Delete non-existent category returns 404
+# -----------------------------------------------------------------------
+def test_delete_nonexistent_category(logged_in_admin):
+    resp = logged_in_admin.post("/category/9999/delete")
+    assert resp.status_code == 404
+
+
+# -----------------------------------------------------------------------
+# Fix 40: Move page UI is accessible (page shows move button)
+# -----------------------------------------------------------------------
+def test_move_page_button_visible(logged_in_admin):
+    import db
+    db.create_page("Movable Page", "movable-page", "content", user_id=1)
+    resp = logged_in_admin.get("/page/movable-page")
+    assert resp.status_code == 200
+    assert b"Move" in resp.data
+
+
+def test_move_page_button_not_on_home(logged_in_admin):
+    resp = logged_in_admin.get("/")
+    assert resp.status_code == 200
+    assert b"moveModal" not in resp.data
