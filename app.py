@@ -323,9 +323,9 @@ def signup():
             flash("Username already taken.", "error")
             return render_template("auth/signup.html")
         if not db.use_invite_code(invite, user_id):
-            # Race condition: code was used between validation and here
+            # Race condition: code was used by another user concurrently
             db.delete_user(user_id)
-            flash("Invalid or expired invite code.", "error")
+            flash("This invite code was just used. Please request a new code.", "error")
             return render_template("auth/signup.html")
 
         log_action("signup_success", request, username=username, invite_code=invite)

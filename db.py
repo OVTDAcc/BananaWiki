@@ -236,7 +236,7 @@ def use_invite_code(code, user_id):
     now = datetime.now(timezone.utc).isoformat()
     conn = get_db()
     cur = conn.execute(
-        "UPDATE invite_codes SET used_by=?, used_at=? WHERE code=? AND used_by IS NULL AND deleted=0",
+        "UPDATE invite_codes SET used_by=?, used_at=? WHERE code=? AND used_by IS NULL AND used_at IS NULL AND deleted=0",
         (user_id, now, code),
     )
     conn.commit()
