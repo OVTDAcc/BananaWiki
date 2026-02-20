@@ -458,7 +458,7 @@ def get_page_history(page_id):
     rows = conn.execute(
         "SELECT ph.*, COALESCE(u.username, 'deleted user') AS username FROM page_history ph "
         "LEFT JOIN users u ON ph.edited_by=u.id "
-        "WHERE ph.page_id=? ORDER BY ph.created_at DESC",
+        "WHERE ph.page_id=? ORDER BY ph.created_at DESC, ph.id DESC",
         (page_id,),
     ).fetchall()
     conn.close()

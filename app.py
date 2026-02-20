@@ -170,6 +170,17 @@ def time_ago(dt_str):
         return f"{d} day{'s' if d != 1 else ''} ago"
 
 
+def format_datetime(dt_str):
+    """Return a human-readable date/time string like '2026-02-20 18:07 UTC'."""
+    if not dt_str:
+        return ""
+    try:
+        dt = datetime.fromisoformat(dt_str).replace(tzinfo=timezone.utc)
+    except (ValueError, TypeError):
+        return ""
+    return dt.strftime("%Y-%m-%d %H:%M UTC")
+
+
 # ---------------------------------------------------------------------------
 #  Context processors
 # ---------------------------------------------------------------------------
@@ -181,6 +192,7 @@ def inject_globals():
         "current_user": user,
         "settings": settings,
         "time_ago": time_ago,
+        "format_datetime": format_datetime,
         "page_history_enabled": config.PAGE_HISTORY_ENABLED,
     }
 
@@ -441,6 +453,7 @@ def home():
             editor_info = {
                 "username": editor["username"],
                 "time_ago": time_ago(page["last_edited_at"]),
+                "edited_at": format_datetime(page["last_edited_at"]),
             }
 
     log_action("view_page", request, user=user, page="home")
@@ -472,6 +485,7 @@ def view_page(slug):
             editor_info = {
                 "username": editor["username"],
                 "time_ago": time_ago(page["last_edited_at"]),
+                "edited_at": format_datetime(page["last_edited_at"]),
             }
 
     log_action("view_page", request, user=user, page=slug)
@@ -489,8 +503,6 @@ def view_page(slug):
 @app.route("/page/<slug>/history")
 @login_required
 def page_history(slug):
-    if not config.PAGE_HISTORY_ENABLED:
-        abort(404)
     page = db.get_page_by_slug(slug)
     if not page:
         abort(404)
@@ -508,8 +520,6 @@ def page_history(slug):
 @app.route("/page/<slug>/history/<int:entry_id>")
 @login_required
 def view_history_entry(slug, entry_id):
-    if not config.PAGE_HISTORY_ENABLED:
-        abort(404)
     page = db.get_page_by_slug(slug)
     if not page:
         abort(404)
@@ -532,8 +542,6 @@ def view_history_entry(slug, entry_id):
 @login_required
 @editor_required
 def revert_page(slug, entry_id):
-    if not config.PAGE_HISTORY_ENABLED:
-        abort(404)
     page = db.get_page_by_slug(slug)
     if not page:
         abort(404)
@@ -573,8 +581,27 @@ def edit_page(slug):
         edit_message = request.form.get("edit_message", "").strip()
         if not title:
             title = page["title"]
+
+        # Collect contributor names from other users' drafts
+        all_drafts = db.get_drafts_for_page(page["id"])
+        contributors = [d["username"] for d in all_drafts if d["user_id"] != user["id"]]
+
+        # Build commit message with contributors
+        if contributors:
+            contributor_list = ", ".join(contributors)
+            if edit_message:
+                edit_message = f"{edit_message} (contributors: {contributor_list})"
+            else:
+                edit_message = f"Contributors: {contributor_list}"
+
         db.update_page(page["id"], title, content, user["id"], edit_message)
+
+        # Clean up all drafts for this page (committer + contributors)
         db.delete_draft(page["id"], user["id"])
+        for d in all_drafts:
+            if d["user_id"] != user["id"]:
+                db.delete_draft(page["id"], d["user_id"])
+
         log_action("edit_page", request, user=user, page=slug, message=edit_message)
         notify_change("page_edit", f"Page '{slug}' edited")
         flash("Page updated.", "success")

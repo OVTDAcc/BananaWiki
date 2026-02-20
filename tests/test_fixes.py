@@ -443,28 +443,26 @@ def test_self_delete_account_with_invite_code(client, admin_user):
 
 
 # -----------------------------------------------------------------------
-# Fix 25: Page history routes return 404 when disabled (default)
+# Fix 25: Page history is always enabled
 # -----------------------------------------------------------------------
-def test_page_history_disabled_by_default(logged_in_admin):
+def test_page_history_enabled_by_default(logged_in_admin):
     import config
-    assert config.PAGE_HISTORY_ENABLED is False
+    assert config.PAGE_HISTORY_ENABLED is True
     resp = logged_in_admin.get("/page/home/history")
+    assert resp.status_code == 200
+
+
+def test_page_history_entry_returns_404_for_missing(logged_in_admin):
+    resp = logged_in_admin.get("/page/home/history/99999")
     assert resp.status_code == 404
 
 
-def test_page_history_entry_disabled_by_default(logged_in_admin):
-    resp = logged_in_admin.get("/page/home/history/1")
+def test_page_revert_returns_404_for_missing(logged_in_admin):
+    resp = logged_in_admin.post("/page/home/revert/99999")
     assert resp.status_code == 404
 
 
-def test_page_revert_disabled_by_default(logged_in_admin):
-    resp = logged_in_admin.post("/page/home/revert/1")
-    assert resp.status_code == 404
-
-
-def test_page_history_enabled(logged_in_admin, monkeypatch):
-    import config
-    monkeypatch.setattr(config, "PAGE_HISTORY_ENABLED", True)
+def test_page_history_accessible(logged_in_admin):
     resp = logged_in_admin.get("/page/home/history")
     assert resp.status_code == 200
 
@@ -485,18 +483,18 @@ def test_editor_cannot_access_invite_codes(client, admin_user):
 
 
 # -----------------------------------------------------------------------
-# Fix 27: "Last edit by" always shown even when history is disabled
+# Fix 27: "Last edit by" and "View history" always shown
 # -----------------------------------------------------------------------
-def test_editor_info_shown_with_history_disabled(logged_in_admin):
+def test_editor_info_shown_with_history_link(logged_in_admin):
     import db
     import config
-    assert config.PAGE_HISTORY_ENABLED is False
+    assert config.PAGE_HISTORY_ENABLED is True
     home = db.get_home_page()
     db.update_page(home["id"], "Home", "Updated content", 1, "test edit")
     resp = logged_in_admin.get("/")
     assert resp.status_code == 200
     assert b"Last edit by" in resp.data
-    assert b"View history" not in resp.data
+    assert b"View history" in resp.data
 
 
 # -----------------------------------------------------------------------
@@ -900,3 +898,180 @@ def test_admin_change_password_success(logged_in_admin, admin_user):
                                 follow_redirects=True)
     assert resp.status_code == 200
     assert b"Password updated" in resp.data
+
+
+# -----------------------------------------------------------------------
+# New tests: format_datetime helper
+# -----------------------------------------------------------------------
+def test_format_datetime_valid():
+    from app import format_datetime
+    result = format_datetime("2026-02-20T18:07:24+00:00")
+    assert "2026-02-20" in result
+    assert "18:07" in result
+    assert "UTC" in result
+
+
+def test_format_datetime_edge_cases():
+    from app import format_datetime
+    assert format_datetime(None) == ""
+    assert format_datetime("") == ""
+    assert format_datetime("not-a-date") == ""
+
+
+# -----------------------------------------------------------------------
+# New tests: Time hover tooltip on page view
+# -----------------------------------------------------------------------
+def test_time_hover_tooltip_on_page(logged_in_admin):
+    import db
+    home = db.get_home_page()
+    db.update_page(home["id"], "Home", "Updated content", 1, "test edit")
+    resp = logged_in_admin.get("/")
+    assert resp.status_code == 200
+    assert b"title=" in resp.data
+    assert b"UTC" in resp.data
+
+
+def test_time_hover_tooltip_on_slug_page(logged_in_admin):
+    import db
+    db.create_page("Test Page", "test-page", "content", user_id=1)
+    resp = logged_in_admin.get("/page/test-page")
+    assert resp.status_code == 200
+    assert b"title=" in resp.data
+    assert b"UTC" in resp.data
+
+
+# -----------------------------------------------------------------------
+# New tests: Page history always active
+# -----------------------------------------------------------------------
+def test_history_link_always_shown(logged_in_admin):
+    import db
+    home = db.get_home_page()
+    db.update_page(home["id"], "Home", "Updated content", 1, "test edit")
+    resp = logged_in_admin.get("/")
+    assert resp.status_code == 200
+    assert b"View history" in resp.data
+
+
+def test_revert_preserves_old_versions(logged_in_admin):
+    import db
+    home = db.get_home_page()
+    db.update_page(home["id"], "Home", "Version 1", 1, "first edit")
+    db.update_page(home["id"], "Home", "Version 2", 1, "second edit")
+    history_before = db.get_page_history(home["id"])
+
+    # Revert to first version
+    first_entry = history_before[-1]  # oldest entry
+    resp = logged_in_admin.post(
+        f"/page/home/revert/{first_entry['id']}",
+        follow_redirects=True
+    )
+    assert resp.status_code == 200
+
+    # All previous history entries should still exist plus the revert
+    history_after = db.get_page_history(home["id"])
+    assert len(history_after) > len(history_before)
+    # Revert message should be in history
+    assert any("Reverted" in (h["edit_message"] or "") for h in history_after)
+
+
+# -----------------------------------------------------------------------
+# New tests: Draft contributors in commit message
+# -----------------------------------------------------------------------
+def test_commit_includes_contributor_names(logged_in_admin):
+    import db
+    from werkzeug.security import generate_password_hash
+    # Create a page
+    page_id = db.create_page("Collab Page", "collab-page", "initial", user_id=1)
+    # Create another user with a draft
+    editor_id = db.create_user("editor1", generate_password_hash("pass123"), role="editor")
+    db.save_draft(page_id, editor_id, "Collab Page", "editor1 content")
+    # Admin commits the page
+    resp = logged_in_admin.post("/page/collab-page/edit", data={
+        "title": "Collab Page",
+        "content": "final content",
+        "edit_message": "merged changes",
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    # Check history contains contributor name
+    history = db.get_page_history(page_id)
+    latest = history[0]
+    assert "editor1" in latest["edit_message"]
+    assert "contributors" in latest["edit_message"].lower()
+
+
+def test_commit_cleans_up_all_drafts(logged_in_admin):
+    import db
+    from werkzeug.security import generate_password_hash
+    page_id = db.create_page("Draft Cleanup", "draft-cleanup", "initial", user_id=1)
+    editor_id = db.create_user("editor2", generate_password_hash("pass123"), role="editor")
+    db.save_draft(page_id, editor_id, "Draft Cleanup", "editor2 content")
+    db.save_draft(page_id, 1, "Draft Cleanup", "admin content")
+    # Admin commits
+    logged_in_admin.post("/page/draft-cleanup/edit", data={
+        "title": "Draft Cleanup",
+        "content": "final",
+        "edit_message": "",
+    })
+    # All drafts should be cleaned up
+    drafts = db.get_drafts_for_page(page_id)
+    assert len(drafts) == 0
+
+
+def test_commit_without_contributors_no_extra_message(logged_in_admin):
+    import db
+    page_id = db.create_page("Solo Page", "solo-page", "initial", user_id=1)
+    logged_in_admin.post("/page/solo-page/edit", data={
+        "title": "Solo Page",
+        "content": "solo content",
+        "edit_message": "my edit",
+    })
+    history = db.get_page_history(page_id)
+    latest = history[0]
+    assert latest["edit_message"] == "my edit"
+    assert "contributors" not in latest["edit_message"].lower()
+
+
+# -----------------------------------------------------------------------
+# New tests: Sync retry logic
+# -----------------------------------------------------------------------
+def test_sync_retry_constants():
+    import sync
+    assert sync.MAX_RETRIES >= 1
+    assert sync.RETRY_BASE_DELAY > 0
+
+
+def test_sync_caption_includes_descriptions(tmp_path, monkeypatch):
+    import sync
+    monkeypatch.setattr(config, "SYNC_TOKEN", "123:TESTTOKEN")
+    monkeypatch.setattr(config, "SYNC_USERID", "42")
+
+    import zipfile
+    zip_path = str(tmp_path / "test.zip")
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.writestr("test.txt", "hello")
+
+    changes = [
+        {"type": "page_edit", "description": "Page 'test' edited", "timestamp": "2026-01-01T00:00:00"},
+        {"type": "user_signup", "description": "User 'newuser' registered", "timestamp": "2026-01-01T00:01:00"},
+    ]
+
+    import json
+    from unittest.mock import MagicMock, patch
+
+    captured = {}
+
+    def mock_urlopen(req, **kwargs):
+        captured["data"] = req.data
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps({"ok": True}).encode()
+        mock_resp.__enter__ = MagicMock(return_value=mock_resp)
+        mock_resp.__exit__ = MagicMock(return_value=False)
+        return mock_resp
+
+    with patch("sync.urlopen", side_effect=mock_urlopen):
+        result = sync._send_to_telegram(zip_path, changes, [])
+        assert result is True
+
+    body_text = captured["data"].decode("utf-8", errors="replace")
+    assert "Details" in body_text
+    assert "Page 'test' edited" in body_text

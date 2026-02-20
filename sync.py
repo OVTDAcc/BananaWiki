@@ -35,6 +35,12 @@ MIN_BACKUP_INTERVAL = 300  # 5 minutes
 # Debounce delay – wait this many seconds after the last change before sending
 DEBOUNCE_DELAY = 60  # 1 minute
 
+# Number of retry attempts for failed Telegram sends
+MAX_RETRIES = 3
+
+# Base delay between retries in seconds (exponential backoff)
+RETRY_BASE_DELAY = 5
+
 # ---------------------------------------------------------------------------
 #  Module-level state (thread-safe)
 # ---------------------------------------------------------------------------
@@ -121,7 +127,19 @@ def _execute_backup() -> None:
         zip_path, excluded_files = _create_backup(changes)
 
         if zip_path:
-            success = _send_to_telegram(zip_path, changes, excluded_files)
+            success = False
+            for attempt in range(1, MAX_RETRIES + 1):
+                success = _send_to_telegram(zip_path, changes, excluded_files)
+                if success:
+                    break
+                if attempt < MAX_RETRIES:
+                    delay = RETRY_BASE_DELAY * (2 ** (attempt - 1))
+                    logger.warning(
+                        f"SYNC | Attempt {attempt}/{MAX_RETRIES} failed, "
+                        f"retrying in {delay}s"
+                    )
+                    time.sleep(delay)
+
             if success:
                 with _lock:
                     _last_backup_time = time.time()
@@ -129,7 +147,9 @@ def _execute_backup() -> None:
                     f"SYNC | Backup sent successfully ({len(changes)} change(s))"
                 )
             else:
-                logger.error("SYNC | Failed to send backup to Telegram")
+                logger.error(
+                    f"SYNC | Failed to send backup after {MAX_RETRIES} attempts"
+                )
     except Exception as exc:
         logger.error(f"SYNC | Backup failed: {exc}")
     finally:
@@ -252,12 +272,18 @@ def _send_to_telegram(
 
     # Build a human-readable caption
     change_types = ", ".join(sorted({c["type"] for c in changes}))
+    descriptions = [c["description"] for c in changes if c.get("description")]
     caption = (
         f"\U0001f34c BananaWiki Backup\n"
         f"\U0001f4c5 {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}\n"
         f"\U0001f4dd Changes: {change_types}\n"
         f"\U0001f4e6 {len(changes)} change(s)"
     )
+    if descriptions:
+        detail_lines = "\n".join(f"  • {d}" for d in descriptions[:10])
+        caption += f"\n\U0001f4cb Details:\n{detail_lines}"
+        if len(descriptions) > 10:
+            caption += f"\n  … and {len(descriptions) - 10} more"
     if excluded_files:
         caption += f"\n\u26a0\ufe0f {len(excluded_files)} file(s) excluded (size limit)"
 

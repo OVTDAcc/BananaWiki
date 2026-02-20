@@ -17,7 +17,7 @@
     <tbody>
         {% for entry in history %}
         <tr>
-            <td>{{ time_ago(entry.created_at) }}</td>
+            <td><span title="{{ format_datetime(entry.created_at) }}">{{ time_ago(entry.created_at) }}</span></td>
             <td>{{ entry.username }}</td>
             <td>{{ entry.edit_message or '—' }}</td>
             <td>
