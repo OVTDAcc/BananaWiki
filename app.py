@@ -16,6 +16,7 @@ from flask import (
 )
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
+from flask_wtf.csrf import CSRFProtect
 import markdown
 import bleach
 from PIL import Image
@@ -31,6 +32,7 @@ app = Flask(
 )
 app.secret_key = config.SECRET_KEY
 app.config["MAX_CONTENT_LENGTH"] = config.MAX_CONTENT_LENGTH
+csrf = CSRFProtect(app)
 
 ALLOWED_TAGS = list(bleach.ALLOWED_TAGS) + [
     "h1", "h2", "h3", "h4", "h5", "h6",

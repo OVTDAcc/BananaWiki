@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{% block title %}{{ settings.site_name }}{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <style>
@@ -109,6 +110,23 @@
     {% endif %}
 
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script>
+    // Auto-inject CSRF token into all forms
+    (function() {
+        var token = document.querySelector('meta[name="csrf-token"]');
+        if (!token) return;
+        var csrfValue = token.getAttribute('content');
+        document.querySelectorAll('form[method="POST"], form[method="post"]').forEach(function(form) {
+            if (!form.querySelector('input[name="csrf_token"]')) {
+                var input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'csrf_token';
+                input.value = csrfValue;
+                form.appendChild(input);
+            }
+        });
+    })();
+    </script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

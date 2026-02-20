@@ -900,3 +900,46 @@ def test_admin_change_password_success(logged_in_admin, admin_user):
                                 follow_redirects=True)
     assert resp.status_code == 200
     assert b"Password updated" in resp.data
+
+
+# -----------------------------------------------------------------------
+# CSRF protection tests
+# -----------------------------------------------------------------------
+def test_csrf_meta_tag_in_page(logged_in_admin):
+    """Pages should include a CSRF token meta tag."""
+    resp = logged_in_admin.get("/")
+    assert resp.status_code == 200
+    assert b'meta name="csrf-token"' in resp.data
+
+
+def test_csrf_rejects_post_without_token(client, admin_user):
+    """POST requests without a CSRF token should be rejected when CSRF is enabled."""
+    from app import app
+    app.config["WTF_CSRF_ENABLED"] = True
+    try:
+        with app.test_client() as c:
+            c.post("/login", data={"username": "admin", "password": "admin123"})
+            resp = c.post("/admin/users/create",
+                          data={"username": "newuser", "password": "pass123",
+                                "confirm_password": "pass123", "role": "user"})
+            assert resp.status_code == 400
+    finally:
+        app.config["WTF_CSRF_ENABLED"] = False
+
+
+# -----------------------------------------------------------------------
+# Admin user edit toggle UX tests
+# -----------------------------------------------------------------------
+def test_admin_users_edit_toggle_button(logged_in_admin):
+    """Admin users page should have a toggle button with 'Edit' label and arrow."""
+    resp = logged_in_admin.get("/admin/users")
+    assert resp.status_code == 200
+    assert b"toggleEditRow" in resp.data
+    assert "Edit ▼".encode() in resp.data
+
+
+def test_admin_users_edit_row_hidden_by_default(logged_in_admin):
+    """Edit rows should be hidden by default (display:none)."""
+    resp = logged_in_admin.get("/admin/users")
+    assert resp.status_code == 200
+    assert b'style="display:none;' in resp.data

@@ -68,7 +68,7 @@
             <td style="font-size:.8rem">{{ u.invite_code or '—' }}</td>
             <td>{{ time_ago(u.created_at) }}</td>
             <td>
-                <button class="btn btn-sm btn-outline" onclick="document.getElementById('editUser{{ u.id }}').style.display=document.getElementById('editUser{{ u.id }}').style.display==='none'?'table-row':'none'">Edit</button>
+                <button class="btn btn-sm btn-outline" onclick="toggleEditRow(this, 'editUser{{ u.id }}')">Edit ▼</button>
             </td>
         </tr>
         <tr id="editUser{{ u.id }}" style="display:none;background:rgba(255,255,255,.02)">
@@ -120,4 +120,15 @@
         {% endfor %}
     </tbody>
 </table>
+{% endblock %}
+{% block scripts %}
+<script>
+function toggleEditRow(btn, rowId) {
+    var row = document.getElementById(rowId);
+    if (!row) return;
+    var isHidden = row.style.display === 'none';
+    row.style.display = isHidden ? 'table-row' : 'none';
+    btn.textContent = isHidden ? 'Close \u25B2' : 'Edit \u25BC';
+}
+</script>
 {% endblock %}
