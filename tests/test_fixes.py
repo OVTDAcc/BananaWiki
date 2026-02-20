@@ -698,3 +698,205 @@ def test_move_page_button_not_on_home(logged_in_admin):
     resp = logged_in_admin.get("/")
     assert resp.status_code == 200
     assert b"moveModal" not in resp.data
+
+
+# -----------------------------------------------------------------------
+# Fix 41: delete_upload with empty filename returns error, not crash
+# -----------------------------------------------------------------------
+def test_delete_upload_empty_filename(logged_in_admin):
+    resp = logged_in_admin.post("/api/upload/delete",
+                                json={"filename": ""},
+                                content_type="application/json")
+    assert resp.status_code == 400
+    data = resp.get_json()
+    assert data["error"] == "invalid filename"
+
+
+def test_delete_upload_missing_filename(logged_in_admin):
+    resp = logged_in_admin.post("/api/upload/delete",
+                                json={"other": "value"},
+                                content_type="application/json")
+    assert resp.status_code == 400
+    data = resp.get_json()
+    assert data["error"] == "invalid filename"
+
+
+# -----------------------------------------------------------------------
+# Fix 42: Admin change_role with invalid role shows error
+# -----------------------------------------------------------------------
+def test_admin_change_role_invalid_value(logged_in_admin, admin_user):
+    from werkzeug.security import generate_password_hash
+    import db
+    uid = db.create_user("roleuser", generate_password_hash("pass123"), role="user")
+    resp = logged_in_admin.post(f"/admin/users/{uid}/edit",
+                                data={"action": "change_role", "role": "superadmin"},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"Invalid role" in resp.data
+
+
+# -----------------------------------------------------------------------
+# Fix 43: Page title max length validation
+# -----------------------------------------------------------------------
+def test_create_page_long_title(logged_in_admin):
+    resp = logged_in_admin.post("/create-page",
+                                data={"title": "A" * 201, "content": "test",
+                                      "category_id": ""},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"200 characters" in resp.data
+
+
+def test_edit_page_title_too_long(logged_in_admin):
+    import db
+    home = db.get_home_page()
+    resp = logged_in_admin.post(f"/page/{home['slug']}/edit/title",
+                                data={"title": "X" * 201},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"200 characters" in resp.data
+
+
+def test_edit_page_title_empty(logged_in_admin):
+    import db
+    home = db.get_home_page()
+    resp = logged_in_admin.post(f"/page/{home['slug']}/edit/title",
+                                data={"title": ""},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"Title is required" in resp.data
+
+
+# -----------------------------------------------------------------------
+# Fix 44: Category name max length validation
+# -----------------------------------------------------------------------
+def test_create_category_long_name(logged_in_admin):
+    resp = logged_in_admin.post("/category/create",
+                                data={"name": "C" * 101, "parent_id": ""},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"100 characters" in resp.data
+
+
+def test_edit_category_long_name(logged_in_admin):
+    import db
+    cat_id = db.create_category("TestCat")
+    resp = logged_in_admin.post(f"/category/{cat_id}/edit",
+                                data={"name": "C" * 101},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"100 characters" in resp.data
+
+
+# -----------------------------------------------------------------------
+# Fix 45: Username max length validation
+# -----------------------------------------------------------------------
+def test_signup_username_too_long(client, admin_user):
+    import db
+    code = db.generate_invite_code(admin_user)
+    resp = client.post("/signup", data={
+        "username": "u" * 51,
+        "password": "password123",
+        "confirm_password": "password123",
+        "invite_code": code,
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"50 characters" in resp.data
+
+
+def test_account_username_too_long(client, admin_user):
+    from werkzeug.security import generate_password_hash
+    import db
+    db.create_user("lenuser", generate_password_hash("pass123"), role="user")
+    client.post("/login", data={"username": "lenuser", "password": "pass123"})
+    resp = client.post("/account", data={
+        "action": "change_username",
+        "new_username": "u" * 51,
+        "password": "pass123",
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"50 characters" in resp.data
+
+
+def test_admin_create_user_username_too_long(logged_in_admin):
+    resp = logged_in_admin.post("/admin/users/create", data={
+        "username": "u" * 51,
+        "password": "password123",
+        "confirm_password": "password123",
+        "role": "user",
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"50 characters" in resp.data
+
+
+def test_admin_rename_user_username_too_long(logged_in_admin, admin_user):
+    from werkzeug.security import generate_password_hash
+    import db
+    uid = db.create_user("longuser", generate_password_hash("pass123"), role="user")
+    resp = logged_in_admin.post(f"/admin/users/{uid}/edit",
+                                data={"action": "change_username", "username": "u" * 51},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"50 characters" in resp.data
+
+
+# -----------------------------------------------------------------------
+# Fix 46: Edit page redirects home page to /
+# -----------------------------------------------------------------------
+def test_edit_home_redirects_to_root(logged_in_admin):
+    import db
+    home = db.get_home_page()
+    resp = logged_in_admin.post(f"/page/{home['slug']}/edit",
+                                data={"title": "Home", "content": "Updated",
+                                      "edit_message": "test"})
+    assert resp.status_code == 302
+    assert resp.location.endswith("/") or resp.location == "/"
+
+
+def test_edit_title_home_redirects_to_root(logged_in_admin):
+    import db
+    home = db.get_home_page()
+    resp = logged_in_admin.post(f"/page/{home['slug']}/edit/title",
+                                data={"title": "Updated Home"})
+    assert resp.status_code == 302
+    assert resp.location.endswith("/") or resp.location == "/"
+
+
+# -----------------------------------------------------------------------
+# Fix 47: Create page form preserves data on error
+# -----------------------------------------------------------------------
+def test_create_page_preserves_form_data(logged_in_admin):
+    resp = logged_in_admin.post("/create-page",
+                                data={"title": "", "content": "my content here",
+                                      "category_id": ""})
+    assert resp.status_code == 200
+    assert b"my content here" in resp.data
+
+
+# -----------------------------------------------------------------------
+# Fix 48: Admin password change requires confirmation
+# -----------------------------------------------------------------------
+def test_admin_change_password_mismatch(logged_in_admin, admin_user):
+    from werkzeug.security import generate_password_hash
+    import db
+    uid = db.create_user("pwuser", generate_password_hash("pass123"), role="user")
+    resp = logged_in_admin.post(f"/admin/users/{uid}/edit",
+                                data={"action": "change_password",
+                                      "password": "newpass123",
+                                      "confirm_password": "different123"},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"Passwords do not match" in resp.data
+
+
+def test_admin_change_password_success(logged_in_admin, admin_user):
+    from werkzeug.security import generate_password_hash
+    import db
+    uid = db.create_user("pwuser2", generate_password_hash("pass123"), role="user")
+    resp = logged_in_admin.post(f"/admin/users/{uid}/edit",
+                                data={"action": "change_password",
+                                      "password": "newpass123",
+                                      "confirm_password": "newpass123"},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"Password updated" in resp.data
