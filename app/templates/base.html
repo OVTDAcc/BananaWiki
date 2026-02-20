@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{{ settings.site_name }}{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        :root {
+            --primary: {{ settings.primary_color }};
+            --secondary: {{ settings.secondary_color }};
+            --accent: {{ settings.accent_color }};
+            --text: {{ settings.text_color }};
+            --sidebar: {{ settings.sidebar_color }};
+            --bg: {{ settings.bg_color }};
+        }
+    </style>
+</head>
+<body>
+    <header class="topbar">
+        <div class="topbar-left">
+            <a href="{{ url_for('home') }}" class="logo">{{ settings.site_name }}</a>
+        </div>
+        <div class="topbar-right">
+            {% if current_user %}
+                <span class="user-info">{{ current_user.username }} ({{ current_user.role }})</span>
+                <a href="{{ url_for('account_settings') }}" class="btn btn-sm">⚙ Account</a>
+                <a href="{{ url_for('logout') }}" class="btn btn-sm btn-outline">Logout</a>
+            {% endif %}
+        </div>
+    </header>
+    <div class="layout">
+        {% if current_user %}
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <span>Explorer</span>
+                {% if current_user and current_user.role in ('editor', 'admin') %}
+                <div class="sidebar-actions">
+                    <button class="btn-icon" onclick="document.getElementById('createCatModal').style.display='flex'" title="New Category">+📁</button>
+                    <a href="{{ url_for('create_page') }}" class="btn-icon" title="New Page">+📄</a>
+                </div>
+                {% endif %}
+            </div>
+            <nav class="sidebar-nav">
+                <a href="{{ url_for('home') }}" class="nav-item {% if page and page.is_home %}active{% endif %}">🏠 Home</a>
+                {% for cat in categories %}
+                    {% include "wiki/_category.html" %}
+                {% endfor %}
+                {% if uncategorized %}
+                <div class="nav-section">
+                    <span class="nav-section-title">Uncategorized</span>
+                    {% for p in uncategorized %}
+                    <a href="{{ url_for('view_page', slug=p.slug) }}" class="nav-item {% if page and page.id == p.id %}active{% endif %}">
+                        📄 {{ p.title }}
+                    </a>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </nav>
+        </aside>
+        {% endif %}
+        <main class="content">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            <div class="flash-messages">
+                {% for category, message in messages %}
+                <div class="flash flash-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% endwith %}
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    {% if current_user and current_user.role in ('editor', 'admin') %}
+    <!-- Create Category Modal -->
+    <div class="modal" id="createCatModal" style="display:none;">
+        <div class="modal-content">
+            <h3>Create Category</h3>
+            <form method="POST" action="{{ url_for('create_category') }}">
+                <div class="form-group">
+                    <label>Name</label>
+                    <input type="text" name="name" required class="input">
+                </div>
+                <div class="form-group">
+                    <label>Parent Category (optional)</label>
+                    <select name="parent_id" class="input">
+                        <option value="">None</option>
+                        {% for cat in categories %}
+                        <option value="{{ cat.id }}">{{ cat.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn">Create</button>
+                    <button type="button" class="btn btn-outline" onclick="this.closest('.modal').style.display='none'">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

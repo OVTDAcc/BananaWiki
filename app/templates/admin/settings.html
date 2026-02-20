@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Site Settings – {{ settings.site_name }}{% endblock %}
+{% block content %}
+<h1>Site Settings</h1>
+
+<form method="POST">
+    <div class="settings-section">
+        <h3>General</h3>
+        <div class="form-group">
+            <label>Site Name</label>
+            <input type="text" name="site_name" value="{{ settings.site_name }}" class="input" style="max-width:300px">
+        </div>
+    </div>
+
+    <div class="settings-section">
+        <h3>Theme Colors</h3>
+        <div class="color-group">
+            <label>Primary (highlights, logo)</label>
+            <input type="color" name="primary_color" value="{{ settings.primary_color }}"
+                   oninput="this.nextElementSibling.value=this.value">
+            <input type="text" value="{{ settings.primary_color }}" class="input input-sm"
+                   oninput="this.previousElementSibling.value=this.value"
+                   onchange="this.previousElementSibling.value=this.value">
+        </div>
+        <div class="color-group">
+            <label>Secondary (header, cards)</label>
+            <input type="color" name="secondary_color" value="{{ settings.secondary_color }}"
+                   oninput="this.nextElementSibling.value=this.value">
+            <input type="text" value="{{ settings.secondary_color }}" class="input input-sm"
+                   oninput="this.previousElementSibling.value=this.value"
+                   onchange="this.previousElementSibling.value=this.value">
+        </div>
+        <div class="color-group">
+            <label>Accent (links)</label>
+            <input type="color" name="accent_color" value="{{ settings.accent_color }}"
+                   oninput="this.nextElementSibling.value=this.value">
+            <input type="text" value="{{ settings.accent_color }}" class="input input-sm"
+                   oninput="this.previousElementSibling.value=this.value"
+                   onchange="this.previousElementSibling.value=this.value">
+        </div>
+        <div class="color-group">
+            <label>Text</label>
+            <input type="color" name="text_color" value="{{ settings.text_color }}"
+                   oninput="this.nextElementSibling.value=this.value">
+            <input type="text" value="{{ settings.text_color }}" class="input input-sm"
+                   oninput="this.previousElementSibling.value=this.value"
+                   onchange="this.previousElementSibling.value=this.value">
+        </div>
+        <div class="color-group">
+            <label>Sidebar</label>
+            <input type="color" name="sidebar_color" value="{{ settings.sidebar_color }}"
+                   oninput="this.nextElementSibling.value=this.value">
+            <input type="text" value="{{ settings.sidebar_color }}" class="input input-sm"
+                   oninput="this.previousElementSibling.value=this.value"
+                   onchange="this.previousElementSibling.value=this.value">
+        </div>
+        <div class="color-group">
+            <label>Background</label>
+            <input type="color" name="bg_color" value="{{ settings.bg_color }}"
+                   oninput="this.nextElementSibling.value=this.value">
+            <input type="text" value="{{ settings.bg_color }}" class="input input-sm"
+                   oninput="this.previousElementSibling.value=this.value"
+                   onchange="this.previousElementSibling.value=this.value">
+        </div>
+    </div>
+
+    <button type="submit" class="btn">Save Settings</button>
+</form>
+{% endblock %}

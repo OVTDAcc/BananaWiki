@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login – {{ settings.site_name }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>:root{--primary:{{ settings.primary_color }};--secondary:{{ settings.secondary_color }};--accent:{{ settings.accent_color }};--text:{{ settings.text_color }};--sidebar:{{ settings.sidebar_color }};--bg:{{ settings.bg_color }}}</style>
+</head>
+<body>
+    <div class="auth-container">
+        <div class="auth-box">
+            <h1>{{ settings.site_name }}</h1>
+            <p class="subtitle">Sign in to continue</p>
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            {% for category, message in messages %}
+            <div class="flash flash-{{ category }}">{{ message }}</div>
+            {% endfor %}
+            {% endif %}
+            {% endwith %}
+            <form method="POST">
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" name="username" class="input" required autocomplete="username">
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" name="password" class="input" required autocomplete="current-password">
+                </div>
+                <button type="submit" class="btn">Login</button>
+            </form>
+            <div class="auth-link">
+                Don't have an account? <a href="{{ url_for('signup') }}">Sign up</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

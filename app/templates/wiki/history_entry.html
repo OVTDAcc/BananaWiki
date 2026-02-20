@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}History Entry – {{ settings.site_name }}{% endblock %}
+{% block content %}
+<h1>{{ entry.title }}</h1>
+<p style="margin-bottom:1rem;font-size:.85rem;opacity:.7">
+    Saved {{ time_ago(entry.created_at) }}
+    · <a href="{{ url_for('page_history', slug=page.slug) }}">← Back to history</a>
+</p>
+<div class="wiki-content">
+    {{ content_html|safe }}
+</div>
+{% endblock %}

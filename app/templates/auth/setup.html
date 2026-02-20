@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Setup – BananaWiki</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>:root{--primary:#7c8dc6;--secondary:#151520;--accent:#6e8aca;--text:#b8bcc8;--sidebar:#111118;--bg:#0d0d14}</style>
+</head>
+<body>
+    <div class="auth-container">
+        <div class="auth-box">
+            <h1>BananaWiki Setup</h1>
+            <p class="subtitle">Create your admin account to get started.</p>
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            {% for category, message in messages %}
+            <div class="flash flash-{{ category }}">{{ message }}</div>
+            {% endfor %}
+            {% endif %}
+            {% endwith %}
+            <form method="POST">
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" name="username" class="input" required minlength="3" autocomplete="username">
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" name="password" class="input" required minlength="6" autocomplete="new-password">
+                </div>
+                <div class="form-group">
+                    <label>Confirm Password</label>
+                    <input type="password" name="confirm_password" class="input" required minlength="6" autocomplete="new-password">
+                </div>
+                <button type="submit" class="btn">Create Admin Account</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>
