@@ -68,11 +68,19 @@ def slugify(text):
     text = text.lower().strip()
     text = re.sub(r"[^\w\s-]", "", text)
     text = re.sub(r"[\s_]+", "-", text)
-    return text.strip("-")
+    text = text.strip("-")
+    if not text:
+        text = "page"
+    return text
 
 
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in config.ALLOWED_EXTENSIONS
+
+
+def _is_valid_hex_color(value):
+    """Return True if value is a valid 7-char hex color like #aabbcc."""
+    return bool(re.fullmatch(r"#[0-9a-fA-F]{6}", value))
 
 
 def get_current_user():
@@ -363,7 +371,9 @@ def account_settings():
         flash("Your account has been deleted.", "info")
         return redirect(url_for("login"))
 
-    return render_template("account/settings.html", user=user)
+    categories, uncategorized = db.get_category_tree()
+    return render_template("account/settings.html", user=user,
+                           categories=categories, uncategorized=uncategorized)
 
 
 # ---------------------------------------------------------------------------
@@ -376,6 +386,16 @@ def home():
     user = get_current_user()
     content_html = render_markdown(page["content"]) if page else ""
     categories, uncategorized = db.get_category_tree()
+
+    editor_info = None
+    if page and page["last_edited_by"]:
+        editor = db.get_user_by_id(page["last_edited_by"])
+        if editor:
+            editor_info = {
+                "username": editor["username"],
+                "time_ago": time_ago(page["last_edited_at"]),
+            }
+
     log_action("view_page", request, user=user, page="home")
     return render_template(
         "wiki/page.html",
@@ -383,6 +403,7 @@ def home():
         content_html=content_html,
         categories=categories,
         uncategorized=uncategorized,
+        editor_info=editor_info,
     )
 
 
@@ -734,6 +755,12 @@ def api_delete_draft():
     if not data:
         return jsonify({"error": "invalid request"}), 400
     page_id = data.get("page_id")
+    if page_id is None:
+        return jsonify({"error": "missing page_id"}), 400
+    try:
+        page_id = int(page_id)
+    except (TypeError, ValueError):
+        return jsonify({"error": "invalid page_id"}), 400
     user = get_current_user()
     db.delete_draft(page_id, user["id"])
     return jsonify({"ok": True})
@@ -843,7 +870,9 @@ def admin_edit_user(user_id):
                 flash("Role updated.", "success")
 
     elif action == "suspend":
-        if target["role"] == "admin" and db.count_admins() <= 1:
+        if user_id == current_user["id"]:
+            flash("Cannot suspend your own account.", "error")
+        elif target["role"] == "admin" and db.count_admins() <= 1:
             flash("Cannot suspend the last admin.", "error")
         else:
             db.update_user(user_id, suspended=1)
@@ -858,7 +887,9 @@ def admin_edit_user(user_id):
         flash("User unsuspended.", "success")
 
     elif action == "delete":
-        if target["role"] == "admin" and db.count_admins() <= 1:
+        if user_id == current_user["id"]:
+            flash("Cannot delete your own account from here. Use account settings instead.", "error")
+        elif target["role"] == "admin" and db.count_admins() <= 1:
             flash("Cannot delete the last admin.", "error")
         else:
             db.delete_user(user_id)
@@ -955,20 +986,21 @@ def admin_delete_code(code_id):
 def admin_settings():
     if request.method == "POST":
         site_name = request.form.get("site_name", "").strip() or "BananaWiki"
-        primary_color = request.form.get("primary_color", "#f4c542")
-        secondary_color = request.form.get("secondary_color", "#1e1e2e")
-        accent_color = request.form.get("accent_color", "#89b4fa")
-        text_color = request.form.get("text_color", "#cdd6f4")
-        sidebar_color = request.form.get("sidebar_color", "#181825")
-        bg_color = request.form.get("bg_color", "#11111b")
+        color_fields = {
+            "primary_color": request.form.get("primary_color", "#7c8dc6"),
+            "secondary_color": request.form.get("secondary_color", "#151520"),
+            "accent_color": request.form.get("accent_color", "#6e8aca"),
+            "text_color": request.form.get("text_color", "#b8bcc8"),
+            "sidebar_color": request.form.get("sidebar_color", "#111118"),
+            "bg_color": request.form.get("bg_color", "#0d0d14"),
+        }
+        for name, val in color_fields.items():
+            if not _is_valid_hex_color(val):
+                flash(f"Invalid color value for {name}.", "error")
+                return redirect(url_for("admin_settings"))
         db.update_site_settings(
             site_name=site_name,
-            primary_color=primary_color,
-            secondary_color=secondary_color,
-            accent_color=accent_color,
-            text_color=text_color,
-            sidebar_color=sidebar_color,
-            bg_color=bg_color,
+            **color_fields,
         )
         user = get_current_user()
         log_action("update_settings", request, user=user, site_name=site_name)
@@ -986,12 +1018,16 @@ def admin_settings():
 # ---------------------------------------------------------------------------
 @app.errorhandler(404)
 def not_found(e):
-    return render_template("wiki/404.html"), 404
+    categories, uncategorized = db.get_category_tree()
+    return render_template("wiki/404.html", categories=categories,
+                           uncategorized=uncategorized), 404
 
 
 @app.errorhandler(403)
 def forbidden(e):
-    return render_template("wiki/404.html"), 403
+    categories, uncategorized = db.get_category_tree()
+    return render_template("wiki/404.html", categories=categories,
+                           uncategorized=uncategorized), 403
 
 
 # ---------------------------------------------------------------------------
