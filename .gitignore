@@ -13,3 +13,4 @@ app/static/uploads/*
 venv/
 .venv/
 *.db
+.pytest_cache/

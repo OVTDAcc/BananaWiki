@@ -423,8 +423,15 @@ def update_page(page_id, title, content, user_id, edit_message=""):
 def update_page_title(page_id, title, user_id):
     conn = get_db()
     now = datetime.now(timezone.utc).isoformat()
+    page = conn.execute("SELECT title, content FROM pages WHERE id=?", (page_id,)).fetchone()
     conn.execute("UPDATE pages SET title=?, last_edited_by=?, last_edited_at=? WHERE id=?",
                  (title, user_id, now, page_id))
+    if page:
+        conn.execute(
+            "INSERT INTO page_history (page_id, title, content, edited_by, edit_message) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (page_id, title, page["content"], user_id, f"Title changed from '{page['title']}' to '{title}'"),
+        )
     conn.commit()
     conn.close()
 
