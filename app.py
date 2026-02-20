@@ -369,8 +369,9 @@ def account_settings():
             except sqlite3.IntegrityError:
                 flash("Username already taken.", "error")
                 return redirect(url_for("account_settings"))
-            log_action("change_username", request, user=user, new_username=new_username)
-            flash("Username updated.", "success")
+            else:
+                log_action("change_username", request, user=user, new_username=new_username)
+                flash("Username updated.", "success")
         return redirect(url_for("account_settings"))
 
     if action == "change_password":
@@ -923,9 +924,10 @@ def admin_edit_user(user_id):
                 except sqlite3.IntegrityError:
                     flash("Username already taken.", "error")
                     return redirect(url_for("admin_users"))
-                log_action("admin_change_username", request, user=current_user,
-                           target_user=target["username"], new_username=new_name)
-                flash("Username updated.", "success")
+                else:
+                    log_action("admin_change_username", request, user=current_user,
+                               target_user=target["username"], new_username=new_name)
+                    flash("Username updated.", "success")
 
     elif action == "change_password":
         new_pw = request.form.get("password", "")
