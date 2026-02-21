@@ -1400,3 +1400,63 @@ def test_log_sanitize_prevents_injection_at_runtime():
     malicious_action = "login_success\nACTION  | user=admin action=delete_all"
     sanitized = _sanitize(malicious_action)
     assert "\n" not in sanitized
+
+
+# -----------------------------------------------------------------------
+# SSL / HTTPS config defaults
+# -----------------------------------------------------------------------
+def test_ssl_config_defaults():
+    """SSL_CERT and SSL_KEY should default to None."""
+    import config
+    assert config.SSL_CERT is None
+    assert config.SSL_KEY is None
+
+
+def test_proxy_mode_default():
+    """PROXY_MODE should default to False."""
+    import config
+    assert config.PROXY_MODE is False
+
+
+# -----------------------------------------------------------------------
+# ProxyFix middleware applied when PROXY_MODE is enabled
+# -----------------------------------------------------------------------
+def test_proxy_fix_applied_when_enabled(monkeypatch):
+    """When PROXY_MODE is True the wsgi_app should be wrapped by ProxyFix."""
+    import importlib
+    import config as cfg
+    monkeypatch.setattr(cfg, "PROXY_MODE", True)
+    # Re-import app to pick up the monkeypatched config
+    import app as app_mod
+    importlib.reload(app_mod)
+    from werkzeug.middleware.proxy_fix import ProxyFix
+    assert isinstance(app_mod.app.wsgi_app, ProxyFix)
+    # Restore
+    monkeypatch.setattr(cfg, "PROXY_MODE", False)
+    importlib.reload(app_mod)
+
+
+def test_proxy_fix_not_applied_by_default():
+    """By default wsgi_app should NOT be wrapped by ProxyFix."""
+    from app import app
+    from werkzeug.middleware.proxy_fix import ProxyFix
+    assert not isinstance(app.wsgi_app, ProxyFix)
+
+
+# -----------------------------------------------------------------------
+# SSL-enabled session cookie and URL scheme
+# -----------------------------------------------------------------------
+def test_ssl_enables_secure_cookie(monkeypatch):
+    """When SSL is configured, SESSION_COOKIE_SECURE and PREFERRED_URL_SCHEME are set."""
+    import importlib
+    import config as cfg
+    monkeypatch.setattr(cfg, "SSL_CERT", "/tmp/cert.pem")
+    monkeypatch.setattr(cfg, "SSL_KEY", "/tmp/key.pem")
+    import app as app_mod
+    importlib.reload(app_mod)
+    assert app_mod.app.config["SESSION_COOKIE_SECURE"] is True
+    assert app_mod.app.config["PREFERRED_URL_SCHEME"] == "https"
+    # Restore
+    monkeypatch.setattr(cfg, "SSL_CERT", None)
+    monkeypatch.setattr(cfg, "SSL_KEY", None)
+    importlib.reload(app_mod)

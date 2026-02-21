@@ -28,6 +28,26 @@ CUSTOM_DOMAIN = None
 HOST = "0.0.0.0" if USE_PUBLIC_IP else "127.0.0.1"
 
 # =============================================================================
+# SSL / HTTPS
+# =============================================================================
+# To enable HTTPS, provide paths to your SSL certificate and private key.
+# When both are set the app will serve over HTTPS instead of plain HTTP.
+# Example:
+#   SSL_CERT = "/etc/letsencrypt/live/yourdomain.com/fullchain.pem"
+#   SSL_KEY  = "/etc/letsencrypt/live/yourdomain.com/privkey.pem"
+SSL_CERT = None
+SSL_KEY = None
+
+# =============================================================================
+# Reverse Proxy Support
+# =============================================================================
+# Enable this when running behind a reverse proxy (e.g. nginx, Apache, Caddy,
+# or a cloud load balancer on OCI / Google Cloud / AWS).  The proxy must set
+# the standard forwarding headers (X-Forwarded-For, X-Forwarded-Proto, etc.).
+# This ensures Flask sees the real client IP and correct URL scheme (https).
+PROXY_MODE = False
+
+# =============================================================================
 # Security
 # =============================================================================
 SECRET_KEY_FILE = os.path.join(BASE_DIR, "instance", ".secret_key")

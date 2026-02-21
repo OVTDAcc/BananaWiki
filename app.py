@@ -16,6 +16,7 @@ from flask import (
     session, flash, jsonify, send_from_directory, abort,
 )
 from flask_wtf.csrf import CSRFProtect
+from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 import markdown
@@ -36,6 +37,18 @@ app.secret_key = config.SECRET_KEY
 app.config["MAX_CONTENT_LENGTH"] = config.MAX_CONTENT_LENGTH
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+
+# --- SSL / HTTPS awareness ---
+_ssl_enabled = bool(config.SSL_CERT and config.SSL_KEY)
+if _ssl_enabled:
+    app.config["SESSION_COOKIE_SECURE"] = True
+    app.config["PREFERRED_URL_SCHEME"] = "https"
+
+# --- Reverse-proxy support ---
+if config.PROXY_MODE:
+    app.wsgi_app = ProxyFix(
+        app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1
+    )
 
 csrf = CSRFProtect(app)
 
@@ -1294,4 +1307,21 @@ db.init_db()
 get_logger()
 
 if __name__ == "__main__":
-    app.run(host=config.HOST, port=config.PORT, debug=False)
+    ssl_ctx = None
+    if _ssl_enabled:
+        ssl_ctx = (config.SSL_CERT, config.SSL_KEY)
+
+    scheme = "https" if _ssl_enabled else "http"
+    print(f" * Serving BananaWiki over {scheme.upper()}")
+    if config.HOST == "0.0.0.0":
+        print(f" * Local:    {scheme}://127.0.0.1:{config.PORT}")
+        print(f" * Network:  {scheme}://<your-server-ip>:{config.PORT}")
+        if config.CUSTOM_DOMAIN:
+            print(f" * Domain:   {scheme}://{config.CUSTOM_DOMAIN}")
+        print(" * Tip: on cloud VMs (OCI, GCP, AWS) use the public/elastic IP")
+    else:
+        print(f" * Running on {scheme}://{config.HOST}:{config.PORT}")
+    if config.PROXY_MODE:
+        print(" * Reverse-proxy mode enabled (trusting X-Forwarded-* headers)")
+
+    app.run(host=config.HOST, port=config.PORT, debug=False, ssl_context=ssl_ctx)
