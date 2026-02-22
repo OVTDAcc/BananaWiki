@@ -145,6 +145,15 @@ gunicorn wsgi:app --bind 0.0.0.0:5001 --workers 2
 
 The `gunicorn.conf.py` file reads `HOST`, `PORT`, and `PROXY_MODE` from `config.py` automatically.
 
+### Development server
+
+For local development only, you can run the Flask dev server directly:
+```bash
+python app.py
+```
+
+> **Warning:** The Flask development server is single-threaded and not suitable for production. Always use Gunicorn (via systemd or manually) for production deployments.
+
 ### Multi-App Hosting
 
 Run multiple apps on the same server by assigning each a different port:
