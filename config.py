@@ -11,8 +11,21 @@ BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 # =============================================================================
 # Networking Configuration
 # =============================================================================
-# Port to serve the application on
+# Protocol mode: "http", "https", or "both"
+#   "http"  – serve over plain HTTP only (default)
+#   "https" – serve over HTTPS only (requires SSL_CERT and SSL_KEY)
+#   "both"  – serve HTTPS and automatically redirect HTTP to HTTPS
+#             (requires SSL_CERT and SSL_KEY)
+PROTOCOL = "http"
+
+# Port for single-protocol mode ("http" or "https")
 PORT = 8080
+
+# Separate ports for "both" mode:
+#   HTTP_PORT  – port for the HTTP-to-HTTPS redirect listener
+#   HTTPS_PORT – port for the main HTTPS application server
+HTTP_PORT = 80
+HTTPS_PORT = 443
 
 # Whether to bind to the public IP (0.0.0.0) so it is accessible from other machines
 USE_PUBLIC_IP = True
@@ -20,8 +33,19 @@ USE_PUBLIC_IP = True
 # Whether to also listen on localhost/127.0.0.1
 USE_LOCAL_IP = True
 
-# Custom domain (set to None to disable)
+# Custom domain or subdomain for production deployments.
+# Examples: "example.com", "wiki.example.com", "platform1.example.com"
+# Used for startup messages and as the HTTP-to-HTTPS redirect target.
+# Set to None when accessing via IP address only.
 CUSTOM_DOMAIN = None
+
+# Flask SERVER_NAME for URL generation in multi-site setups.
+# Format: "hostname" or "hostname:port" (omit port for 80/443).
+# Leave as None for automatic configuration (recommended for most setups).
+# Only set this when hosting multiple Flask sites on the same machine and
+# you need Flask to generate correct external URLs.
+# Example: "wiki.example.com" or "localhost:5001"
+SERVER_NAME = None
 
 # Host binding: 0.0.0.0 serves on all interfaces (public + local)
 # 127.0.0.1 serves only on localhost
@@ -45,6 +69,12 @@ SSL_KEY = None
 # or a cloud load balancer on OCI / Google Cloud / AWS).  The proxy must set
 # the standard forwarding headers (X-Forwarded-For, X-Forwarded-Proto, etc.).
 # This ensures Flask sees the real client IP and correct URL scheme (https).
+#
+# Multi-site hosting example (one machine, multiple Flask sites):
+#   nginx routes platform1.example.com → localhost:5001
+#                platform2.example.com → localhost:5002
+#   Each site sets PORT to its unique port and PROXY_MODE = True.
+#   See README.md for full reverse-proxy configuration examples.
 PROXY_MODE = False
 
 # =============================================================================
