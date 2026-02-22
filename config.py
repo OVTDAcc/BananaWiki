@@ -13,6 +13,7 @@ BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 # =============================================================================
 # Port to listen on.  Each app on your server gets its own port
 # (e.g. 5001 for BananaWiki, 5002 for another app, etc.).
+# Make sure the chosen port is not already in use.
 PORT = 5001
 
 # Bind to all network interfaces so the app is reachable from other machines.

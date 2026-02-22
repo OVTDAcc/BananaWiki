@@ -176,6 +176,8 @@ Access directly via `http://<server-ip>:5001`, or set up Cloudflare/reverse prox
 
 **3. Set Cloudflare SSL/TLS mode** to **Flexible** (Cloudflare handles HTTPS for visitors and connects to your server via HTTP).
 
+> **Security note:** Flexible mode means traffic between Cloudflare and your server is unencrypted. For sensitive content, use **Full** or **Full (Strict)** mode with an SSL certificate on your server (see [Direct HTTPS](#direct-https-without-cloudflare)).
+
 **4. Configure BananaWiki** (`config.py`):
 ```python
 PORT = 5001
