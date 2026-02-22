@@ -1566,3 +1566,45 @@ def test_redirect_app_host_validation():
     assert not _valid_host_re.match("evil.com\n")
     assert not _valid_host_re.match("")
     assert not _valid_host_re.match("evil.com evil.com")
+
+
+# -----------------------------------------------------------------------
+# WSGI entry point and Gunicorn config
+# -----------------------------------------------------------------------
+def test_wsgi_entry_point():
+    """wsgi.py should expose the Flask app."""
+    import wsgi
+    assert hasattr(wsgi, "app")
+    from app import app
+    assert wsgi.app is app
+
+
+def test_gunicorn_conf_exists():
+    """gunicorn.conf.py should exist and define bind/workers."""
+    import importlib
+    spec = importlib.util.find_spec("gunicorn.conf")
+    # Can't import as module due to dots; read & exec instead
+    import os
+    conf_path = os.path.join(
+        os.path.dirname(__file__), "..", "gunicorn.conf.py"
+    )
+    assert os.path.exists(conf_path)
+    conf_ns = {}
+    with open(conf_path, encoding="utf-8") as f:
+        exec(compile(f.read(), conf_path, "exec"), conf_ns)  # noqa: S102
+    assert "bind" in conf_ns
+    assert "workers" in conf_ns
+    assert conf_ns["workers"] >= 1
+
+
+def test_gunicorn_conf_reads_config():
+    """gunicorn.conf.py should derive bind from config.HOST:config.PORT."""
+    import os
+    conf_path = os.path.join(
+        os.path.dirname(__file__), "..", "gunicorn.conf.py"
+    )
+    conf_ns = {}
+    with open(conf_path, encoding="utf-8") as f:
+        exec(compile(f.read(), conf_path, "exec"), conf_ns)  # noqa: S102
+    import config as cfg
+    assert conf_ns["bind"] == f"{cfg.HOST}:{cfg.PORT}"

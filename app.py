@@ -1393,15 +1393,41 @@ if __name__ == "__main__":
 
         return redirect_app
 
+    # --- Try Gunicorn, fall back to Flask dev server ---
+    try:
+        from gunicorn.app.base import BaseApplication
+
+        class _GunicornApp(BaseApplication):
+            """Thin wrapper to launch Gunicorn from Python."""
+
+            def __init__(self, flask_app, options=None):
+                self.flask_app = flask_app
+                self.options = options or {}
+                super().__init__()
+
+            def load_config(self):
+                for key, value in self.options.items():
+                    if key in self.cfg.settings and value is not None:
+                        self.cfg.set(key.lower(), value)
+
+            def load(self):
+                return self.flask_app
+
+        _use_gunicorn = True
+    except ImportError:
+        _use_gunicorn = False
+
     # --- Startup banner ---
+    server_label = "Gunicorn" if _use_gunicorn else "Flask (development)"
     if protocol == "http":
-        print(" * Serving BananaWiki over HTTP")
+        print(f" * Serving BananaWiki via {server_label} over HTTP")
         _print_addresses("http", http_port)
     elif protocol == "https":
-        print(" * Serving BananaWiki over HTTPS")
+        print(f" * Serving BananaWiki via {server_label} over HTTPS")
         _print_addresses("https", https_port)
     else:
-        print(" * Serving BananaWiki over HTTPS (with HTTP → HTTPS redirect)")
+        print(f" * Serving BananaWiki via {server_label} over HTTPS "
+              "(with HTTP → HTTPS redirect)")
         _print_addresses("https", https_port)
         print(f" * HTTP redirect: port {http_port} → HTTPS port {https_port}")
 
@@ -1423,10 +1449,27 @@ if __name__ == "__main__":
         )
         redirect_thread.start()
 
-    # --- Run the main Flask application ---
-    if protocol == "http":
-        app.run(host=config.HOST, port=http_port, debug=False)
+    # --- Run the main application ---
+    if _use_gunicorn:
+        serve_port = http_port if protocol == "http" else https_port
+        gunicorn_opts = {
+            "bind": f"{config.HOST}:{serve_port}",
+            "workers": 2,
+            "accesslog": "-",
+            "errorlog": "-",
+            "loglevel": "info",
+        }
+        if ssl_ctx:
+            gunicorn_opts["certfile"] = config.SSL_CERT
+            gunicorn_opts["keyfile"] = config.SSL_KEY
+        _GunicornApp(app, gunicorn_opts).run()
     else:
-        serve_port = https_port
-        app.run(host=config.HOST, port=serve_port, debug=False,
-                ssl_context=ssl_ctx)
+        print(" * WARNING: Gunicorn not installed. Using Flask development "
+              "server (not recommended for production).")
+        print(" * Install Gunicorn: pip install gunicorn")
+        if protocol == "http":
+            app.run(host=config.HOST, port=http_port, debug=False)
+        else:
+            serve_port = https_port
+            app.run(host=config.HOST, port=serve_port, debug=False,
+                    ssl_context=ssl_ctx)

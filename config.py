@@ -66,15 +66,15 @@ SSL_KEY = None
 # Reverse Proxy Support
 # =============================================================================
 # Enable this when running behind a reverse proxy (e.g. nginx, Apache, Caddy,
-# or a cloud load balancer on OCI / Google Cloud / AWS).  The proxy must set
-# the standard forwarding headers (X-Forwarded-For, X-Forwarded-Proto, etc.).
-# This ensures Flask sees the real client IP and correct URL scheme (https).
+# Cloudflare, or a cloud load balancer on OCI / Google Cloud / AWS).  The proxy
+# must set the standard forwarding headers (X-Forwarded-For, X-Forwarded-Proto,
+# etc.).  This ensures Flask sees the real client IP and correct URL scheme.
 #
 # Multi-site hosting example (one machine, multiple Flask sites):
 #   nginx routes platform1.example.com → localhost:5001
 #                platform2.example.com → localhost:5002
 #   Each site sets PORT to its unique port and PROXY_MODE = True.
-#   See README.md for full reverse-proxy configuration examples.
+#   See README.md for full reverse-proxy and Cloudflare configuration examples.
 PROXY_MODE = False
 
 # =============================================================================
