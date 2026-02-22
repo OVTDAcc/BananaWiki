@@ -102,13 +102,14 @@ def test_gunicorn_conf_proxy_forwarded(monkeypatch):
 def test_proxy_fix_applied_when_enabled(monkeypatch):
     """When PROXY_MODE=True, the WSGI app should be wrapped by ProxyFix."""
     from werkzeug.middleware.proxy_fix import ProxyFix
-    monkeypatch.setattr(config, "PROXY_MODE", True)
     import app as app_mod
+    monkeypatch.setattr(config, "PROXY_MODE", True)
     importlib.reload(app_mod)
-    assert isinstance(app_mod.app.wsgi_app, ProxyFix)
-    # Restore
-    monkeypatch.setattr(config, "PROXY_MODE", False)
-    importlib.reload(app_mod)
+    try:
+        assert isinstance(app_mod.app.wsgi_app, ProxyFix)
+    finally:
+        monkeypatch.setattr(config, "PROXY_MODE", False)
+        importlib.reload(app_mod)
 
 
 # -----------------------------------------------------------------------
