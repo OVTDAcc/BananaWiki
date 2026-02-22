@@ -30,18 +30,12 @@ workers = min(multiprocessing.cpu_count() * 2 + 1, 4)
 worker_class = "sync"
 
 # ---------------------------------------------------------------------------
-#  SSL / HTTPS  (direct TLS termination)
+#  SSL / HTTPS  (optional — not needed with Cloudflare)
 # ---------------------------------------------------------------------------
-# When PROTOCOL is "https" or "both" and SSL_CERT / SSL_KEY are set,
-# Gunicorn will terminate TLS directly.
-# If you use a reverse proxy (nginx/Caddy/Cloudflare) for TLS, leave these
-# as None and set PROXY_MODE = True in config.py instead.
-_protocol = getattr(_bw_config, "PROTOCOL", "http").lower()
-if _protocol in ("https", "both") and _bw_config.SSL_CERT and _bw_config.SSL_KEY:
-    certfile = _bw_config.SSL_CERT
-    keyfile = _bw_config.SSL_KEY
-elif _bw_config.SSL_CERT and _bw_config.SSL_KEY:
-    # Backward compat: SSL certs set without PROTOCOL
+# When SSL_CERT and SSL_KEY are set in config.py, Gunicorn will terminate
+# TLS directly.  If you use Cloudflare or a reverse proxy for TLS, leave
+# these as None in config.py and set PROXY_MODE = True instead.
+if _bw_config.SSL_CERT and _bw_config.SSL_KEY:
     certfile = _bw_config.SSL_CERT
     keyfile = _bw_config.SSL_KEY
 

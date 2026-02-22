@@ -28,32 +28,18 @@ A lightweight, self-hosted wiki application built with Flask and SQLite. BananaW
 - Python 3.9 or higher
 - pip (Python package manager)
 
-## Installation
+## Quick Start
 
-1. **Clone the repository:**
+```bash
+git clone https://github.com/OverloadedTech/BananaWiki.git
+cd BananaWiki
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+gunicorn wsgi:app -c gunicorn.conf.py
+```
 
-   ```bash
-   git clone https://github.com/OverloadedTech/BananaWiki.git
-   cd BananaWiki
-   ```
-
-2. **Install dependencies:**
-
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. **Run the application:**
-
-   ```bash
-   # Production (recommended)
-   gunicorn wsgi:app -c gunicorn.conf.py
-
-   # Or simply
-   python app.py
-   ```
-
-4. **Open your browser** and navigate to `http://localhost:8080`. You will be directed to the setup page to create the first admin account.
+Open your browser and navigate to `http://<your-server-ip>:5001`. You will be directed to the setup page to create the first admin account.
 
 ## Initial Setup
 
@@ -71,23 +57,18 @@ Edit `config.py` to customize the application. Key options include:
 
 | Setting | Default | Description |
 |---|---|---|
-| `PROTOCOL` | `"http"` | Protocol mode: `"http"`, `"https"`, or `"both"` |
-| `PORT` | `8080` | Server port (used in `http` and `https` modes) |
-| `HTTP_PORT` | `80` | HTTP redirect port (used in `both` mode) |
-| `HTTPS_PORT` | `443` | HTTPS port (used in `both` mode) |
+| `PORT` | `5001` | Server port |
 | `USE_PUBLIC_IP` | `True` | Bind to `0.0.0.0` for network access |
-| `USE_LOCAL_IP` | `True` | Also listen on `127.0.0.1` |
 | `CUSTOM_DOMAIN` | `None` | Domain or subdomain (e.g., `wiki.example.com`) |
-| `SERVER_NAME` | `None` | Flask SERVER_NAME for multi-site URL generation |
-| `SSL_CERT` | `None` | Path to SSL certificate file |
-| `SSL_KEY` | `None` | Path to SSL private key file |
-| `PROXY_MODE` | `False` | Enable when behind a reverse proxy |
+| `PROXY_MODE` | `False` | Enable when behind Cloudflare or a reverse proxy |
+| `SSL_CERT` | `None` | Path to SSL certificate file (optional) |
+| `SSL_KEY` | `None` | Path to SSL private key file (optional) |
 | `DATABASE_PATH` | `instance/bananawiki.db` | SQLite database file path |
 | `MAX_UPLOAD_SIZE` | `16 * 1024 * 1024` | Maximum upload file size (16 MB) |
 | `ALLOWED_EXTENSIONS` | `png, jpg, jpeg, gif, webp` | Permitted upload file types |
 | `LOGGING_ENABLED` | `True` | Enable file-based logging |
 | `LOG_FILE` | `logs/bananawiki.log` | Log file location |
-| `PAGE_HISTORY_ENABLED` | `False` | Enable the page history viewer |
+| `PAGE_HISTORY_ENABLED` | `True` | Enable the page history viewer |
 | `INVITE_CODE_EXPIRY_HOURS` | `48` | Hours before invite codes expire |
 | `SYNC` | `False` | Enable Telegram backup sync (strongly recommended) |
 | `SYNC_TOKEN` | `""` | Telegram Bot API token from @BotFather |
@@ -107,106 +88,143 @@ New users are assigned the **user** role by default when signing up with an invi
 
 ## Production Deployment
 
-### Running with Gunicorn
+### Running with systemd (recommended)
 
-[Gunicorn](https://gunicorn.org/) is the recommended production WSGI server. `python app.py` will automatically use Gunicorn if installed.
+A systemd service keeps BananaWiki running in a virtual environment and automatically restarts it after crashes or server reboots.
 
-**Using the provided config file:**
+**1. Install BananaWiki and create a venv:**
 ```bash
+sudo mkdir -p /opt/BananaWiki
+sudo chown www-data:www-data /opt/BananaWiki
+cd /opt/BananaWiki
+
+# Clone or copy your files here
+git clone https://github.com/OverloadedTech/BananaWiki.git .
+
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+**2. Edit `config.py`** to set your port and domain:
+```python
+PORT = 5001                              # pick any free port
+CUSTOM_DOMAIN = "wiki.example.com"       # or None for IP-only access
+PROXY_MODE = True                        # if using Cloudflare or a reverse proxy
+```
+
+**3. Install the systemd service:**
+```bash
+sudo cp bananawiki.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable bananawiki     # start on boot
+sudo systemctl start bananawiki      # start now
+```
+
+**Manage the service:**
+```bash
+sudo systemctl status bananawiki     # check status
+sudo systemctl restart bananawiki    # restart (e.g. after config changes)
+sudo systemctl stop bananawiki       # stop
+journalctl -u bananawiki -f          # view live logs
+```
+
+> **Tip:** Edit the `User`, `Group`, and `WorkingDirectory` fields in `bananawiki.service` if your installation path or user differs from the defaults.
+
+### Running manually with Gunicorn
+
+```bash
+source venv/bin/activate
 gunicorn wsgi:app -c gunicorn.conf.py
 ```
 
-**Custom bind and workers:**
+Or with a custom bind address:
 ```bash
-gunicorn wsgi:app --bind 0.0.0.0:8080 --workers 4
+gunicorn wsgi:app --bind 0.0.0.0:5001 --workers 2
 ```
 
-**With direct TLS termination:**
-```bash
-gunicorn wsgi:app --bind 0.0.0.0:443 \
-  --certfile /etc/letsencrypt/live/example.com/fullchain.pem \
-  --keyfile /etc/letsencrypt/live/example.com/privkey.pem
-```
+The `gunicorn.conf.py` file reads `HOST`, `PORT`, and `PROXY_MODE` from `config.py` automatically.
 
-**systemd service** (auto-start on boot):
-```ini
-[Unit]
-Description=BananaWiki
-After=network.target
+### Multi-App Hosting
 
-[Service]
-User=www-data
-WorkingDirectory=/opt/BananaWiki
-ExecStart=/opt/BananaWiki/venv/bin/gunicorn wsgi:app -c gunicorn.conf.py
-Restart=always
+Run multiple apps on the same server by assigning each a different port:
 
-[Install]
-WantedBy=multi-user.target
-```
+| App | Port | Domain |
+|---|---|---|
+| BananaWiki | 5001 | `wiki.example.com` |
+| Another app | 5002 | `app.example.com` |
+| Yet another | 5003 | `tools.example.com` |
 
-The `gunicorn.conf.py` file reads `HOST`, `PORT`, `SSL_CERT`, `SSL_KEY`, and `PROXY_MODE` from `config.py` automatically.
-
-### Protocol Modes
-
-BananaWiki supports three protocol modes via the `PROTOCOL` setting in `config.py`:
-
-**HTTP only** (default — development / internal use):
+Each app's `config.py`:
 ```python
-PROTOCOL = "http"
-PORT = 8080
+PORT = 5001   # unique port per app
 ```
 
-**HTTPS only** (direct TLS termination):
-```python
-PROTOCOL = "https"
-PORT = 443
-SSL_CERT = "/etc/letsencrypt/live/example.com/fullchain.pem"
-SSL_KEY  = "/etc/letsencrypt/live/example.com/privkey.pem"
-```
+Access directly via `http://<server-ip>:5001`, or set up Cloudflare/reverse proxy to route domains.
 
-**Both HTTP + HTTPS** (HTTPS with automatic HTTP redirect):
-```python
-PROTOCOL = "both"
-HTTP_PORT = 80        # serves 301 redirects to HTTPS
-HTTPS_PORT = 443      # serves the application
-SSL_CERT = "/etc/letsencrypt/live/example.com/fullchain.pem"
-SSL_KEY  = "/etc/letsencrypt/live/example.com/privkey.pem"
-```
+### Custom Domains via Cloudflare
 
-### Domain and Subdomain Support
+[Cloudflare](https://www.cloudflare.com/) provides free DNS, CDN, and SSL. This is the simplest way to put a domain in front of your app.
 
-Set `CUSTOM_DOMAIN` to your domain or subdomain:
-```python
-CUSTOM_DOMAIN = "wiki.example.com"    # subdomain
-CUSTOM_DOMAIN = "example.com"         # root domain
-```
+**1. Add your domain to Cloudflare** and update your registrar's nameservers.
 
-### Multi-Site Hosting with a Reverse Proxy
+**2. Create a DNS A record** pointing to your server's public IP:
 
-To host multiple Flask sites on one machine, run each site on a different port and use a reverse proxy to route by domain. Enable `PROXY_MODE = True` on each site.
+| Type | Name | Content | Proxy |
+|---|---|---|---|
+| `A` | `wiki` | `YOUR_SERVER_IP` | Proxied (orange cloud) |
 
-**Site 1** (`config.py` for BananaWiki on port 5001):
+**3. Set Cloudflare SSL/TLS mode** to **Flexible** (Cloudflare handles HTTPS for visitors and connects to your server via HTTP).
+
+> **Security note:** Flexible mode means traffic between Cloudflare and your server is unencrypted. For sensitive content, use **Full** or **Full (Strict)** mode with an SSL certificate on your server (see [Direct HTTPS](#direct-https-without-cloudflare)).
+
+**4. Configure BananaWiki** (`config.py`):
 ```python
 PORT = 5001
 PROXY_MODE = True
 CUSTOM_DOMAIN = "wiki.example.com"
 ```
 
-**Site 2** (another Flask app on port 5002):
+That's it — Cloudflare handles HTTPS, certificates, and CDN. Visitors access `https://wiki.example.com` and Cloudflare routes to your server on `http://<ip>:5001`.
+
+**Recommended Cloudflare settings:**
+- **Always Use HTTPS**: On
+- **Minimum TLS Version**: TLS 1.2
+- **Automatic HTTPS Rewrites**: On
+
+### IP-Only Access (No Domain)
+
+No domain configuration is needed:
 ```python
-PORT = 5002
-PROXY_MODE = True
-CUSTOM_DOMAIN = "app.example.com"
+PORT = 5001
+USE_PUBLIC_IP = True       # default
+CUSTOM_DOMAIN = None       # default
 ```
 
-**Nginx** reverse proxy configuration:
-```nginx
-# wiki.example.com → BananaWiki on port 5001
-server {
-    listen 80;
-    server_name wiki.example.com;
-    return 301 https://$host$request_uri;
+Access at `http://<your-server-ip>:5001`.
+
+> **Note:** `USE_PUBLIC_IP = True` binds to all network interfaces (`0.0.0.0`), making the server reachable from other machines. Ensure appropriate firewall rules are in place. Set `USE_PUBLIC_IP = False` to restrict access to `127.0.0.1` (localhost only).
+
+### Direct HTTPS (without Cloudflare)
+
+If you want to terminate TLS directly (e.g., with Let's Encrypt), set the SSL paths in `config.py`:
+```python
+PORT = 443
+SSL_CERT = "/etc/letsencrypt/live/wiki.example.com/fullchain.pem"
+SSL_KEY  = "/etc/letsencrypt/live/wiki.example.com/privkey.pem"
+```
+
+Or use a reverse proxy (nginx/Caddy) for TLS termination:
+
+**Caddy** (automatic HTTPS):
+```
+wiki.example.com {
+    reverse_proxy 127.0.0.1:5001
 }
+```
+
+**Nginx:**
+```nginx
 server {
     listen 443 ssl;
     server_name wiki.example.com;
@@ -220,124 +238,9 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 }
-
-# app.example.com → another app on port 5002
-server {
-    listen 80;
-    server_name app.example.com;
-    return 301 https://$host$request_uri;
-}
-server {
-    listen 443 ssl;
-    server_name app.example.com;
-    ssl_certificate     /etc/letsencrypt/live/app.example.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/app.example.com/privkey.pem;
-    location / {
-        proxy_pass http://127.0.0.1:5002;
-        proxy_set_header Host              $host;
-        proxy_set_header X-Real-IP         $remote_addr;
-        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
 ```
 
-**Caddy** (automatic HTTPS):
-```
-wiki.example.com {
-    reverse_proxy 127.0.0.1:5001
-}
-app.example.com {
-    reverse_proxy 127.0.0.1:5002
-}
-```
-
-### IP-Only Access (No Domain)
-
-For servers accessed only via IP address, no domain configuration is needed:
-```python
-PROTOCOL = "http"          # or "https" / "both" with SSL certs
-PORT = 8080
-USE_PUBLIC_IP = True
-CUSTOM_DOMAIN = None       # default
-```
-
-Access at `http://<your-server-ip>:8080`.
-
-> **Note:** `USE_PUBLIC_IP = True` binds to all network interfaces (`0.0.0.0`), making the server reachable from other machines. Ensure appropriate firewall rules are in place. Set `USE_PUBLIC_IP = False` to restrict access to `127.0.0.1` (localhost only).
-
-### Custom Domains via Cloudflare
-
-[Cloudflare](https://www.cloudflare.com/) provides free DNS, CDN, and SSL for custom domains. This is the recommended way to set up custom domains.
-
-**1. Add your domain to Cloudflare** and update your registrar's nameservers to Cloudflare's.
-
-**2. Create DNS records** pointing to your server's public IP:
-
-| Type | Name | Content | Proxy |
-|---|---|---|---|
-| `A` | `@` | `YOUR_SERVER_IP` | Proxied (orange cloud) |
-| `A` | `wiki` | `YOUR_SERVER_IP` | Proxied (orange cloud) |
-| `CNAME` | `app` | `example.com` | Proxied (orange cloud) |
-
-- Use `A` records for root domains and subdomains pointing to an IP
-- Use `CNAME` records for subdomains pointing to another hostname
-
-**3. Configure Cloudflare SSL/TLS mode** (in Cloudflare dashboard → SSL/TLS):
-
-| Your Setup | Cloudflare SSL Mode | Notes |
-|---|---|---|
-| HTTP only (no certs on server) | **Flexible** | Cloudflare handles HTTPS to visitors, connects to your server via HTTP |
-| HTTPS with self-signed cert | **Full** | End-to-end encryption, Cloudflare doesn't verify your cert |
-| HTTPS with valid cert (Let's Encrypt) | **Full (Strict)** | End-to-end encryption with cert verification (recommended) |
-
-**4. Configure BananaWiki** (`config.py`):
-```python
-# Behind Cloudflare — Cloudflare handles SSL, connects to your server via HTTP
-PROTOCOL = "http"
-PORT = 8080
-PROXY_MODE = True                          # trust Cloudflare's forwarded headers
-CUSTOM_DOMAIN = "wiki.example.com"
-
-# Or with your own SSL cert (Full Strict mode)
-PROTOCOL = "https"
-PORT = 443
-PROXY_MODE = True
-SSL_CERT = "/etc/letsencrypt/live/wiki.example.com/fullchain.pem"
-SSL_KEY  = "/etc/letsencrypt/live/wiki.example.com/privkey.pem"
-CUSTOM_DOMAIN = "wiki.example.com"
-```
-
-**5. Recommended Cloudflare settings:**
-- **Always Use HTTPS**: On (redirects HTTP to HTTPS at Cloudflare edge)
-- **Minimum TLS Version**: TLS 1.2
-- **Automatic HTTPS Rewrites**: On
-
-### Custom Domains via Other DNS Providers
-
-For DNS providers without built-in proxying (Namecheap, GoDaddy, Google Domains, Route 53, etc.):
-
-**1. Create an A record** pointing your domain to your server's public IP:
-```
-wiki.example.com.  A  YOUR_SERVER_IP
-```
-
-**2. Obtain an SSL certificate** (e.g., via Let's Encrypt):
-```bash
-sudo certbot certonly --standalone -d wiki.example.com
-```
-
-**3. Configure BananaWiki** (`config.py`):
-```python
-PROTOCOL = "both"                          # HTTPS + HTTP redirect
-HTTP_PORT = 80
-HTTPS_PORT = 443
-SSL_CERT = "/etc/letsencrypt/live/wiki.example.com/fullchain.pem"
-SSL_KEY  = "/etc/letsencrypt/live/wiki.example.com/privkey.pem"
-CUSTOM_DOMAIN = "wiki.example.com"
-```
-
-Or use a reverse proxy (nginx/Caddy) for TLS termination and set `PROXY_MODE = True`.
+Set `PROXY_MODE = True` in `config.py` when using a reverse proxy.
 
 ## Security
 
@@ -381,6 +284,7 @@ BananaWiki/
 ├── app.py              # Flask application and routes
 ├── wsgi.py             # WSGI entry point for Gunicorn
 ├── gunicorn.conf.py    # Gunicorn configuration
+├── bananawiki.service  # systemd service file
 ├── db.py               # Database schema and queries
 ├── config.py           # Application configuration
 ├── sync.py             # Telegram sync/backup module

@@ -11,71 +11,49 @@ BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 # =============================================================================
 # Networking Configuration
 # =============================================================================
-# Protocol mode: "http", "https", or "both"
-#   "http"  – serve over plain HTTP only (default)
-#   "https" – serve over HTTPS only (requires SSL_CERT and SSL_KEY)
-#   "both"  – serve HTTPS and automatically redirect HTTP to HTTPS
-#             (requires SSL_CERT and SSL_KEY)
-PROTOCOL = "http"
+# Port to listen on.  Each app on your server gets its own port
+# (e.g. 5001 for BananaWiki, 5002 for another app, etc.).
+# Make sure the chosen port is not already in use.
+PORT = 5001
 
-# Port for single-protocol mode ("http" or "https")
-PORT = 8080
-
-# Separate ports for "both" mode:
-#   HTTP_PORT  – port for the HTTP-to-HTTPS redirect listener
-#   HTTPS_PORT – port for the main HTTPS application server
-HTTP_PORT = 80
-HTTPS_PORT = 443
-
-# Whether to bind to the public IP (0.0.0.0) so it is accessible from other machines
+# Bind to all network interfaces so the app is reachable from other machines.
+# Set to False to restrict access to localhost only.
 USE_PUBLIC_IP = True
 
-# Whether to also listen on localhost/127.0.0.1
-USE_LOCAL_IP = True
+# Host binding (derived from USE_PUBLIC_IP above):
+#   0.0.0.0   – all interfaces (public + local)
+#   127.0.0.1 – localhost only
+HOST = "0.0.0.0" if USE_PUBLIC_IP else "127.0.0.1"
 
 # Custom domain or subdomain for production deployments.
-# Examples: "example.com", "wiki.example.com", "platform1.example.com"
-# Used for startup messages and as the HTTP-to-HTTPS redirect target.
+# Examples: "example.com", "wiki.example.com"
 # Set to None when accessing via IP address only.
 CUSTOM_DOMAIN = None
 
-# Flask SERVER_NAME for URL generation in multi-site setups.
-# Format: "hostname" or "hostname:port" (omit port for 80/443).
-# Leave as None for automatic configuration (recommended for most setups).
-# Only set this when hosting multiple Flask sites on the same machine and
-# you need Flask to generate correct external URLs.
-# Example: "wiki.example.com" or "localhost:5001"
-SERVER_NAME = None
-
-# Host binding: 0.0.0.0 serves on all interfaces (public + local)
-# 127.0.0.1 serves only on localhost
-HOST = "0.0.0.0" if USE_PUBLIC_IP else "127.0.0.1"
+# =============================================================================
+# Reverse Proxy / Cloudflare Support
+# =============================================================================
+# Enable this when running behind a reverse proxy (nginx, Caddy) or Cloudflare.
+# The proxy must set the standard forwarding headers (X-Forwarded-For,
+# X-Forwarded-Proto, etc.) so Flask sees the real client IP and scheme.
+#
+# Typical Cloudflare setup:
+#   1. Run BananaWiki on HTTP (PORT = 5001)
+#   2. Point your Cloudflare DNS A record to your server's public IP
+#   3. Cloudflare handles HTTPS for visitors and connects to your server via HTTP
+#   4. Set PROXY_MODE = True and CUSTOM_DOMAIN = "wiki.example.com"
+PROXY_MODE = False
 
 # =============================================================================
-# SSL / HTTPS
+# SSL / HTTPS  (optional — not needed with Cloudflare)
 # =============================================================================
-# To enable HTTPS, provide paths to your SSL certificate and private key.
-# When both are set the app will serve over HTTPS instead of plain HTTP.
+# Provide paths to an SSL certificate and private key to serve HTTPS directly.
+# When Cloudflare handles SSL, leave these as None.
 # Example:
 #   SSL_CERT = "/etc/letsencrypt/live/yourdomain.com/fullchain.pem"
 #   SSL_KEY  = "/etc/letsencrypt/live/yourdomain.com/privkey.pem"
 SSL_CERT = None
 SSL_KEY = None
-
-# =============================================================================
-# Reverse Proxy Support
-# =============================================================================
-# Enable this when running behind a reverse proxy (e.g. nginx, Apache, Caddy,
-# Cloudflare, or a cloud load balancer on OCI / Google Cloud / AWS).  The proxy
-# must set the standard forwarding headers (X-Forwarded-For, X-Forwarded-Proto,
-# etc.).  This ensures Flask sees the real client IP and correct URL scheme.
-#
-# Multi-site hosting example (one machine, multiple Flask sites):
-#   nginx routes platform1.example.com → localhost:5001
-#                platform2.example.com → localhost:5002
-#   Each site sets PORT to its unique port and PROXY_MODE = True.
-#   See README.md for full reverse-proxy and Cloudflare configuration examples.
-PROXY_MODE = False
 
 # =============================================================================
 # Security
