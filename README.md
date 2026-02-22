@@ -221,6 +221,8 @@ CUSTOM_DOMAIN = None       # default
 
 Access at `http://<your-server-ip>:8080`.
 
+> **Note:** `USE_PUBLIC_IP = True` binds to all network interfaces (`0.0.0.0`), making the server reachable from other machines. Ensure appropriate firewall rules are in place. Set `USE_PUBLIC_IP = False` to restrict access to `127.0.0.1` (localhost only).
+
 ## Security
 
 - **HTML Sanitization** — All Markdown output is sanitized with Bleach using a strict allowlist of HTML tags and attributes
