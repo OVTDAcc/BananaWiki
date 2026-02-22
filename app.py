@@ -39,10 +39,15 @@ app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
 # --- SSL / HTTPS awareness ---
-_ssl_enabled = bool(config.SSL_CERT and config.SSL_KEY)
+_protocol = getattr(config, "PROTOCOL", "http").lower()
+_ssl_enabled = _protocol in ("https", "both") or bool(config.SSL_CERT and config.SSL_KEY)
 if _ssl_enabled:
     app.config["SESSION_COOKIE_SECURE"] = True
     app.config["PREFERRED_URL_SCHEME"] = "https"
+
+# --- Flask SERVER_NAME ---
+if getattr(config, "SERVER_NAME", None):
+    app.config["SERVER_NAME"] = config.SERVER_NAME
 
 # --- Reverse-proxy support ---
 if config.PROXY_MODE:
@@ -1307,21 +1312,164 @@ db.init_db()
 get_logger()
 
 if __name__ == "__main__":
+    import sys
+    import threading
+    from werkzeug.serving import make_server
+
+    protocol = getattr(config, "PROTOCOL", "http").lower()
+
+    # Backward compat: SSL_CERT/SSL_KEY set without PROTOCOL change
+    if protocol == "http" and config.SSL_CERT and config.SSL_KEY:
+        protocol = "https"
+
+    if protocol not in ("http", "https", "both"):
+        print(f"ERROR: Invalid PROTOCOL '{protocol}'. "
+              "Must be 'http', 'https', or 'both'.")
+        sys.exit(1)
+
+    # --- Validate SSL requirements ---
     ssl_ctx = None
-    if _ssl_enabled:
+    if protocol in ("https", "both"):
+        if not (config.SSL_CERT and config.SSL_KEY):
+            print(f"ERROR: PROTOCOL is '{protocol}' but SSL_CERT and "
+                  "SSL_KEY are not configured.")
+            sys.exit(1)
         ssl_ctx = (config.SSL_CERT, config.SSL_KEY)
 
-    scheme = "https" if _ssl_enabled else "http"
-    print(f" * Serving BananaWiki over {scheme.upper()}")
-    if config.HOST == "0.0.0.0":
-        print(f" * Local:    {scheme}://127.0.0.1:{config.PORT}")
-        print(f" * Network:  {scheme}://<your-server-ip>:{config.PORT}")
-        if config.CUSTOM_DOMAIN:
-            print(f" * Domain:   {scheme}://{config.CUSTOM_DOMAIN}")
-        print(" * Tip: on cloud VMs (OCI, GCP, AWS) use the public/elastic IP")
+    # --- Determine ports ---
+    if protocol == "both":
+        http_port = getattr(config, "HTTP_PORT", 80)
+        https_port = getattr(config, "HTTPS_PORT", 443)
+    elif protocol == "https":
+        https_port = config.PORT
     else:
-        print(f" * Running on {scheme}://{config.HOST}:{config.PORT}")
-    if config.PROXY_MODE:
-        print(" * Reverse-proxy mode enabled (trusting X-Forwarded-* headers)")
+        http_port = config.PORT
 
-    app.run(host=config.HOST, port=config.PORT, debug=False, ssl_context=ssl_ctx)
+    # --- Helper: print server addresses ---
+    def _print_addresses(scheme, port):
+        show_port = f":{port}" if port not in (80, 443) else ""
+        if config.HOST == "0.0.0.0":
+            print(f" * Local:    {scheme}://127.0.0.1{show_port}")
+            print(f" * Network:  {scheme}://<your-server-ip>{show_port}")
+            if config.CUSTOM_DOMAIN:
+                print(f" * Domain:   {scheme}://{config.CUSTOM_DOMAIN}{show_port}")
+            print(" * Tip: on cloud VMs (OCI, GCP, AWS) "
+                  "use the public/elastic IP")
+        else:
+            print(f" * Running on {scheme}://{config.HOST}{show_port}")
+            if config.CUSTOM_DOMAIN:
+                print(f" * Domain:   {scheme}://{config.CUSTOM_DOMAIN}{show_port}")
+
+    # --- HTTP-to-HTTPS redirect app (for "both" mode) ---
+    def _make_redirect_app(target_port, custom_domain=None):
+        """Return a minimal WSGI app that 301-redirects HTTP to HTTPS."""
+        _valid_host_re = re.compile(r'^[a-zA-Z0-9._:\[\]-]+\Z')
+
+        def redirect_app(environ, start_response):
+            if custom_domain:
+                hostname = custom_domain
+            else:
+                host = environ.get("HTTP_HOST", "localhost")
+                if not _valid_host_re.match(host):
+                    start_response("400 Bad Request", [
+                        ("Content-Type", "text/plain"),
+                        ("Content-Length", "11"),
+                    ])
+                    return [b"Bad Request"]
+                hostname = host.split(":")[0]
+
+            path = environ.get("PATH_INFO", "/")
+            query = environ.get("QUERY_STRING", "")
+            port_suffix = f":{target_port}" if target_port != 443 else ""
+            location = f"https://{hostname}{port_suffix}{path}"
+            if query:
+                location += f"?{query}"
+
+            start_response("301 Moved Permanently", [
+                ("Location", location),
+                ("Content-Length", "0"),
+            ])
+            return [b""]
+
+        return redirect_app
+
+    # --- Try Gunicorn, fall back to Flask dev server ---
+    try:
+        from gunicorn.app.base import BaseApplication
+
+        class _GunicornApp(BaseApplication):
+            """Thin wrapper to launch Gunicorn from Python."""
+
+            def __init__(self, flask_app, options=None):
+                self.flask_app = flask_app
+                self.options = options or {}
+                super().__init__()
+
+            def load_config(self):
+                for key, value in self.options.items():
+                    if key in self.cfg.settings and value is not None:
+                        self.cfg.set(key.lower(), value)
+
+            def load(self):
+                return self.flask_app
+
+        _use_gunicorn = True
+    except ImportError:
+        _use_gunicorn = False
+
+    # --- Startup banner ---
+    server_label = "Gunicorn" if _use_gunicorn else "Flask (development)"
+    if protocol == "http":
+        print(f" * Serving BananaWiki via {server_label} over HTTP")
+        _print_addresses("http", http_port)
+    elif protocol == "https":
+        print(f" * Serving BananaWiki via {server_label} over HTTPS")
+        _print_addresses("https", https_port)
+    else:
+        print(f" * Serving BananaWiki via {server_label} over HTTPS "
+              "(with HTTP → HTTPS redirect)")
+        _print_addresses("https", https_port)
+        print(f" * HTTP redirect: port {http_port} → HTTPS port {https_port}")
+
+    if config.PROXY_MODE:
+        print(" * Reverse-proxy mode enabled "
+              "(trusting X-Forwarded-* headers)")
+
+    if getattr(config, "SERVER_NAME", None):
+        print(f" * SERVER_NAME: {config.SERVER_NAME}")
+
+    # --- Start HTTP redirect server in "both" mode ---
+    if protocol == "both":
+        redirect_wsgi = _make_redirect_app(
+            https_port, config.CUSTOM_DOMAIN
+        )
+        http_server = make_server(config.HOST, http_port, redirect_wsgi)
+        redirect_thread = threading.Thread(
+            target=http_server.serve_forever, daemon=True
+        )
+        redirect_thread.start()
+
+    # --- Run the main application ---
+    if _use_gunicorn:
+        serve_port = http_port if protocol == "http" else https_port
+        gunicorn_opts = {
+            "bind": f"{config.HOST}:{serve_port}",
+            "workers": 2,
+            "accesslog": "-",
+            "errorlog": "-",
+            "loglevel": "info",
+        }
+        if ssl_ctx:
+            gunicorn_opts["certfile"] = config.SSL_CERT
+            gunicorn_opts["keyfile"] = config.SSL_KEY
+        _GunicornApp(app, gunicorn_opts).run()
+    else:
+        print(" * WARNING: Gunicorn not installed. Using Flask development "
+              "server (not recommended for production).")
+        print(" * Install Gunicorn: pip install gunicorn")
+        if protocol == "http":
+            app.run(host=config.HOST, port=http_port, debug=False)
+        else:
+            serve_port = https_port
+            app.run(host=config.HOST, port=serve_port, debug=False,
+                    ssl_context=ssl_ctx)

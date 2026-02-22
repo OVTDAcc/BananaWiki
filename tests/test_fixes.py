@@ -1460,3 +1460,150 @@ def test_ssl_enables_secure_cookie(monkeypatch):
     monkeypatch.setattr(cfg, "SSL_CERT", None)
     monkeypatch.setattr(cfg, "SSL_KEY", None)
     importlib.reload(app_mod)
+
+
+# -----------------------------------------------------------------------
+# Connection improvements: PROTOCOL, HTTP_PORT, HTTPS_PORT, SERVER_NAME
+# -----------------------------------------------------------------------
+def test_protocol_config_default():
+    """PROTOCOL should default to 'http'."""
+    import config
+    assert config.PROTOCOL == "http"
+
+
+def test_http_port_config_default():
+    """HTTP_PORT should default to 80."""
+    import config
+    assert config.HTTP_PORT == 80
+
+
+def test_https_port_config_default():
+    """HTTPS_PORT should default to 443."""
+    import config
+    assert config.HTTPS_PORT == 443
+
+
+def test_server_name_config_default():
+    """SERVER_NAME should default to None."""
+    import config
+    assert config.SERVER_NAME is None
+
+
+def test_protocol_https_enables_secure_cookie(monkeypatch):
+    """PROTOCOL='https' should enable SESSION_COOKIE_SECURE."""
+    import importlib
+    import config as cfg
+    monkeypatch.setattr(cfg, "PROTOCOL", "https")
+    import app as app_mod
+    importlib.reload(app_mod)
+    assert app_mod.app.config["SESSION_COOKIE_SECURE"] is True
+    assert app_mod.app.config["PREFERRED_URL_SCHEME"] == "https"
+    # Restore
+    monkeypatch.setattr(cfg, "PROTOCOL", "http")
+    importlib.reload(app_mod)
+
+
+def test_protocol_both_enables_secure_cookie(monkeypatch):
+    """PROTOCOL='both' should enable SESSION_COOKIE_SECURE."""
+    import importlib
+    import config as cfg
+    monkeypatch.setattr(cfg, "PROTOCOL", "both")
+    import app as app_mod
+    importlib.reload(app_mod)
+    assert app_mod.app.config["SESSION_COOKIE_SECURE"] is True
+    assert app_mod.app.config["PREFERRED_URL_SCHEME"] == "https"
+    # Restore
+    monkeypatch.setattr(cfg, "PROTOCOL", "http")
+    importlib.reload(app_mod)
+
+
+def test_server_name_applied_when_set(monkeypatch):
+    """SERVER_NAME should be applied to the Flask app when configured."""
+    import importlib
+    import config as cfg
+    monkeypatch.setattr(cfg, "SERVER_NAME", "wiki.example.com")
+    import app as app_mod
+    importlib.reload(app_mod)
+    assert app_mod.app.config["SERVER_NAME"] == "wiki.example.com"
+    # Restore
+    monkeypatch.setattr(cfg, "SERVER_NAME", None)
+    importlib.reload(app_mod)
+
+
+def test_ssl_backward_compat_without_protocol(monkeypatch):
+    """SSL_CERT/SSL_KEY without PROTOCOL should still enable SSL (backward compat)."""
+    import importlib
+    import config as cfg
+    # PROTOCOL stays "http" but SSL certs are set
+    monkeypatch.setattr(cfg, "PROTOCOL", "http")
+    monkeypatch.setattr(cfg, "SSL_CERT", "/tmp/cert.pem")
+    monkeypatch.setattr(cfg, "SSL_KEY", "/tmp/key.pem")
+    import app as app_mod
+    importlib.reload(app_mod)
+    assert app_mod._ssl_enabled is True
+    assert app_mod.app.config["SESSION_COOKIE_SECURE"] is True
+    # Restore
+    monkeypatch.setattr(cfg, "SSL_CERT", None)
+    monkeypatch.setattr(cfg, "SSL_KEY", None)
+    importlib.reload(app_mod)
+
+
+def test_redirect_app_host_validation():
+    """The HTTP redirect app should reject invalid Host headers."""
+    import re
+
+    # Recreate the redirect app logic inline for testing
+    _valid_host_re = re.compile(r'^[a-zA-Z0-9._:\[\]-]+\Z')
+
+    # Valid hosts
+    assert _valid_host_re.match("example.com")
+    assert _valid_host_re.match("127.0.0.1")
+    assert _valid_host_re.match("wiki.example.com:8443")
+    assert _valid_host_re.match("[::1]")
+
+    # Invalid hosts (header injection attempts)
+    assert not _valid_host_re.match("evil.com\r\nX-Injected: true")
+    assert not _valid_host_re.match("evil.com\n")
+    assert not _valid_host_re.match("")
+    assert not _valid_host_re.match("evil.com evil.com")
+
+
+# -----------------------------------------------------------------------
+# WSGI entry point and Gunicorn config
+# -----------------------------------------------------------------------
+def test_wsgi_entry_point():
+    """wsgi.py should expose the Flask app."""
+    import wsgi
+    assert hasattr(wsgi, "app")
+    from app import app
+    assert wsgi.app is app
+
+
+def test_gunicorn_conf_exists():
+    """gunicorn.conf.py should exist and define bind/workers."""
+    import importlib.util
+    import os
+    conf_path = os.path.join(
+        os.path.dirname(__file__), "..", "gunicorn.conf.py"
+    )
+    assert os.path.exists(conf_path)
+    spec = importlib.util.spec_from_file_location("_gunicorn_conf", conf_path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    assert hasattr(mod, "bind")
+    assert hasattr(mod, "workers")
+    assert mod.workers >= 1
+
+
+def test_gunicorn_conf_reads_config():
+    """gunicorn.conf.py should derive bind from config.HOST:config.PORT."""
+    import importlib.util
+    import os
+    conf_path = os.path.join(
+        os.path.dirname(__file__), "..", "gunicorn.conf.py"
+    )
+    spec = importlib.util.spec_from_file_location("_gunicorn_conf2", conf_path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    import config as cfg
+    assert mod.bind == f"{cfg.HOST}:{cfg.PORT}"
