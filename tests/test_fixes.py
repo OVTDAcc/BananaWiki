@@ -1581,30 +1581,29 @@ def test_wsgi_entry_point():
 
 def test_gunicorn_conf_exists():
     """gunicorn.conf.py should exist and define bind/workers."""
-    import importlib
-    spec = importlib.util.find_spec("gunicorn.conf")
-    # Can't import as module due to dots; read & exec instead
+    import importlib.util
     import os
     conf_path = os.path.join(
         os.path.dirname(__file__), "..", "gunicorn.conf.py"
     )
     assert os.path.exists(conf_path)
-    conf_ns = {}
-    with open(conf_path, encoding="utf-8") as f:
-        exec(compile(f.read(), conf_path, "exec"), conf_ns)  # noqa: S102
-    assert "bind" in conf_ns
-    assert "workers" in conf_ns
-    assert conf_ns["workers"] >= 1
+    spec = importlib.util.spec_from_file_location("_gunicorn_conf", conf_path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    assert hasattr(mod, "bind")
+    assert hasattr(mod, "workers")
+    assert mod.workers >= 1
 
 
 def test_gunicorn_conf_reads_config():
     """gunicorn.conf.py should derive bind from config.HOST:config.PORT."""
+    import importlib.util
     import os
     conf_path = os.path.join(
         os.path.dirname(__file__), "..", "gunicorn.conf.py"
     )
-    conf_ns = {}
-    with open(conf_path, encoding="utf-8") as f:
-        exec(compile(f.read(), conf_path, "exec"), conf_ns)  # noqa: S102
+    spec = importlib.util.spec_from_file_location("_gunicorn_conf2", conf_path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
     import config as cfg
-    assert conf_ns["bind"] == f"{cfg.HOST}:{cfg.PORT}"
+    assert mod.bind == f"{cfg.HOST}:{cfg.PORT}"
