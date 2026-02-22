@@ -109,6 +109,7 @@ pip install -r requirements.txt
 **2. Edit `config.py`** to set your port and domain:
 ```python
 PORT = 5001                              # pick any free port
+USE_PUBLIC_IP = False                    # False when using nginx on the same machine
 CUSTOM_DOMAIN = "wiki.example.com"       # or None for IP-only access
 PROXY_MODE = True                        # if using Cloudflare or a reverse proxy
 ```
@@ -144,6 +145,15 @@ gunicorn wsgi:app --bind 0.0.0.0:5001 --workers 2
 ```
 
 The `gunicorn.conf.py` file reads `HOST`, `PORT`, and `PROXY_MODE` from `config.py` automatically.
+
+### Development server
+
+For local development only, you can run the Flask dev server directly:
+```bash
+python app.py
+```
+
+> **Warning:** The Flask development server is single-threaded and not suitable for production. Always use Gunicorn (via systemd or manually) for production deployments.
 
 ### Multi-App Hosting
 
@@ -181,6 +191,7 @@ Access directly via `http://<server-ip>:5001`, or set up Cloudflare/reverse prox
 **4. Configure BananaWiki** (`config.py`):
 ```python
 PORT = 5001
+USE_PUBLIC_IP = True              # True when Cloudflare connects directly (no nginx)
 PROXY_MODE = True
 CUSTOM_DOMAIN = "wiki.example.com"
 ```
@@ -240,7 +251,13 @@ server {
 }
 ```
 
-Set `PROXY_MODE = True` in `config.py` when using a reverse proxy.
+When using a reverse proxy on the same machine, set `USE_PUBLIC_IP = False` so Gunicorn only listens on localhost and the port is not exposed directly:
+```python
+PORT = 5001
+USE_PUBLIC_IP = False             # bind to 127.0.0.1 only (nginx forwards traffic)
+PROXY_MODE = True
+CUSTOM_DOMAIN = "wiki.example.com"
+```
 
 ## Security
 

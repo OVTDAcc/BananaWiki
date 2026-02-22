@@ -17,12 +17,14 @@ BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 PORT = 5001
 
 # Bind to all network interfaces so the app is reachable from other machines.
-# Set to False to restrict access to localhost only.
+# Set to False to restrict access to localhost only — recommended when a
+# reverse proxy (nginx) on the same machine forwards traffic to Gunicorn,
+# so the port is never exposed directly to the internet.
 USE_PUBLIC_IP = True
 
 # Host binding (derived from USE_PUBLIC_IP above):
-#   0.0.0.0   – all interfaces (public + local)
-#   127.0.0.1 – localhost only
+#   True  → 0.0.0.0   – all interfaces (public + local)
+#   False → 127.0.0.1 – localhost only (use with a local reverse proxy)
 HOST = "0.0.0.0" if USE_PUBLIC_IP else "127.0.0.1"
 
 # Custom domain or subdomain for production deployments.
@@ -37,11 +39,18 @@ CUSTOM_DOMAIN = None
 # The proxy must set the standard forwarding headers (X-Forwarded-For,
 # X-Forwarded-Proto, etc.) so Flask sees the real client IP and scheme.
 #
-# Typical Cloudflare setup:
-#   1. Run BananaWiki on HTTP (PORT = 5001)
-#   2. Point your Cloudflare DNS A record to your server's public IP
-#   3. Cloudflare handles HTTPS for visitors and connects to your server via HTTP
-#   4. Set PROXY_MODE = True and CUSTOM_DOMAIN = "wiki.example.com"
+# Typical nginx → Cloudflare setup:
+#   1. Set USE_PUBLIC_IP = False  (Gunicorn listens on localhost only)
+#   2. Set PROXY_MODE = True
+#   3. Set CUSTOM_DOMAIN = "wiki.example.com"
+#   4. Configure nginx to reverse-proxy to 127.0.0.1:PORT
+#   5. Point Cloudflare DNS to your server's public IP
+#
+# Direct Cloudflare setup (no nginx):
+#   1. Keep USE_PUBLIC_IP = True  (Gunicorn listens on all interfaces)
+#   2. Set PROXY_MODE = True
+#   3. Set CUSTOM_DOMAIN = "wiki.example.com"
+#   4. Point Cloudflare DNS A record to your server's public IP
 PROXY_MODE = False
 
 # =============================================================================

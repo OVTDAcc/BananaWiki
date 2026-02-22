@@ -7,6 +7,7 @@ Type=notify
 User=www-data
 Group=www-data
 WorkingDirectory=/opt/BananaWiki
+Environment="PATH=/opt/BananaWiki/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin"
 ExecStart=/opt/BananaWiki/venv/bin/gunicorn wsgi:app -c gunicorn.conf.py
 ExecReload=/bin/kill -s HUP $MAINPID
 Restart=always

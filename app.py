@@ -1307,77 +1307,14 @@ db.init_db()
 get_logger()
 
 if __name__ == "__main__":
+    # Development-only entry point.
+    # For production, use:  gunicorn wsgi:app -c gunicorn.conf.py
+    print(" * WARNING: Flask development server — not for production.")
+    print(" * Production:  gunicorn wsgi:app -c gunicorn.conf.py")
 
-    # --- Determine SSL context ---
     ssl_ctx = None
     if config.SSL_CERT and config.SSL_KEY:
         ssl_ctx = (config.SSL_CERT, config.SSL_KEY)
 
-    port = config.PORT
-    scheme = "https" if ssl_ctx else "http"
-
-    # --- Helper: print server addresses ---
-    def _print_addresses(scheme, port):
-        show_port = f":{port}" if port not in (80, 443) else ""
-        if config.HOST == "0.0.0.0":
-            print(f" * Local:    {scheme}://127.0.0.1{show_port}")
-            print(f" * Network:  {scheme}://<your-server-ip>{show_port}")
-            if config.CUSTOM_DOMAIN:
-                print(f" * Domain:   {scheme}://{config.CUSTOM_DOMAIN}{show_port}")
-        else:
-            print(f" * Running on {scheme}://{config.HOST}{show_port}")
-            if config.CUSTOM_DOMAIN:
-                print(f" * Domain:   {scheme}://{config.CUSTOM_DOMAIN}{show_port}")
-
-    # --- Try Gunicorn, fall back to Flask dev server ---
-    try:
-        from gunicorn.app.base import BaseApplication
-
-        class _GunicornApp(BaseApplication):
-            """Thin wrapper to launch Gunicorn from Python."""
-
-            def __init__(self, flask_app, options=None):
-                self.flask_app = flask_app
-                self.options = options or {}
-                super().__init__()
-
-            def load_config(self):
-                for key, value in self.options.items():
-                    if key in self.cfg.settings and value is not None:
-                        self.cfg.set(key.lower(), value)
-
-            def load(self):
-                return self.flask_app
-
-        _use_gunicorn = True
-    except ImportError:
-        _use_gunicorn = False
-
-    # --- Startup banner ---
-    server_label = "Gunicorn" if _use_gunicorn else "Flask (development)"
-    print(f" * Serving BananaWiki via {server_label} over {scheme.upper()}")
-    _print_addresses(scheme, port)
-
-    if config.PROXY_MODE:
-        print(" * Reverse-proxy mode enabled "
-              "(trusting X-Forwarded-* headers)")
-
-    # --- Run the main application ---
-    if _use_gunicorn:
-        gunicorn_opts = {
-            "bind": f"{config.HOST}:{port}",
-            "workers": 2,
-            "accesslog": "-",
-            "errorlog": "-",
-            "loglevel": "info",
-        }
-        if ssl_ctx:
-            gunicorn_opts["certfile"] = config.SSL_CERT
-            gunicorn_opts["keyfile"] = config.SSL_KEY
-        _GunicornApp(app, gunicorn_opts).run()
-    else:
-        print(" * WARNING: Gunicorn not installed. Using Flask development "
-              "server (not recommended for production).")
-        print(" * Install Gunicorn: pip install gunicorn")
-        app.run(host=config.HOST, port=port, debug=False,
-                ssl_context=ssl_ctx)
+    app.run(host=config.HOST, port=config.PORT, debug=False,
+            ssl_context=ssl_ctx)
