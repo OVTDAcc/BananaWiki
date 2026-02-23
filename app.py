@@ -395,6 +395,17 @@ def login():
         session.clear()
         session.permanent = True
         session["user_id"] = user["id"]
+
+        # Reset login attempt counter for this IP on successful login
+        try:
+            _lock = _login_attempts_lock
+        except NameError:
+            _lock = None
+        if _lock is not None:
+            with _lock:
+                _login_attempts[client_ip] = []
+        else:
+            _login_attempts[client_ip] = []
         log_action("login_success", request, user=user)
         return redirect(url_for("home"))
 
