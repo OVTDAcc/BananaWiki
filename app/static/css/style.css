@@ -63,7 +63,7 @@ a:hover{text-decoration:underline}
 .btn-danger{background:#c45c6a;color:#fff}
 .btn-icon{background:none;border:none;cursor:pointer;font-size:.85rem;color:var(--text);padding:.15rem .3rem;border-radius:3px;opacity:.7}
 .btn-icon:hover{background:rgba(255,255,255,.08);text-decoration:none;opacity:1}
-.btn-icon-tiny{background:none;border:none;cursor:pointer;font-size:.75rem;padding:.1rem .2rem}
+.btn-icon-tiny{background:none;border:none;color:inherit;cursor:pointer;font-size:.75rem;padding:.1rem .2rem}
 .btn-danger-icon{color:#c45c6a}
 
 /* Forms */
