@@ -109,6 +109,12 @@ def init_db():
     INSERT OR IGNORE INTO site_settings (id) VALUES (1);
     """)
 
+    # -- Migrations: add columns to existing tables --
+    # Add last_login_at to users if missing
+    cols = [r[1] for r in cur.execute("PRAGMA table_info(users)").fetchall()]
+    if "last_login_at" not in cols:
+        cur.execute("ALTER TABLE users ADD COLUMN last_login_at TEXT")
+
     # Ensure home page exists
     home = cur.execute("SELECT id FROM pages WHERE is_home=1").fetchone()
     if not home:
@@ -151,7 +157,7 @@ def get_user_by_username(username):
     return user
 
 
-_ALLOWED_USER_COLUMNS = {"username", "password", "role", "suspended"}
+_ALLOWED_USER_COLUMNS = {"username", "password", "role", "suspended", "last_login_at"}
 
 
 def update_user(user_id, **kwargs):

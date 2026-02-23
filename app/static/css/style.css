@@ -32,6 +32,12 @@ a:hover{text-decoration:underline}
 .nav-section-title{font-size:.78rem;font-weight:600;text-transform:uppercase;opacity:.4;letter-spacing:.5px;padding:.3rem .8rem}
 .nav-section-header .nav-section-title{padding:0}
 
+/* Collapsible categories */
+.cat-toggle{background:none;border:none;color:var(--text);cursor:pointer;font-size:.7rem;opacity:.35;padding:0 .2rem 0 0;transition:transform .15s,opacity .15s;line-height:1}
+.cat-toggle:hover{opacity:.7}
+.nav-section.collapsed .cat-toggle{transform:rotate(-90deg)}
+.nav-section.collapsed>.nav-section-body{display:none}
+
 /* Sidebar resize handle */
 .sidebar-resize-handle{width:4px;cursor:col-resize;background:transparent;flex-shrink:0;transition:background .15s;position:relative;z-index:10}
 .sidebar-resize-handle:hover,.sidebar-resize-handle.resizing{background:var(--primary);opacity:.6}

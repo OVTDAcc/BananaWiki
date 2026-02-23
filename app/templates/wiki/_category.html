@@ -1,5 +1,6 @@
 <div class="nav-section" {% if depth is defined %}style="padding-left:{{ depth * 0.75 }}rem"{% endif %}>
     <div class="nav-section-header">
+        <button class="cat-toggle" onclick="this.closest('.nav-section').classList.toggle('collapsed')" title="Toggle category" aria-label="Toggle category">▾</button>
         <span class="nav-section-title">{{ cat.name }}</span>
         {% if current_user and current_user.role in ('editor', 'admin') %}
         <div class="cat-actions">
@@ -18,14 +19,16 @@
         </div>
         {% endif %}
     </div>
-    {% for p in cat.pages %}
-    <a href="{{ url_for('view_page', slug=p.slug) }}" class="nav-item {% if page and page.id == p.id %}active{% endif %}">
-        {{ p.title }}
-    </a>
-    {% endfor %}
-    {% for child in cat.children %}
-        {% with cat=child, depth=(depth|default(0)) + 1 %}
-            {% include "wiki/_category.html" %}
-        {% endwith %}
-    {% endfor %}
+    <div class="nav-section-body">
+        {% for p in cat.pages %}
+        <a href="{{ url_for('view_page', slug=p.slug) }}" class="nav-item {% if page and page.id == p.id %}active{% endif %}">
+            {{ p.title }}
+        </a>
+        {% endfor %}
+        {% for child in cat.children %}
+            {% with cat=child, depth=(depth|default(0)) + 1 %}
+                {% include "wiki/_category.html" %}
+            {% endwith %}
+        {% endfor %}
+    </div>
 </div>

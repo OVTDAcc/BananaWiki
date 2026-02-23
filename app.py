@@ -406,6 +406,7 @@ def login():
         session.permanent = True
         session["user_id"] = user["id"]
         _clear_login_attempts()
+        db.update_user(user["id"], last_login_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
         log_action("login_success", request, user=user)
         return redirect(url_for("home"))
 
@@ -1344,6 +1345,39 @@ def admin_settings():
     categories, uncategorized = db.get_category_tree()
     return render_template("admin/settings.html", settings=settings,
                            categories=categories, uncategorized=uncategorized)
+
+
+@app.route("/admin/users/<int:user_id>/audit")
+@login_required
+@admin_required
+def admin_user_audit(user_id):
+    target = db.get_user_by_id(user_id)
+    if not target:
+        abort(404)
+    log_entries = _read_user_audit_log(target["username"])
+    categories, uncategorized = db.get_category_tree()
+    return render_template("admin/audit.html", target=target,
+                           log_entries=log_entries,
+                           categories=categories, uncategorized=uncategorized)
+
+
+def _read_user_audit_log(username, max_entries=200):
+    """Read log entries for a specific user from the log file."""
+    import os
+    log_file = config.LOG_FILE
+    if not os.path.exists(log_file):
+        return []
+    entries = []
+    search_term = f"user={username} "
+    try:
+        with open(log_file, "r", encoding="utf-8", errors="replace") as f:
+            for line in f:
+                if search_term in line:
+                    entries.append(line.strip())
+        # Return most recent entries first
+        return entries[-max_entries:][::-1]
+    except OSError:
+        return []
 
 
 # ---------------------------------------------------------------------------

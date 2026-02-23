@@ -48,7 +48,7 @@
             <th>Username</th>
             <th>Role</th>
             <th>Status</th>
-            <th>Invite Code</th>
+            <th>Last Login</th>
             <th>Created</th>
             <th>Actions</th>
         </tr>
@@ -66,10 +66,11 @@
                 Active
                 {% endif %}
             </td>
-            <td style="font-size:.8rem">{{ u.invite_code or '—' }}</td>
+            <td style="font-size:.82rem">{% if u.last_login_at %}<span title="{{ u.last_login_at }}">{{ time_ago(u.last_login_at) }}</span>{% else %}Never{% endif %}</td>
             <td>{{ time_ago(u.created_at) }}</td>
             <td>
                 <button class="btn btn-sm btn-outline" onclick="document.getElementById('editUser{{ u.id }}').style.display=document.getElementById('editUser{{ u.id }}').style.display==='none'?'table-row':'none'">Edit</button>
+                <a href="{{ url_for('admin_user_audit', user_id=u.id) }}" class="btn btn-sm btn-outline" title="View audit trail">📋</a>
             </td>
         </tr>
         <tr id="editUser{{ u.id }}" style="display:none;background:rgba(255,255,255,.02)">

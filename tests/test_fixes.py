@@ -1770,3 +1770,62 @@ def test_500_error_template_exists():
         os.path.dirname(__file__), "..", "app", "templates", "wiki", "500.html"
     )
     assert os.path.exists(template_path)
+
+
+# -----------------------------------------------------------------------
+# Collapsible sidebar categories
+# -----------------------------------------------------------------------
+def test_category_has_collapse_toggle(logged_in_admin):
+    """Category sections should have a collapse toggle button."""
+    import db
+    db.create_category("TestCollapse")
+    resp = logged_in_admin.get("/")
+    assert resp.status_code == 200
+    assert b"cat-toggle" in resp.data
+    assert b"nav-section-body" in resp.data
+
+
+# -----------------------------------------------------------------------
+# Last login tracking
+# -----------------------------------------------------------------------
+def test_login_updates_last_login_at(client, admin_user):
+    """Successful login should set last_login_at on the user record."""
+    from app import _LOGIN_ATTEMPTS
+    _LOGIN_ATTEMPTS.clear()
+    import db
+    # Check before login
+    user = db.get_user_by_id(admin_user)
+    assert user["last_login_at"] is None
+    # Login
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    user = db.get_user_by_id(admin_user)
+    assert user["last_login_at"] is not None
+
+
+# -----------------------------------------------------------------------
+# Admin audit trail
+# -----------------------------------------------------------------------
+def test_admin_audit_route_exists(logged_in_admin, admin_user):
+    """Admin audit trail route should return 200."""
+    resp = logged_in_admin.get(f"/admin/users/{admin_user}/audit")
+    assert resp.status_code == 200
+    assert b"Audit Trail" in resp.data
+
+
+def test_admin_audit_requires_admin(client, admin_user):
+    """Non-admin users should not access audit trail."""
+    import db
+    from werkzeug.security import generate_password_hash
+    db.create_user("editor1", generate_password_hash("password"), "editor")
+    from app import _LOGIN_ATTEMPTS
+    _LOGIN_ATTEMPTS.clear()
+    client.post("/login", data={"username": "editor1", "password": "password"})
+    resp = client.get(f"/admin/users/{admin_user}/audit")
+    assert resp.status_code in (302, 403)  # Redirect or forbidden
+
+
+def test_admin_users_shows_last_login(logged_in_admin):
+    """Admin users page should show Last Login column."""
+    resp = logged_in_admin.get("/admin/users")
+    assert resp.status_code == 200
+    assert b"Last Login" in resp.data
