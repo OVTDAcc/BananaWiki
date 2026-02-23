@@ -1513,3 +1513,129 @@ def test_gunicorn_conf_reads_config():
     spec.loader.exec_module(mod)
     import config as cfg
     assert mod.bind == f"{cfg.HOST}:{cfg.PORT}"
+
+
+# -----------------------------------------------------------------------
+# Category edit/delete – CSRF tokens present in forms
+# -----------------------------------------------------------------------
+def test_category_forms_include_csrf(logged_in_admin):
+    import db
+    db.create_category("TestCat")
+    resp = logged_in_admin.get("/")
+    assert resp.status_code == 200
+    assert b"csrf_token" in resp.data
+    assert b"Edit category" in resp.data or b"edit category" in resp.data
+
+
+# -----------------------------------------------------------------------
+# Category actions visible in sidebar
+# -----------------------------------------------------------------------
+def test_category_actions_visible_in_sidebar(logged_in_admin):
+    import db
+    db.create_category("VisibleCat")
+    resp = logged_in_admin.get("/")
+    assert resp.status_code == 200
+    # The edit icon (pencil ✎ = &#9998;) and delete icon (✕ = &#10005;) should render
+    assert b"cat-actions" in resp.data
+
+
+# -----------------------------------------------------------------------
+# Draft delete API cleans up properly
+# -----------------------------------------------------------------------
+def test_draft_delete_cleans_up(logged_in_admin, admin_user):
+    import db
+    home = db.get_home_page()
+    db.save_draft(home["id"], admin_user, "Title", "Content")
+    assert db.get_draft(home["id"], admin_user) is not None
+
+    resp = logged_in_admin.post("/api/draft/delete",
+                                json={"page_id": home["id"]},
+                                content_type="application/json")
+    assert resp.status_code == 200
+    assert db.get_draft(home["id"], admin_user) is None
+
+
+# -----------------------------------------------------------------------
+# My drafts API endpoint
+# -----------------------------------------------------------------------
+def test_api_my_drafts(logged_in_admin, admin_user):
+    import db
+    home = db.get_home_page()
+    db.save_draft(home["id"], admin_user, "Draft Title", "Draft Content")
+
+    resp = logged_in_admin.get("/api/draft/mine")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert isinstance(data, list)
+    assert len(data) >= 1
+    assert data[0]["page_title"] is not None
+
+
+# -----------------------------------------------------------------------
+# User draft count helper
+# -----------------------------------------------------------------------
+def test_get_user_draft_count():
+    import db
+    from werkzeug.security import generate_password_hash
+    uid = db.create_user("draftuser", generate_password_hash("test123"), role="editor")
+    assert db.get_user_draft_count(uid) == 0
+
+    home = db.get_home_page()
+    db.save_draft(home["id"], uid, "t", "c")
+    assert db.get_user_draft_count(uid) == 1
+
+
+# -----------------------------------------------------------------------
+# List user drafts helper
+# -----------------------------------------------------------------------
+def test_list_user_drafts():
+    import db
+    from werkzeug.security import generate_password_hash
+    uid = db.create_user("draftlistuser", generate_password_hash("test123"), role="editor")
+    home = db.get_home_page()
+    db.save_draft(home["id"], uid, "Draft T", "Draft C")
+
+    drafts = db.list_user_drafts(uid)
+    assert len(drafts) == 1
+    assert drafts[0]["page_title"] is not None
+    assert drafts[0]["page_slug"] is not None
+
+
+# -----------------------------------------------------------------------
+# Login rate limiting
+# -----------------------------------------------------------------------
+def test_login_rate_limiting(client, admin_user):
+    from app import _LOGIN_ATTEMPTS
+    _LOGIN_ATTEMPTS.clear()
+    # Exhaust rate limit with failed attempts
+    for _ in range(5):
+        client.post("/login", data={"username": "admin", "password": "wrong"})
+
+    # Next attempt should be rate limited
+    resp = client.post("/login", data={"username": "admin", "password": "admin123"})
+    assert resp.status_code == 429
+    assert b"Too many login attempts" in resp.data
+    _LOGIN_ATTEMPTS.clear()
+
+
+# -----------------------------------------------------------------------
+# Edit page has Save Draft & Close button
+# -----------------------------------------------------------------------
+def test_edit_page_has_save_draft_close(logged_in_admin):
+    import db
+    home = db.get_home_page()
+    resp = logged_in_admin.get(f"/page/{home['slug']}/edit")
+    assert resp.status_code == 200
+    assert b"save-draft-close" in resp.data
+    assert b"Save Draft" in resp.data
+
+
+# -----------------------------------------------------------------------
+# Edit page has sync indicator
+# -----------------------------------------------------------------------
+def test_edit_page_has_sync_indicator(logged_in_admin):
+    import db
+    home = db.get_home_page()
+    resp = logged_in_admin.get(f"/page/{home['slug']}/edit")
+    assert resp.status_code == 200
+    assert b"save-indicator" in resp.data

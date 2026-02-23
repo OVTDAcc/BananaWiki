@@ -8,6 +8,8 @@ import uuid
 import json
 import sqlite3
 import functools
+import threading
+from collections import defaultdict
 from datetime import datetime, timezone
 from urllib.parse import urlparse
 
@@ -71,6 +73,35 @@ ALLOWED_ATTRS = {
 
 # Pre-computed dummy hash for constant-time login checks
 _DUMMY_HASH = generate_password_hash("dummy-constant-time-check")
+
+# ---------------------------------------------------------------------------
+#  Simple in-memory rate limiter (per-IP, no external dependency)
+# ---------------------------------------------------------------------------
+_LOGIN_ATTEMPTS = defaultdict(list)  # IP -> list of timestamps
+_LOGIN_LOCK = threading.Lock()
+_LOGIN_MAX_ATTEMPTS = 5
+_LOGIN_WINDOW = 60  # seconds
+
+
+def _check_login_rate_limit():
+    """Return True if the request IP is allowed to attempt login."""
+    ip = request.remote_addr or "unknown"
+    now = datetime.now(timezone.utc).timestamp()
+    with _LOGIN_LOCK:
+        attempts = _LOGIN_ATTEMPTS[ip]
+        # Prune old attempts
+        _LOGIN_ATTEMPTS[ip] = [t for t in attempts if now - t < _LOGIN_WINDOW]
+        if len(_LOGIN_ATTEMPTS[ip]) >= _LOGIN_MAX_ATTEMPTS:
+            return False
+        return True
+
+
+def _record_login_attempt():
+    """Record a failed login attempt for the current IP."""
+    ip = request.remote_addr or "unknown"
+    now = datetime.now(timezone.utc).timestamp()
+    with _LOGIN_LOCK:
+        _LOGIN_ATTEMPTS[ip].append(now)
 
 
 # ---------------------------------------------------------------------------
@@ -334,6 +365,11 @@ def login():
         return redirect(url_for("setup"))
 
     if request.method == "POST":
+        if not _check_login_rate_limit():
+            log_action("login_rate_limited", request)
+            flash("Too many login attempts. Please wait a minute.", "error")
+            return render_template("auth/login.html"), 429
+
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
         user = db.get_user_by_username(username)
@@ -341,11 +377,13 @@ def login():
         if not user:
             # Constant-time: check against dummy hash to prevent timing enumeration
             check_password_hash(_DUMMY_HASH, password)
+            _record_login_attempt()
             log_action("login_failed", request, username=username)
             flash("Invalid username or password.", "error")
             return render_template("auth/login.html")
 
         if not check_password_hash(user["password"], password):
+            _record_login_attempt()
             log_action("login_failed", request, username=username)
             flash("Invalid username or password.", "error")
             return render_template("auth/login.html")
@@ -980,6 +1018,25 @@ def api_delete_draft():
     user = get_current_user()
     db.delete_draft(page_id, user["id"])
     return jsonify({"ok": True})
+
+
+@app.route("/api/draft/mine")
+@login_required
+@editor_required
+def api_my_drafts():
+    """List all pending drafts for the current user."""
+    user = get_current_user()
+    drafts = db.list_user_drafts(user["id"])
+    return jsonify([
+        {
+            "page_id": d["page_id"],
+            "page_title": d["page_title"],
+            "page_slug": d["page_slug"],
+            "title": d["title"],
+            "updated_at": d["updated_at"],
+        }
+        for d in drafts
+    ])
 
 
 # ---------------------------------------------------------------------------
