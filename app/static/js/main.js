@@ -106,6 +106,15 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
+// Toggle category inline edit form
+function toggleCategoryEdit(btn) {
+    var header = btn.closest('.nav-section-header');
+    if (!header) return;
+    var ie = header.querySelector('.inline-edit');
+    if (!ie) return;
+    ie.style.display = ie.style.display === 'block' ? 'none' : 'block';
+}
+
 // Autosave for editor
 var _autosaveStopped = false;
 
@@ -127,7 +136,10 @@ function initAutosave(pageId) {
     }
 
     function doSave(callback) {
-        if (_autosaveStopped) return;
+        if (_autosaveStopped) {
+            if (callback) callback(false);
+            return;
+        }
         setIndicator('syncing');
         fetch('/api/draft/save', {
             method: 'POST',
@@ -152,7 +164,6 @@ function initAutosave(pageId) {
     function scheduleSave() {
         if (_autosaveStopped) return;
         if (saveTimer) clearTimeout(saveTimer);
-        setIndicator('syncing');
         saveTimer = setTimeout(doSave, 1500);
     }
 

@@ -1044,7 +1044,7 @@ def api_merge_draft():
         return jsonify({"error": "source draft not found"}), 404
     my_draft = db.get_draft(page_id, user["id"])
     if my_draft:
-        merged_content = my_draft["content"] + "\n\n<!-- Merged draft -->\n" + source["content"]
+        merged_content = my_draft["content"] + "\n\n---\n\n" + source["content"]
         merged_title = my_draft["title"] or source["title"]
     else:
         merged_content = source["content"]
