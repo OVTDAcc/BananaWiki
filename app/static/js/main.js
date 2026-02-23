@@ -131,18 +131,13 @@ function initAutosave(pageId) {
         }
     }
 
+    var pendingCallback = null;
+
     function doSave(callback) {
         if (disabled) return;
         if (saving) {
-            // If a save is already in progress, queue the callback
-            if (callback) {
-                var checkDone = setInterval(function() {
-                    if (!saving) {
-                        clearInterval(checkDone);
-                        doSave(callback);
-                    }
-                }, 100);
-            }
+            // If a save is already in progress, queue callback for when it finishes
+            if (callback) pendingCallback = callback;
             return;
         }
         saving = true;
@@ -162,10 +157,12 @@ function initAutosave(pageId) {
             saving = false;
             if (!disabled) setIndicator('saved');
             if (callback) callback(true);
+            if (pendingCallback) { var cb = pendingCallback; pendingCallback = null; doSave(cb); }
         }).catch(function(err) {
             saving = false;
             if (!disabled) setIndicator('error');
             if (callback) callback(false);
+            if (pendingCallback) { var cb = pendingCallback; pendingCallback = null; cb(false); }
         });
     }
 
