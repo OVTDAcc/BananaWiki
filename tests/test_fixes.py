@@ -1520,13 +1520,17 @@ def test_gunicorn_conf_reads_config():
 # -----------------------------------------------------------------------
 def test_category_actions_visible_in_css():
     import os
+    import re
     css_path = os.path.join(
         os.path.dirname(__file__), "..", "app", "static", "css", "style.css"
     )
     with open(css_path) as f:
         css = f.read()
-    # Ensure category actions are not fully invisible by default
-    assert "opacity:0" not in css.split(".cat-actions")[1].split("}")[0]
+    # Find the .cat-actions rule and check opacity is not 0
+    match = re.search(r'\.cat-actions\{[^}]*opacity:([^;]+)', css)
+    assert match is not None, ".cat-actions rule not found"
+    opacity_val = match.group(1).strip()
+    assert opacity_val != "0", f"Category actions opacity should not be 0, got {opacity_val}"
 
 
 # -----------------------------------------------------------------------
@@ -1541,9 +1545,16 @@ def test_js_cancel_autosave_exists():
         js = f.read()
     assert "_cancelAutosave" in js
     assert "_autosavePaused" in js
-    # deleteDraft must call _cancelAutosave before sending delete request
-    delete_fn = js.split("function deleteDraft")[1].split("function ")[0]
-    assert "_cancelAutosave" in delete_fn
+    # deleteDraft should reference _cancelAutosave
+    assert "deleteDraft" in js
+    # Check that _cancelAutosave is called somewhere in the deleteDraft area
+    idx_delete = js.index("function deleteDraft")
+    idx_cancel = js.index("_cancelAutosave", idx_delete)
+    # _cancelAutosave should appear within the deleteDraft function (before next function)
+    next_fn = js.find("\nfunction ", idx_delete + 1)
+    if next_fn == -1:
+        next_fn = len(js)
+    assert idx_cancel < next_fn
 
 
 # -----------------------------------------------------------------------

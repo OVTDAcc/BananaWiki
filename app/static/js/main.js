@@ -159,7 +159,6 @@ function initAutosave(pageId) {
     function scheduleSave() {
         if (_autosavePaused) return;
         if (saveTimer) clearTimeout(saveTimer);
-        setIndicator('syncing');
         saveTimer = setTimeout(doSave, 1500);
     }
 
@@ -239,7 +238,7 @@ function deleteDraft(pageId) {
 }
 
 function saveDraftAndClose(pageId) {
-    if (window._doManualSave) window._doManualSave();
+    if (window._cancelAutosave) window._cancelAutosave();
     var titleEl = document.getElementById('edit-title');
     var contentEl = document.getElementById('edit-content');
     fetch('/api/draft/save', {

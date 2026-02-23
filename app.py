@@ -387,7 +387,10 @@ def login():
             return render_template("auth/login.html")
 
         # Regenerate session to prevent fixation
+        old_csrf = session.get("csrf_token")
         session.clear()
+        if old_csrf:
+            session["csrf_token"] = old_csrf
         session["user_id"] = user["id"]
         log_action("login_success", request, user=user)
         return redirect(url_for("home"))
