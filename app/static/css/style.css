@@ -29,7 +29,7 @@ a:hover{text-decoration:underline}
 .nav-item.active{background:rgba(255,255,255,.06);border-left:2px solid var(--primary);font-weight:600;opacity:1}
 .nav-section{margin-top:.3rem}
 .nav-section-header{display:flex;justify-content:space-between;align-items:center;padding:.3rem .8rem}
-.nav-section-title{font-size:.78rem;font-weight:600;text-transform:uppercase;opacity:.4;letter-spacing:.5px;padding:.3rem .8rem}
+.nav-section-title{font-size:.78rem;font-weight:600;text-transform:uppercase;opacity:.4;letter-spacing:.5px;padding:.3rem .8rem;flex:1;text-align:left}
 .nav-section-header .nav-section-title{padding:0}
 
 /* Collapsible categories */
