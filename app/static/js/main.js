@@ -331,3 +331,25 @@ function initImageUpload(contentEl) {
         });
     }
 }
+
+// Category delete confirmation
+function confirmCatDelete(form, pageCount, catName) {
+    var action = form.querySelector('.cat-page-action').value;
+    var msg = 'Delete category "' + catName + '"?';
+    if (pageCount > 0) {
+        if (action === 'delete') {
+            msg += '\n\nThis will PERMANENTLY DELETE ' + pageCount + ' page(s) in this category!';
+        } else if (action === 'move') {
+            var sel = form.querySelector('.cat-move-target');
+            var targetName = sel && sel.value ? sel.options[sel.selectedIndex].text : '';
+            if (!sel || !sel.value) {
+                alert('Please select a target category to move pages to.');
+                return false;
+            }
+            msg += '\n\n' + pageCount + ' page(s) will be moved to "' + targetName + '".';
+        } else {
+            msg += '\n\n' + pageCount + ' page(s) will become uncategorized.';
+        }
+    }
+    return confirm(msg);
+}

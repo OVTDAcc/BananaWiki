@@ -1524,7 +1524,7 @@ def test_category_forms_include_csrf(logged_in_admin):
     resp = logged_in_admin.get("/")
     assert resp.status_code == 200
     assert b"csrf_token" in resp.data
-    assert b"Edit category" in resp.data or b"edit category" in resp.data
+    assert b"Manage category" in resp.data or b"manage category" in resp.data
 
 
 # -----------------------------------------------------------------------
@@ -1829,3 +1829,72 @@ def test_admin_users_shows_last_login(logged_in_admin):
     resp = logged_in_admin.get("/admin/users")
     assert resp.status_code == 200
     assert b"Last Login" in resp.data
+
+
+# -----------------------------------------------------------------------
+# Create page has editor with preview
+# -----------------------------------------------------------------------
+def test_create_page_has_editor_and_preview(logged_in_admin):
+    """Create page should have the full editor with toolbar and preview pane."""
+    resp = logged_in_admin.get("/create-page")
+    assert resp.status_code == 200
+    assert b"editor-container" in resp.data
+    assert b"preview-pane" in resp.data
+    assert b"editor-toolbar" in resp.data
+    assert b"preview-content" in resp.data
+
+
+# -----------------------------------------------------------------------
+# Category delete with page actions
+# -----------------------------------------------------------------------
+def test_category_delete_moves_pages_to_uncategorized(logged_in_admin):
+    """Deleting a category with uncategorize action moves pages to uncategorized."""
+    import db
+    cat_id = db.create_category("DelCat")
+    page_id = db.create_page("TestPage", "test-del-page", "content", cat_id, 1)
+    resp = logged_in_admin.post(f"/category/{cat_id}/delete",
+                                data={"page_action": "uncategorize"},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    page = db.get_page(page_id)
+    assert page is not None
+    assert page["category_id"] is None
+
+
+def test_category_delete_bulk_deletes_pages(logged_in_admin):
+    """Deleting a category with delete action removes its pages."""
+    import db
+    cat_id = db.create_category("DelCat2")
+    page_id = db.create_page("DelPage", "test-del-page2", "content", cat_id, 1)
+    resp = logged_in_admin.post(f"/category/{cat_id}/delete",
+                                data={"page_action": "delete"},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    assert db.get_page(page_id) is None
+
+
+def test_category_delete_moves_pages_to_another_category(logged_in_admin):
+    """Deleting a category with move action moves pages to target category."""
+    import db
+    cat_id = db.create_category("MoveSrc")
+    target_id = db.create_category("MoveDst")
+    page_id = db.create_page("MovePage", "test-move-page", "content", cat_id, 1)
+    resp = logged_in_admin.post(f"/category/{cat_id}/delete",
+                                data={"page_action": "move",
+                                      "target_category_id": str(target_id)},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    page = db.get_page(page_id)
+    assert page is not None
+    assert page["category_id"] == target_id
+
+
+def test_category_manage_panel_visible(logged_in_admin):
+    """Category manage panel with rename and delete should be in sidebar."""
+    import db
+    db.create_category("ManageCat")
+    resp = logged_in_admin.get("/")
+    assert resp.status_code == 200
+    assert b"cat-manage-panel" in resp.data
+    assert b"Rename" in resp.data
+    assert b"Delete Category" in resp.data

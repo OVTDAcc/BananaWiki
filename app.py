@@ -277,6 +277,7 @@ def inject_globals():
         "time_ago": time_ago,
         "format_datetime": format_datetime,
         "page_history_enabled": config.PAGE_HISTORY_ENABLED,
+        "all_categories": db.list_categories(),
     }
 
 
@@ -917,9 +918,19 @@ def delete_category_route(cat_id):
     cat = db.get_category(cat_id)
     if not cat:
         abort(404)
-    db.delete_category(cat_id)
+    page_action = request.form.get("page_action", "uncategorize")
+    target_cat = request.form.get("target_category_id")
+    try:
+        target_cat = int(target_cat) if target_cat else None
+    except (TypeError, ValueError):
+        target_cat = None
+    if page_action not in ("uncategorize", "delete", "move"):
+        page_action = "uncategorize"
+    if page_action == "move" and (not target_cat or target_cat == cat_id):
+        page_action = "uncategorize"
+    db.delete_category(cat_id, page_action=page_action, target_category_id=target_cat)
     user = get_current_user()
-    log_action("delete_category", request, user=user, category_id=cat_id)
+    log_action("delete_category", request, user=user, category_id=cat_id, page_action=page_action)
     notify_change("category_delete", f"Category {cat_id} deleted")
     flash("Category deleted.", "success")
     return redirect(_safe_referrer() or url_for("home"))

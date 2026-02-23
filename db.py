@@ -325,13 +325,35 @@ def update_category(cat_id, name):
     conn.close()
 
 
-def delete_category(cat_id):
+def delete_category(cat_id, page_action="uncategorize", target_category_id=None):
+    """Delete a category and handle its pages.
+
+    page_action:
+        "uncategorize" - move pages to uncategorized (default, backward-compatible)
+        "delete"       - delete all pages in this category
+        "move"         - move pages to target_category_id
+    """
     conn = get_db()
-    conn.execute("UPDATE pages SET category_id=NULL WHERE category_id=?", (cat_id,))
+    if page_action == "delete":
+        # Delete pages (and their history/drafts via CASCADE)
+        conn.execute("DELETE FROM pages WHERE category_id=? AND is_home=0", (cat_id,))
+    elif page_action == "move" and target_category_id:
+        conn.execute("UPDATE pages SET category_id=? WHERE category_id=?",
+                     (target_category_id, cat_id))
+    else:
+        conn.execute("UPDATE pages SET category_id=NULL WHERE category_id=?", (cat_id,))
     conn.execute("UPDATE categories SET parent_id=NULL WHERE parent_id=?", (cat_id,))
     conn.execute("DELETE FROM categories WHERE id=?", (cat_id,))
     conn.commit()
     conn.close()
+
+
+def count_pages_in_category(cat_id):
+    conn = get_db()
+    cnt = conn.execute("SELECT COUNT(*) FROM pages WHERE category_id=? AND is_home=0",
+                       (cat_id,)).fetchone()[0]
+    conn.close()
+    return cnt
 
 
 def list_categories():
