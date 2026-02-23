@@ -160,7 +160,6 @@ function initAutosave(pageId) {
     function scheduleSave() {
         if (disabled) return;
         if (saveTimer) clearTimeout(saveTimer);
-        setIndicator('syncing');
         saveTimer = setTimeout(doSave, 1500);
     }
 
@@ -177,7 +176,7 @@ function initAutosave(pageId) {
             if (saveTimer) clearTimeout(saveTimer);
             doSave(function(ok) {
                 if (ok) {
-                    var cancelLink = document.querySelector('.form-actions .btn-outline');
+                    var cancelLink = document.querySelector('.form-actions a.btn-outline');
                     if (cancelLink) window.location.href = cancelLink.href;
                 } else {
                     alert('Failed to save draft. Please try again.');
