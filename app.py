@@ -8,7 +8,9 @@ import uuid
 import json
 import sqlite3
 import functools
-from datetime import datetime, timezone
+import threading
+from collections import defaultdict
+from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse
 
 from flask import (
@@ -37,6 +39,7 @@ app.secret_key = config.SECRET_KEY
 app.config["MAX_CONTENT_LENGTH"] = config.MAX_CONTENT_LENGTH
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.permanent_session_lifetime = timedelta(days=7)
 
 # --- SSL / HTTPS awareness ---
 _ssl_enabled = bool(config.SSL_CERT and config.SSL_KEY)
@@ -71,6 +74,43 @@ ALLOWED_ATTRS = {
 
 # Pre-computed dummy hash for constant-time login checks
 _DUMMY_HASH = generate_password_hash("dummy-constant-time-check")
+
+# ---------------------------------------------------------------------------
+#  Simple in-memory rate limiter (per-IP, no external dependency)
+# ---------------------------------------------------------------------------
+_LOGIN_ATTEMPTS = defaultdict(list)  # IP -> list of timestamps
+_LOGIN_LOCK = threading.Lock()
+_LOGIN_MAX_ATTEMPTS = 5
+_LOGIN_WINDOW = 60  # seconds
+
+
+def _check_login_rate_limit():
+    """Return True if the request IP is allowed to attempt login."""
+    ip = request.remote_addr or "unknown"
+    now = datetime.now(timezone.utc).timestamp()
+    with _LOGIN_LOCK:
+        attempts = _LOGIN_ATTEMPTS[ip]
+        # Prune old attempts
+        _LOGIN_ATTEMPTS[ip] = [t for t in attempts if now - t < _LOGIN_WINDOW]
+        if len(_LOGIN_ATTEMPTS[ip]) >= _LOGIN_MAX_ATTEMPTS:
+            return False
+        return True
+
+
+def _record_login_attempt():
+    """Record a failed login attempt for the current IP."""
+    ip = request.remote_addr or "unknown"
+    now = datetime.now(timezone.utc).timestamp()
+    with _LOGIN_LOCK:
+        _LOGIN_ATTEMPTS[ip].append(now)
+
+
+def _clear_login_attempts():
+    """Clear failed login attempts for the current IP (on successful login)."""
+    ip = request.remote_addr or "unknown"
+    with _LOGIN_LOCK:
+        if ip in _LOGIN_ATTEMPTS:
+            del _LOGIN_ATTEMPTS[ip]
 
 
 # ---------------------------------------------------------------------------
@@ -237,6 +277,7 @@ def inject_globals():
         "time_ago": time_ago,
         "format_datetime": format_datetime,
         "page_history_enabled": config.PAGE_HISTORY_ENABLED,
+        "all_categories": db.list_categories(),
     }
 
 
@@ -334,6 +375,11 @@ def login():
         return redirect(url_for("setup"))
 
     if request.method == "POST":
+        if not _check_login_rate_limit():
+            log_action("login_rate_limited", request)
+            flash("Too many login attempts. Please wait a minute.", "error")
+            return render_template("auth/login.html"), 429
+
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
         user = db.get_user_by_username(username)
@@ -341,11 +387,13 @@ def login():
         if not user:
             # Constant-time: check against dummy hash to prevent timing enumeration
             check_password_hash(_DUMMY_HASH, password)
+            _record_login_attempt()
             log_action("login_failed", request, username=username)
             flash("Invalid username or password.", "error")
             return render_template("auth/login.html")
 
         if not check_password_hash(user["password"], password):
+            _record_login_attempt()
             log_action("login_failed", request, username=username)
             flash("Invalid username or password.", "error")
             return render_template("auth/login.html")
@@ -355,7 +403,11 @@ def login():
             flash("Your account has been suspended. Contact an administrator.", "error")
             return render_template("auth/login.html")
 
+        session.clear()
+        session.permanent = True
         session["user_id"] = user["id"]
+        _clear_login_attempts()
+        db.update_user(user["id"], last_login_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
         log_action("login_success", request, user=user)
         return redirect(url_for("home"))
 
@@ -859,6 +911,36 @@ def edit_category(cat_id):
     return redirect(_safe_referrer() or url_for("home"))
 
 
+@app.route("/category/<int:cat_id>/move", methods=["POST"])
+@login_required
+@editor_required
+def move_category(cat_id):
+    cat = db.get_category(cat_id)
+    if not cat:
+        abort(404)
+    parent_id = request.form.get("parent_id")
+    try:
+        parent_id = int(parent_id) if parent_id else None
+    except (TypeError, ValueError):
+        parent_id = None
+    # Prevent moving a category into itself or a descendant (circular ref)
+    if parent_id == cat_id:
+        flash("Cannot move a category into itself.", "error")
+        return redirect(_safe_referrer() or url_for("home"))
+    if parent_id and not db.get_category(parent_id):
+        flash("Target category does not exist.", "error")
+        return redirect(_safe_referrer() or url_for("home"))
+    if parent_id and db.is_descendant_of(cat_id, parent_id):
+        flash("Cannot move a category into one of its own subcategories.", "error")
+        return redirect(_safe_referrer() or url_for("home"))
+    db.update_category_parent(cat_id, parent_id)
+    user = get_current_user()
+    log_action("move_category", request, user=user, category_id=cat_id, new_parent=parent_id)
+    notify_change("category_move", f"Category {cat_id} moved to parent {parent_id}")
+    flash("Category moved.", "success")
+    return redirect(_safe_referrer() or url_for("home"))
+
+
 @app.route("/category/<int:cat_id>/delete", methods=["POST"])
 @login_required
 @editor_required
@@ -866,9 +948,20 @@ def delete_category_route(cat_id):
     cat = db.get_category(cat_id)
     if not cat:
         abort(404)
-    db.delete_category(cat_id)
+    page_action = request.form.get("page_action", "uncategorize")
+    target_cat = request.form.get("target_category_id")
+    try:
+        target_cat = int(target_cat) if target_cat else None
+    except (TypeError, ValueError):
+        target_cat = None
+    if page_action not in ("uncategorize", "delete", "move"):
+        page_action = "uncategorize"
+    if page_action == "move" and (not target_cat or target_cat == cat_id
+                                  or not db.get_category(target_cat)):
+        page_action = "uncategorize"
+    db.delete_category(cat_id, page_action=page_action, target_category_id=target_cat)
     user = get_current_user()
-    log_action("delete_category", request, user=user, category_id=cat_id)
+    log_action("delete_category", request, user=user, category_id=cat_id, page_action=page_action)
     notify_change("category_delete", f"Category {cat_id} deleted")
     flash("Category deleted.", "success")
     return redirect(_safe_referrer() or url_for("home"))
@@ -980,6 +1073,25 @@ def api_delete_draft():
     user = get_current_user()
     db.delete_draft(page_id, user["id"])
     return jsonify({"ok": True})
+
+
+@app.route("/api/draft/mine")
+@login_required
+@editor_required
+def api_my_drafts():
+    """List all pending drafts for the current user."""
+    user = get_current_user()
+    drafts = db.list_user_drafts(user["id"])
+    return jsonify([
+        {
+            "page_id": d["page_id"],
+            "page_title": d["page_title"],
+            "page_slug": d["page_slug"],
+            "title": d["title"],
+            "updated_at": d["updated_at"],
+        }
+        for d in drafts
+    ])
 
 
 # ---------------------------------------------------------------------------
@@ -1277,6 +1389,39 @@ def admin_settings():
                            categories=categories, uncategorized=uncategorized)
 
 
+@app.route("/admin/users/<int:user_id>/audit")
+@login_required
+@admin_required
+def admin_user_audit(user_id):
+    target = db.get_user_by_id(user_id)
+    if not target:
+        abort(404)
+    log_entries = _read_user_audit_log(target["username"])
+    categories, uncategorized = db.get_category_tree()
+    return render_template("admin/audit.html", target=target,
+                           log_entries=log_entries,
+                           categories=categories, uncategorized=uncategorized)
+
+
+def _read_user_audit_log(username, max_entries=200):
+    """Read log entries for a specific user from the log file."""
+    import os
+    log_file = config.LOG_FILE
+    if not os.path.exists(log_file):
+        return []
+    entries = []
+    search_term = f"user={username} "
+    try:
+        with open(log_file, "r", encoding="utf-8", errors="replace") as f:
+            for line in f:
+                if search_term in line:
+                    entries.append(line.strip())
+        # Return most recent entries first
+        return entries[-max_entries:][::-1]
+    except OSError:
+        return []
+
+
 # ---------------------------------------------------------------------------
 #  Error handlers
 # ---------------------------------------------------------------------------
@@ -1298,6 +1443,16 @@ def forbidden(e):
 def request_entity_too_large(e):
     flash("File too large. Maximum upload size is 16 MB.", "error")
     return redirect(_safe_referrer() or url_for("home"))
+
+
+@app.errorhandler(500)
+def internal_error(e):
+    try:
+        categories, uncategorized = db.get_category_tree()
+    except Exception:
+        categories, uncategorized = [], []
+    return render_template("wiki/500.html", categories=categories,
+                           uncategorized=uncategorized), 500
 
 
 # ---------------------------------------------------------------------------

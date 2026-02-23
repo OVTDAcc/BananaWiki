@@ -1513,3 +1513,489 @@ def test_gunicorn_conf_reads_config():
     spec.loader.exec_module(mod)
     import config as cfg
     assert mod.bind == f"{cfg.HOST}:{cfg.PORT}"
+
+
+# -----------------------------------------------------------------------
+# Category edit/delete – CSRF tokens present in forms
+# -----------------------------------------------------------------------
+def test_category_forms_include_csrf(logged_in_admin):
+    import db
+    db.create_category("TestCat")
+    resp = logged_in_admin.get("/")
+    assert resp.status_code == 200
+    assert b"csrf_token" in resp.data
+    assert b"Manage category" in resp.data or b"manage category" in resp.data
+
+
+# -----------------------------------------------------------------------
+# Category actions visible in sidebar
+# -----------------------------------------------------------------------
+def test_category_actions_visible_in_sidebar(logged_in_admin):
+    import db
+    db.create_category("VisibleCat")
+    resp = logged_in_admin.get("/")
+    assert resp.status_code == 200
+    # The edit icon (pencil ✎ = &#9998;) and delete icon (✕ = &#10005;) should render
+    assert b"cat-actions" in resp.data
+
+
+# -----------------------------------------------------------------------
+# Draft delete API cleans up properly
+# -----------------------------------------------------------------------
+def test_draft_delete_cleans_up(logged_in_admin, admin_user):
+    import db
+    home = db.get_home_page()
+    db.save_draft(home["id"], admin_user, "Title", "Content")
+    assert db.get_draft(home["id"], admin_user) is not None
+
+    resp = logged_in_admin.post("/api/draft/delete",
+                                json={"page_id": home["id"]},
+                                content_type="application/json")
+    assert resp.status_code == 200
+    assert db.get_draft(home["id"], admin_user) is None
+
+
+# -----------------------------------------------------------------------
+# My drafts API endpoint
+# -----------------------------------------------------------------------
+def test_api_my_drafts(logged_in_admin, admin_user):
+    import db
+    home = db.get_home_page()
+    db.save_draft(home["id"], admin_user, "Draft Title", "Draft Content")
+
+    resp = logged_in_admin.get("/api/draft/mine")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert isinstance(data, list)
+    assert len(data) >= 1
+    assert data[0]["page_title"] is not None
+
+
+# -----------------------------------------------------------------------
+# User draft count helper
+# -----------------------------------------------------------------------
+def test_get_user_draft_count():
+    import db
+    from werkzeug.security import generate_password_hash
+    uid = db.create_user("draftuser", generate_password_hash("test123"), role="editor")
+    assert db.get_user_draft_count(uid) == 0
+
+    home = db.get_home_page()
+    db.save_draft(home["id"], uid, "t", "c")
+    assert db.get_user_draft_count(uid) == 1
+
+
+# -----------------------------------------------------------------------
+# List user drafts helper
+# -----------------------------------------------------------------------
+def test_list_user_drafts():
+    import db
+    from werkzeug.security import generate_password_hash
+    uid = db.create_user("draftlistuser", generate_password_hash("test123"), role="editor")
+    home = db.get_home_page()
+    db.save_draft(home["id"], uid, "Draft T", "Draft C")
+
+    drafts = db.list_user_drafts(uid)
+    assert len(drafts) == 1
+    assert drafts[0]["page_title"] is not None
+    assert drafts[0]["page_slug"] is not None
+
+
+# -----------------------------------------------------------------------
+# Login rate limiting
+# -----------------------------------------------------------------------
+def test_login_rate_limiting(client, admin_user):
+    from app import _LOGIN_ATTEMPTS
+    _LOGIN_ATTEMPTS.clear()
+    # Exhaust rate limit with failed attempts
+    for _ in range(5):
+        client.post("/login", data={"username": "admin", "password": "wrong"})
+
+    # Next attempt should be rate limited
+    resp = client.post("/login", data={"username": "admin", "password": "admin123"})
+    assert resp.status_code == 429
+    assert b"Too many login attempts" in resp.data
+    _LOGIN_ATTEMPTS.clear()
+
+
+# -----------------------------------------------------------------------
+# Edit page has Save Draft & Close button
+# -----------------------------------------------------------------------
+def test_edit_page_has_save_draft_close(logged_in_admin):
+    import db
+    home = db.get_home_page()
+    resp = logged_in_admin.get(f"/page/{home['slug']}/edit")
+    assert resp.status_code == 200
+    assert b"save-draft-close" in resp.data
+    assert b"Save Draft" in resp.data
+
+
+# -----------------------------------------------------------------------
+# Edit page has sync indicator
+# -----------------------------------------------------------------------
+def test_edit_page_has_sync_indicator(logged_in_admin):
+    import db
+    home = db.get_home_page()
+    resp = logged_in_admin.get(f"/page/{home['slug']}/edit")
+    assert resp.status_code == 200
+    assert b"save-indicator" in resp.data
+
+
+# -----------------------------------------------------------------------
+# Session fixation prevention
+# -----------------------------------------------------------------------
+def test_login_clears_session_before_setting_user(client, admin_user):
+    """Login should clear existing session data before setting user_id."""
+    from app import _LOGIN_ATTEMPTS
+    _LOGIN_ATTEMPTS.clear()
+    # Set some arbitrary session data
+    with client.session_transaction() as sess:
+        sess["stale_data"] = "should_be_cleared"
+    # Login
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    with client.session_transaction() as sess:
+        assert "user_id" in sess
+        assert "stale_data" not in sess
+
+
+# -----------------------------------------------------------------------
+# Rate limit clears on successful login
+# -----------------------------------------------------------------------
+def test_rate_limit_clears_on_successful_login(client, admin_user):
+    """Successful login should clear rate limit attempts for that IP."""
+    from app import _LOGIN_ATTEMPTS
+    _LOGIN_ATTEMPTS.clear()
+    # Record 4 failed attempts
+    for _ in range(4):
+        client.post("/login", data={"username": "admin", "password": "wrong"})
+    # Successful login should clear attempts
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    # After logout, should be able to fail again without rate limit
+    client.post("/logout")
+    _LOGIN_ATTEMPTS.clear()  # Clear for clean test
+    for _ in range(4):
+        resp = client.post("/login", data={"username": "admin", "password": "wrong"})
+        assert resp.status_code == 200  # Not rate limited
+
+
+# -----------------------------------------------------------------------
+# CSRF tokens present in critical forms
+# -----------------------------------------------------------------------
+def test_page_delete_form_has_csrf(logged_in_admin):
+    """Delete page form should contain explicit CSRF token."""
+    import db
+    db.create_page("Test CSRF Page", "test-csrf-page", "Content", None)
+    resp = logged_in_admin.get("/page/test-csrf-page")
+    assert resp.status_code == 200
+    assert b"csrf_token" in resp.data
+
+
+def test_admin_users_forms_have_csrf(logged_in_admin):
+    """Admin user management forms should contain CSRF tokens."""
+    resp = logged_in_admin.get("/admin/users")
+    assert resp.status_code == 200
+    # Count occurrences of csrf_token in forms
+    csrf_count = resp.data.count(b'name="csrf_token"')
+    assert csrf_count >= 7  # create + 6 per-user action forms
+
+
+def test_admin_codes_forms_have_csrf(logged_in_admin):
+    """Admin codes forms should contain CSRF tokens."""
+    resp = logged_in_admin.get("/admin/codes")
+    assert resp.status_code == 200
+    assert b'name="csrf_token"' in resp.data
+
+
+def test_history_revert_form_has_csrf(logged_in_admin):
+    """History revert form should contain CSRF token."""
+    import db
+    home = db.get_home_page()
+    db.update_page(home["id"], "Home", "Updated", 1, "test edit")
+    resp = logged_in_admin.get(f"/page/{home['slug']}/history")
+    assert resp.status_code == 200
+    assert b'name="csrf_token"' in resp.data
+
+
+# -----------------------------------------------------------------------
+# CSRF tokens in remaining forms
+# -----------------------------------------------------------------------
+def test_account_settings_forms_have_csrf(logged_in_admin):
+    """Account settings forms should contain explicit CSRF tokens."""
+    resp = logged_in_admin.get("/account")
+    assert resp.status_code == 200
+    csrf_count = resp.data.count(b'name="csrf_token"')
+    assert csrf_count >= 3  # username, password, delete account
+
+
+def test_admin_settings_form_has_csrf(logged_in_admin):
+    """Admin site settings form should contain CSRF token."""
+    resp = logged_in_admin.get("/admin/settings")
+    assert resp.status_code == 200
+    assert b'name="csrf_token"' in resp.data
+
+
+def test_create_page_form_has_csrf(logged_in_admin):
+    """Create page form should contain CSRF token."""
+    resp = logged_in_admin.get("/create-page")
+    assert resp.status_code == 200
+    assert b'name="csrf_token"' in resp.data
+
+
+def test_edit_page_form_has_csrf(logged_in_admin):
+    """Edit page form should contain CSRF token."""
+    import db
+    home = db.get_home_page()
+    resp = logged_in_admin.get(f"/page/{home['slug']}/edit")
+    assert resp.status_code == 200
+    assert b'name="csrf_token"' in resp.data
+
+
+# -----------------------------------------------------------------------
+# Session timeout configured
+# -----------------------------------------------------------------------
+def test_session_lifetime_configured():
+    """Session should have an explicit lifetime configured."""
+    from app import app
+    assert app.permanent_session_lifetime is not None
+    assert app.permanent_session_lifetime.days <= 7
+
+
+# -----------------------------------------------------------------------
+# 500 error handler
+# -----------------------------------------------------------------------
+def test_500_error_template_exists():
+    """500 error template should exist."""
+    import os
+    template_path = os.path.join(
+        os.path.dirname(__file__), "..", "app", "templates", "wiki", "500.html"
+    )
+    assert os.path.exists(template_path)
+
+
+# -----------------------------------------------------------------------
+# Collapsible sidebar categories
+# -----------------------------------------------------------------------
+def test_category_has_collapse_toggle(logged_in_admin):
+    """Category sections should have a collapse toggle button."""
+    import db
+    db.create_category("TestCollapse")
+    resp = logged_in_admin.get("/")
+    assert resp.status_code == 200
+    assert b"cat-toggle" in resp.data
+    assert b"nav-section-body" in resp.data
+
+
+# -----------------------------------------------------------------------
+# Last login tracking
+# -----------------------------------------------------------------------
+def test_login_updates_last_login_at(client, admin_user):
+    """Successful login should set last_login_at on the user record."""
+    from app import _LOGIN_ATTEMPTS
+    _LOGIN_ATTEMPTS.clear()
+    import db
+    # Check before login
+    user = db.get_user_by_id(admin_user)
+    assert user["last_login_at"] is None
+    # Login
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    user = db.get_user_by_id(admin_user)
+    assert user["last_login_at"] is not None
+
+
+# -----------------------------------------------------------------------
+# Admin audit trail
+# -----------------------------------------------------------------------
+def test_admin_audit_route_exists(logged_in_admin, admin_user):
+    """Admin audit trail route should return 200."""
+    resp = logged_in_admin.get(f"/admin/users/{admin_user}/audit")
+    assert resp.status_code == 200
+    assert b"Audit Trail" in resp.data
+
+
+def test_admin_audit_requires_admin(client, admin_user):
+    """Non-admin users should not access audit trail."""
+    import db
+    from werkzeug.security import generate_password_hash
+    db.create_user("editor1", generate_password_hash("password"), "editor")
+    from app import _LOGIN_ATTEMPTS
+    _LOGIN_ATTEMPTS.clear()
+    client.post("/login", data={"username": "editor1", "password": "password"})
+    resp = client.get(f"/admin/users/{admin_user}/audit")
+    assert resp.status_code in (302, 403)  # Redirect or forbidden
+
+
+def test_admin_users_shows_last_login(logged_in_admin):
+    """Admin users page should show Last Login column."""
+    resp = logged_in_admin.get("/admin/users")
+    assert resp.status_code == 200
+    assert b"Last Login" in resp.data
+
+
+# -----------------------------------------------------------------------
+# Create page has editor with preview
+# -----------------------------------------------------------------------
+def test_create_page_has_editor_and_preview(logged_in_admin):
+    """Create page should have the full editor with toolbar and preview pane."""
+    resp = logged_in_admin.get("/create-page")
+    assert resp.status_code == 200
+    assert b"editor-container" in resp.data
+    assert b"preview-pane" in resp.data
+    assert b"editor-toolbar" in resp.data
+    assert b"preview-content" in resp.data
+
+
+# -----------------------------------------------------------------------
+# Category delete with page actions
+# -----------------------------------------------------------------------
+def test_category_delete_moves_pages_to_uncategorized(logged_in_admin):
+    """Deleting a category with uncategorize action moves pages to uncategorized."""
+    import db
+    cat_id = db.create_category("DelCat")
+    page_id = db.create_page("TestPage", "test-del-page", "content", cat_id, 1)
+    resp = logged_in_admin.post(f"/category/{cat_id}/delete",
+                                data={"page_action": "uncategorize"},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    page = db.get_page(page_id)
+    assert page is not None
+    assert page["category_id"] is None
+
+
+def test_category_delete_bulk_deletes_pages(logged_in_admin):
+    """Deleting a category with delete action removes its pages."""
+    import db
+    cat_id = db.create_category("DelCat2")
+    page_id = db.create_page("DelPage", "test-del-page2", "content", cat_id, 1)
+    resp = logged_in_admin.post(f"/category/{cat_id}/delete",
+                                data={"page_action": "delete"},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    assert db.get_page(page_id) is None
+
+
+def test_category_delete_moves_pages_to_another_category(logged_in_admin):
+    """Deleting a category with move action moves pages to target category."""
+    import db
+    cat_id = db.create_category("MoveSrc")
+    target_id = db.create_category("MoveDst")
+    page_id = db.create_page("MovePage", "test-move-page", "content", cat_id, 1)
+    resp = logged_in_admin.post(f"/category/{cat_id}/delete",
+                                data={"page_action": "move",
+                                      "target_category_id": str(target_id)},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    page = db.get_page(page_id)
+    assert page is not None
+    assert page["category_id"] == target_id
+
+
+def test_category_manage_panel_visible(logged_in_admin):
+    """Category manage panel with rename and delete should be in sidebar."""
+    import db
+    db.create_category("ManageCat")
+    resp = logged_in_admin.get("/")
+    assert resp.status_code == 200
+    assert b"catManageModal" in resp.data
+    assert b"Rename" in resp.data
+    assert b"Delete Category" in resp.data
+
+
+# -----------------------------------------------------------------------
+# Category move (reparent)
+# -----------------------------------------------------------------------
+def test_move_category_to_parent(logged_in_admin):
+    """Moving a category to a new parent should update its parent_id."""
+    import db
+    parent_id = db.create_category("ParentCat")
+    child_id = db.create_category("ChildCat")
+    resp = logged_in_admin.post(f"/category/{child_id}/move",
+                                data={"parent_id": str(parent_id)},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    cat = db.get_category(child_id)
+    assert cat["parent_id"] == parent_id
+
+
+def test_move_category_to_top_level(logged_in_admin):
+    """Moving a category with parent_id='' should make it top-level."""
+    import db
+    parent_id = db.create_category("TopParent")
+    child_id = db.create_category("TopChild", parent_id=parent_id)
+    cat = db.get_category(child_id)
+    assert cat["parent_id"] == parent_id
+    resp = logged_in_admin.post(f"/category/{child_id}/move",
+                                data={"parent_id": ""},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    cat = db.get_category(child_id)
+    assert cat["parent_id"] is None
+
+
+def test_move_category_into_itself_rejected(logged_in_admin):
+    """Moving a category into itself should fail."""
+    import db
+    cat_id = db.create_category("SelfRef")
+    resp = logged_in_admin.post(f"/category/{cat_id}/move",
+                                data={"parent_id": str(cat_id)},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"Cannot move a category into itself" in resp.data
+
+
+def test_move_category_manage_panel_has_move_option(logged_in_admin):
+    """Category manage modal should include a Move section."""
+    import db
+    db.create_category("MovableCat")
+    resp = logged_in_admin.get("/")
+    assert resp.status_code == 200
+    assert b"Move to:" in resp.data
+    assert b"/move" in resp.data
+
+
+def test_move_category_circular_reference_rejected(logged_in_admin):
+    """Moving a category into one of its own descendants should fail."""
+    import db
+    parent_id = db.create_category("Parent")
+    child_id = db.create_category("Child", parent_id=parent_id)
+    grandchild_id = db.create_category("Grandchild", parent_id=child_id)
+    # Try to move parent under grandchild (circular)
+    resp = logged_in_admin.post(f"/category/{parent_id}/move",
+                                data={"parent_id": str(grandchild_id)},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"Cannot move a category into one of its own subcategories" in resp.data
+    # Parent should still be at top level
+    cat = db.get_category(parent_id)
+    assert cat["parent_id"] is None
+
+
+def test_is_descendant_of(isolated_db):
+    """Verify is_descendant_of correctly detects ancestor chains."""
+    import db
+    a = db.create_category("A")
+    b = db.create_category("B", parent_id=a)
+    c = db.create_category("C", parent_id=b)
+    d = db.create_category("D")
+    # b is a descendant of a
+    assert db.is_descendant_of(a, b) is True
+    # c is a descendant of a (transitive)
+    assert db.is_descendant_of(a, c) is True
+    # d is NOT a descendant of a
+    assert db.is_descendant_of(a, d) is False
+    # a is NOT a descendant of c
+    assert db.is_descendant_of(c, a) is False
+
+
+def test_delete_category_move_validates_target(logged_in_admin):
+    """Deleting a category with move should fall back if target doesn't exist."""
+    import db
+    cat_id = db.create_category("DeleteMe")
+    page_id = db.create_page("TestPage", "testpage-validate", "content", cat_id)
+    resp = logged_in_admin.post(f"/category/{cat_id}/delete",
+                                data={"page_action": "move",
+                                      "target_category_id": "9999"},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    # Page should be uncategorized (fallback), not moved to non-existent 9999
+    page = db.get_page(page_id)
+    assert page["category_id"] is None

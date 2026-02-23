@@ -109,6 +109,12 @@ def init_db():
     INSERT OR IGNORE INTO site_settings (id) VALUES (1);
     """)
 
+    # -- Migrations: add columns to existing tables --
+    # Add last_login_at to users if missing
+    cols = [r[1] for r in cur.execute("PRAGMA table_info(users)").fetchall()]
+    if "last_login_at" not in cols:
+        cur.execute("ALTER TABLE users ADD COLUMN last_login_at TEXT")
+
     # Ensure home page exists
     home = cur.execute("SELECT id FROM pages WHERE is_home=1").fetchone()
     if not home:
@@ -151,7 +157,7 @@ def get_user_by_username(username):
     return user
 
 
-_ALLOWED_USER_COLUMNS = {"username", "password", "role", "suspended"}
+_ALLOWED_USER_COLUMNS = {"username", "password", "role", "suspended", "last_login_at"}
 
 
 def update_user(user_id, **kwargs):
@@ -319,13 +325,62 @@ def update_category(cat_id, name):
     conn.close()
 
 
-def delete_category(cat_id):
+def is_descendant_of(cat_id, ancestor_id):
+    """Return True if ancestor_id is a descendant of cat_id (circular ref check)."""
     conn = get_db()
-    conn.execute("UPDATE pages SET category_id=NULL WHERE category_id=?", (cat_id,))
+    current = ancestor_id
+    visited = set()
+    while current is not None:
+        if current == cat_id:
+            conn.close()
+            return True
+        if current in visited:
+            break
+        visited.add(current)
+        row = conn.execute("SELECT parent_id FROM categories WHERE id=?",
+                           (current,)).fetchone()
+        current = row["parent_id"] if row else None
+    conn.close()
+    return False
+
+
+def update_category_parent(cat_id, parent_id):
+    """Move a category under a different parent (or to top level if parent_id is None)."""
+    conn = get_db()
+    conn.execute("UPDATE categories SET parent_id=? WHERE id=?", (parent_id, cat_id))
+    conn.commit()
+    conn.close()
+
+
+def delete_category(cat_id, page_action="uncategorize", target_category_id=None):
+    """Delete a category and handle its pages.
+
+    page_action:
+        "uncategorize" - move pages to uncategorized (default, backward-compatible)
+        "delete"       - delete all pages in this category
+        "move"         - move pages to target_category_id
+    """
+    conn = get_db()
+    if page_action == "delete":
+        # Delete pages (and their history/drafts via CASCADE)
+        conn.execute("DELETE FROM pages WHERE category_id=? AND is_home=0", (cat_id,))
+    elif page_action == "move" and target_category_id:
+        conn.execute("UPDATE pages SET category_id=? WHERE category_id=?",
+                     (target_category_id, cat_id))
+    else:
+        conn.execute("UPDATE pages SET category_id=NULL WHERE category_id=?", (cat_id,))
     conn.execute("UPDATE categories SET parent_id=NULL WHERE parent_id=?", (cat_id,))
     conn.execute("DELETE FROM categories WHERE id=?", (cat_id,))
     conn.commit()
     conn.close()
+
+
+def count_pages_in_category(cat_id):
+    conn = get_db()
+    cnt = conn.execute("SELECT COUNT(*) FROM pages WHERE category_id=? AND is_home=0",
+                       (cat_id,)).fetchone()[0]
+    conn.close()
+    return cnt
 
 
 def list_categories():
@@ -515,7 +570,11 @@ def delete_draft(page_id, user_id):
 
 
 def transfer_draft(page_id, from_user, to_user):
-    """Transfer a draft from one user to another (atomic)."""
+    """Transfer a draft from one user to another (atomic).
+
+    Deletes the target user's existing draft (if any) and transfers the
+    source user's draft.
+    """
     conn = get_db()
     now = datetime.now(timezone.utc).isoformat()
     conn.execute("DELETE FROM drafts WHERE page_id=? AND user_id=?", (page_id, to_user))
@@ -525,6 +584,29 @@ def transfer_draft(page_id, from_user, to_user):
     )
     conn.commit()
     conn.close()
+
+
+def get_user_draft_count(user_id):
+    """Return number of pending drafts for a user across all pages."""
+    conn = get_db()
+    row = conn.execute(
+        "SELECT COUNT(*) AS cnt FROM drafts WHERE user_id=?", (user_id,)
+    ).fetchone()
+    conn.close()
+    return row["cnt"] if row else 0
+
+
+def list_user_drafts(user_id):
+    """Return all drafts belonging to a user, with page info."""
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT d.*, p.title AS page_title, p.slug AS page_slug "
+        "FROM drafts d JOIN pages p ON d.page_id = p.id "
+        "WHERE d.user_id=? ORDER BY d.updated_at DESC",
+        (user_id,),
+    ).fetchall()
+    conn.close()
+    return rows
 
 
 # ---------------------------------------------------------------------------

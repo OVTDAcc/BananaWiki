@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Audit Trail: {{ target.username }} – {{ settings.site_name }}{% endblock %}
+{% block content %}
+<h1>Audit Trail: {{ target.username }}</h1>
+<p style="margin-bottom:1rem">
+    <a href="{{ url_for('admin_users') }}">← Back to users</a>
+    &nbsp;·&nbsp;
+    Role: <span class="badge badge-{{ target.role }}">{{ target.role }}</span>
+    {% if target.last_login_at %}
+    &nbsp;·&nbsp; Last login: <span title="{{ target.last_login_at }}">{{ time_ago(target.last_login_at) }}</span>
+    {% else %}
+    &nbsp;·&nbsp; Last login: Never
+    {% endif %}
+</p>
+
+{% if log_entries %}
+<div class="settings-section">
+    <p style="font-size:.82rem;opacity:.5;margin-bottom:.5rem">Showing up to 200 most recent entries (newest first)</p>
+    <div style="max-height:600px;overflow-y:auto;font-family:monospace;font-size:.78rem;line-height:1.6;background:rgba(0,0,0,.2);padding:.8rem;border-radius:4px">
+        {% for entry in log_entries %}
+        <div style="border-bottom:1px solid rgba(255,255,255,.05);padding:.2rem 0;word-break:break-all">{{ entry|e }}</div>
+        {% endfor %}
+    </div>
+</div>
+{% else %}
+<p style="opacity:.5">No log entries found for this user. Logging may be disabled or the log file may not exist.</p>
+{% endif %}
+{% endblock %}

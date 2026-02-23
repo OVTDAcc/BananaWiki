@@ -29,8 +29,20 @@ a:hover{text-decoration:underline}
 .nav-item.active{background:rgba(255,255,255,.06);border-left:2px solid var(--primary);font-weight:600;opacity:1}
 .nav-section{margin-top:.3rem}
 .nav-section-header{display:flex;justify-content:space-between;align-items:center;padding:.3rem .8rem}
-.nav-section-title{font-size:.78rem;font-weight:600;text-transform:uppercase;opacity:.4;letter-spacing:.5px;padding:.3rem .8rem}
+.nav-section-title{font-size:.78rem;font-weight:600;text-transform:uppercase;opacity:.4;letter-spacing:.5px;padding:.3rem .8rem;flex:1;text-align:left}
 .nav-section-header .nav-section-title{padding:0}
+
+/* Collapsible categories */
+.cat-toggle{background:none;border:none;color:var(--text);cursor:pointer;font-size:.7rem;opacity:.35;padding:0 .2rem 0 0;transition:transform .15s,opacity .15s;line-height:1}
+.cat-toggle:hover{opacity:.7}
+.nav-section.collapsed .cat-toggle{transform:rotate(-90deg)}
+.nav-section.collapsed>.nav-section-body{display:none}
+
+/* Category manage modal */
+.cat-manage-row{display:flex;gap:.4rem;align-items:center;flex-wrap:wrap;margin-bottom:.4rem}
+.cat-delete-options{width:100%;margin-bottom:.3rem}
+.cat-radio{display:block;font-size:.85rem;opacity:.85;padding:.2rem 0;cursor:pointer}
+.cat-radio input{margin-right:.4rem}
 
 /* Sidebar resize handle */
 .sidebar-resize-handle{width:4px;cursor:col-resize;background:transparent;flex-shrink:0;transition:background .15s;position:relative;z-index:10}
@@ -51,7 +63,7 @@ a:hover{text-decoration:underline}
 .btn-danger{background:#c45c6a;color:#fff}
 .btn-icon{background:none;border:none;cursor:pointer;font-size:.85rem;color:var(--text);padding:.15rem .3rem;border-radius:3px;opacity:.7}
 .btn-icon:hover{background:rgba(255,255,255,.08);text-decoration:none;opacity:1}
-.btn-icon-tiny{background:none;border:none;cursor:pointer;font-size:.75rem;padding:.1rem .2rem}
+.btn-icon-tiny{background:none;border:none;color:inherit;cursor:pointer;font-size:.75rem;padding:.1rem .2rem}
 .btn-danger-icon{color:#c45c6a}
 
 /* Forms */
@@ -170,8 +182,8 @@ select.input{appearance:auto}
 .tab:hover{border-bottom-color:rgba(255,255,255,.15);text-decoration:none;opacity:.8}
 .tab.active{border-bottom-color:var(--primary);color:var(--text);font-weight:600;opacity:1}
 
-/* Category action buttons on hover */
-.cat-actions{display:inline-flex;gap:.2rem;opacity:0;transition:opacity .15s}
+/* Category action buttons */
+.cat-actions{display:inline-flex;gap:.2rem;opacity:.45;transition:opacity .15s}
 .nav-section-header:hover .cat-actions{opacity:1}
 
 /* Responsive */
@@ -194,4 +206,7 @@ select.input{appearance:auto}
 .drop-zone.drag-over{border-color:var(--accent);opacity:1;background:rgba(110,138,202,.05)}
 
 /* Save indicator */
-.save-indicator{font-size:.78rem;opacity:.5;margin-left:auto;padding:.2rem .5rem}
+.save-indicator{font-size:.78rem;opacity:.5;margin-left:auto;padding:.2rem .5rem;border-radius:3px;transition:opacity .2s,color .2s}
+.save-indicator-syncing{color:#d2aa5a;opacity:.8}
+.save-indicator-saved{color:#7cc07c;opacity:.7}
+.save-indicator-error{color:#c45c6a;opacity:.9}

@@ -16,6 +16,7 @@
 <div class="settings-section" style="margin-bottom:1rem">
     <h3>Create User</h3>
     <form method="POST" action="{{ url_for('admin_create_user') }}" style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:flex-end">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-group" style="margin-bottom:0">
             <label>Username</label>
             <input type="text" name="username" class="input input-sm" required minlength="3" style="width:140px">
@@ -47,7 +48,7 @@
             <th>Username</th>
             <th>Role</th>
             <th>Status</th>
-            <th>Invite Code</th>
+            <th>Last Login</th>
             <th>Created</th>
             <th>Actions</th>
         </tr>
@@ -65,10 +66,11 @@
                 Active
                 {% endif %}
             </td>
-            <td style="font-size:.8rem">{{ u.invite_code or '—' }}</td>
+            <td style="font-size:.82rem">{% if u.last_login_at %}<span title="{{ u.last_login_at }}">{{ time_ago(u.last_login_at) }}</span>{% else %}Never{% endif %}</td>
             <td>{{ time_ago(u.created_at) }}</td>
             <td>
                 <button class="btn btn-sm btn-outline" onclick="document.getElementById('editUser{{ u.id }}').style.display=document.getElementById('editUser{{ u.id }}').style.display==='none'?'table-row':'none'">Edit</button>
+                <a href="{{ url_for('admin_user_audit', user_id=u.id) }}" class="btn btn-sm btn-outline" title="View audit trail">📋</a>
             </td>
         </tr>
         <tr id="editUser{{ u.id }}" style="display:none;background:rgba(255,255,255,.02)">
@@ -76,12 +78,14 @@
                 <div style="display:flex;gap:1rem;flex-wrap:wrap">
                     <!-- Change username -->
                     <form method="POST" action="{{ url_for('admin_edit_user', user_id=u.id) }}" class="inline-form">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="action" value="change_username">
                         <input type="text" name="username" value="{{ u.username }}" class="input input-sm" style="width:120px">
                         <button class="btn btn-sm">Rename</button>
                     </form>
                     <!-- Change password -->
                     <form method="POST" action="{{ url_for('admin_edit_user', user_id=u.id) }}" class="inline-form">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="action" value="change_password">
                         <input type="password" name="password" placeholder="New password" class="input input-sm" style="width:120px" autocomplete="new-password">
                         <input type="password" name="confirm_password" placeholder="Confirm" class="input input-sm" style="width:120px" autocomplete="new-password">
@@ -89,6 +93,7 @@
                     </form>
                     <!-- Change role -->
                     <form method="POST" action="{{ url_for('admin_edit_user', user_id=u.id) }}" class="inline-form">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="action" value="change_role">
                         <select name="role" class="input input-sm" style="width:90px">
                             <option value="user" {% if u.role == 'user' %}selected{% endif %}>User</option>
@@ -100,17 +105,20 @@
                     <!-- Suspend / Unsuspend -->
                     {% if u.suspended %}
                     <form method="POST" action="{{ url_for('admin_edit_user', user_id=u.id) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="action" value="unsuspend">
                         <button class="btn btn-sm">Unsuspend</button>
                     </form>
                     {% else %}
                     <form method="POST" action="{{ url_for('admin_edit_user', user_id=u.id) }}" onsubmit="return confirm('Suspend this user?')">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="action" value="suspend">
                         <button class="btn btn-sm btn-outline">Suspend</button>
                     </form>
                     {% endif %}
                     <!-- Delete -->
                     <form method="POST" action="{{ url_for('admin_edit_user', user_id=u.id) }}" onsubmit="return confirm('Delete this user permanently?')">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="action" value="delete">
                         <button class="btn btn-sm btn-danger">Delete</button>
                     </form>

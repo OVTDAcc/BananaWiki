@@ -113,8 +113,35 @@ function initAutosave(pageId) {
     if (!titleEl || !contentEl) return;
 
     var saveTimer = null;
+    var saving = false;
+    var disabled = false;
 
-    function doSave() {
+    function setIndicator(state) {
+        var indicator = document.getElementById('save-indicator');
+        if (!indicator) return;
+        indicator.className = 'save-indicator save-indicator-' + state;
+        if (state === 'syncing') {
+            indicator.textContent = 'Syncing\u2026';
+        } else if (state === 'saved') {
+            indicator.textContent = 'All changes saved';
+        } else if (state === 'error') {
+            indicator.textContent = 'Error saving';
+        } else {
+            indicator.textContent = '';
+        }
+    }
+
+    var pendingCallback = null;
+
+    function doSave(callback) {
+        if (disabled) return;
+        if (saving) {
+            // If a save is already in progress, queue callback for when it finishes
+            if (callback) pendingCallback = callback;
+            return;
+        }
+        saving = true;
+        setIndicator('syncing');
         fetch('/api/draft/save', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
@@ -127,27 +154,51 @@ function initAutosave(pageId) {
             if (!r.ok) throw new Error('Save failed');
             return r.json();
         }).then(function(d) {
-            var indicator = document.getElementById('save-indicator');
-            if (indicator) {
-                indicator.textContent = 'Draft saved';
-                setTimeout(function() { indicator.textContent = ''; }, 2000);
-            }
+            saving = false;
+            if (!disabled) setIndicator('saved');
+            if (callback) callback(true);
+            if (pendingCallback) { var cb = pendingCallback; pendingCallback = null; doSave(cb); }
         }).catch(function(err) {
-            var indicator = document.getElementById('save-indicator');
-            if (indicator) {
-                indicator.textContent = 'Save error';
-                setTimeout(function() { indicator.textContent = ''; }, 3000);
-            }
+            saving = false;
+            if (!disabled) setIndicator('error');
+            if (callback) callback(false);
+            if (pendingCallback) { var cb = pendingCallback; pendingCallback = null; cb(false); }
         });
     }
 
     function scheduleSave() {
+        if (disabled) return;
         if (saveTimer) clearTimeout(saveTimer);
         saveTimer = setTimeout(doSave, 1500);
     }
 
+    function stopAutosave() {
+        disabled = true;
+        if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+        setIndicator('');
+    }
+
+    // Save Draft & Close button
+    var saveDraftCloseBtn = document.getElementById('save-draft-close');
+    if (saveDraftCloseBtn) {
+        saveDraftCloseBtn.addEventListener('click', function() {
+            if (saveTimer) clearTimeout(saveTimer);
+            doSave(function(ok) {
+                if (ok) {
+                    var cancelLink = document.querySelector('.form-actions a.btn-outline');
+                    if (cancelLink) window.location.href = cancelLink.href;
+                } else {
+                    alert('Failed to save draft. Please try again.');
+                }
+            });
+        });
+    }
+
     titleEl.addEventListener('input', scheduleSave);
     contentEl.addEventListener('input', scheduleSave);
+
+    // Expose stop function for draft deletion
+    window._bwStopAutosave = stopAutosave;
 
     // Check for other drafts periodically
     setInterval(function() {
@@ -199,6 +250,8 @@ function transferDraft(pageId, fromUserId) {
 }
 
 function deleteDraft(pageId) {
+    // Stop autosave to prevent re-saving the draft
+    if (window._bwStopAutosave) window._bwStopAutosave();
     fetch('/api/draft/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
@@ -277,4 +330,43 @@ function initImageUpload(contentEl) {
             fileInput.value = '';
         });
     }
+}
+
+// Open category manage modal by moving it to body (escapes sidebar overflow)
+function openCatModal(id) {
+    var modal = document.getElementById(id);
+    if (!modal) return;
+    if (!modal._bwOrigParent) modal._bwOrigParent = modal.parentNode;
+    document.body.appendChild(modal);
+    modal.style.display = 'flex';
+}
+
+// Close category manage modal and return it to its original location
+function closeCatModal(btn) {
+    var modal = btn.closest('.modal');
+    if (!modal) return;
+    modal.style.display = 'none';
+    if (modal._bwOrigParent) modal._bwOrigParent.appendChild(modal);
+}
+
+// Category delete confirmation
+function confirmCatDelete(form, pageCount, catName) {
+    var action = form.querySelector('.cat-page-action').value;
+    var msg = 'Delete category "' + catName + '"?';
+    if (pageCount > 0) {
+        if (action === 'delete') {
+            msg += '\n\nThis will PERMANENTLY DELETE ' + pageCount + ' page(s) in this category!';
+        } else if (action === 'move') {
+            var sel = form.querySelector('.cat-move-target');
+            var targetName = sel && sel.value ? sel.options[sel.selectedIndex].text : '';
+            if (!sel || !sel.value) {
+                alert('Please select a target category to move pages to.');
+                return false;
+            }
+            msg += '\n\n' + pageCount + ' page(s) will be moved to "' + targetName + '".';
+        } else {
+            msg += '\n\n' + pageCount + ' page(s) will become uncategorized.';
+        }
+    }
+    return confirm(msg);
 }
