@@ -38,12 +38,11 @@ a:hover{text-decoration:underline}
 .nav-section.collapsed .cat-toggle{transform:rotate(-90deg)}
 .nav-section.collapsed>.nav-section-body{display:none}
 
-/* Category manage panel */
-.cat-manage-panel{width:100%;padding:.5rem .8rem;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:4px;margin-top:.3rem;font-size:.82rem}
-.cat-manage-row{display:flex;gap:.3rem;align-items:center;flex-wrap:wrap;margin-bottom:.4rem}
-.cat-delete-options{width:100%}
-.cat-radio{display:block;font-size:.78rem;opacity:.8;padding:.15rem 0;cursor:pointer}
-.cat-radio input{margin-right:.3rem}
+/* Category manage modal */
+.cat-manage-row{display:flex;gap:.4rem;align-items:center;flex-wrap:wrap;margin-bottom:.4rem}
+.cat-delete-options{width:100%;margin-bottom:.3rem}
+.cat-radio{display:block;font-size:.85rem;opacity:.85;padding:.2rem 0;cursor:pointer}
+.cat-radio input{margin-right:.4rem}
 
 /* Sidebar resize handle */
 .sidebar-resize-handle{width:4px;cursor:col-resize;background:transparent;flex-shrink:0;transition:background .15s;position:relative;z-index:10}

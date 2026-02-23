@@ -4,32 +4,42 @@
         <span class="nav-section-title">{{ cat.name }}</span>
         {% if current_user and current_user.role in ('editor', 'admin') %}
         <div class="cat-actions">
-            <button class="btn-icon-tiny" onclick="var el=this.closest('.nav-section-header').querySelector('.cat-manage-panel');el.style.display=el.style.display==='block'?'none':'block'" title="Manage category" aria-label="Manage category">&#9881;</button>
+            <button class="btn-icon-tiny" onclick="document.getElementById('catManageModal{{ cat.id }}').style.display='flex'" title="Manage category" aria-label="Manage category">&#9881;</button>
         </div>
-        <div class="cat-manage-panel" style="display:none">
-            <!-- Rename -->
-            <form method="POST" action="{{ url_for('edit_category', cat_id=cat.id) }}" class="inline-form cat-manage-row">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <input type="text" name="name" value="{{ cat.name }}" class="input input-sm" required maxlength="100" style="flex:1;min-width:80px">
-                <button type="submit" class="btn btn-sm">Rename</button>
-            </form>
-            <!-- Delete -->
-            <form method="POST" action="{{ url_for('delete_category_route', cat_id=cat.id) }}" class="cat-manage-row" id="catDeleteForm{{ cat.id }}" onsubmit="return confirmCatDelete(this, {{ cat.pages|length }}, {{ cat.name|tojson }})">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <input type="hidden" name="page_action" value="uncategorize" class="cat-page-action">
-                <input type="hidden" name="target_category_id" value="" class="cat-target-id">
-                <div class="cat-delete-options">
-                    <label class="cat-radio"><input type="radio" name="page_action_ui" value="uncategorize" checked onchange="this.closest('form').querySelector('.cat-page-action').value='uncategorize';this.closest('form').querySelector('.cat-move-target').style.display='none'"> Move pages to Uncategorized</label>
-                    <label class="cat-radio"><input type="radio" name="page_action_ui" value="move" onchange="this.closest('form').querySelector('.cat-page-action').value='move';this.closest('form').querySelector('.cat-move-target').style.display='block'"> Move pages to:</label>
-                    <select class="input input-sm cat-move-target" style="display:none;margin-left:1.2rem;margin-bottom:.3rem" onchange="this.closest('form').querySelector('.cat-target-id').value=this.value">
-                        {% for c in all_categories if c.id != cat.id %}
-                        <option value="{{ c.id }}">{{ c.name }}</option>
-                        {% endfor %}
-                    </select>
-                    <label class="cat-radio"><input type="radio" name="page_action_ui" value="delete" onchange="this.closest('form').querySelector('.cat-page-action').value='delete';this.closest('form').querySelector('.cat-move-target').style.display='none'"> Delete all pages in category</label>
+        <div class="modal" id="catManageModal{{ cat.id }}" style="display:none">
+            <div class="modal-content">
+                <h3>Manage "{{ cat.name }}"</h3>
+                <!-- Rename -->
+                <form method="POST" action="{{ url_for('edit_category', cat_id=cat.id) }}" class="cat-manage-row">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="text" name="name" value="{{ cat.name }}" class="input" required maxlength="100" style="flex:1;min-width:120px">
+                    <button type="submit" class="btn btn-sm">Rename</button>
+                </form>
+                <hr style="border-color:rgba(255,255,255,.08);margin:.6rem 0">
+                <!-- Delete -->
+                <form method="POST" action="{{ url_for('delete_category_route', cat_id=cat.id) }}" id="catDeleteForm{{ cat.id }}" onsubmit="return confirmCatDelete(this, {{ cat.pages|length }}, {{ cat.name|tojson }})">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="page_action" value="uncategorize" class="cat-page-action">
+                    <input type="hidden" name="target_category_id" value="" class="cat-target-id">
+                    {% if cat.pages|length > 0 %}
+                    <p style="font-size:.85rem;margin-bottom:.5rem;opacity:.7">This category has <strong>{{ cat.pages|length }}</strong> page{{ 's' if cat.pages|length != 1 else '' }}. Choose what to do with them:</p>
+                    <div class="cat-delete-options">
+                        <label class="cat-radio"><input type="radio" name="page_action_ui" value="uncategorize" checked onchange="this.closest('form').querySelector('.cat-page-action').value='uncategorize';this.closest('form').querySelector('.cat-move-target').style.display='none'"> Move pages to Uncategorized</label>
+                        <label class="cat-radio"><input type="radio" name="page_action_ui" value="move" onchange="this.closest('form').querySelector('.cat-page-action').value='move';this.closest('form').querySelector('.cat-move-target').style.display='block'"> Move pages to:</label>
+                        <select class="input input-sm cat-move-target" style="display:none;margin-left:1.2rem;margin-bottom:.3rem" onchange="this.closest('form').querySelector('.cat-target-id').value=this.value">
+                            {% for c in all_categories if c.id != cat.id %}
+                            <option value="{{ c.id }}">{{ c.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <label class="cat-radio"><input type="radio" name="page_action_ui" value="delete" onchange="this.closest('form').querySelector('.cat-page-action').value='delete';this.closest('form').querySelector('.cat-move-target').style.display='none'"> Delete all pages in category</label>
+                    </div>
+                    {% endif %}
+                    <button type="submit" class="btn btn-sm btn-danger" style="margin-top:.5rem">Delete Category</button>
+                </form>
+                <div class="form-actions" style="margin-top:.8rem">
+                    <button type="button" class="btn btn-outline btn-sm" onclick="this.closest('.modal').style.display='none'">Cancel</button>
                 </div>
-                <button type="submit" class="btn btn-sm btn-danger" style="margin-top:.3rem">Delete Category</button>
-            </form>
+            </div>
         </div>
         {% endif %}
     </div>

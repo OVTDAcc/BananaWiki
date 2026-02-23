@@ -1895,6 +1895,6 @@ def test_category_manage_panel_visible(logged_in_admin):
     db.create_category("ManageCat")
     resp = logged_in_admin.get("/")
     assert resp.status_code == 200
-    assert b"cat-manage-panel" in resp.data
+    assert b"catManageModal" in resp.data
     assert b"Rename" in resp.data
     assert b"Delete Category" in resp.data
