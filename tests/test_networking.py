@@ -55,9 +55,9 @@ def test_default_port():
 
 
 def test_default_host_public():
-    """USE_PUBLIC_IP=True binds to all interfaces."""
-    assert config.USE_PUBLIC_IP is True
-    assert config.HOST == "0.0.0.0"
+    """Default bind is localhost for safety."""
+    assert config.USE_PUBLIC_IP is False
+    assert config.HOST == "127.0.0.1"
 
 
 def test_host_localhost_when_not_public():

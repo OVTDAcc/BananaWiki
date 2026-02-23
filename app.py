@@ -52,6 +52,9 @@ if config.PROXY_MODE:
     app.wsgi_app = ProxyFix(
         app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1
     )
+    # Assume TLS is terminated upstream; still mark cookies Secure.
+    app.config["SESSION_COOKIE_SECURE"] = True
+    app.config["PREFERRED_URL_SCHEME"] = "https"
 
 csrf = CSRFProtect(app)
 
@@ -76,10 +79,17 @@ ALLOWED_ATTRS = {
 _DUMMY_HASH = generate_password_hash("dummy-constant-time-check")
 
 # ---------------------------------------------------------------------------
-#  Simple in-memory rate limiter (per-IP, no external dependency)
+#  Login rate limiting (per-IP, shared across workers via DB)
 # ---------------------------------------------------------------------------
-_LOGIN_ATTEMPTS = defaultdict(list)  # IP -> list of timestamps
-_LOGIN_LOCK = threading.Lock()
+class _RateLimitStore(dict):
+    """Compatibility shim for tests; backing data lives in DB."""
+
+    def clear(self):
+        super().clear()
+        db.clear_all_login_attempts()
+
+
+_LOGIN_ATTEMPTS = _RateLimitStore()
 _LOGIN_MAX_ATTEMPTS = 5
 _LOGIN_WINDOW = 60  # seconds
 
@@ -87,30 +97,23 @@ _LOGIN_WINDOW = 60  # seconds
 def _check_login_rate_limit():
     """Return True if the request IP is allowed to attempt login."""
     ip = request.remote_addr or "unknown"
-    now = datetime.now(timezone.utc).timestamp()
-    with _LOGIN_LOCK:
-        attempts = _LOGIN_ATTEMPTS[ip]
-        # Prune old attempts
-        _LOGIN_ATTEMPTS[ip] = [t for t in attempts if now - t < _LOGIN_WINDOW]
-        if len(_LOGIN_ATTEMPTS[ip]) >= _LOGIN_MAX_ATTEMPTS:
-            return False
-        return True
+    recent = db.count_recent_login_attempts(ip, _LOGIN_WINDOW)
+    return recent < _LOGIN_MAX_ATTEMPTS
 
 
 def _record_login_attempt():
     """Record a failed login attempt for the current IP."""
     ip = request.remote_addr or "unknown"
-    now = datetime.now(timezone.utc).timestamp()
-    with _LOGIN_LOCK:
-        _LOGIN_ATTEMPTS[ip].append(now)
+    _LOGIN_ATTEMPTS.setdefault(ip, [])
+    _LOGIN_ATTEMPTS[ip].append(datetime.now(timezone.utc).timestamp())
+    db.record_login_attempt(ip)
 
 
 def _clear_login_attempts():
     """Clear failed login attempts for the current IP (on successful login)."""
     ip = request.remote_addr or "unknown"
-    with _LOGIN_LOCK:
-        if ip in _LOGIN_ATTEMPTS:
-            del _LOGIN_ATTEMPTS[ip]
+    _LOGIN_ATTEMPTS.pop(ip, None)
+    db.clear_login_attempts(ip)
 
 
 # ---------------------------------------------------------------------------
@@ -775,7 +778,6 @@ def edit_page_title(slug):
 def create_page():
     user = get_current_user()
     categories, uncategorized = db.get_category_tree()
-    all_cats = db.list_categories()
 
     if request.method == "POST":
         title = request.form.get("title", "").strip()
@@ -787,23 +789,19 @@ def create_page():
         except (TypeError, ValueError):
             flash("Invalid category.", "error")
             return render_template("wiki/create_page.html", categories=categories,
-                                   uncategorized=uncategorized, all_categories=all_cats,
-                                   form=form_data)
+                                   uncategorized=uncategorized, form=form_data)
         if not title:
             flash("Title is required.", "error")
             return render_template("wiki/create_page.html", categories=categories,
-                                   uncategorized=uncategorized, all_categories=all_cats,
-                                   form=form_data)
+                                   uncategorized=uncategorized, form=form_data)
         if len(title) > 200:
             flash("Title must be 200 characters or fewer.", "error")
             return render_template("wiki/create_page.html", categories=categories,
-                                   uncategorized=uncategorized, all_categories=all_cats,
-                                   form=form_data)
+                                   uncategorized=uncategorized, form=form_data)
         if cat_id and not db.get_category(cat_id):
             flash("Selected category does not exist.", "error")
             return render_template("wiki/create_page.html", categories=categories,
-                                   uncategorized=uncategorized, all_categories=all_cats,
-                                   form=form_data)
+                                   uncategorized=uncategorized, form=form_data)
         slug = slugify(title)
         # ensure unique slug
         base_slug = slug
@@ -814,11 +812,11 @@ def create_page():
         db.create_page(title, slug, content, cat_id, user["id"])
         log_action("create_page", request, user=user, page=slug)
         notify_change("page_create", f"Page '{slug}' created")
-        flash("Page created.", "success")
+        flash("Page created. Open it to start editing with Markdown.", "success")
         return redirect(url_for("view_page", slug=slug))
 
     return render_template("wiki/create_page.html", categories=categories,
-                           uncategorized=uncategorized, all_categories=all_cats)
+                           uncategorized=uncategorized)
 
 
 @app.route("/page/<slug>/delete", methods=["POST"])

@@ -176,6 +176,9 @@ def test_create_backup_produces_valid_zip(tmp_path, monkeypatch):
     import sync
     import db
 
+    # Allow sensitive artifacts for this test
+    monkeypatch.setattr(config, "SYNC_INCLUDE_SENSITIVE", True)
+
     # Create some test data
     db.create_user("testuser", "hash123", role="user")
 

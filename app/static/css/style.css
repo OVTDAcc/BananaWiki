@@ -79,11 +79,15 @@ select.input{appearance:auto}
 
 /* Flash messages */
 .flash-messages{margin-bottom:1rem}
-.flash{padding:.5rem .8rem;border-radius:4px;font-size:.85rem;margin-bottom:.4rem}
+.flash{position:relative;display:flex;align-items:flex-start;gap:.5rem;padding:.5rem .8rem;border-radius:4px;font-size:.85rem;margin-bottom:.4rem;padding-right:2.2rem}
 .flash-success{background:rgba(100,180,100,.12);border:1px solid rgba(100,180,100,.3);color:#7cc07c}
 .flash-error{background:rgba(196,92,106,.12);border:1px solid rgba(196,92,106,.3);color:#c45c6a}
 .flash-warning{background:rgba(210,170,90,.12);border:1px solid rgba(210,170,90,.3);color:#d2aa5a}
 .flash-info{background:rgba(110,138,202,.12);border:1px solid rgba(110,138,202,.3);color:#6e8aca}
+.flash-close{position:absolute;top:8px;right:8px;background:none;border:none;color:#c45c6a;font-weight:700;font-size:1rem;cursor:pointer;line-height:1;width:20px;height:20px;display:flex;align-items:center;justify-content:center;opacity:.75}
+.flash-close:hover{opacity:1}
+.flash-message{flex:1}
+.info-callout{margin-bottom:1rem;padding:.75rem .9rem;background:rgba(110,138,202,.12);border:1px solid rgba(110,138,202,.25);border-radius:4px;font-size:.9rem}
 
 /* Wiki content */
 .wiki-content{line-height:1.8;font-size:1rem}

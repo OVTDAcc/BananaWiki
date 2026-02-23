@@ -175,30 +175,42 @@ def _create_backup(changes: list[dict]) -> tuple[str | None, list[tuple]]:
     max_size = TELEGRAM_FILE_LIMIT - (1024 * 1024)
 
     try:
+        include_sensitive = bool(getattr(config, "SYNC_INCLUDE_SENSITIVE", False))
+
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
             # 1. Database -------------------------------------------------
             if os.path.exists(config.DATABASE_PATH):
                 db_size = os.path.getsize(config.DATABASE_PATH)
-                if current_size + db_size < max_size:
+                if include_sensitive and current_size + db_size < max_size:
                     zf.write(config.DATABASE_PATH, "database/bananawiki.db")
                     current_size += db_size
                 else:
                     excluded_files.append(
-                        ("database/bananawiki.db", db_size, "Exceeds size limit")
+                        ("database/bananawiki.db", db_size, "Excluded by config" if not include_sensitive else "Exceeds size limit")
                     )
 
             # 2. Config file ---------------------------------------------
             config_path = os.path.join(config.BASE_DIR, "config.py")
             if os.path.exists(config_path):
                 cfg_size = os.path.getsize(config_path)
-                zf.write(config_path, "config/config.py")
-                current_size += cfg_size
+                if include_sensitive and current_size + cfg_size < max_size:
+                    zf.write(config_path, "config/config.py")
+                    current_size += cfg_size
+                else:
+                    excluded_files.append(
+                        ("config/config.py", cfg_size, "Excluded by config" if not include_sensitive else "Exceeds size limit")
+                    )
 
             # 3. Secret key (needed for session restoration) -------------
             if os.path.exists(config.SECRET_KEY_FILE):
                 sk_size = os.path.getsize(config.SECRET_KEY_FILE)
-                zf.write(config.SECRET_KEY_FILE, "instance/.secret_key")
-                current_size += sk_size
+                if include_sensitive and current_size + sk_size < max_size:
+                    zf.write(config.SECRET_KEY_FILE, "instance/.secret_key")
+                    current_size += sk_size
+                else:
+                    excluded_files.append(
+                        ("instance/.secret_key", sk_size, "Excluded by config" if not include_sensitive else "Exceeds size limit")
+                    )
 
             # 4. Log files -----------------------------------------------
             log_dir = os.path.dirname(config.LOG_FILE)
@@ -208,12 +220,12 @@ def _create_backup(changes: list[dict]) -> tuple[str | None, list[tuple]]:
                     if not os.path.isfile(log_path):
                         continue
                     file_size = os.path.getsize(log_path)
-                    if current_size + file_size < max_size:
+                    if include_sensitive and current_size + file_size < max_size:
                         zf.write(log_path, f"logs/{log_file}")
                         current_size += file_size
                     else:
                         excluded_files.append(
-                            (f"logs/{log_file}", file_size, "Exceeds size limit")
+                            (f"logs/{log_file}", file_size, "Excluded by config" if not include_sensitive else "Exceeds size limit")
                         )
 
             # 5. Upload assets -------------------------------------------

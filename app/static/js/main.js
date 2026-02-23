@@ -6,14 +6,20 @@ function getCsrfToken() {
     return meta ? meta.getAttribute('content') : '';
 }
 
-// Auto-dismiss flash messages after 5 seconds
+// Flash message close buttons (no auto-dismiss)
+function initFlashMessages() {
+    document.querySelectorAll('.flash').forEach(function(el) {
+        var closeBtn = el.querySelector('.flash-close');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', function() {
+                el.remove();
+            });
+        }
+    });
+}
+
 document.addEventListener('DOMContentLoaded', function() {
-    setTimeout(function() {
-        document.querySelectorAll('.flash').forEach(function(el) {
-            el.style.opacity = '0';
-            setTimeout(function() { el.remove(); }, 300);
-        });
-    }, 5000);
+    initFlashMessages();
 
     // Sidebar toggle for mobile
     var toggleBtn = document.getElementById('sidebar-toggle');

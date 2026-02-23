@@ -868,7 +868,9 @@ def test_create_page_preserves_form_data(logged_in_admin):
                                 data={"title": "", "content": "my content here",
                                       "category_id": ""})
     assert resp.status_code == 200
-    assert b"my content here" in resp.data
+    # Form should re-render with error notice and helper callout
+    assert b"Title is required" in resp.data
+    assert b"First create the page" in resp.data
 
 
 # -----------------------------------------------------------------------
@@ -1832,16 +1834,14 @@ def test_admin_users_shows_last_login(logged_in_admin):
 
 
 # -----------------------------------------------------------------------
-# Create page has editor with preview
+# Create page minimal form + guidance
 # -----------------------------------------------------------------------
 def test_create_page_has_editor_and_preview(logged_in_admin):
-    """Create page should have the full editor with toolbar and preview pane."""
+    """Create page now guides to create then edit; should show title field and callout."""
     resp = logged_in_admin.get("/create-page")
     assert resp.status_code == 200
-    assert b"editor-container" in resp.data
-    assert b"preview-pane" in resp.data
-    assert b"editor-toolbar" in resp.data
-    assert b"preview-content" in resp.data
+    assert b"info-callout" in resp.data
+    assert b"name=\"title\"" in resp.data
 
 
 # -----------------------------------------------------------------------

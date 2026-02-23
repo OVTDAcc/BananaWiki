@@ -3,52 +3,15 @@
 {% block content %}
 <h1>Create New Page</h1>
 
+<div class="info-callout">
+    First create the page by giving it a title. After it exists, open the page and start editing it there using the Markdown editor.
+</div>
+
 <form method="POST" id="createForm">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="form-group">
         <label>Title</label>
         <input type="text" name="title" class="input" required value="{{ form.title if form else '' }}" style="max-width:500px">
-    </div>
-    <div class="form-group">
-        <label>Category</label>
-        <select name="category_id" class="input" style="max-width:300px">
-            <option value="">Uncategorized</option>
-            {% for cat in all_categories %}
-            <option value="{{ cat.id }}" {% if form and form.category_id|string == cat.id|string %}selected{% endif %}>{{ cat.name }}</option>
-            {% endfor %}
-        </select>
-    </div>
-
-    <input type="file" id="file-input" accept="image/*" multiple style="display:none">
-
-    <div class="editor-container">
-        <div class="editor-pane">
-            <div class="editor-toolbar">
-                <button type="button" onclick="insertFormat('**','**')" title="Bold"><strong>B</strong></button>
-                <button type="button" onclick="insertFormat('*','*')" title="Italic"><em>I</em></button>
-                <button type="button" onclick="insertFormat('~~','~~')" title="Strikethrough"><s>S</s></button>
-                <span class="sep"></span>
-                <button type="button" onclick="insertLine('# ')" title="Heading 1">H1</button>
-                <button type="button" onclick="insertLine('## ')" title="Heading 2">H2</button>
-                <button type="button" onclick="insertLine('### ')" title="Heading 3">H3</button>
-                <span class="sep"></span>
-                <button type="button" onclick="insertLine('- ')" title="Bullet list">•&nbsp;List</button>
-                <button type="button" onclick="insertLine('1. ')" title="Numbered list">1.&nbsp;List</button>
-                <button type="button" onclick="insertFormat('\n```\n','\n```\n')" title="Code block">&lt;/&gt;</button>
-                <button type="button" onclick="insertFormat('[','](url)')" title="Link">Link</button>
-                <button type="button" onclick="insertLine('> ')" title="Blockquote">Quote</button>
-                <button type="button" onclick="insertLine('---')" title="Horizontal rule">─</button>
-                <span class="sep"></span>
-                <button type="button" id="attach-btn" title="Attach image">Attach Image</button>
-            </div>
-            <div class="drop-zone" id="drop-zone">Drop images here</div>
-            <textarea name="content" id="edit-content" class="editor-area" placeholder="Write your page in markdown...">{{ form.content if form else '' }}</textarea>
-        </div>
-        <div class="editor-divider"></div>
-        <div class="preview-pane">
-            <div class="editor-pane-header">Preview</div>
-            <div class="preview-content" id="preview-content"></div>
-        </div>
     </div>
 
     <div class="form-actions">
@@ -56,67 +19,4 @@
         <a href="{{ url_for('home') }}" class="btn btn-outline">Cancel</a>
     </div>
 </form>
-{% endblock %}
-
-{% block scripts %}
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        initImageUpload(document.getElementById('edit-content'));
-        initPreview();
-    });
-
-    function initPreview() {
-        var content = document.getElementById('edit-content');
-        var preview = document.getElementById('preview-content');
-        if (!content || !preview) return;
-
-        function updatePreview() {
-            fetch('/api/preview', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
-                body: JSON.stringify({ content: content.value })
-            })
-            .then(function(r) { return r.json(); })
-            .then(function(d) {
-                if (d.html !== undefined) preview.innerHTML = d.html;
-            });
-        }
-
-        var previewTimer = null;
-        content.addEventListener('input', function() {
-            if (previewTimer) clearTimeout(previewTimer);
-            previewTimer = setTimeout(updatePreview, 400);
-        });
-
-        updatePreview();
-    }
-
-    function insertFormat(before, after) {
-        var ta = document.getElementById('edit-content');
-        var start = ta.selectionStart, end = ta.selectionEnd;
-        var sel = ta.value.substring(start, end) || 'text';
-        ta.value = ta.value.substring(0, start) + before + sel + after + ta.value.substring(end);
-        ta.selectionStart = start + before.length;
-        ta.selectionEnd = start + before.length + sel.length;
-        ta.focus();
-        ta.dispatchEvent(new Event('input'));
-    }
-
-    function insertLine(prefix) {
-        var ta = document.getElementById('edit-content');
-        var start = ta.selectionStart;
-        var lineStart = ta.value.lastIndexOf('\n', start - 1) + 1;
-        var before = ta.value.substring(0, lineStart);
-        var after = ta.value.substring(lineStart);
-        if (start === 0 || ta.value[start - 1] === '\n') {
-            ta.value = before + prefix + after;
-            ta.selectionStart = ta.selectionEnd = lineStart + prefix.length;
-        } else {
-            ta.value = ta.value.substring(0, start) + '\n' + prefix + ta.value.substring(start);
-            ta.selectionStart = ta.selectionEnd = start + 1 + prefix.length;
-        }
-        ta.focus();
-        ta.dispatchEvent(new Event('input'));
-    }
-</script>
 {% endblock %}

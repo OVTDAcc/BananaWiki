@@ -17,10 +17,9 @@ BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 PORT = 5001
 
 # Bind to all network interfaces so the app is reachable from other machines.
-# Set to False to restrict access to localhost only — recommended when a
-# reverse proxy (nginx) on the same machine forwards traffic to Gunicorn,
-# so the port is never exposed directly to the internet.
-USE_PUBLIC_IP = True
+# Set to False to restrict access to localhost only — safer default unless
+# you intentionally expose the service via HTTPS/proxy.
+USE_PUBLIC_IP = False
 
 # Host binding (derived from USE_PUBLIC_IP above):
 #   True  → 0.0.0.0   – all interfaces (public + local)
@@ -143,3 +142,6 @@ INVITE_CODE_EXPIRY_HOURS = 48
 SYNC = False
 SYNC_TOKEN = ""
 SYNC_USERID = ""
+# Include sensitive artifacts (database, secret key, config, logs) in sync
+# archives. Disabled by default for safety.
+SYNC_INCLUDE_SENSITIVE = False

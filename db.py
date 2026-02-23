@@ -106,6 +106,12 @@ def init_db():
         setup_done  INTEGER NOT NULL DEFAULT 0
     );
 
+    CREATE TABLE IF NOT EXISTS login_attempts (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        ip           TEXT NOT NULL,
+        attempted_at TEXT NOT NULL
+    );
+
     INSERT OR IGNORE INTO site_settings (id) VALUES (1);
     """)
 
@@ -176,6 +182,46 @@ def delete_user(user_id):
     conn = get_db()
     conn.execute("UPDATE invite_codes SET used_by=NULL WHERE used_by=?", (user_id,))
     conn.execute("DELETE FROM users WHERE id=?", (user_id,))
+    conn.commit()
+    conn.close()
+
+
+# ---------------------------------------------------------------------------
+#  Login attempt helpers (shared rate limiting across workers)
+# ---------------------------------------------------------------------------
+def record_login_attempt(ip):
+    conn = get_db()
+    now = datetime.now(timezone.utc).isoformat()
+    conn.execute("INSERT INTO login_attempts (ip, attempted_at) VALUES (?, ?)", (ip, now))
+    conn.commit()
+    conn.close()
+
+
+def count_recent_login_attempts(ip, window_seconds):
+    """Return count of attempts from IP within the last window_seconds."""
+    conn = get_db()
+    cutoff = (datetime.now(timezone.utc) - timedelta(seconds=window_seconds)).isoformat()
+    # Prune old entries to keep table small
+    conn.execute("DELETE FROM login_attempts WHERE attempted_at < ?", (cutoff,))
+    cnt = conn.execute(
+        "SELECT COUNT(*) FROM login_attempts WHERE ip=? AND attempted_at >= ?",
+        (ip, cutoff),
+    ).fetchone()[0]
+    conn.commit()
+    conn.close()
+    return cnt
+
+
+def clear_login_attempts(ip):
+    conn = get_db()
+    conn.execute("DELETE FROM login_attempts WHERE ip=?", (ip,))
+    conn.commit()
+    conn.close()
+
+
+def clear_all_login_attempts():
+    conn = get_db()
+    conn.execute("DELETE FROM login_attempts")
     conn.commit()
     conn.close()
 
