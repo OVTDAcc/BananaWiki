@@ -325,6 +325,25 @@ def update_category(cat_id, name):
     conn.close()
 
 
+def is_descendant_of(cat_id, ancestor_id):
+    """Return True if ancestor_id is a descendant of cat_id (circular ref check)."""
+    conn = get_db()
+    current = ancestor_id
+    visited = set()
+    while current is not None:
+        if current == cat_id:
+            conn.close()
+            return True
+        if current in visited:
+            break
+        visited.add(current)
+        row = conn.execute("SELECT parent_id FROM categories WHERE id=?",
+                           (current,)).fetchone()
+        current = row["parent_id"] if row else None
+    conn.close()
+    return False
+
+
 def update_category_parent(cat_id, parent_id):
     """Move a category under a different parent (or to top level if parent_id is None)."""
     conn = get_db()

@@ -18,7 +18,7 @@
     <p style="font-size:.82rem;opacity:.5;margin-bottom:.5rem">Showing up to 200 most recent entries (newest first)</p>
     <div style="max-height:600px;overflow-y:auto;font-family:monospace;font-size:.78rem;line-height:1.6;background:rgba(0,0,0,.2);padding:.8rem;border-radius:4px">
         {% for entry in log_entries %}
-        <div style="border-bottom:1px solid rgba(255,255,255,.05);padding:.2rem 0;word-break:break-all">{{ entry }}</div>
+        <div style="border-bottom:1px solid rgba(255,255,255,.05);padding:.2rem 0;word-break:break-all">{{ entry|e }}</div>
         {% endfor %}
     </div>
 </div>

@@ -1950,3 +1950,52 @@ def test_move_category_manage_panel_has_move_option(logged_in_admin):
     assert resp.status_code == 200
     assert b"Move to:" in resp.data
     assert b"/move" in resp.data
+
+
+def test_move_category_circular_reference_rejected(logged_in_admin):
+    """Moving a category into one of its own descendants should fail."""
+    import db
+    parent_id = db.create_category("Parent")
+    child_id = db.create_category("Child", parent_id=parent_id)
+    grandchild_id = db.create_category("Grandchild", parent_id=child_id)
+    # Try to move parent under grandchild (circular)
+    resp = logged_in_admin.post(f"/category/{parent_id}/move",
+                                data={"parent_id": str(grandchild_id)},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"Cannot move a category into one of its own subcategories" in resp.data
+    # Parent should still be at top level
+    cat = db.get_category(parent_id)
+    assert cat["parent_id"] is None
+
+
+def test_is_descendant_of(isolated_db):
+    """Verify is_descendant_of correctly detects ancestor chains."""
+    import db
+    a = db.create_category("A")
+    b = db.create_category("B", parent_id=a)
+    c = db.create_category("C", parent_id=b)
+    d = db.create_category("D")
+    # b is a descendant of a
+    assert db.is_descendant_of(a, b) is True
+    # c is a descendant of a (transitive)
+    assert db.is_descendant_of(a, c) is True
+    # d is NOT a descendant of a
+    assert db.is_descendant_of(a, d) is False
+    # a is NOT a descendant of c
+    assert db.is_descendant_of(c, a) is False
+
+
+def test_delete_category_move_validates_target(logged_in_admin):
+    """Deleting a category with move should fall back if target doesn't exist."""
+    import db
+    cat_id = db.create_category("DeleteMe")
+    page_id = db.create_page("TestPage", "testpage-validate", "content", cat_id)
+    resp = logged_in_admin.post(f"/category/{cat_id}/delete",
+                                data={"page_action": "move",
+                                      "target_category_id": "9999"},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    # Page should be uncategorized (fallback), not moved to non-existent 9999
+    page = db.get_page(page_id)
+    assert page["category_id"] is None

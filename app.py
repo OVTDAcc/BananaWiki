@@ -923,12 +923,15 @@ def move_category(cat_id):
         parent_id = int(parent_id) if parent_id else None
     except (TypeError, ValueError):
         parent_id = None
-    # Prevent moving a category into itself
+    # Prevent moving a category into itself or a descendant (circular ref)
     if parent_id == cat_id:
         flash("Cannot move a category into itself.", "error")
         return redirect(_safe_referrer() or url_for("home"))
     if parent_id and not db.get_category(parent_id):
         flash("Target category does not exist.", "error")
+        return redirect(_safe_referrer() or url_for("home"))
+    if parent_id and db.is_descendant_of(cat_id, parent_id):
+        flash("Cannot move a category into one of its own subcategories.", "error")
         return redirect(_safe_referrer() or url_for("home"))
     db.update_category_parent(cat_id, parent_id)
     user = get_current_user()
@@ -953,7 +956,8 @@ def delete_category_route(cat_id):
         target_cat = None
     if page_action not in ("uncategorize", "delete", "move"):
         page_action = "uncategorize"
-    if page_action == "move" and (not target_cat or target_cat == cat_id):
+    if page_action == "move" and (not target_cat or target_cat == cat_id
+                                  or not db.get_category(target_cat)):
         page_action = "uncategorize"
     db.delete_category(cat_id, page_action=page_action, target_category_id=target_cat)
     user = get_current_user()
