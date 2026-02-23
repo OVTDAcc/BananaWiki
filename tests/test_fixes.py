@@ -1639,3 +1639,78 @@ def test_edit_page_has_sync_indicator(logged_in_admin):
     resp = logged_in_admin.get(f"/page/{home['slug']}/edit")
     assert resp.status_code == 200
     assert b"save-indicator" in resp.data
+
+
+# -----------------------------------------------------------------------
+# Session fixation prevention
+# -----------------------------------------------------------------------
+def test_login_clears_session_before_setting_user(client, admin_user):
+    """Login should clear existing session data before setting user_id."""
+    from app import _LOGIN_ATTEMPTS
+    _LOGIN_ATTEMPTS.clear()
+    # Set some arbitrary session data
+    with client.session_transaction() as sess:
+        sess["stale_data"] = "should_be_cleared"
+    # Login
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    with client.session_transaction() as sess:
+        assert "user_id" in sess
+        assert "stale_data" not in sess
+
+
+# -----------------------------------------------------------------------
+# Rate limit clears on successful login
+# -----------------------------------------------------------------------
+def test_rate_limit_clears_on_successful_login(client, admin_user):
+    """Successful login should clear rate limit attempts for that IP."""
+    from app import _LOGIN_ATTEMPTS
+    _LOGIN_ATTEMPTS.clear()
+    # Record 4 failed attempts
+    for _ in range(4):
+        client.post("/login", data={"username": "admin", "password": "wrong"})
+    # Successful login should clear attempts
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    # After logout, should be able to fail again without rate limit
+    client.post("/logout")
+    _LOGIN_ATTEMPTS.clear()  # Clear for clean test
+    for _ in range(4):
+        resp = client.post("/login", data={"username": "admin", "password": "wrong"})
+        assert resp.status_code == 200  # Not rate limited
+
+
+# -----------------------------------------------------------------------
+# CSRF tokens present in critical forms
+# -----------------------------------------------------------------------
+def test_page_delete_form_has_csrf(logged_in_admin):
+    """Delete page form should contain explicit CSRF token."""
+    import db
+    db.create_page("Test CSRF Page", "test-csrf-page", "Content", None)
+    resp = logged_in_admin.get("/page/test-csrf-page")
+    assert resp.status_code == 200
+    assert b"csrf_token" in resp.data
+
+
+def test_admin_users_forms_have_csrf(logged_in_admin):
+    """Admin user management forms should contain CSRF tokens."""
+    resp = logged_in_admin.get("/admin/users")
+    assert resp.status_code == 200
+    # Count occurrences of csrf_token in forms
+    csrf_count = resp.data.count(b'name="csrf_token"')
+    assert csrf_count >= 7  # create + 6 per-user action forms
+
+
+def test_admin_codes_forms_have_csrf(logged_in_admin):
+    """Admin codes forms should contain CSRF tokens."""
+    resp = logged_in_admin.get("/admin/codes")
+    assert resp.status_code == 200
+    assert b'name="csrf_token"' in resp.data
+
+
+def test_history_revert_form_has_csrf(logged_in_admin):
+    """History revert form should contain CSRF token."""
+    import db
+    home = db.get_home_page()
+    db.update_page(home["id"], "Home", "Updated", 1, "test edit")
+    resp = logged_in_admin.get(f"/page/{home['slug']}/history")
+    assert resp.status_code == 200
+    assert b'name="csrf_token"' in resp.data

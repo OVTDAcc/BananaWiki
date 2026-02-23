@@ -132,7 +132,19 @@ function initAutosave(pageId) {
     }
 
     function doSave(callback) {
-        if (disabled || saving) return;
+        if (disabled) return;
+        if (saving) {
+            // If a save is already in progress, queue the callback
+            if (callback) {
+                var checkDone = setInterval(function() {
+                    if (!saving) {
+                        clearInterval(checkDone);
+                        doSave(callback);
+                    }
+                }, 100);
+            }
+            return;
+        }
         saving = true;
         setIndicator('syncing');
         fetch('/api/draft/save', {

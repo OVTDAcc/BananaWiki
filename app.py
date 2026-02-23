@@ -104,6 +104,14 @@ def _record_login_attempt():
         _LOGIN_ATTEMPTS[ip].append(now)
 
 
+def _clear_login_attempts():
+    """Clear failed login attempts for the current IP (on successful login)."""
+    ip = request.remote_addr or "unknown"
+    with _LOGIN_LOCK:
+        if ip in _LOGIN_ATTEMPTS:
+            del _LOGIN_ATTEMPTS[ip]
+
+
 # ---------------------------------------------------------------------------
 #  Helpers
 # ---------------------------------------------------------------------------
@@ -393,7 +401,9 @@ def login():
             flash("Your account has been suspended. Contact an administrator.", "error")
             return render_template("auth/login.html")
 
+        session.clear()
         session["user_id"] = user["id"]
+        _clear_login_attempts()
         log_action("login_success", request, user=user)
         return redirect(url_for("home"))
 

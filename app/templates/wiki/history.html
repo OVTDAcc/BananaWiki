@@ -24,6 +24,7 @@
                 <a href="{{ url_for('view_history_entry', slug=page.slug, entry_id=entry.id) }}" class="btn btn-sm btn-outline">View</a>
                 {% if current_user and current_user.role in ('editor', 'admin') %}
                 <form method="POST" action="{{ url_for('revert_page', slug=page.slug, entry_id=entry.id) }}" style="display:inline" onsubmit="return confirm('Revert to this version?')">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button class="btn btn-sm">Revert</button>
                 </form>
                 {% endif %}
