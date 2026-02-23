@@ -4,6 +4,7 @@
 <h1>Create New Page</h1>
 
 <form method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="form-group">
         <label>Title</label>
         <input type="text" name="title" class="input" required value="{{ form.title if form else '' }}">

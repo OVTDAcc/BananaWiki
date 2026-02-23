@@ -12,6 +12,7 @@
 <div class="settings-section">
     <h3>Change Username</h3>
     <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="action" value="change_username">
         <div class="form-group">
             <label>New Username</label>
@@ -28,6 +29,7 @@
 <div class="settings-section">
     <h3>Change Password</h3>
     <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="action" value="change_password">
         <div class="form-group">
             <label>Current Password</label>
@@ -62,6 +64,7 @@
     <h3 style="color:#f38ba8">Delete Account</h3>
     <p style="font-size:.85rem;margin-bottom:.8rem;opacity:.7">This action is irreversible. Your username will be freed for registration.</p>
     <form method="POST" onsubmit="return confirm('Are you absolutely sure you want to delete your account?')">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="action" value="delete_account">
         <div class="form-group">
             <label>Enter your password to confirm</label>

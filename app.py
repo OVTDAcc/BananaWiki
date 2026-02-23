@@ -10,7 +10,7 @@ import sqlite3
 import functools
 import threading
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse
 
 from flask import (
@@ -39,6 +39,7 @@ app.secret_key = config.SECRET_KEY
 app.config["MAX_CONTENT_LENGTH"] = config.MAX_CONTENT_LENGTH
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.permanent_session_lifetime = timedelta(days=7)
 
 # --- SSL / HTTPS awareness ---
 _ssl_enabled = bool(config.SSL_CERT and config.SSL_KEY)
@@ -402,6 +403,7 @@ def login():
             return render_template("auth/login.html")
 
         session.clear()
+        session.permanent = True
         session["user_id"] = user["id"]
         _clear_login_attempts()
         log_action("login_success", request, user=user)
@@ -1365,6 +1367,16 @@ def forbidden(e):
 def request_entity_too_large(e):
     flash("File too large. Maximum upload size is 16 MB.", "error")
     return redirect(_safe_referrer() or url_for("home"))
+
+
+@app.errorhandler(500)
+def internal_error(e):
+    try:
+        categories, uncategorized = db.get_category_tree()
+    except Exception:
+        categories, uncategorized = [], []
+    return render_template("wiki/500.html", categories=categories,
+                           uncategorized=uncategorized), 500
 
 
 # ---------------------------------------------------------------------------

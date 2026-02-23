@@ -1714,3 +1714,59 @@ def test_history_revert_form_has_csrf(logged_in_admin):
     resp = logged_in_admin.get(f"/page/{home['slug']}/history")
     assert resp.status_code == 200
     assert b'name="csrf_token"' in resp.data
+
+
+# -----------------------------------------------------------------------
+# CSRF tokens in remaining forms
+# -----------------------------------------------------------------------
+def test_account_settings_forms_have_csrf(logged_in_admin):
+    """Account settings forms should contain explicit CSRF tokens."""
+    resp = logged_in_admin.get("/account")
+    assert resp.status_code == 200
+    csrf_count = resp.data.count(b'name="csrf_token"')
+    assert csrf_count >= 3  # username, password, delete account
+
+
+def test_admin_settings_form_has_csrf(logged_in_admin):
+    """Admin site settings form should contain CSRF token."""
+    resp = logged_in_admin.get("/admin/settings")
+    assert resp.status_code == 200
+    assert b'name="csrf_token"' in resp.data
+
+
+def test_create_page_form_has_csrf(logged_in_admin):
+    """Create page form should contain CSRF token."""
+    resp = logged_in_admin.get("/create-page")
+    assert resp.status_code == 200
+    assert b'name="csrf_token"' in resp.data
+
+
+def test_edit_page_form_has_csrf(logged_in_admin):
+    """Edit page form should contain CSRF token."""
+    import db
+    home = db.get_home_page()
+    resp = logged_in_admin.get(f"/page/{home['slug']}/edit")
+    assert resp.status_code == 200
+    assert b'name="csrf_token"' in resp.data
+
+
+# -----------------------------------------------------------------------
+# Session timeout configured
+# -----------------------------------------------------------------------
+def test_session_lifetime_configured():
+    """Session should have an explicit lifetime configured."""
+    from app import app
+    assert app.permanent_session_lifetime is not None
+    assert app.permanent_session_lifetime.days <= 7
+
+
+# -----------------------------------------------------------------------
+# 500 error handler
+# -----------------------------------------------------------------------
+def test_500_error_template_exists():
+    """500 error template should exist."""
+    import os
+    template_path = os.path.join(
+        os.path.dirname(__file__), "..", "app", "templates", "wiki", "500.html"
+    )
+    assert os.path.exists(template_path)

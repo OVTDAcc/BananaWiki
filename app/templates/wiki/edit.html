@@ -26,6 +26,7 @@
 {% endif %}
 
 <form method="POST" id="editForm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="form-group">
         <label>Page Title</label>
         <input type="text" name="title" id="edit-title" value="{{ draft.title if draft and draft.title else page.title }}" class="input" style="max-width:500px">
