@@ -72,6 +72,27 @@ ALLOWED_ATTRS = {
 # Pre-computed dummy hash for constant-time login checks
 _DUMMY_HASH = generate_password_hash("dummy-constant-time-check")
 
+# Login rate limiter: { ip: [timestamp, ...] }
+_login_attempts = {}
+_LOGIN_RATE_WINDOW = 300   # 5-minute window
+_LOGIN_RATE_LIMIT = 10     # max attempts per window
+
+
+def _check_login_rate_limit(ip):
+    """Return True if the IP is within rate limits, False if blocked."""
+    now = datetime.now(timezone.utc).timestamp()
+    attempts = _login_attempts.get(ip, [])
+    # Prune old attempts outside the window
+    attempts = [t for t in attempts if now - t < _LOGIN_RATE_WINDOW]
+    _login_attempts[ip] = attempts
+    return len(attempts) < _LOGIN_RATE_LIMIT
+
+
+def _record_login_attempt(ip):
+    """Record a login attempt for rate limiting."""
+    now = datetime.now(timezone.utc).timestamp()
+    _login_attempts.setdefault(ip, []).append(now)
+
 
 # ---------------------------------------------------------------------------
 #  Helpers
@@ -336,16 +357,26 @@ def login():
     if request.method == "POST":
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
+
+        # Rate limiting on failed attempts
+        client_ip = request.remote_addr or "unknown"
+        if not _check_login_rate_limit(client_ip):
+            log_action("login_rate_limited", request, username=username)
+            flash("Too many login attempts. Please try again later.", "error")
+            return render_template("auth/login.html")
+
         user = db.get_user_by_username(username)
 
         if not user:
             # Constant-time: check against dummy hash to prevent timing enumeration
             check_password_hash(_DUMMY_HASH, password)
+            _record_login_attempt(client_ip)
             log_action("login_failed", request, username=username)
             flash("Invalid username or password.", "error")
             return render_template("auth/login.html")
 
         if not check_password_hash(user["password"], password):
+            _record_login_attempt(client_ip)
             log_action("login_failed", request, username=username)
             flash("Invalid username or password.", "error")
             return render_template("auth/login.html")
@@ -355,6 +386,8 @@ def login():
             flash("Your account has been suspended. Contact an administrator.", "error")
             return render_template("auth/login.html")
 
+        # Regenerate session to prevent fixation
+        session.clear()
         session["user_id"] = user["id"]
         log_action("login_success", request, user=user)
         return redirect(url_for("home"))

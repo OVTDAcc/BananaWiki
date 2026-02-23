@@ -1513,3 +1513,115 @@ def test_gunicorn_conf_reads_config():
     spec.loader.exec_module(mod)
     import config as cfg
     assert mod.bind == f"{cfg.HOST}:{cfg.PORT}"
+
+
+# -----------------------------------------------------------------------
+# Feature 1: Category actions visible by default (opacity > 0)
+# -----------------------------------------------------------------------
+def test_category_actions_visible_in_css():
+    import os
+    css_path = os.path.join(
+        os.path.dirname(__file__), "..", "app", "static", "css", "style.css"
+    )
+    with open(css_path) as f:
+        css = f.read()
+    # Ensure category actions are not fully invisible by default
+    assert "opacity:0" not in css.split(".cat-actions")[1].split("}")[0]
+
+
+# -----------------------------------------------------------------------
+# Feature 2: Draft discard stops autosave (JS _cancelAutosave)
+# -----------------------------------------------------------------------
+def test_js_cancel_autosave_exists():
+    import os
+    js_path = os.path.join(
+        os.path.dirname(__file__), "..", "app", "static", "js", "main.js"
+    )
+    with open(js_path) as f:
+        js = f.read()
+    assert "_cancelAutosave" in js
+    assert "_autosavePaused" in js
+    # deleteDraft must call _cancelAutosave before sending delete request
+    delete_fn = js.split("function deleteDraft")[1].split("function ")[0]
+    assert "_cancelAutosave" in delete_fn
+
+
+# -----------------------------------------------------------------------
+# Feature 3: Save indicator states and Save Draft & Close button
+# -----------------------------------------------------------------------
+def test_save_indicator_css_classes():
+    import os
+    css_path = os.path.join(
+        os.path.dirname(__file__), "..", "app", "static", "css", "style.css"
+    )
+    with open(css_path) as f:
+        css = f.read()
+    assert ".save-syncing" in css
+    assert ".save-synced" in css
+    assert ".save-error" in css
+
+
+def test_edit_page_has_save_draft_close(logged_in_admin):
+    resp = logged_in_admin.get("/page/home/edit")
+    assert resp.status_code == 200
+    assert b"Save Draft" in resp.data
+    assert b"Close" in resp.data
+
+
+def test_js_save_draft_and_close_exists():
+    import os
+    js_path = os.path.join(
+        os.path.dirname(__file__), "..", "app", "static", "js", "main.js"
+    )
+    with open(js_path) as f:
+        js = f.read()
+    assert "saveDraftAndClose" in js
+
+
+# -----------------------------------------------------------------------
+# Feature 5: Login rate limiting
+# -----------------------------------------------------------------------
+def test_login_rate_limit_blocks_after_threshold(client, admin_user):
+    from app import _login_attempts, _LOGIN_RATE_LIMIT
+    # Clear any existing attempts
+    _login_attempts.clear()
+    # Make many failed login attempts
+    for i in range(_LOGIN_RATE_LIMIT):
+        client.post("/login", data={
+            "username": "admin", "password": "wrong_password"
+        })
+    # Next attempt should be rate limited
+    resp = client.post("/login", data={
+        "username": "admin", "password": "wrong_password"
+    }, follow_redirects=True)
+    assert b"Too many login attempts" in resp.data
+    _login_attempts.clear()
+
+
+def test_login_rate_limit_allows_valid_after_failures(client, admin_user):
+    from app import _login_attempts
+    _login_attempts.clear()
+    # Make a few failed attempts (under limit)
+    for i in range(3):
+        client.post("/login", data={
+            "username": "admin", "password": "wrong_password"
+        })
+    # Valid login should still work
+    resp = client.post("/login", data={
+        "username": "admin", "password": "admin123"
+    })
+    assert resp.status_code == 302  # redirect on success
+    _login_attempts.clear()
+
+
+def test_session_regenerated_on_login(client, admin_user):
+    """Session should be regenerated on login to prevent fixation."""
+    # Set a dummy value in session before login
+    with client.session_transaction() as sess:
+        sess["dummy"] = "should_be_cleared"
+    # Log in
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    # Check session no longer has the dummy value
+    with client.session_transaction() as sess:
+        assert "dummy" not in sess
+        assert "user_id" in sess

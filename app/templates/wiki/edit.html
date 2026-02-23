@@ -74,6 +74,7 @@
 
     <div class="form-actions">
         <button type="submit" class="btn">Commit Changes</button>
+        <button type="button" class="btn btn-outline" onclick="saveDraftAndClose({{ page.id }})">Save Draft &amp; Close</button>
         <a href="{% if page.is_home %}{{ url_for('home') }}{% else %}{{ url_for('view_page', slug=page.slug) }}{% endif %}" class="btn btn-outline">Cancel</a>
     </div>
 </form>

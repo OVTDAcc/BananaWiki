@@ -107,14 +107,37 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // Autosave for editor
+var _autosavePaused = false;
+
 function initAutosave(pageId) {
     var titleEl = document.getElementById('edit-title');
     var contentEl = document.getElementById('edit-content');
     if (!titleEl || !contentEl) return;
 
     var saveTimer = null;
+    _autosavePaused = false;
+
+    function setIndicator(state) {
+        var indicator = document.getElementById('save-indicator');
+        if (!indicator) return;
+        indicator.className = 'save-indicator';
+        if (state === 'syncing') {
+            indicator.textContent = 'Syncing…';
+            indicator.classList.add('save-syncing');
+        } else if (state === 'synced') {
+            indicator.textContent = 'All changes saved';
+            indicator.classList.add('save-synced');
+        } else if (state === 'error') {
+            indicator.textContent = 'Error syncing';
+            indicator.classList.add('save-error');
+        } else {
+            indicator.textContent = '';
+        }
+    }
 
     function doSave() {
+        if (_autosavePaused) return;
+        setIndicator('syncing');
         fetch('/api/draft/save', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
@@ -127,27 +150,28 @@ function initAutosave(pageId) {
             if (!r.ok) throw new Error('Save failed');
             return r.json();
         }).then(function(d) {
-            var indicator = document.getElementById('save-indicator');
-            if (indicator) {
-                indicator.textContent = 'Draft saved';
-                setTimeout(function() { indicator.textContent = ''; }, 2000);
-            }
+            if (!_autosavePaused) setIndicator('synced');
         }).catch(function(err) {
-            var indicator = document.getElementById('save-indicator');
-            if (indicator) {
-                indicator.textContent = 'Save error';
-                setTimeout(function() { indicator.textContent = ''; }, 3000);
-            }
+            if (!_autosavePaused) setIndicator('error');
         });
     }
 
     function scheduleSave() {
+        if (_autosavePaused) return;
         if (saveTimer) clearTimeout(saveTimer);
+        setIndicator('syncing');
         saveTimer = setTimeout(doSave, 1500);
     }
 
     titleEl.addEventListener('input', scheduleSave);
     contentEl.addEventListener('input', scheduleSave);
+
+    // Expose save function for Save Draft and Close button
+    window._doManualSave = doSave;
+    window._cancelAutosave = function() {
+        _autosavePaused = true;
+        if (saveTimer) clearTimeout(saveTimer);
+    };
 
     // Check for other drafts periodically
     setInterval(function() {
@@ -199,6 +223,7 @@ function transferDraft(pageId, fromUserId) {
 }
 
 function deleteDraft(pageId) {
+    if (window._cancelAutosave) window._cancelAutosave();
     fetch('/api/draft/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
@@ -210,6 +235,36 @@ function deleteDraft(pageId) {
         location.reload();
     }).catch(function() {
         alert('Failed to delete draft.');
+    });
+}
+
+function saveDraftAndClose(pageId) {
+    if (window._doManualSave) window._doManualSave();
+    var titleEl = document.getElementById('edit-title');
+    var contentEl = document.getElementById('edit-content');
+    fetch('/api/draft/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+        body: JSON.stringify({
+            page_id: pageId,
+            title: titleEl ? titleEl.value : '',
+            content: contentEl ? contentEl.value : ''
+        })
+    }).then(function(r) {
+        if (!r.ok) throw new Error('Save failed');
+        return r.json();
+    }).then(function() {
+        var form = document.getElementById('editForm');
+        if (form) {
+            var cancelLink = form.querySelector('a.btn.btn-outline');
+            if (cancelLink) {
+                window.location.href = cancelLink.href;
+                return;
+            }
+        }
+        window.location.href = '/';
+    }).catch(function() {
+        alert('Failed to save draft.');
     });
 }
 
