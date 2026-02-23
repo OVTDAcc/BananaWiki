@@ -325,6 +325,14 @@ def update_category(cat_id, name):
     conn.close()
 
 
+def update_category_parent(cat_id, parent_id):
+    """Move a category under a different parent (or to top level if parent_id is None)."""
+    conn = get_db()
+    conn.execute("UPDATE categories SET parent_id=? WHERE id=?", (parent_id, cat_id))
+    conn.commit()
+    conn.close()
+
+
 def delete_category(cat_id, page_action="uncategorize", target_category_id=None):
     """Delete a category and handle its pages.
 

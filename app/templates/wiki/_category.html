@@ -4,16 +4,29 @@
         <span class="nav-section-title">{{ cat.name }}</span>
         {% if current_user and current_user.role in ('editor', 'admin') %}
         <div class="cat-actions">
-            <button class="btn-icon-tiny" onclick="document.getElementById('catManageModal{{ cat.id }}').style.display='flex'" title="Manage category" aria-label="Manage category">&#9881;</button>
+            <button class="btn-icon-tiny" onclick="openCatModal('catManageModal{{ cat.id }}')" title="Manage category" aria-label="Manage category">&#9881;</button>
         </div>
-        <div class="modal" id="catManageModal{{ cat.id }}" style="display:none">
-            <div class="modal-content">
+        <div class="modal cat-modal-src" id="catManageModal{{ cat.id }}" style="display:none">
+            <div class="modal-content" style="max-width:480px">
                 <h3>Manage "{{ cat.name }}"</h3>
                 <!-- Rename -->
                 <form method="POST" action="{{ url_for('edit_category', cat_id=cat.id) }}" class="cat-manage-row">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="text" name="name" value="{{ cat.name }}" class="input" required maxlength="100" style="flex:1;min-width:120px">
                     <button type="submit" class="btn btn-sm">Rename</button>
+                </form>
+                <hr style="border-color:rgba(255,255,255,.08);margin:.6rem 0">
+                <!-- Move category -->
+                <form method="POST" action="{{ url_for('move_category', cat_id=cat.id) }}" class="cat-manage-row">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <label style="font-size:.85rem;opacity:.7;margin-right:.4rem;white-space:nowrap">Move to:</label>
+                    <select name="parent_id" class="input input-sm" style="flex:1;min-width:100px">
+                        <option value="" {% if not cat.parent_id %}selected{% endif %}>Top level</option>
+                        {% for c in all_categories if c.id != cat.id %}
+                        <option value="{{ c.id }}" {% if cat.parent_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" class="btn btn-sm">Move</button>
                 </form>
                 <hr style="border-color:rgba(255,255,255,.08);margin:.6rem 0">
                 <!-- Delete -->
@@ -37,7 +50,7 @@
                     <button type="submit" class="btn btn-sm btn-danger" style="margin-top:.5rem">Delete Category</button>
                 </form>
                 <div class="form-actions" style="margin-top:.8rem">
-                    <button type="button" class="btn btn-outline btn-sm" onclick="this.closest('.modal').style.display='none'">Cancel</button>
+                    <button type="button" class="btn btn-outline btn-sm" onclick="closeCatModal(this)">Cancel</button>
                 </div>
             </div>
         </div>
@@ -45,7 +58,7 @@
     </div>
     <div class="nav-section-body">
         {% for p in cat.pages %}
-        <a href="{{ url_for('view_page', slug=p.slug) }}" class="nav-item {% if page and page.id == p.id %}active{% endif %}">
+        <a href="{{ url_for('view_page', slug=p.slug) }}" class="nav-item {% if page and page.id == p.id %}active{% endif %}" data-page-id="{{ p.id }}" data-page-slug="{{ p.slug }}">
             {{ p.title }}
         </a>
         {% endfor %}

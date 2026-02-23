@@ -332,6 +332,23 @@ function initImageUpload(contentEl) {
     }
 }
 
+// Open category manage modal by moving it to body (escapes sidebar overflow)
+function openCatModal(id) {
+    var modal = document.getElementById(id);
+    if (!modal) return;
+    if (!modal._bwOrigParent) modal._bwOrigParent = modal.parentNode;
+    document.body.appendChild(modal);
+    modal.style.display = 'flex';
+}
+
+// Close category manage modal and return it to its original location
+function closeCatModal(btn) {
+    var modal = btn.closest('.modal');
+    if (!modal) return;
+    modal.style.display = 'none';
+    if (modal._bwOrigParent) modal._bwOrigParent.appendChild(modal);
+}
+
 // Category delete confirmation
 function confirmCatDelete(form, pageCount, catName) {
     var action = form.querySelector('.cat-page-action').value;

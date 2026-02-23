@@ -1898,3 +1898,55 @@ def test_category_manage_panel_visible(logged_in_admin):
     assert b"catManageModal" in resp.data
     assert b"Rename" in resp.data
     assert b"Delete Category" in resp.data
+
+
+# -----------------------------------------------------------------------
+# Category move (reparent)
+# -----------------------------------------------------------------------
+def test_move_category_to_parent(logged_in_admin):
+    """Moving a category to a new parent should update its parent_id."""
+    import db
+    parent_id = db.create_category("ParentCat")
+    child_id = db.create_category("ChildCat")
+    resp = logged_in_admin.post(f"/category/{child_id}/move",
+                                data={"parent_id": str(parent_id)},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    cat = db.get_category(child_id)
+    assert cat["parent_id"] == parent_id
+
+
+def test_move_category_to_top_level(logged_in_admin):
+    """Moving a category with parent_id='' should make it top-level."""
+    import db
+    parent_id = db.create_category("TopParent")
+    child_id = db.create_category("TopChild", parent_id=parent_id)
+    cat = db.get_category(child_id)
+    assert cat["parent_id"] == parent_id
+    resp = logged_in_admin.post(f"/category/{child_id}/move",
+                                data={"parent_id": ""},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    cat = db.get_category(child_id)
+    assert cat["parent_id"] is None
+
+
+def test_move_category_into_itself_rejected(logged_in_admin):
+    """Moving a category into itself should fail."""
+    import db
+    cat_id = db.create_category("SelfRef")
+    resp = logged_in_admin.post(f"/category/{cat_id}/move",
+                                data={"parent_id": str(cat_id)},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"Cannot move a category into itself" in resp.data
+
+
+def test_move_category_manage_panel_has_move_option(logged_in_admin):
+    """Category manage modal should include a Move section."""
+    import db
+    db.create_category("MovableCat")
+    resp = logged_in_admin.get("/")
+    assert resp.status_code == 200
+    assert b"Move to:" in resp.data
+    assert b"/move" in resp.data

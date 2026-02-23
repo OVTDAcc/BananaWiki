@@ -911,6 +911,33 @@ def edit_category(cat_id):
     return redirect(_safe_referrer() or url_for("home"))
 
 
+@app.route("/category/<int:cat_id>/move", methods=["POST"])
+@login_required
+@editor_required
+def move_category(cat_id):
+    cat = db.get_category(cat_id)
+    if not cat:
+        abort(404)
+    parent_id = request.form.get("parent_id")
+    try:
+        parent_id = int(parent_id) if parent_id else None
+    except (TypeError, ValueError):
+        parent_id = None
+    # Prevent moving a category into itself
+    if parent_id == cat_id:
+        flash("Cannot move a category into itself.", "error")
+        return redirect(_safe_referrer() or url_for("home"))
+    if parent_id and not db.get_category(parent_id):
+        flash("Target category does not exist.", "error")
+        return redirect(_safe_referrer() or url_for("home"))
+    db.update_category_parent(cat_id, parent_id)
+    user = get_current_user()
+    log_action("move_category", request, user=user, category_id=cat_id, new_parent=parent_id)
+    notify_change("category_move", f"Category {cat_id} moved to parent {parent_id}")
+    flash("Category moved.", "success")
+    return redirect(_safe_referrer() or url_for("home"))
+
+
 @app.route("/category/<int:cat_id>/delete", methods=["POST"])
 @login_required
 @editor_required
