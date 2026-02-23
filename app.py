@@ -6,9 +6,12 @@ import os
 import re
 import uuid
 import json
+import time
 import sqlite3
 import functools
-from datetime import datetime, timezone
+import collections
+import threading
+from datetime import datetime, timezone, timedelta
 from urllib.parse import urlparse
 
 from flask import (
@@ -37,6 +40,7 @@ app.secret_key = config.SECRET_KEY
 app.config["MAX_CONTENT_LENGTH"] = config.MAX_CONTENT_LENGTH
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=7)
 
 # --- SSL / HTTPS awareness ---
 _ssl_enabled = bool(config.SSL_CERT and config.SSL_KEY)
@@ -51,6 +55,30 @@ if config.PROXY_MODE:
     )
 
 csrf = CSRFProtect(app)
+
+# ---------------------------------------------------------------------------
+#  Simple login rate limiter (per-IP, in-memory)
+# ---------------------------------------------------------------------------
+_login_attempts_lock = threading.Lock()
+_login_attempts = collections.defaultdict(list)  # ip -> list of timestamps
+_LOGIN_MAX_ATTEMPTS = 10
+_LOGIN_WINDOW_SECONDS = 300  # 5 minutes
+
+
+def _check_login_rate(ip):
+    """Return True if the IP is rate-limited."""
+    now = time.time()
+    with _login_attempts_lock:
+        attempts = _login_attempts[ip]
+        # Remove old attempts outside the window
+        _login_attempts[ip] = [t for t in attempts if now - t < _LOGIN_WINDOW_SECONDS]
+        return len(_login_attempts[ip]) >= _LOGIN_MAX_ATTEMPTS
+
+
+def _record_login_attempt(ip):
+    """Record a failed login attempt from ip."""
+    with _login_attempts_lock:
+        _login_attempts[ip].append(time.time())
 
 ALLOWED_TAGS = list(bleach.ALLOWED_TAGS) + [
     "h1", "h2", "h3", "h4", "h5", "h6",
@@ -336,16 +364,25 @@ def login():
     if request.method == "POST":
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
+
+        client_ip = request.remote_addr or "unknown"
+        if _check_login_rate(client_ip):
+            log_action("login_rate_limited", request, username=username)
+            flash("Too many login attempts. Please try again later.", "error")
+            return render_template("auth/login.html")
+
         user = db.get_user_by_username(username)
 
         if not user:
             # Constant-time: check against dummy hash to prevent timing enumeration
             check_password_hash(_DUMMY_HASH, password)
+            _record_login_attempt(client_ip)
             log_action("login_failed", request, username=username)
             flash("Invalid username or password.", "error")
             return render_template("auth/login.html")
 
         if not check_password_hash(user["password"], password):
+            _record_login_attempt(client_ip)
             log_action("login_failed", request, username=username)
             flash("Invalid username or password.", "error")
             return render_template("auth/login.html")
@@ -355,6 +392,8 @@ def login():
             flash("Your account has been suspended. Contact an administrator.", "error")
             return render_template("auth/login.html")
 
+        session.clear()
+        session.permanent = True
         session["user_id"] = user["id"]
         log_action("login_success", request, user=user)
         return redirect(url_for("home"))
@@ -979,6 +1018,40 @@ def api_delete_draft():
         return jsonify({"error": "invalid page_id"}), 400
     user = get_current_user()
     db.delete_draft(page_id, user["id"])
+    return jsonify({"ok": True})
+
+
+@app.route("/api/draft/merge", methods=["POST"])
+@login_required
+@editor_required
+def api_merge_draft():
+    """Merge another user's draft into the current user's draft."""
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"error": "invalid request"}), 400
+    page_id = data.get("page_id")
+    from_user = data.get("from_user_id")
+    try:
+        page_id = int(page_id)
+        from_user = int(from_user)
+    except (TypeError, ValueError):
+        return jsonify({"error": "invalid page_id or from_user_id"}), 400
+    user = get_current_user()
+    if from_user == user["id"]:
+        return jsonify({"error": "cannot merge draft from yourself"}), 400
+    source = db.get_draft(page_id, from_user)
+    if not source:
+        return jsonify({"error": "source draft not found"}), 404
+    my_draft = db.get_draft(page_id, user["id"])
+    if my_draft:
+        merged_content = my_draft["content"] + "\n\n<!-- Merged draft -->\n" + source["content"]
+        merged_title = my_draft["title"] or source["title"]
+    else:
+        merged_content = source["content"]
+        merged_title = source["title"]
+    db.save_draft(page_id, user["id"], merged_title, merged_content)
+    db.delete_draft(page_id, from_user)
+    log_action("merge_draft", request, user=user, page_id=page_id, from_user=from_user)
     return jsonify({"ok": True})
 
 

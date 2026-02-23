@@ -170,9 +170,10 @@ select.input{appearance:auto}
 .tab:hover{border-bottom-color:rgba(255,255,255,.15);text-decoration:none;opacity:.8}
 .tab.active{border-bottom-color:var(--primary);color:var(--text);font-weight:600;opacity:1}
 
-/* Category action buttons on hover */
-.cat-actions{display:inline-flex;gap:.2rem;opacity:0;transition:opacity .15s}
-.nav-section-header:hover .cat-actions{opacity:1}
+/* Category action buttons */
+.cat-actions{display:inline-flex;gap:.2rem;align-items:center}
+.cat-actions .btn-icon-tiny{opacity:.5;font-size:.85rem;transition:opacity .15s}
+.cat-actions .btn-icon-tiny:hover{opacity:1}
 
 /* Responsive */
 @media(max-width:768px){
@@ -194,4 +195,7 @@ select.input{appearance:auto}
 .drop-zone.drag-over{border-color:var(--accent);opacity:1;background:rgba(110,138,202,.05)}
 
 /* Save indicator */
-.save-indicator{font-size:.78rem;opacity:.5;margin-left:auto;padding:.2rem .5rem}
+.save-indicator{font-size:.78rem;margin-left:auto;padding:.2rem .5rem;min-width:100px;text-align:right}
+.save-indicator-syncing{color:#d2aa5a;opacity:.8}
+.save-indicator-synced{color:#7cc07c;opacity:.7}
+.save-indicator-error{color:#c45c6a;opacity:.9}

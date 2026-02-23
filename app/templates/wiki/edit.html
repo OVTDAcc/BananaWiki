@@ -12,6 +12,7 @@
     {% for d in other_drafts %}
     <strong>{{ d.username }}</strong> (updated {{ time_ago(d.updated_at) }})
     <button class="btn btn-sm" onclick="transferDraft({{ page.id }}, {{ d.user_id }})">Transfer draft</button>
+    <button class="btn btn-sm btn-outline" onclick="mergeDraft({{ page.id }}, {{ d.user_id }})">Merge draft</button>
     {% endfor %}
 </div>
 {% else %}
@@ -74,6 +75,7 @@
 
     <div class="form-actions">
         <button type="submit" class="btn">Commit Changes</button>
+        <button type="button" class="btn btn-outline" onclick="saveDraftAndClose({{ page.id }}, '{% if page.is_home %}{{ url_for('home') }}{% else %}{{ url_for('view_page', slug=page.slug) }}{% endif %}')">Save Draft &amp; Close</button>
         <a href="{% if page.is_home %}{{ url_for('home') }}{% else %}{{ url_for('view_page', slug=page.slug) }}{% endif %}" class="btn btn-outline">Cancel</a>
     </div>
 </form>
@@ -86,6 +88,23 @@
         initImageUpload(document.getElementById('edit-content'));
         initPreview();
     });
+
+    // Save Draft and Close
+    function saveDraftAndClose(pageId, returnUrl) {
+        if (window._doSaveDraft) {
+            window._doSaveDraft(function(success) {
+                if (success) {
+                    window.location.href = returnUrl;
+                } else {
+                    if (confirm('Draft save failed. Leave anyway?')) {
+                        window.location.href = returnUrl;
+                    }
+                }
+            });
+        } else {
+            window.location.href = returnUrl;
+        }
+    }
 
     // Live preview
     function initPreview() {

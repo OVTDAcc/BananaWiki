@@ -107,14 +107,28 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // Autosave for editor
+var _autosaveStopped = false;
+
 function initAutosave(pageId) {
     var titleEl = document.getElementById('edit-title');
     var contentEl = document.getElementById('edit-content');
     if (!titleEl || !contentEl) return;
 
     var saveTimer = null;
+    var indicator = document.getElementById('save-indicator');
 
-    function doSave() {
+    function setIndicator(state) {
+        if (!indicator) return;
+        indicator.className = 'save-indicator save-indicator-' + state;
+        if (state === 'syncing') indicator.textContent = 'Syncing\u2026';
+        else if (state === 'synced') indicator.textContent = 'Synced \u2713';
+        else if (state === 'error') indicator.textContent = 'Error syncing';
+        else indicator.textContent = '';
+    }
+
+    function doSave(callback) {
+        if (_autosaveStopped) return;
+        setIndicator('syncing');
         fetch('/api/draft/save', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
@@ -127,30 +141,34 @@ function initAutosave(pageId) {
             if (!r.ok) throw new Error('Save failed');
             return r.json();
         }).then(function(d) {
-            var indicator = document.getElementById('save-indicator');
-            if (indicator) {
-                indicator.textContent = 'Draft saved';
-                setTimeout(function() { indicator.textContent = ''; }, 2000);
-            }
+            setIndicator('synced');
+            if (callback) callback(true);
         }).catch(function(err) {
-            var indicator = document.getElementById('save-indicator');
-            if (indicator) {
-                indicator.textContent = 'Save error';
-                setTimeout(function() { indicator.textContent = ''; }, 3000);
-            }
+            setIndicator('error');
+            if (callback) callback(false);
         });
     }
 
     function scheduleSave() {
+        if (_autosaveStopped) return;
         if (saveTimer) clearTimeout(saveTimer);
+        setIndicator('syncing');
         saveTimer = setTimeout(doSave, 1500);
     }
 
     titleEl.addEventListener('input', scheduleSave);
     contentEl.addEventListener('input', scheduleSave);
 
+    // Expose save function for Save Draft and Close button
+    window._doSaveDraft = doSave;
+    window._cancelAutosave = function() {
+        _autosaveStopped = true;
+        if (saveTimer) clearTimeout(saveTimer);
+    };
+
     // Check for other drafts periodically
     setInterval(function() {
+        if (_autosaveStopped) return;
         fetch('/api/draft/others/' + pageId)
             .then(function(r) {
                 if (!r.ok) throw new Error('Failed to check drafts');
@@ -174,6 +192,13 @@ function initAutosave(pageId) {
                             transferDraft(pageId, d.user_id);
                         });
                         notice.appendChild(btn);
+                        var mergeBtn = document.createElement('button');
+                        mergeBtn.className = 'btn btn-sm btn-outline';
+                        mergeBtn.textContent = "Merge " + d.username + "'s draft";
+                        mergeBtn.addEventListener('click', function() {
+                            mergeDraft(pageId, d.user_id);
+                        });
+                        notice.appendChild(mergeBtn);
                     });
                     notice.style.display = 'block';
                 }
@@ -199,6 +224,7 @@ function transferDraft(pageId, fromUserId) {
 }
 
 function deleteDraft(pageId) {
+    if (window._cancelAutosave) window._cancelAutosave();
     fetch('/api/draft/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
@@ -210,6 +236,22 @@ function deleteDraft(pageId) {
         location.reload();
     }).catch(function() {
         alert('Failed to delete draft.');
+    });
+}
+
+function mergeDraft(pageId, fromUserId) {
+    if (!confirm('Merge this draft into yours? The other draft will be appended to your content.')) return;
+    fetch('/api/draft/merge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+        body: JSON.stringify({ page_id: pageId, from_user_id: fromUserId })
+    }).then(function(r) {
+        if (!r.ok) throw new Error('Merge failed');
+        return r.json();
+    }).then(function() {
+        location.reload();
+    }).catch(function() {
+        alert('Failed to merge draft.');
     });
 }
 
