@@ -3,7 +3,7 @@
         <span class="nav-section-title">{{ cat.name }}</span>
         {% if current_user and current_user.role in ('editor', 'admin') %}
         <div class="cat-actions">
-            <button class="btn-icon-tiny" onclick="this.parentElement.querySelector('.inline-edit').style.display=this.parentElement.querySelector('.inline-edit').style.display==='block'?'none':'block'" title="Edit category">&#9998;</button>
+            <button class="btn-icon-tiny" onclick="var ie=this.closest('.nav-section-header').querySelector('.inline-edit');ie.style.display=ie.style.display==='block'?'none':'block'" title="Edit category">&#9998;</button>
             <form method="POST" action="{{ url_for('delete_category_route', cat_id=cat.id) }}" class="inline-form" onsubmit="return confirm('Delete this category and uncategorize its pages?')">
                 <button type="submit" class="btn-icon-tiny btn-danger-icon" title="Delete category">&#10005;</button>
             </form>

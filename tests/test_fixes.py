@@ -1513,3 +1513,163 @@ def test_gunicorn_conf_reads_config():
     spec.loader.exec_module(mod)
     import config as cfg
     assert mod.bind == f"{cfg.HOST}:{cfg.PORT}"
+
+
+# -----------------------------------------------------------------------
+# Category edit/delete icons visible in sidebar (Issue 1)
+# -----------------------------------------------------------------------
+def test_category_edit_delete_icons_visible(logged_in_admin):
+    """Category edit and delete icons should be visible to editors/admins."""
+    import db
+    db.create_category("TestCategory", None)
+    resp = logged_in_admin.get("/")
+    assert resp.status_code == 200
+    # Check for the edit icon (✎ = &#9998;)
+    assert b"&#9998;" in resp.data or "✎".encode() in resp.data
+    # Check for the delete icon (✕ = &#10005;)
+    assert b"&#10005;" in resp.data or "✕".encode() in resp.data
+    # Check the edit form action is present
+    assert b"edit_category" in resp.data or b"/category/" in resp.data
+
+
+# -----------------------------------------------------------------------
+# Draft merge API (Issue 4)
+# -----------------------------------------------------------------------
+def test_merge_draft_combines_content(logged_in_admin):
+    """Merging another user's draft should combine content."""
+    import db
+    from werkzeug.security import generate_password_hash
+    # Create editor user
+    editor_id = db.create_user("editor1", generate_password_hash("pass123"), role="editor")
+    home = db.get_home_page()
+    # Save drafts for both users
+    db.save_draft(home["id"], 1, "Admin Title", "Admin content")
+    db.save_draft(home["id"], editor_id, "Editor Title", "Editor content")
+    # Merge editor's draft into admin's
+    resp = logged_in_admin.post("/api/draft/merge",
+                                json={"page_id": home["id"], "from_user_id": editor_id},
+                                content_type="application/json")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["ok"] is True
+    # Check merged draft content
+    merged = db.get_draft(home["id"], 1)
+    assert "Admin content" in merged["content"]
+    assert "Editor content" in merged["content"]
+    # Source draft should be deleted
+    assert db.get_draft(home["id"], editor_id) is None
+
+
+def test_merge_draft_self_rejected(logged_in_admin):
+    """Cannot merge a draft from yourself."""
+    import db
+    home = db.get_home_page()
+    resp = logged_in_admin.post("/api/draft/merge",
+                                json={"page_id": home["id"], "from_user_id": 1},
+                                content_type="application/json")
+    assert resp.status_code == 400
+
+
+def test_merge_draft_missing_source(logged_in_admin):
+    """Merging a nonexistent draft returns 404."""
+    import db
+    home = db.get_home_page()
+    resp = logged_in_admin.post("/api/draft/merge",
+                                json={"page_id": home["id"], "from_user_id": 9999},
+                                content_type="application/json")
+    assert resp.status_code == 404
+
+
+def test_merge_draft_invalid_params(logged_in_admin):
+    """Merge draft with invalid params returns 400."""
+    resp = logged_in_admin.post("/api/draft/merge",
+                                json={"page_id": "abc", "from_user_id": "xyz"},
+                                content_type="application/json")
+    assert resp.status_code == 400
+
+
+def test_merge_draft_no_body(logged_in_admin):
+    """Merge draft with no body returns 400."""
+    resp = logged_in_admin.post("/api/draft/merge",
+                                content_type="application/json")
+    assert resp.status_code == 400
+
+
+def test_merge_draft_creates_new_when_no_own_draft(logged_in_admin):
+    """When admin has no draft, merge should create one from the source."""
+    import db
+    from werkzeug.security import generate_password_hash
+    editor_id = db.create_user("editor2", generate_password_hash("pass123"), role="editor")
+    home = db.get_home_page()
+    db.save_draft(home["id"], editor_id, "Editor Title", "Editor only content")
+    resp = logged_in_admin.post("/api/draft/merge",
+                                json={"page_id": home["id"], "from_user_id": editor_id},
+                                content_type="application/json")
+    assert resp.status_code == 200
+    merged = db.get_draft(home["id"], 1)
+    assert merged is not None
+    assert "Editor only content" in merged["content"]
+    assert "Editor Title" in merged["title"]
+
+
+# -----------------------------------------------------------------------
+# Login rate limiting (Issue 5)
+# -----------------------------------------------------------------------
+def test_login_rate_limiting(client, admin_user):
+    """After 10 failed attempts, login should be rate-limited."""
+    from app import _login_attempts, _login_attempts_lock
+    # Clear any previous attempts
+    with _login_attempts_lock:
+        _login_attempts.clear()
+    # Make 10 failed login attempts
+    for _ in range(10):
+        client.post("/login", data={"username": "admin", "password": "wrongpass"})
+    # 11th attempt should be rate limited
+    resp = client.post("/login", data={"username": "admin", "password": "wrongpass"},
+                       follow_redirects=True)
+    assert b"Too many login attempts" in resp.data
+    # Clean up
+    with _login_attempts_lock:
+        _login_attempts.clear()
+
+
+def test_login_still_works_under_limit(client, admin_user):
+    """Login should work normally under the rate limit."""
+    from app import _login_attempts, _login_attempts_lock
+    with _login_attempts_lock:
+        _login_attempts.clear()
+    resp = client.post("/login", data={"username": "admin", "password": "admin123"})
+    assert resp.status_code == 302
+
+
+# -----------------------------------------------------------------------
+# Session lifetime configured (Issue 5)
+# -----------------------------------------------------------------------
+def test_session_lifetime_configured():
+    """Session should have a permanent lifetime."""
+    from app import app
+    assert app.config.get("PERMANENT_SESSION_LIFETIME") is not None
+
+
+# -----------------------------------------------------------------------
+# Save Draft & Close button visible in edit page (Issue 3)
+# -----------------------------------------------------------------------
+def test_save_draft_and_close_button_visible(logged_in_admin):
+    """Edit page should show Save Draft & Close button."""
+    import db
+    home = db.get_home_page()
+    resp = logged_in_admin.get(f"/page/{home['slug']}/edit")
+    assert resp.status_code == 200
+    assert b"Save Draft" in resp.data
+
+
+# -----------------------------------------------------------------------
+# Sync indicator present in edit page (Issue 3)
+# -----------------------------------------------------------------------
+def test_sync_indicator_present(logged_in_admin):
+    """Edit page should have a save-indicator element."""
+    import db
+    home = db.get_home_page()
+    resp = logged_in_admin.get(f"/page/{home['slug']}/edit")
+    assert resp.status_code == 200
+    assert b'id="save-indicator"' in resp.data
