@@ -1999,3 +1999,149 @@ def test_delete_category_move_validates_target(logged_in_admin):
     # Page should be uncategorized (fallback), not moved to non-existent 9999
     page = db.get_page(page_id)
     assert page["category_id"] is None
+
+
+# -----------------------------------------------------------------------
+# BananaDB versioning
+# -----------------------------------------------------------------------
+def test_bananadb_constants_defined():
+    """BANANADB_NAME and BANANADB_VERSION must be exported from db module."""
+    import db
+    assert db.BANANADB_NAME == "BananaDB"
+    assert isinstance(db.BANANADB_VERSION, int)
+    assert db.BANANADB_VERSION >= 1
+
+
+def test_fresh_db_stamped_at_current_version(tmp_path, monkeypatch):
+    """A freshly initialised database must have user_version == BANANADB_VERSION."""
+    import sqlite3
+    import db as db_mod
+    db_path = str(tmp_path / "fresh.db")
+    monkeypatch.setattr(config, "DATABASE_PATH", db_path)
+    db_mod.init_db()
+    conn = sqlite3.connect(db_path)
+    version = conn.execute("PRAGMA user_version").fetchone()[0]
+    conn.close()
+    assert version == db_mod.BANANADB_VERSION
+
+
+def test_legacy_db_upgraded_with_data_preserved(tmp_path, monkeypatch):
+    """A pre-versioning database (user_version=0) must be upgraded and data preserved."""
+    import sqlite3
+    import db as db_mod
+    db_path = str(tmp_path / "legacy.db")
+    monkeypatch.setattr(config, "DATABASE_PATH", db_path)
+
+    # Build a "legacy" database: create tables manually without setting user_version,
+    # insert a user row, then let init_db() upgrade it.
+    conn = sqlite3.connect(db_path)
+    conn.executescript("""
+        PRAGMA journal_mode=WAL;
+        PRAGMA foreign_keys=ON;
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL UNIQUE COLLATE NOCASE,
+            password TEXT NOT NULL,
+            role TEXT NOT NULL DEFAULT 'user',
+            suspended INTEGER NOT NULL DEFAULT 0,
+            invite_code TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS invite_codes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            code TEXT NOT NULL UNIQUE,
+            created_by INTEGER,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            expires_at TEXT NOT NULL,
+            used_by INTEGER,
+            used_at TEXT,
+            deleted INTEGER NOT NULL DEFAULT 0,
+            deleted_at TEXT
+        );
+        CREATE TABLE IF NOT EXISTS categories (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            parent_id INTEGER,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS pages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            slug TEXT NOT NULL UNIQUE,
+            content TEXT NOT NULL DEFAULT '',
+            category_id INTEGER,
+            is_home INTEGER NOT NULL DEFAULT 0,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            last_edited_by INTEGER,
+            last_edited_at TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS page_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            page_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            content TEXT NOT NULL,
+            edited_by INTEGER,
+            edit_message TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS drafts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            page_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            title TEXT NOT NULL DEFAULT '',
+            content TEXT NOT NULL DEFAULT '',
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(page_id, user_id)
+        );
+        CREATE TABLE IF NOT EXISTS site_settings (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            site_name TEXT NOT NULL DEFAULT 'BananaWiki',
+            primary_color TEXT NOT NULL DEFAULT '#7c8dc6',
+            secondary_color TEXT NOT NULL DEFAULT '#151520',
+            accent_color TEXT NOT NULL DEFAULT '#6e8aca',
+            text_color TEXT NOT NULL DEFAULT '#b8bcc8',
+            sidebar_color TEXT NOT NULL DEFAULT '#111118',
+            bg_color TEXT NOT NULL DEFAULT '#0d0d14',
+            setup_done INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE TABLE IF NOT EXISTS login_attempts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ip TEXT NOT NULL,
+            attempted_at TEXT NOT NULL
+        );
+        INSERT OR IGNORE INTO site_settings (id) VALUES (1);
+        INSERT INTO pages (title, slug, content, is_home) VALUES ('Home', 'home', '# Welcome', 1);
+        INSERT INTO users (username, password, role) VALUES ('alice', 'hash', 'user');
+    """)
+    # user_version stays at 0 (legacy state, no last_login_at column)
+    conn.commit()
+    conn.close()
+
+    # Run init_db(): should upgrade without errors and preserve data
+    db_mod.init_db()
+
+    conn = sqlite3.connect(db_path)
+    version = conn.execute("PRAGMA user_version").fetchone()[0]
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(users)").fetchall()]
+    user = conn.execute("SELECT username FROM users WHERE username='alice'").fetchone()
+    conn.close()
+
+    assert version == db_mod.BANANADB_VERSION
+    assert "last_login_at" in cols
+    assert user is not None, "Existing user data must be preserved after upgrade"
+
+
+def test_init_db_idempotent(tmp_path, monkeypatch):
+    """Calling init_db() multiple times must not raise errors or duplicate data."""
+    import db as db_mod
+    db_path = str(tmp_path / "idem.db")
+    monkeypatch.setattr(config, "DATABASE_PATH", db_path)
+    db_mod.init_db()
+    db_mod.init_db()  # second call should be a no-op
+    db_mod.init_db()  # third call as well
+    conn = db_mod.get_db()
+    home_count = conn.execute("SELECT COUNT(*) FROM pages WHERE is_home=1").fetchone()[0]
+    conn.close()
+    assert home_count == 1

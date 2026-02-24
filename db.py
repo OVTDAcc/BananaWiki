@@ -1,5 +1,5 @@
 """
-BananaWiki – Database layer (SQLite)
+BananaWiki – Database layer (SQLite / BananaDB)
 """
 
 import sqlite3
@@ -9,6 +9,14 @@ import secrets
 from datetime import datetime, timedelta, timezone
 
 import config
+
+# ---------------------------------------------------------------------------
+#  BananaDB identity – internal name and schema version
+# ---------------------------------------------------------------------------
+#: Internal name for the database engine used by this project.
+BANANADB_NAME = "BananaDB"
+#: Current schema version.  Increment this whenever a new migration is added.
+BANANADB_VERSION = 2
 
 
 def get_db():
@@ -22,14 +30,25 @@ def get_db():
 
 
 # ---------------------------------------------------------------------------
-#  Schema initialisation
+#  Schema versioning helpers
 # ---------------------------------------------------------------------------
-def init_db():
-    """Create tables if they do not exist."""
-    conn = get_db()
-    cur = conn.cursor()
+def _get_schema_version(conn):
+    """Return the current BananaDB schema version stored in the database."""
+    return conn.execute("PRAGMA user_version").fetchone()[0]
 
-    cur.executescript("""
+
+def _set_schema_version(conn, version):
+    """Stamp the database with the given schema version."""
+    # PRAGMA user_version does not support parameter binding.
+    conn.execute(f"PRAGMA user_version = {int(version)}")
+
+
+# ---------------------------------------------------------------------------
+#  Migration steps
+# ---------------------------------------------------------------------------
+def _migrate_v1(conn):
+    """Create the initial BananaDB schema (all base tables)."""
+    conn.executescript("""
     CREATE TABLE IF NOT EXISTS users (
         id          INTEGER PRIMARY KEY AUTOINCREMENT,
         username    TEXT    NOT NULL UNIQUE COLLATE NOCASE,
@@ -115,21 +134,69 @@ def init_db():
     INSERT OR IGNORE INTO site_settings (id) VALUES (1);
     """)
 
-    # -- Migrations: add columns to existing tables --
-    # Add last_login_at to users if missing
-    cols = [r[1] for r in cur.execute("PRAGMA table_info(users)").fetchall()]
-    if "last_login_at" not in cols:
-        cur.execute("ALTER TABLE users ADD COLUMN last_login_at TEXT")
-
-    # Ensure home page exists
-    home = cur.execute("SELECT id FROM pages WHERE is_home=1").fetchone()
+    # Ensure the default home page exists.
+    home = conn.execute("SELECT id FROM pages WHERE is_home=1").fetchone()
     if not home:
-        cur.execute(
+        conn.execute(
             "INSERT INTO pages (title, slug, content, is_home) VALUES (?, ?, ?, 1)",
             ("Home", "home", "# Welcome to your Wiki\n\nEdit this page to get started."),
         )
 
-    conn.commit()
+
+def _migrate_v2(conn):
+    """Add last_login_at column to the users table."""
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(users)").fetchall()]
+    if "last_login_at" not in cols:
+        conn.execute("ALTER TABLE users ADD COLUMN last_login_at TEXT")
+
+
+# Ordered list of (target_version, migration_callable).
+# To add a new migration: append (next_version, _migrate_vN) – where
+# next_version is the next sequential integer (e.g. 3, 4, …) – and update
+# BANANADB_VERSION at the top of this file to match.
+_MIGRATION_STEPS = [
+    (1, _migrate_v1),
+    (2, _migrate_v2),
+]
+
+
+# ---------------------------------------------------------------------------
+#  Schema initialisation / upgrade
+# ---------------------------------------------------------------------------
+def init_db():
+    """Create or upgrade the BananaDB schema to the current version.
+
+    Safe to call on every application start-up.  Applies only the migrations
+    that have not yet been run, so existing data is always preserved.
+    """
+    conn = get_db()
+    version = _get_schema_version(conn)
+
+    # Detect databases created before version tracking was introduced
+    # (user_version is 0 but tables already exist).
+    if version == 0:
+        tables = {
+            r[0]
+            for r in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        }
+        if "users" in tables:
+            # Legacy DB: infer which migrations have already been applied by
+            # inspecting the actual schema.
+            cols = [r[1] for r in conn.execute("PRAGMA table_info(users)").fetchall()]
+            version = 2 if "last_login_at" in cols else 1
+            _set_schema_version(conn, version)
+            conn.commit()
+
+    # Apply every pending migration in order.
+    for target_version, migrate_fn in _MIGRATION_STEPS:
+        if version < target_version:
+            migrate_fn(conn)
+            _set_schema_version(conn, target_version)
+            conn.commit()
+            version = target_version
+
     conn.close()
 
 
