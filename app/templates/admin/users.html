@@ -58,7 +58,7 @@
         <tr>
             <td>{{ u.id }}</td>
             <td>{{ u.username }}</td>
-            <td><span class="badge badge-{{ u.role }}">{{ u.role }}</span></td>
+            <td><span class="badge badge-{{ u.role }}">{{ u.role }}</span>{% if u.easter_egg_found %} <span class="badge badge-easter" title="Found the Easter egg!">🍌</span>{% endif %}</td>
             <td>
                 {% if u.suspended %}
                 <span class="badge badge-suspended">Suspended</span>

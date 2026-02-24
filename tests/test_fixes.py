@@ -2145,3 +2145,96 @@ def test_init_db_idempotent(tmp_path, monkeypatch):
     home_count = conn.execute("SELECT COUNT(*) FROM pages WHERE is_home=1").fetchone()[0]
     conn.close()
     assert home_count == 1
+
+
+# -----------------------------------------------------------------------
+# Easter egg tests
+# -----------------------------------------------------------------------
+def test_easter_egg_hidden_without_param(logged_in_admin):
+    """GET /easter-egg without ?peel=true must return 404."""
+    resp = logged_in_admin.get("/easter-egg")
+    assert resp.status_code == 404
+
+
+def test_easter_egg_page_renders(logged_in_admin):
+    """GET /easter-egg?peel=true must render the Easter egg page."""
+    resp = logged_in_admin.get("/easter-egg?peel=true")
+    assert resp.status_code == 200
+    assert "Operation Banana Peel".encode() in resp.data
+
+
+def test_easter_egg_wrong_answer(logged_in_admin):
+    """Submitting a wrong answer shows an error and does not grant the badge."""
+    import db
+    from app import app
+    with app.test_request_context():
+        pass
+    resp = logged_in_admin.post(
+        "/easter-egg?peel=true",
+        data={"answer": "wrong", "csrf_token": "test"},
+    )
+    assert resp.status_code == 200
+    # Badge must NOT be set
+    user = db.get_user_by_username("admin")
+    assert user["easter_egg_found"] == 0
+
+
+def test_easter_egg_correct_answer_grants_badge(logged_in_admin):
+    """Submitting the correct answer sets easter_egg_found=1 in the DB."""
+    import db
+    resp = logged_in_admin.post(
+        "/easter-egg?peel=true",
+        data={"answer": "banana", "csrf_token": "test"},
+    )
+    assert resp.status_code == 200
+    assert b"ACHIEVEMENT UNLOCKED" in resp.data
+    user = db.get_user_by_username("admin")
+    assert user["easter_egg_found"] == 1
+
+
+def test_easter_egg_already_found_shows_repeat_message(logged_in_admin):
+    """Visiting the page after already finding it shows the 'already found' message."""
+    import db
+    # Grant the badge first
+    user = db.get_user_by_username("admin")
+    db.update_user(user["id"], easter_egg_found=1)
+    resp = logged_in_admin.get("/easter-egg?peel=true")
+    assert resp.status_code == 200
+    assert b"YOU'VE BEEN HERE BEFORE" in resp.data
+
+
+def test_easter_egg_requires_login(client):
+    """Unauthenticated requests to the Easter egg page must be redirected."""
+    import db
+    db.update_site_settings(setup_done=1)
+    resp = client.get("/easter-egg?peel=true")
+    assert resp.status_code in (302, 401)
+
+
+def test_easter_egg_found_flag_in_db_schema():
+    """The users table must have the easter_egg_found column after migration."""
+    import db as db_mod
+    conn = db_mod.get_db()
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(users)").fetchall()]
+    conn.close()
+    assert "easter_egg_found" in cols
+
+
+def test_admin_users_shows_banana_badge(logged_in_admin):
+    """Admin users page shows 🍌 badge for users with easter_egg_found=1."""
+    import db
+    user = db.get_user_by_username("admin")
+    db.update_user(user["id"], easter_egg_found=1)
+    resp = logged_in_admin.get("/admin/users")
+    assert resp.status_code == 200
+    assert "🍌".encode("utf-8") in resp.data
+
+
+def test_account_settings_shows_banana_badge(logged_in_admin):
+    """Account settings page shows banana badge when easter_egg_found=1."""
+    import db
+    user = db.get_user_by_username("admin")
+    db.update_user(user["id"], easter_egg_found=1)
+    resp = logged_in_admin.get("/account")
+    assert resp.status_code == 200
+    assert "Banana Republic Explorer".encode() in resp.data

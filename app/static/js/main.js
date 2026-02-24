@@ -376,3 +376,77 @@ function confirmCatDelete(form, pageCount, catName) {
     }
     return confirm(msg);
 }
+
+// ---------------------------------------------------------------------------
+// Easter egg: Konami code  ↑↑↓↓←→←→ba
+// ---------------------------------------------------------------------------
+(function () {
+    var _seq = [
+        'ArrowUp','ArrowUp','ArrowDown','ArrowDown',
+        'ArrowLeft','ArrowRight','ArrowLeft','ArrowRight',
+        'b','a'
+    ];
+    var _pos = 0;
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === _seq[_pos]) {
+            _pos++;
+            if (_pos === _seq.length) {
+                _pos = 0;
+                _unleashBananas();
+            }
+        } else {
+            _pos = (e.key === _seq[0]) ? 1 : 0;
+        }
+    });
+
+    function _unleashBananas() {
+        // Rain of bananas across the viewport
+        var rain = document.createElement('div');
+        rain.id = 'banana-rain';
+        rain.style.cssText =
+            'position:fixed;inset:0;pointer-events:none;z-index:9999;overflow:hidden';
+        document.body.appendChild(rain);
+
+        var emojis = ['🍌','🐒','🍌','🍌','🐒','🍌'];
+        for (var i = 0; i < 35; i++) {
+            (function (i) {
+                setTimeout(function () {
+                    var b = document.createElement('span');
+                    b.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+                    var size = Math.random() * 22 + 18;
+                    var dur  = Math.random() * 2.2 + 1.2;
+                    b.style.cssText =
+                        'position:absolute;top:-60px;' +
+                        'left:' + (Math.random() * 100) + '%;' +
+                        'font-size:' + size + 'px;' +
+                        'transform:rotate(' + (Math.random() * 360) + 'deg);' +
+                        'animation:bananaDrop ' + dur + 's linear forwards;' +
+                        'user-select:none';
+                    rain.appendChild(b);
+                }, i * 90);
+            })(i);
+        }
+
+        // Remove rain container after the last banana finishes falling
+        setTimeout(function () {
+            if (rain.parentNode) { rain.parentNode.removeChild(rain); }
+        }, 6500);
+
+        // Drop the clue into the browser console for the hunters
+        /* eslint-disable no-console */
+        console.log(
+            '%c' +
+            '  🍌  B A N A N A   W I K I  🍌\n' +
+            '  ══════════════════════════════════\n' +
+            '  Well done, curious monkey! 🐒\n\n' +
+            '  The path forward is sealed in Base64:\n\n' +
+            '      ZWFzdGVyLWVnZw==\n\n' +
+            '  Decode it. Append  ?peel=true  to unlock.\n' +
+            '  This message will not repeat.',
+            'color:#FFE135;font-family:monospace;font-size:12px;' +
+            'background:#0d0d14;padding:14px 18px;border-radius:6px;line-height:1.8'
+        );
+        /* eslint-enable no-console */
+    }
+}());

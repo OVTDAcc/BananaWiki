@@ -16,7 +16,7 @@ import config
 #: Internal name for the database engine used by this project.
 BANANADB_NAME = "BananaDB"
 #: Current schema version.  Increment this whenever a new migration is added.
-BANANADB_VERSION = 2
+BANANADB_VERSION = 3
 
 
 def get_db():
@@ -150,6 +150,15 @@ def _migrate_v2(conn):
         conn.execute("ALTER TABLE users ADD COLUMN last_login_at TEXT")
 
 
+def _migrate_v3(conn):
+    """Add easter_egg_found flag to the users table."""
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(users)").fetchall()]
+    if "easter_egg_found" not in cols:
+        conn.execute(
+            "ALTER TABLE users ADD COLUMN easter_egg_found INTEGER NOT NULL DEFAULT 0"
+        )
+
+
 # Ordered list of (target_version, migration_callable).
 # To add a new migration: append (next_version, _migrate_vN) – where
 # next_version is the next sequential integer (e.g. 3, 4, …) – and update
@@ -157,6 +166,7 @@ def _migrate_v2(conn):
 _MIGRATION_STEPS = [
     (1, _migrate_v1),
     (2, _migrate_v2),
+    (3, _migrate_v3),
 ]
 
 
@@ -230,7 +240,7 @@ def get_user_by_username(username):
     return user
 
 
-_ALLOWED_USER_COLUMNS = {"username", "password", "role", "suspended", "last_login_at"}
+_ALLOWED_USER_COLUMNS = {"username", "password", "role", "suspended", "last_login_at", "easter_egg_found"}
 
 
 def update_user(user_id, **kwargs):

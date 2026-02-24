@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}🍌 ???{% endblock %}
+{% block content %}
+<!--
+  ██████╗  █████╗ ███╗   ██╗ █████╗ ███╗   ██╗ █████╗
+  ██╔══██╗██╔══██╗████╗  ██║██╔══██╗████╗  ██║██╔══██╗
+  ██████╔╝███████║██╔██╗ ██║███████║██╔██╗ ██║███████║
+  ██╔══██╗██╔══██║██║╚██╗██║██╔══██║██║╚██╗██║██╔══██║
+  ██████╔╝██║  ██║██║ ╚████║██║  ██║██║ ╚████║██║  ██║
+  ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝
+
+  🍌 Welcome, intrepid explorer. You've made it to step 2.
+
+  One more door remains. The ancients left a scroll:
+
+      var _s = atob('YmFuYW5h');
+
+  Submit _s below to claim your badge.
+-->
+<div class="easter-egg-page">
+    {% if just_found %}
+    <div class="easter-trophy">
+        <div class="easter-banner">🍌</div>
+        <h1>ACHIEVEMENT UNLOCKED</h1>
+        <h2>🏆 Banana Republic Explorer 🏆</h2>
+        <p class="easter-congrats">
+            You cracked all three layers of Operation Banana Peel.<br>
+            Your discovery has been recorded. The Banana Republic salutes you.
+        </p>
+        <p class="easter-badge-label">Your badge has been added to your account.</p>
+        <a href="{{ url_for('home') }}" class="btn">Return to the Wiki</a>
+    </div>
+    {% elif already_found %}
+    <div class="easter-trophy">
+        <div class="easter-banner">🍌</div>
+        <h1>YOU'VE BEEN HERE BEFORE</h1>
+        <p class="easter-congrats">You already hold the <strong>Banana Republic Explorer</strong> badge.<br>
+        The Banana Republic remembers your name.</p>
+        <a href="{{ url_for('home') }}" class="btn">Return to the Wiki</a>
+    </div>
+    {% else %}
+    <div class="easter-hunt">
+        <div class="easter-banner">🍌</div>
+        <h1>Operation Banana Peel</h1>
+        <p class="easter-subtitle">Step 2 of 2 &mdash; You&rsquo;ve found the Republic. Now earn your citizenship.</p>
+        <div class="easter-riddle">
+            <p>
+                I am yellow. I am curved. I am sweet and I have a peel.<br>
+                The ancients encoded my name in Base64.
+                Find it in the page source to unlock the final step.
+            </p>
+        </div>
+        <form method="POST" action="{{ url_for('easter_egg', peel='true') }}" class="easter-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="text" name="answer" class="input" placeholder="Enter the secret word…" autocomplete="off" required>
+            <button type="submit" class="btn">🍌 Submit</button>
+        </form>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

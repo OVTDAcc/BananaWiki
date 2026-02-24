@@ -1421,6 +1421,48 @@ def _read_user_audit_log(username, max_entries=200):
 
 
 # ---------------------------------------------------------------------------
+#  Easter egg
+# ---------------------------------------------------------------------------
+# The secret passphrase. Seekers who find /easter-egg?peel=true and decode the
+# hint in the page source will discover this word.
+_EASTER_EGG_PASSPHRASE = "banana"
+
+
+@app.route("/easter-egg", methods=["GET", "POST"])
+@login_required
+def easter_egg():
+    # Only accessible when the magic query parameter is present.
+    if request.args.get("peel") != "true":
+        abort(404)
+
+    user = get_current_user()
+    categories, uncategorized = db.get_category_tree()
+
+    if request.method == "POST":
+        answer = request.form.get("answer", "").strip().lower()
+        if answer == _EASTER_EGG_PASSPHRASE:
+            if not user["easter_egg_found"]:
+                db.update_user(user["id"], easter_egg_found=1)
+                log_action("easter_egg_found", request, user=user)
+            return render_template(
+                "easter.html",
+                categories=categories,
+                uncategorized=uncategorized,
+                already_found=False,
+                just_found=True,
+            )
+        flash("Not quite… keep exploring! 🍌", "error")
+
+    return render_template(
+        "easter.html",
+        categories=categories,
+        uncategorized=uncategorized,
+        already_found=bool(user["easter_egg_found"]),
+        just_found=False,
+    )
+
+
+# ---------------------------------------------------------------------------
 #  Error handlers
 # ---------------------------------------------------------------------------
 @app.errorhandler(404)
