@@ -2133,6 +2133,17 @@ def test_admin_create_announcement_requires_content(logged_in_admin):
     assert b"required" in resp.data.lower()
 
 
+def test_admin_create_announcement_max_length(logged_in_admin):
+    resp = logged_in_admin.post("/admin/announcements/create", data={
+        "content": "x" * 2001,
+        "color": "orange",
+        "text_size": "normal",
+        "visibility": "both",
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"2000 characters" in resp.data
+
+
 def test_admin_edit_announcement(logged_in_admin, admin_user):
     import db
     ann_id = db.create_announcement("Old text", "orange", "normal", "both", None, admin_user)

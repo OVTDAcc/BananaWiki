@@ -1460,6 +1460,9 @@ def admin_create_announcement():
     if not content:
         flash("Announcement content is required.", "error")
         return redirect(url_for("admin_announcements"))
+    if len(content) > 2000:
+        flash("Announcement content must be 2000 characters or fewer.", "error")
+        return redirect(url_for("admin_announcements"))
     if color not in _VALID_ANN_COLORS:
         flash("Invalid color.", "error")
         return redirect(url_for("admin_announcements"))
@@ -1499,6 +1502,9 @@ def admin_edit_announcement(ann_id):
 
     if not content:
         flash("Announcement content is required.", "error")
+        return redirect(url_for("admin_announcements"))
+    if len(content) > 2000:
+        flash("Announcement content must be 2000 characters or fewer.", "error")
         return redirect(url_for("admin_announcements"))
     if color not in _VALID_ANN_COLORS:
         flash("Invalid color.", "error")

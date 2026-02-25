@@ -9,7 +9,7 @@
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-group">
             <label>Content (Markdown supported)</label>
-            <textarea name="content" class="input" rows="4" required
+            <textarea name="content" class="input" rows="4" required maxlength="2000"
                       placeholder="Enter announcement text..."></textarea>
         </div>
         <div style="display:flex;gap:1rem;flex-wrap:wrap">
@@ -80,7 +80,7 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="form-group">
                 <label>Content</label>
-                <textarea name="content" class="input" rows="4" required>{{ ann.content }}</textarea>
+                <textarea name="content" class="input" rows="4" required maxlength="2000">{{ ann.content }}</textarea>
             </div>
             <div style="display:flex;gap:1rem;flex-wrap:wrap">
                 <div class="form-group">
