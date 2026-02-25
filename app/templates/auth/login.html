@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login – {{ settings.site_name }}</title>
+    <title>{% if lockdown %}Admin Login{% else %}Login{% endif %} – {{ settings.site_name }}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     {% if settings.favicon_enabled %}
       {% if settings.favicon_type == 'custom' and settings.favicon_custom %}
@@ -19,7 +19,7 @@
     <div class="auth-container">
         <div class="auth-box">
             <h1>{{ settings.site_name }}</h1>
-            <p class="subtitle">Sign in to continue</p>
+            <p class="subtitle">{% if lockdown %}Admin sign in{% else %}Sign in to continue{% endif %}</p>
             {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
             {% for category, message in messages %}
@@ -40,7 +40,11 @@
                 <button type="submit" class="btn">Login</button>
             </form>
             <div class="auth-link">
+                {% if not lockdown %}
                 Don't have an account? <a href="{{ url_for('signup') }}">Sign up</a>
+                {% else %}
+                <a href="{{ url_for('lockdown') }}">← Back to lockdown page</a>
+                {% endif %}
             </div>
         </div>
     </div>

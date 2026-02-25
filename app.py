@@ -373,6 +373,16 @@ def before_request_hook():
     if not settings["setup_done"] and request.endpoint not in ("setup", "static"):
         return redirect(url_for("setup"))
 
+    # Lockdown mode: non-admin users are kicked out
+    if settings["lockdown_mode"] and request.endpoint not in (
+        "lockdown", "login", "logout", "static"
+    ):
+        user = get_current_user()
+        if not user or user["role"] != "admin":
+            if user:
+                session.clear()
+            return redirect(url_for("lockdown"))
+
     # Global rate limit (skip static files)
     if request.endpoint and request.endpoint != "static":
         ip = request.remote_addr or "unknown"
@@ -453,11 +463,13 @@ def login():
     if not settings["setup_done"]:
         return redirect(url_for("setup"))
 
+    lockdown = bool(settings["lockdown_mode"])
+
     if request.method == "POST":
         if not _check_login_rate_limit():
             log_action("login_rate_limited", request)
             flash("Too many login attempts. Please wait a minute.", "error")
-            return render_template("auth/login.html"), 429
+            return render_template("auth/login.html", lockdown=lockdown), 429
 
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
@@ -469,18 +481,23 @@ def login():
             _record_login_attempt()
             log_action("login_failed", request, username=username)
             flash("Invalid username or password.", "error")
-            return render_template("auth/login.html")
+            return render_template("auth/login.html", lockdown=lockdown)
 
         if not check_password_hash(user["password"], password):
             _record_login_attempt()
             log_action("login_failed", request, username=username)
             flash("Invalid username or password.", "error")
-            return render_template("auth/login.html")
+            return render_template("auth/login.html", lockdown=lockdown)
 
         if user["suspended"]:
             log_action("login_suspended", request, username=username)
             flash("Your account has been suspended. Contact an administrator.", "error")
-            return render_template("auth/login.html")
+            return render_template("auth/login.html", lockdown=lockdown)
+
+        if lockdown and user["role"] != "admin":
+            log_action("login_blocked_lockdown", request, username=username)
+            flash("This wiki is currently in lockdown. Only admins can log in.", "error")
+            return render_template("auth/login.html", lockdown=lockdown)
 
         session.clear()
         session.permanent = True
@@ -490,7 +507,7 @@ def login():
         log_action("login_success", request, user=user)
         return redirect(url_for("home"))
 
-    return render_template("auth/login.html")
+    return render_template("auth/login.html", lockdown=lockdown)
 
 
 @app.route("/signup", methods=["GET", "POST"])
@@ -499,6 +516,8 @@ def signup():
     settings = db.get_site_settings()
     if not settings["setup_done"]:
         return redirect(url_for("setup"))
+    if settings["lockdown_mode"]:
+        return redirect(url_for("lockdown"))
 
     if request.method == "POST":
         username = request.form.get("username", "").strip()
@@ -563,6 +582,14 @@ def logout():
     session.clear()
     flash("You have been logged out.", "info")
     return redirect(url_for("login"))
+
+
+@app.route("/lockdown")
+def lockdown():
+    settings = db.get_site_settings()
+    if not settings["lockdown_mode"]:
+        return redirect(url_for("login"))
+    return render_template("auth/lockdown.html", settings=settings)
 
 
 # ---------------------------------------------------------------------------
@@ -1620,6 +1647,8 @@ def admin_settings():
             favicon_enabled=favicon_enabled,
             favicon_type=favicon_type,
             favicon_custom=favicon_custom,
+            lockdown_mode=1 if request.form.get("lockdown_mode") else 0,
+            lockdown_message=request.form.get("lockdown_message", "").strip()[:1000],
             **color_fields,
         )
         user = get_current_user()

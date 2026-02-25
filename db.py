@@ -152,6 +152,10 @@ def init_db():
         cur.execute("ALTER TABLE site_settings ADD COLUMN favicon_type TEXT NOT NULL DEFAULT 'yellow'")
     if "favicon_custom" not in ss_cols:
         cur.execute("ALTER TABLE site_settings ADD COLUMN favicon_custom TEXT NOT NULL DEFAULT ''")
+    if "lockdown_mode" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN lockdown_mode INTEGER NOT NULL DEFAULT 0")
+    if "lockdown_message" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN lockdown_message TEXT NOT NULL DEFAULT ''")
 
     # Migrate users.id from INTEGER to TEXT if needed
     user_id_type = next(
@@ -936,6 +940,7 @@ _ALLOWED_SETTINGS_COLUMNS = {
     "site_name", "primary_color", "secondary_color", "accent_color",
     "text_color", "sidebar_color", "bg_color", "setup_done", "timezone",
     "favicon_enabled", "favicon_type", "favicon_custom",
+    "lockdown_mode", "lockdown_message",
 }
 
 
