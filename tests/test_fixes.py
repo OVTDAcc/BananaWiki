@@ -2716,3 +2716,114 @@ def test_banana_favicon_files_exist():
     for fname in expected:
         assert os.path.isfile(os.path.join(favicons_dir, fname)), \
             f"Missing favicon file: {fname}"
+
+
+# ---------------------------------------------------------------------------
+# reset_password.py CLI tool tests
+# ---------------------------------------------------------------------------
+
+def test_reset_password_no_users(monkeypatch, capsys):
+    """reset_password.main() exits cleanly when no users exist."""
+    import importlib, sys as _sys
+    rp = importlib.import_module("reset_password")
+    with pytest.raises(SystemExit) as exc:
+        rp.main()
+    assert exc.value.code == 0
+    captured = capsys.readouterr()
+    assert "No users found" in captured.out
+
+
+def test_reset_password_quit(monkeypatch, capsys):
+    """Entering 'q' at the user-selection prompt aborts cleanly."""
+    from werkzeug.security import generate_password_hash
+    import db, importlib
+    db.create_user("alice", generate_password_hash("oldpass"), role="user")
+
+    rp = importlib.import_module("reset_password")
+    monkeypatch.setattr("builtins.input", lambda _: "q")
+    with pytest.raises(SystemExit) as exc:
+        rp.main()
+    assert exc.value.code == 0
+    captured = capsys.readouterr()
+    assert "Aborted" in captured.out
+
+
+def test_reset_password_updates_password(monkeypatch, capsys):
+    """Selecting a user and entering a valid password updates the DB."""
+    from werkzeug.security import generate_password_hash, check_password_hash
+    import db, importlib, itertools
+
+    uid = db.create_user("bob", generate_password_hash("oldpassword"), role="user")
+
+    rp = importlib.import_module("reset_password")
+
+    inputs = iter(["1"])
+    monkeypatch.setattr("builtins.input", lambda _: next(inputs))
+    passwords = iter(["newpassword1", "newpassword1"])
+    monkeypatch.setattr("getpass.getpass", lambda _: next(passwords))
+
+    rp.main()
+
+    user = db.get_user_by_id(uid)
+    assert check_password_hash(user["password"], "newpassword1")
+    captured = capsys.readouterr()
+    assert "updated successfully" in captured.out
+
+
+def test_reset_password_mismatch_then_success(monkeypatch, capsys):
+    """Mismatched passwords prompt again; success on second attempt."""
+    from werkzeug.security import generate_password_hash, check_password_hash
+    import db, importlib
+
+    uid = db.create_user("carol", generate_password_hash("oldpass"), role="editor")
+
+    rp = importlib.import_module("reset_password")
+
+    monkeypatch.setattr("builtins.input", lambda _: "1")
+    # first attempt: mismatch; second attempt: match
+    passwords = iter(["newpassword1", "wrongconfirm", "newpassword1", "newpassword1"])
+    monkeypatch.setattr("getpass.getpass", lambda _: next(passwords))
+
+    rp.main()
+
+    user = db.get_user_by_id(uid)
+    assert check_password_hash(user["password"], "newpassword1")
+
+
+def test_reset_password_too_short_then_success(monkeypatch, capsys):
+    """A password shorter than MIN_PASSWORD_LENGTH is rejected."""
+    from werkzeug.security import generate_password_hash, check_password_hash
+    import db, importlib
+
+    uid = db.create_user("dave", generate_password_hash("oldpass"), role="user")
+
+    rp = importlib.import_module("reset_password")
+
+    monkeypatch.setattr("builtins.input", lambda _: "1")
+    passwords = iter(["short", "longenoughpw", "longenoughpw"])
+    monkeypatch.setattr("getpass.getpass", lambda _: next(passwords))
+
+    rp.main()
+
+    user = db.get_user_by_id(uid)
+    assert check_password_hash(user["password"], "longenoughpw")
+
+
+def test_reset_password_invalid_selection_then_valid(monkeypatch, capsys):
+    """Non-numeric and out-of-range selections are rejected before a valid pick."""
+    from werkzeug.security import generate_password_hash, check_password_hash
+    import db, importlib
+
+    uid = db.create_user("eve", generate_password_hash("oldpass"), role="user")
+
+    rp = importlib.import_module("reset_password")
+
+    inputs = iter(["abc", "99", "1"])
+    monkeypatch.setattr("builtins.input", lambda _: next(inputs))
+    passwords = iter(["validpassword", "validpassword"])
+    monkeypatch.setattr("getpass.getpass", lambda _: next(passwords))
+
+    rp.main()
+
+    user = db.get_user_by_id(uid)
+    assert check_password_hash(user["password"], "validpassword")
