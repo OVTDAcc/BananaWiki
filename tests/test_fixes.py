@@ -3873,3 +3873,137 @@ def test_easter_egg_trigger_logs_action(logged_in_admin, monkeypatch):
     assert resp.status_code == 200
     assert resp.get_json()["ok"] is True
     assert "easter_egg_triggered" in logged_calls
+
+
+# ---------------------------------------------------------------------------
+# Rate limiting: transfer_attribution is rate-limited
+# ---------------------------------------------------------------------------
+
+def test_transfer_attribution_rate_limited(logged_in_admin, admin_user):
+    """transfer_attribution is rate-limited; exceeding the limit returns 429."""
+    import app as app_mod
+    import db
+    with app_mod._RL_LOCK:
+        app_mod._RL_STORE.clear()
+    from werkzeug.security import generate_password_hash
+    uid2 = db.create_user("editor2", generate_password_hash("pass123"), role="editor")
+    home = db.get_home_page()
+    db.update_page(home["id"], "Home", "v1", admin_user, "edit")
+    history = db.get_page_history(home["id"])
+    assert history
+    entry_id = history[0]["id"]
+    for _ in range(20):
+        logged_in_admin.post(
+            f"/page/home/history/{entry_id}/transfer",
+            data={"new_user_id": uid2},
+        )
+    resp = logged_in_admin.post(
+        f"/page/home/history/{entry_id}/transfer",
+        data={"new_user_id": uid2},
+    )
+    assert resp.status_code == 429
+
+
+# ---------------------------------------------------------------------------
+# Rate limiting: bulk_transfer_attribution is rate-limited
+# ---------------------------------------------------------------------------
+
+def test_bulk_transfer_attribution_rate_limited(logged_in_admin, admin_user):
+    """bulk_transfer_attribution is rate-limited; exceeding the limit returns 429."""
+    import app as app_mod
+    import db
+    with app_mod._RL_LOCK:
+        app_mod._RL_STORE.clear()
+    from werkzeug.security import generate_password_hash
+    uid2 = db.create_user("editor3", generate_password_hash("pass123"), role="editor")
+    home = db.get_home_page()
+    db.update_page(home["id"], "Home", "v1", admin_user, "edit")
+    for _ in range(20):
+        logged_in_admin.post(
+            "/page/home/history/bulk-transfer",
+            data={"from_user_id": admin_user, "new_user_id": uid2},
+        )
+    resp = logged_in_admin.post(
+        "/page/home/history/bulk-transfer",
+        data={"from_user_id": admin_user, "new_user_id": uid2},
+    )
+    assert resp.status_code == 429
+
+
+# ---------------------------------------------------------------------------
+# Rate limiting: api_transfer_draft is rate-limited
+# ---------------------------------------------------------------------------
+
+def test_api_transfer_draft_rate_limited(logged_in_admin, admin_user):
+    """api_transfer_draft is rate-limited; exceeding the limit returns JSON 429."""
+    import app as app_mod
+    import db
+    with app_mod._RL_LOCK:
+        app_mod._RL_STORE.clear()
+    from werkzeug.security import generate_password_hash
+    uid2 = db.create_user("editor4", generate_password_hash("pass123"), role="editor")
+    home = db.get_home_page()
+    db.save_draft(home["id"], uid2, "Draft title", "Draft content")
+    for _ in range(30):
+        logged_in_admin.post(
+            "/api/draft/transfer",
+            json={"page_id": home["id"], "from_user_id": uid2},
+            content_type="application/json",
+        )
+    resp = logged_in_admin.post(
+        "/api/draft/transfer",
+        json={"page_id": home["id"], "from_user_id": uid2},
+        content_type="application/json",
+    )
+    assert resp.status_code == 429
+    data = resp.get_json()
+    assert data is not None
+    assert "error" in data
+
+
+# ---------------------------------------------------------------------------
+# Rate limiting: easter_egg_trigger is rate-limited
+# ---------------------------------------------------------------------------
+
+def test_easter_egg_trigger_rate_limited(logged_in_admin):
+    """easter_egg_trigger is rate-limited; exceeding the limit returns JSON 429."""
+    import app as app_mod
+    with app_mod._RL_LOCK:
+        app_mod._RL_STORE.clear()
+    for _ in range(10):
+        logged_in_admin.post(
+            "/api/easter-egg/trigger",
+            content_type="application/json",
+        )
+    resp = logged_in_admin.post(
+        "/api/easter-egg/trigger",
+        content_type="application/json",
+    )
+    assert resp.status_code == 429
+    data = resp.get_json()
+    assert data is not None
+    assert "error" in data
+
+
+# ---------------------------------------------------------------------------
+# Rate limiting: account_settings is rate-limited
+# ---------------------------------------------------------------------------
+
+def test_account_settings_rate_limited(client, admin_user):
+    """account_settings is rate-limited; exceeding the limit returns 429."""
+    import app as app_mod
+    with app_mod._RL_LOCK:
+        app_mod._RL_STORE.clear()
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    for i in range(10):
+        client.post("/account", data={
+            "action": "change_username",
+            "new_username": f"admin_try{i}",
+            "password": "wrongpassword",
+        })
+    resp = client.post("/account", data={
+        "action": "change_username",
+        "new_username": "admin_over",
+        "password": "wrongpassword",
+    })
+    assert resp.status_code == 429
