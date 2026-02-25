@@ -116,7 +116,7 @@
                     <label>Parent Category (optional)</label>
                     <select name="parent_id" class="input">
                         <option value="">None</option>
-                        {% for cat in categories %}
+                        {% for cat in all_categories %}
                         <option value="{{ cat.id }}">{{ cat.name }}</option>
                         {% endfor %}
                     </select>

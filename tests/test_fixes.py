@@ -3168,3 +3168,107 @@ def test_admin_settings_page_shows_lockdown_section(logged_in_admin):
     assert b"Lockdown Mode" in resp.data
     assert b"lockdown_mode" in resp.data
     assert b"lockdown_message" in resp.data
+
+
+# ---------------------------------------------------------------------------
+# Create Category modal uses all_categories (flat list, including subcategories)
+# ---------------------------------------------------------------------------
+
+def test_create_category_modal_shows_all_categories(logged_in_admin):
+    """Create Category modal parent dropdown should include subcategories."""
+    import db
+    parent_id = db.create_category("TopLevel")
+    sub_id = db.create_category("SubLevel", parent_id=parent_id)
+    resp = logged_in_admin.get("/")
+    assert resp.status_code == 200
+    # The createCatModal should list SubLevel as a potential parent option
+    assert b"SubLevel" in resp.data
+    # Both categories should appear in the all_categories-based dropdown
+    assert b"TopLevel" in resp.data
+
+
+# ---------------------------------------------------------------------------
+# Create Page form includes category selector
+# ---------------------------------------------------------------------------
+
+def test_create_page_form_has_category_selector(logged_in_admin):
+    """Create Page form should include a category dropdown."""
+    import db
+    db.create_category("MyCat")
+    resp = logged_in_admin.get("/create-page")
+    assert resp.status_code == 200
+    assert b'name="category_id"' in resp.data
+    assert b"MyCat" in resp.data
+
+
+def test_create_page_with_category_places_page_in_category(logged_in_admin):
+    """Creating a page with a category_id should assign the page to that category."""
+    import db
+    cat_id = db.create_category("TestCreateCat")
+    resp = logged_in_admin.post(
+        "/create-page",
+        data={"title": "CatPage", "category_id": str(cat_id)},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    page = db.get_page_by_slug("catpage")
+    assert page is not None
+    assert page["category_id"] == cat_id
+
+
+def test_create_page_category_preserved_on_error(logged_in_admin):
+    """On validation error, the selected category_id should be preserved."""
+    import db
+    cat_id = db.create_category("PreserveCat")
+    resp = logged_in_admin.post(
+        "/create-page",
+        data={"title": "", "category_id": str(cat_id)},
+    )
+    assert resp.status_code == 200
+    assert b"Title is required" in resp.data
+    # The dropdown should still show the category option
+    assert b"PreserveCat" in resp.data
+
+
+# ---------------------------------------------------------------------------
+# Lockdown mode: API endpoints return JSON 403 instead of HTML redirect
+# ---------------------------------------------------------------------------
+
+def test_lockdown_api_endpoint_returns_json_403(client, admin_user):
+    """During lockdown, API endpoints should return JSON 403, not HTML redirect."""
+    import db
+    db.update_site_settings(lockdown_mode=1)
+    resp = client.post(
+        "/api/preview",
+        json={"content": "test"},
+        headers={"Content-Type": "application/json"},
+    )
+    assert resp.status_code == 403
+    data = resp.get_json()
+    assert data is not None
+    assert "error" in data
+    assert "lockdown" in data["error"].lower()
+
+
+def test_lockdown_api_endpoint_json_403_for_unauthenticated(client, admin_user):
+    """Unauthenticated API calls during lockdown return JSON 403."""
+    import db
+    db.update_site_settings(lockdown_mode=1)
+    resp = client.post(
+        "/api/draft/save",
+        json={"page_id": 1, "title": "t", "content": "c"},
+        headers={"Content-Type": "application/json"},
+    )
+    assert resp.status_code == 403
+    data = resp.get_json()
+    assert data is not None
+    assert "error" in data
+
+
+def test_lockdown_html_endpoint_still_redirects(client, admin_user):
+    """During lockdown, non-API endpoints still redirect to /lockdown."""
+    import db
+    db.update_site_settings(lockdown_mode=1)
+    resp = client.get("/")
+    assert resp.status_code == 302
+    assert "/lockdown" in resp.headers["Location"]
