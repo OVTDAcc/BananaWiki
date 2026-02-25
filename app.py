@@ -626,6 +626,7 @@ def account_settings():
                 flash("Username already taken.", "error")
                 return redirect(url_for("account_settings"))
             else:
+                db.record_username_change(user["id"], user["username"], new_username)
                 log_action("change_username", request, user=user, new_username=new_username)
                 notify_change("user_change_username", f"User '{user['username']}' renamed to '{new_username}'")
                 flash("Username updated.", "success")
@@ -746,11 +747,14 @@ def page_history(slug):
     if not page:
         abort(404)
     history = db.get_page_history(page["id"])
+    current_user = get_current_user()
+    all_users = db.list_users() if current_user and current_user["role"] == "admin" else []
     categories, uncategorized = db.get_category_tree()
     return render_template(
         "wiki/history.html",
         page=page,
         history=history,
+        all_users=all_users,
         categories=categories,
         uncategorized=uncategorized,
     )
@@ -798,6 +802,59 @@ def revert_page(slug, entry_id):
     notify_change("page_revert", f"Page '{slug}' reverted")
     flash("Page reverted.", "success")
     return redirect(url_for("view_page", slug=slug))
+
+
+@app.route("/page/<slug>/history/<int:entry_id>/transfer", methods=["POST"])
+@login_required
+@admin_required
+def transfer_attribution(slug, entry_id):
+    if not config.PAGE_HISTORY_ENABLED:
+        abort(404)
+    page = db.get_page_by_slug(slug)
+    if not page:
+        abort(404)
+    entry = db.get_history_entry(entry_id)
+    if not entry or entry["page_id"] != page["id"]:
+        abort(404)
+    new_user_id = request.form.get("new_user_id", "").strip()
+    target_user = db.get_user_by_id(new_user_id) if new_user_id else None
+    if not target_user:
+        flash("Invalid target user.", "error")
+        return redirect(url_for("page_history", slug=slug))
+    user = get_current_user()
+    db.transfer_history_attribution(entry_id, new_user_id)
+    log_action("transfer_attribution", request, user=user, page=slug,
+               entry_id=entry_id, new_user=target_user["username"])
+    notify_change("transfer_attribution",
+                  f"Attribution of entry {entry_id} on '{slug}' transferred to '{target_user['username']}'")
+    flash(f"Attribution transferred to {target_user['username']}.", "success")
+    return redirect(url_for("page_history", slug=slug))
+
+
+@app.route("/page/<slug>/history/bulk-transfer", methods=["POST"])
+@login_required
+@admin_required
+def bulk_transfer_attribution(slug):
+    if not config.PAGE_HISTORY_ENABLED:
+        abort(404)
+    page = db.get_page_by_slug(slug)
+    if not page:
+        abort(404)
+    from_user_id = request.form.get("from_user_id", "").strip()
+    new_user_id = request.form.get("new_user_id", "").strip()
+    from_user = db.get_user_by_id(from_user_id) if from_user_id else None
+    target_user = db.get_user_by_id(new_user_id) if new_user_id else None
+    if not from_user or not target_user:
+        flash("Invalid user selection.", "error")
+        return redirect(url_for("page_history", slug=slug))
+    user = get_current_user()
+    count = db.bulk_transfer_history_attribution(page["id"], from_user_id, new_user_id)
+    log_action("bulk_transfer_attribution", request, user=user, page=slug,
+               from_user=from_user["username"], to_user=target_user["username"], count=count)
+    notify_change("bulk_transfer_attribution",
+                  f"Bulk attribution on '{slug}' transferred from '{from_user['username']}' to '{target_user['username']}'")
+    flash(f"Transferred {count} contribution(s) to {target_user['username']}.", "success")
+    return redirect(url_for("page_history", slug=slug))
 
 
 # ---------------------------------------------------------------------------
@@ -1417,6 +1474,7 @@ def admin_edit_user(user_id):
                     flash("Username already taken.", "error")
                     return redirect(url_for("admin_users"))
                 else:
+                    db.record_username_change(user_id, target["username"], new_name)
                     log_action("admin_change_username", request, user=current_user,
                                target_user=target["username"], new_username=new_name)
                     notify_change("admin_change_username", f"User '{target['username']}' renamed to '{new_name}'")
@@ -1692,9 +1750,11 @@ def admin_user_audit(user_id):
     if not target:
         abort(404)
     log_entries = _read_user_audit_log(target["username"])
+    username_history = db.get_username_history(user_id)
     categories, uncategorized = db.get_category_tree()
     return render_template("admin/audit.html", target=target,
                            log_entries=log_entries,
+                           username_history=username_history,
                            categories=categories, uncategorized=uncategorized)
 
 

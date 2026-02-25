@@ -130,6 +130,14 @@ def init_db():
     );
 
     INSERT OR IGNORE INTO site_settings (id) VALUES (1);
+
+    CREATE TABLE IF NOT EXISTS username_history (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id     TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        old_username TEXT   NOT NULL,
+        new_username TEXT   NOT NULL,
+        changed_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+    );
     """)
 
     # -- Migrations: add columns to existing tables --
@@ -390,6 +398,29 @@ def delete_user(user_id):
     conn.execute("DELETE FROM users WHERE id=?", (user_id,))
     conn.commit()
     conn.close()
+
+
+def record_username_change(user_id, old_username, new_username):
+    """Record a username change in the history table."""
+    conn = get_db()
+    now = datetime.now(timezone.utc).isoformat()
+    conn.execute(
+        "INSERT INTO username_history (user_id, old_username, new_username, changed_at) VALUES (?, ?, ?, ?)",
+        (user_id, old_username, new_username, now),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_username_history(user_id):
+    """Return all username changes for a user, newest first."""
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT * FROM username_history WHERE user_id=? ORDER BY changed_at DESC",
+        (user_id,),
+    ).fetchall()
+    conn.close()
+    return rows
 
 
 def set_easter_egg_found(user_id):
@@ -826,6 +857,33 @@ def get_history_entry(entry_id):
     ).fetchone()
     conn.close()
     return row
+
+
+def transfer_history_attribution(entry_id, new_user_id):
+    """Transfer a single page history entry's attribution to a different user."""
+    conn = get_db()
+    conn.execute(
+        "UPDATE page_history SET edited_by=? WHERE id=?",
+        (new_user_id, entry_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def bulk_transfer_history_attribution(page_id, from_user_id, to_user_id):
+    """Transfer all page history entries for a page from one user to another.
+
+    Returns the number of entries updated.
+    """
+    conn = get_db()
+    cur = conn.execute(
+        "UPDATE page_history SET edited_by=? WHERE page_id=? AND edited_by=?",
+        (to_user_id, page_id, from_user_id),
+    )
+    count = cur.rowcount
+    conn.commit()
+    conn.close()
+    return count
 
 
 _UPLOAD_REF_RE = re.compile(r'/static/uploads/([^\s)"\']+)')
