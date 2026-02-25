@@ -29,7 +29,7 @@ import pytz
 import config
 import db
 from wiki_logger import log_request, log_action, get_logger
-from sync import notify_change
+from sync import notify_change, notify_file_upload, notify_file_deleted
 
 app = Flask(
     __name__,
@@ -1241,7 +1241,7 @@ def upload_image():
     f.save(filepath)
     user = get_current_user()
     log_action("upload_image", request, user=user, filename=filename)
-    notify_change("file_upload", f"Image '{filename}' uploaded")
+    notify_file_upload(filename, filepath)
     url = url_for("static", filename=f"uploads/{filename}")
     return jsonify({"url": url, "filename": filename})
 
@@ -1265,7 +1265,7 @@ def delete_upload():
         return jsonify({"error": "invalid filename"}), 400
     if os.path.isfile(filepath):
         os.remove(filepath)
-        notify_change("file_delete", f"Upload '{safe_name}' deleted")
+        notify_file_deleted(safe_name)
     return jsonify({"ok": True})
 
 

@@ -69,6 +69,7 @@ def reset_sync_state(monkeypatch):
     with sync._lock:
         sync._pending_changes.clear()
         sync._last_backup_time = 0
+        sync._first_pending_time = 0
         if sync._debounce_timer is not None:
             sync._debounce_timer.cancel()
             sync._debounce_timer = None
@@ -182,13 +183,6 @@ def test_create_backup_produces_valid_zip(tmp_path, monkeypatch):
     # Create some test data
     db.create_user("testuser", "hash123", role="user")
 
-    # Create a test upload
-    upload_dir = str(tmp_path / "uploads")
-    os.makedirs(upload_dir, exist_ok=True)
-    monkeypatch.setattr(config, "UPLOAD_FOLDER", upload_dir)
-    with open(os.path.join(upload_dir, "test.png"), "wb") as f:
-        f.write(b"fake image data")
-
     # Create a log file
     log_dir = str(tmp_path / "logs")
     os.makedirs(log_dir, exist_ok=True)
@@ -216,7 +210,8 @@ def test_create_backup_produces_valid_zip(tmp_path, monkeypatch):
             names = zf.namelist()
             assert "database/bananawiki.db" in names
             assert "config/config.py" in names
-            assert "uploads/test.png" in names
+            # Uploads are sent as individual Telegram messages, not in the zip
+            assert not any(n.startswith("uploads/") for n in names)
             assert "logs/test.log" in names
             assert "instance/.secret_key" in names
             assert "backup_manifest.json" in names
@@ -231,7 +226,7 @@ def test_create_backup_produces_valid_zip(tmp_path, monkeypatch):
 
 
 def test_create_backup_excludes_gitkeep(tmp_path, monkeypatch):
-    """The .gitkeep file in uploads should not be included."""
+    """Uploads (including .gitkeep) are not included in the backup zip."""
     import sync
 
     upload_dir = str(tmp_path / "uploads")
@@ -239,6 +234,8 @@ def test_create_backup_excludes_gitkeep(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "UPLOAD_FOLDER", upload_dir)
     with open(os.path.join(upload_dir, ".gitkeep"), "w") as f:
         f.write("")
+    with open(os.path.join(upload_dir, "test.png"), "wb") as f:
+        f.write(b"fake image")
 
     changes = [{"type": "test", "description": "test", "timestamp": "2024-01-01T00:00:00"}]
     zip_path, excluded = sync._create_backup(changes)
@@ -246,26 +243,27 @@ def test_create_backup_excludes_gitkeep(tmp_path, monkeypatch):
     try:
         with zipfile.ZipFile(zip_path, "r") as zf:
             names = zf.namelist()
-            assert not any(".gitkeep" in n for n in names)
+            # Uploads are sent individually, not bundled in the zip
+            assert not any(n.startswith("uploads/") for n in names)
     finally:
         if zip_path and os.path.exists(zip_path):
             os.remove(zip_path)
 
 
-def test_create_backup_excludes_large_files(tmp_path, monkeypatch):
-    """Files exceeding Telegram limit should be excluded with a reason."""
+def test_create_backup_excludes_large_log(tmp_path, monkeypatch):
+    """Log files exceeding the Telegram limit should be excluded with a reason."""
     import sync
 
-    upload_dir = str(tmp_path / "uploads")
-    os.makedirs(upload_dir, exist_ok=True)
-    monkeypatch.setattr(config, "UPLOAD_FOLDER", upload_dir)
-
+    monkeypatch.setattr(config, "SYNC_INCLUDE_SENSITIVE", True)
     # Set a tiny file limit for testing
     monkeypatch.setattr(sync, "TELEGRAM_FILE_LIMIT", 2048)
 
-    # Create a file larger than the limit
-    with open(os.path.join(upload_dir, "huge.png"), "wb") as f:
-        f.write(b"x" * 2000)
+    log_dir = str(tmp_path / "logs")
+    os.makedirs(log_dir, exist_ok=True)
+    monkeypatch.setattr(config, "LOG_FILE", os.path.join(log_dir, "test.log"))
+    # Create a log file larger than the limit
+    with open(os.path.join(log_dir, "test.log"), "w") as f:
+        f.write("x" * 2000)
 
     changes = [{"type": "test", "description": "test", "timestamp": "2024-01-01T00:00:00"}]
     zip_path, excluded = sync._create_backup(changes)
@@ -273,7 +271,7 @@ def test_create_backup_excludes_large_files(tmp_path, monkeypatch):
     try:
         assert len(excluded) > 0
         excluded_names = [e[0] for e in excluded]
-        assert "uploads/huge.png" in excluded_names
+        assert "logs/test.log" in excluded_names
 
         # Manifest should also record the exclusion
         with zipfile.ZipFile(zip_path, "r") as zf:
@@ -571,3 +569,229 @@ def test_telegram_caption_includes_excluded_files(tmp_path, monkeypatch):
     # Verify the body contains the exclusion warning
     body_text = captured_body["data"].decode("utf-8", errors="replace")
     assert "excluded" in body_text.lower()
+
+
+# -----------------------------------------------------------------------
+# Max debounce wait tests
+# -----------------------------------------------------------------------
+def test_debounce_max_wait_fires_soon_when_first_change_is_old(monkeypatch):
+    """Backup delay should be short when first pending change is near MAX_DEBOUNCE_WAIT."""
+    import sync
+    monkeypatch.setattr(config, "SYNC", True)
+    monkeypatch.setattr(config, "SYNC_TOKEN", "123:ABC")
+    monkeypatch.setattr(config, "SYNC_USERID", "999")
+    monkeypatch.setattr(sync, "DEBOUNCE_DELAY", 60)
+    monkeypatch.setattr(sync, "MAX_DEBOUNCE_WAIT", 300)
+
+    # Simulate first pending change was 295 seconds ago (5 seconds left in window)
+    sync._first_pending_time = time.time() - 295
+
+    with patch("sync.threading.Timer") as mock_timer:
+        mock_timer.return_value = MagicMock()
+        sync.notify_change("test", "test")
+
+        call_args = mock_timer.call_args
+        delay = call_args[0][0]
+        # Should be capped at ~5 seconds remaining, well below DEBOUNCE_DELAY
+        assert delay <= 10
+
+
+def test_execute_backup_resets_first_pending_time():
+    """_execute_backup should reset _first_pending_time after draining changes."""
+    import sync
+
+    sync._first_pending_time = time.time() - 100
+    sync._pending_changes.append(
+        {"type": "test", "description": "test", "timestamp": "2024-01-01T00:00:00"}
+    )
+
+    with patch.object(sync, "_send_to_telegram", return_value=True):
+        sync._execute_backup()
+
+    assert sync._first_pending_time == 0
+
+
+# -----------------------------------------------------------------------
+# Per-upload notification tests
+# -----------------------------------------------------------------------
+def test_notify_file_upload_noop_when_disabled(tmp_path):
+    """notify_file_upload should do nothing when sync is disabled."""
+    import sync
+    img_path = str(tmp_path / "test.png")
+    with open(img_path, "wb") as f:
+        f.write(b"fake")
+
+    with patch.object(sync, "_do_send_upload") as mock_send:
+        sync.notify_file_upload("test.png", img_path)
+        # Give any spurious thread a moment
+        time.sleep(0.05)
+        mock_send.assert_not_called()
+
+
+def test_notify_file_upload_sends_immediately(tmp_path, monkeypatch):
+    """notify_file_upload should spawn a thread that calls _do_send_upload."""
+    import sync
+    monkeypatch.setattr(config, "SYNC", True)
+    monkeypatch.setattr(config, "SYNC_TOKEN", "123:ABC")
+    monkeypatch.setattr(config, "SYNC_USERID", "999")
+
+    img_path = str(tmp_path / "test.png")
+    with open(img_path, "wb") as f:
+        f.write(b"fake image data")
+
+    calls = []
+
+    def fake_do_send(filename, filepath):
+        calls.append((filename, filepath))
+
+    with patch.object(sync, "_do_send_upload", side_effect=fake_do_send):
+        sync.notify_file_upload("test.png", img_path)
+        # Allow background thread to run
+        time.sleep(0.2)
+
+    assert len(calls) == 1
+    assert calls[0] == ("test.png", img_path)
+
+
+def test_do_send_upload_stores_message_id(tmp_path, monkeypatch):
+    """_do_send_upload should store the returned message_id."""
+    import sync
+    monkeypatch.setattr(config, "SYNC_TOKEN", "123:TESTTOKEN")
+    monkeypatch.setattr(config, "SYNC_USERID", "42")
+    monkeypatch.setattr(config, "BASE_DIR", str(tmp_path))
+
+    img_path = str(tmp_path / "photo.png")
+    with open(img_path, "wb") as f:
+        f.write(b"fake image data")
+
+    mock_response = MagicMock()
+    mock_response.read.return_value = json.dumps(
+        {"ok": True, "result": {"message_id": 777}}
+    ).encode()
+    mock_response.__enter__ = MagicMock(return_value=mock_response)
+    mock_response.__exit__ = MagicMock(return_value=False)
+
+    with patch("sync.urlopen", return_value=mock_response):
+        sync._do_send_upload("photo.png", img_path)
+
+    assert sync._get_upload_msg_id("photo.png") == 777
+
+
+def test_do_send_upload_skips_missing_file(tmp_path, monkeypatch):
+    """_do_send_upload should log a warning and return if file is missing."""
+    import sync
+    monkeypatch.setattr(config, "SYNC_TOKEN", "123:TESTTOKEN")
+    monkeypatch.setattr(config, "SYNC_USERID", "42")
+
+    with patch("sync.urlopen") as mock_urlopen:
+        sync._do_send_upload("ghost.png", str(tmp_path / "ghost.png"))
+        mock_urlopen.assert_not_called()
+
+
+def test_do_send_upload_skips_oversized_file(tmp_path, monkeypatch):
+    """_do_send_upload should skip files exceeding TELEGRAM_FILE_LIMIT."""
+    import sync
+    monkeypatch.setattr(config, "SYNC_TOKEN", "123:TESTTOKEN")
+    monkeypatch.setattr(config, "SYNC_USERID", "42")
+    monkeypatch.setattr(sync, "TELEGRAM_FILE_LIMIT", 100)
+
+    img_path = str(tmp_path / "huge.png")
+    with open(img_path, "wb") as f:
+        f.write(b"x" * 200)
+
+    with patch("sync.urlopen") as mock_urlopen:
+        sync._do_send_upload("huge.png", img_path)
+        mock_urlopen.assert_not_called()
+
+
+def test_notify_file_deleted_noop_when_disabled(tmp_path):
+    """notify_file_deleted should do nothing when sync is disabled."""
+    import sync
+
+    with patch.object(sync, "_do_send_deletion_notice") as mock_send:
+        sync.notify_file_deleted("test.png")
+        time.sleep(0.05)
+        mock_send.assert_not_called()
+
+
+def test_notify_file_deleted_spawns_thread(monkeypatch):
+    """notify_file_deleted should spawn a thread that calls _do_send_deletion_notice."""
+    import sync
+    monkeypatch.setattr(config, "SYNC", True)
+    monkeypatch.setattr(config, "SYNC_TOKEN", "123:ABC")
+    monkeypatch.setattr(config, "SYNC_USERID", "999")
+
+    calls = []
+
+    def fake_do_notice(filename):
+        calls.append(filename)
+
+    with patch.object(sync, "_do_send_deletion_notice", side_effect=fake_do_notice):
+        sync.notify_file_deleted("removed.png")
+        time.sleep(0.2)
+
+    assert calls == ["removed.png"]
+
+
+def test_do_send_deletion_notice_replies_to_original(tmp_path, monkeypatch):
+    """_do_send_deletion_notice should include reply_to_message_id when known."""
+    import sync
+    monkeypatch.setattr(config, "SYNC_TOKEN", "123:TESTTOKEN")
+    monkeypatch.setattr(config, "SYNC_USERID", "42")
+    monkeypatch.setattr(config, "BASE_DIR", str(tmp_path))
+
+    # Pre-store a message ID for the file
+    sync._store_upload_msg_id("photo.png", 123)
+
+    captured = {}
+
+    def mock_urlopen(req, **kwargs):
+        captured["body"] = json.loads(req.data.decode())
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps({"ok": True, "result": {"message_id": 456}}).encode()
+        mock_resp.__enter__ = MagicMock(return_value=mock_resp)
+        mock_resp.__exit__ = MagicMock(return_value=False)
+        return mock_resp
+
+    with patch("sync.urlopen", side_effect=mock_urlopen):
+        sync._do_send_deletion_notice("photo.png")
+
+    assert captured["body"].get("reply_to_message_id") == 123
+    assert "photo.png" in captured["body"]["text"]
+
+
+def test_do_send_deletion_notice_no_reply_when_unknown(tmp_path, monkeypatch):
+    """_do_send_deletion_notice should send without reply_to if message_id is unknown."""
+    import sync
+    monkeypatch.setattr(config, "SYNC_TOKEN", "123:TESTTOKEN")
+    monkeypatch.setattr(config, "SYNC_USERID", "42")
+    monkeypatch.setattr(config, "BASE_DIR", str(tmp_path))
+
+    captured = {}
+
+    def mock_urlopen(req, **kwargs):
+        captured["body"] = json.loads(req.data.decode())
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps({"ok": True, "result": {"message_id": 789}}).encode()
+        mock_resp.__enter__ = MagicMock(return_value=mock_resp)
+        mock_resp.__exit__ = MagicMock(return_value=False)
+        return mock_resp
+
+    with patch("sync.urlopen", side_effect=mock_urlopen):
+        sync._do_send_deletion_notice("unknown.png")
+
+    assert "reply_to_message_id" not in captured["body"]
+    assert "unknown.png" in captured["body"]["text"]
+
+
+def test_upload_msg_id_store_and_retrieve(tmp_path, monkeypatch):
+    """Message IDs should be persisted to disk and retrievable."""
+    import sync
+    monkeypatch.setattr(config, "BASE_DIR", str(tmp_path))
+
+    sync._store_upload_msg_id("alpha.png", 100)
+    sync._store_upload_msg_id("beta.jpg", 200)
+
+    assert sync._get_upload_msg_id("alpha.png") == 100
+    assert sync._get_upload_msg_id("beta.jpg") == 200
+    assert sync._get_upload_msg_id("missing.gif") is None
