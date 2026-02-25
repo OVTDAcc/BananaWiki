@@ -1035,7 +1035,9 @@ def move_page(slug):
     if cat_id and not db.get_category(cat_id):
         flash("Selected category does not exist.", "error")
         return redirect(url_for("view_page", slug=slug))
+    user = get_current_user()
     db.update_page_category(page["id"], cat_id)
+    log_action("move_page", request, user=user, page=slug, category_id=cat_id)
     notify_change("page_move", f"Page '{slug}' moved")
     flash("Page moved.", "success")
     return redirect(url_for("view_page", slug=slug))
@@ -1614,6 +1616,7 @@ def admin_generate_code():
     user = get_current_user()
     code = db.generate_invite_code(user["id"])
     log_action("generate_invite_code", request, user=user, code=code)
+    notify_change("invite_code_generate", f"Invite code '{code}' generated")
     flash(f"Invite code generated: {code}", "success")
     return redirect(url_for("admin_codes"))
 
@@ -1625,6 +1628,7 @@ def admin_delete_code(code_id):
     user = get_current_user()
     db.delete_invite_code(code_id)
     log_action("delete_invite_code", request, user=user, code_id=code_id)
+    notify_change("invite_code_delete", f"Invite code {code_id} deleted")
     flash("Invite code deleted.", "success")
     return redirect(url_for("admin_codes"))
 
@@ -1636,6 +1640,7 @@ def admin_hard_delete_code(code_id):
     user = get_current_user()
     db.hard_delete_invite_code(code_id)
     log_action("hard_delete_invite_code", request, user=user, code_id=code_id)
+    notify_change("invite_code_hard_delete", f"Invite code {code_id} permanently removed")
     flash("Invite code permanently removed.", "success")
     return redirect(url_for("admin_codes_expired"))
 
@@ -1830,6 +1835,7 @@ def admin_create_announcement():
 
     db.create_announcement(content, color, text_size, visibility, expires_at, user["id"])
     log_action("create_announcement", request, user=user)
+    notify_change("announcement_create", "Announcement created")
     flash("Announcement created.", "success")
     return redirect(url_for("admin_announcements"))
 
@@ -1874,6 +1880,7 @@ def admin_edit_announcement(ann_id):
     db.update_announcement(ann_id, content=content, color=color, text_size=text_size,
                            visibility=visibility, expires_at=expires_at, is_active=is_active)
     log_action("edit_announcement", request, user=user, ann_id=ann_id)
+    notify_change("announcement_edit", f"Announcement {ann_id} updated")
     flash("Announcement updated.", "success")
     return redirect(url_for("admin_announcements"))
 
@@ -1888,6 +1895,7 @@ def admin_delete_announcement(ann_id):
     user = get_current_user()
     db.delete_announcement(ann_id)
     log_action("delete_announcement", request, user=user, ann_id=ann_id)
+    notify_change("announcement_delete", f"Announcement {ann_id} deleted")
     flash("Announcement deleted.", "success")
     return redirect(url_for("admin_announcements"))
 

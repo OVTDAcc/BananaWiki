@@ -29,7 +29,7 @@
             <td>{{ time_ago(c.created_at) }}</td>
             <td>{{ time_ago(c.expires_at) }}</td>
             <td>
-                {% if c.used_by %}
+                {% if c.used_at %}
                     <span class="badge badge-user">Used</span>
                 {% elif c.deleted %}
                     <span class="badge badge-suspended">Deleted</span>

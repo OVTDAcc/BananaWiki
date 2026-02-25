@@ -22,7 +22,7 @@ import config  # noqa: E402 – must come after sys.path tweak
 import db  # noqa: E402
 
 
-MIN_PASSWORD_LENGTH = 8
+MIN_PASSWORD_LENGTH = 6
 
 
 def _print_user_table(users):
