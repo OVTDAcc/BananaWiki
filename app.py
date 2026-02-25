@@ -786,6 +786,7 @@ def view_history_entry(slug, entry_id):
 @app.route("/page/<slug>/revert/<int:entry_id>", methods=["POST"])
 @login_required
 @editor_required
+@rate_limit(20, 60)
 def revert_page(slug, entry_id):
     if not config.PAGE_HISTORY_ENABLED:
         abort(404)
@@ -926,6 +927,7 @@ def edit_page(slug):
 @app.route("/page/<slug>/edit/title", methods=["POST"])
 @login_required
 @editor_required
+@rate_limit(20, 60)
 def edit_page_title(slug):
     page = db.get_page_by_slug(slug)
     if not page:
@@ -1367,6 +1369,8 @@ def delete_upload():
         return jsonify({"error": "invalid filename"}), 400
     if os.path.isfile(filepath):
         os.remove(filepath)
+        user = get_current_user()
+        log_action("delete_upload", request, user=user, filename=safe_name)
         notify_file_deleted(safe_name)
     return jsonify({"ok": True})
 
@@ -1390,6 +1394,7 @@ def easter_egg_trigger():
     """Record that the logged-in user has found the easter egg (one-way flag)."""
     user = get_current_user()
     db.set_easter_egg_found(user["id"])
+    log_action("easter_egg_triggered", request, user=user)
     return jsonify({"ok": True})
 
 

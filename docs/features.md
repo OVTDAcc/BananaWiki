@@ -458,7 +458,10 @@ Every request (except static files) counts against a global limit of 300 request
 ### Per-route rate limiting
 Sensitive routes carry tighter `@rate_limit` decorators on top of the global limit:
 - `signup` — 10 per 60 s
-- `edit_page`, `create_page` — 20 per 60 s
+- `edit_page`, `create_page`, `edit_page_title`, `revert_page` — 20 per 60 s
+- `delete_page_route` — 10 per 60 s
+- `move_page`, `create_category`, `edit_category`, `move_category` — 20 per 60 s
+- `delete_category_route` — 10 per 60 s
 - `api_preview`, `api_save_draft`, `api_delete_draft` — 30 per 60 s
 - `upload_image`, `delete_upload` — 10 per 60 s
 - `api_reorder_pages`, `api_reorder_categories` — 60 per 60 s
@@ -475,7 +478,7 @@ Every HTTP request is logged with timestamp, IP address, HTTP method, path, auth
 > `wiki_logger.py` → `log_request()`
 
 ### Action audit logging
-Every significant action (login, logout, page create/edit/delete/revert, category changes, user management, settings changes, file uploads, invite code operations) is logged with key-value details. Sensitive fields such as `password` and `token` are automatically redacted.
+Every significant action (login, logout, page create/edit/delete/revert/title-edit, category changes, user management, settings changes, file uploads/deletions, invite code operations, easter egg trigger) is logged with key-value details. Sensitive fields such as `password` and `token` are automatically redacted.
 
 > `wiki_logger.py` → `log_action()`, called throughout `app.py`
 

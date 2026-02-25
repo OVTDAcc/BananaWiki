@@ -3777,3 +3777,99 @@ def test_username_history_deleted_with_user():
     db.delete_user(uid)
     # After deletion, the user is gone; history should be empty via CASCADE
     assert db.get_username_history(uid) == []
+
+
+# ---------------------------------------------------------------------------
+# Feature: Rate limiting on edit_page_title and revert_page
+# ---------------------------------------------------------------------------
+
+def test_edit_page_title_rate_limited(logged_in_admin, admin_user, monkeypatch):
+    """edit_page_title is rate-limited; exceeding the limit returns 429."""
+    import app as app_mod
+    monkeypatch.setattr(app_mod, "_RL_STORE", app_mod._RL_STORE)
+    with app_mod._RL_LOCK:
+        app_mod._RL_STORE.clear()
+    import db
+    home = db.get_home_page()
+    slug = home["slug"]
+    for i in range(20):
+        logged_in_admin.post(f"/page/{slug}/edit/title", data={"title": f"Title {i}"})
+    resp = logged_in_admin.post(f"/page/{slug}/edit/title", data={"title": "Over limit"})
+    assert resp.status_code == 429
+
+
+def test_revert_page_rate_limited(logged_in_admin, admin_user, monkeypatch):
+    """revert_page is rate-limited; exceeding the limit returns 429."""
+    import app as app_mod
+    with app_mod._RL_LOCK:
+        app_mod._RL_STORE.clear()
+    import db
+    home = db.get_home_page()
+    db.update_page(home["id"], "Home", "v1", admin_user, "edit")
+    history = db.get_page_history(home["id"])
+    assert history
+    entry_id = history[0]["id"]
+    for _ in range(20):
+        logged_in_admin.post(f"/page/home/revert/{entry_id}")
+    resp = logged_in_admin.post(f"/page/home/revert/{entry_id}")
+    assert resp.status_code == 429
+
+
+# ---------------------------------------------------------------------------
+# Feature: delete_upload logs the action
+# ---------------------------------------------------------------------------
+
+def test_delete_upload_logs_action(logged_in_admin, tmp_path, monkeypatch):
+    """delete_upload calls log_action when a file is actually removed."""
+    import app as app_mod
+
+    logged_calls = []
+
+    original_log_action = app_mod.log_action
+
+    def capturing_log_action(action, *args, **kwargs):
+        logged_calls.append(action)
+        return original_log_action(action, *args, **kwargs)
+
+    monkeypatch.setattr(app_mod, "log_action", capturing_log_action)
+    monkeypatch.setattr(app_mod.config, "UPLOAD_FOLDER", str(tmp_path))
+
+    # Create a dummy file to delete
+    dummy = tmp_path / "testfile.png"
+    dummy.write_bytes(b"\x89PNG\r\n")
+
+    resp = logged_in_admin.post(
+        "/api/upload/delete",
+        json={"filename": "testfile.png"},
+        content_type="application/json",
+    )
+    assert resp.status_code == 200
+    assert resp.get_json()["ok"] is True
+    assert "delete_upload" in logged_calls
+
+
+# ---------------------------------------------------------------------------
+# Feature: easter_egg_trigger logs the action
+# ---------------------------------------------------------------------------
+
+def test_easter_egg_trigger_logs_action(logged_in_admin, monkeypatch):
+    """easter_egg_trigger calls log_action after setting the flag."""
+    import app as app_mod
+
+    logged_calls = []
+
+    original_log_action = app_mod.log_action
+
+    def capturing_log_action(action, *args, **kwargs):
+        logged_calls.append(action)
+        return original_log_action(action, *args, **kwargs)
+
+    monkeypatch.setattr(app_mod, "log_action", capturing_log_action)
+
+    resp = logged_in_admin.post(
+        "/api/easter-egg/trigger",
+        content_type="application/json",
+    )
+    assert resp.status_code == 200
+    assert resp.get_json()["ok"] is True
+    assert "easter_egg_triggered" in logged_calls
