@@ -2384,3 +2384,115 @@ def test_cleanup_skips_dotfiles(isolated_uploads):
         f.write(b"")
     cleanup_unused_uploads()
     assert os.path.isfile(gitkeep)
+
+
+# -----------------------------------------------------------------------
+# Improved draft system tests
+# -----------------------------------------------------------------------
+
+def test_edit_page_has_discard_draft_button(logged_in_admin):
+    """Edit page must show 'Discard Draft' button instead of plain Cancel link."""
+    import db
+    home = db.get_home_page()
+    resp = logged_in_admin.get(f"/page/{home['slug']}/edit")
+    assert resp.status_code == 200
+    assert b"Discard Draft" in resp.data
+    # The form actions should not have a bare cancel link (href to page view)
+    assert b'class="btn btn-outline">Cancel</a>' not in resp.data
+
+
+def test_account_settings_has_my_drafts_section(logged_in_admin):
+    """Account settings must include the My Drafts section."""
+    resp = logged_in_admin.get("/account")
+    assert resp.status_code == 200
+    assert b"My Drafts" in resp.data
+    assert b"draft-manager-list" in resp.data
+
+
+def test_api_draft_mine_returns_list(logged_in_admin, admin_user):
+    """GET /api/draft/mine returns a JSON list (empty or not)."""
+    resp = logged_in_admin.get("/api/draft/mine")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert isinstance(data, list)
+
+
+def test_api_draft_mine_includes_user_draft(logged_in_admin, admin_user):
+    """After saving a draft, /api/draft/mine includes it."""
+    import db
+    home = db.get_home_page()
+    db.save_draft(home["id"], admin_user, "My draft title", "Draft content")
+    resp = logged_in_admin.get("/api/draft/mine")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert len(data) == 1
+    assert data[0]["page_id"] == home["id"]
+    assert data[0]["page_slug"] == home["slug"]
+    assert data[0]["title"] == "My draft title"
+
+
+def test_api_draft_others_returns_new_format(logged_in_admin, admin_user):
+    """GET /api/draft/others/<id> returns {drafts: [...], page_last_edited_at: ...}."""
+    import db
+    home = db.get_home_page()
+    resp = logged_in_admin.get(f"/api/draft/others/{home['id']}")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert "drafts" in data
+    assert "page_last_edited_at" in data
+    assert isinstance(data["drafts"], list)
+
+
+def test_api_draft_others_404_for_missing_page(logged_in_admin):
+    """GET /api/draft/others/<id> returns 404 for non-existent page."""
+    resp = logged_in_admin.get("/api/draft/others/99999")
+    assert resp.status_code == 404
+
+
+def test_stale_draft_warning_shown_when_page_newer(logged_in_admin, admin_user):
+    """Edit page shows stale draft warning when page was updated after draft."""
+    import db
+    from time import sleep
+    home = db.get_home_page()
+    # Save a draft first
+    db.save_draft(home["id"], admin_user, "Old draft", "old content")
+    # Now update the page (simulating another user's commit)
+    sleep(0.01)
+    db.update_page(home["id"], "Home", "newer content", admin_user, "external edit")
+    resp = logged_in_admin.get(f"/page/{home['slug']}/edit")
+    assert resp.status_code == 200
+    assert b"stale-draft-notice" in resp.data
+    # The warning should be visible (not display:none)
+    assert b"updated by another user" in resp.data
+
+
+def test_stale_draft_warning_hidden_when_no_draft(logged_in_admin):
+    """Edit page does not show stale draft warning when there is no draft."""
+    import db
+    home = db.get_home_page()
+    resp = logged_in_admin.get(f"/page/{home['slug']}/edit")
+    assert resp.status_code == 200
+    # The stale notice element should be hidden
+    assert b'id="stale-draft-notice" style="display:none"' in resp.data
+
+
+def test_commit_clears_all_page_drafts(logged_in_admin, admin_user):
+    """Committing a page edit deletes all drafts for that page."""
+    import db
+    from werkzeug.security import generate_password_hash
+    home = db.get_home_page()
+    # Create a second user with a draft
+    uid2 = db.create_user("editor2", generate_password_hash("pw2"), role="editor")
+    db.save_draft(home["id"], admin_user, "Admin draft", "admin content")
+    db.save_draft(home["id"], uid2, "Editor draft", "editor content")
+    assert db.get_draft(home["id"], admin_user) is not None
+    assert db.get_draft(home["id"], uid2) is not None
+    # Admin commits
+    resp = logged_in_admin.post(f"/page/{home['slug']}/edit",
+                                data={"title": "Home", "content": "committed",
+                                      "edit_message": ""},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    # Both drafts should be gone
+    assert db.get_draft(home["id"], admin_user) is None
+    assert db.get_draft(home["id"], uid2) is None

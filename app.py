@@ -1099,10 +1099,13 @@ def api_load_draft(page_id):
 @editor_required
 def api_other_drafts(page_id):
     user = get_current_user()
+    page = db.get_page(page_id)
+    if not page:
+        return jsonify({"error": "page not found"}), 404
     drafts = db.get_drafts_for_page(page_id)
     others = [{"username": d["username"], "user_id": d["user_id"],
                "updated_at": d["updated_at"]} for d in drafts if d["user_id"] != user["id"]]
-    return jsonify(others)
+    return jsonify({"drafts": others, "page_last_edited_at": page["last_edited_at"]})
 
 
 @app.route("/api/draft/transfer", methods=["POST"])

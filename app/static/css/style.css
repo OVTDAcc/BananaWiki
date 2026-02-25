@@ -140,6 +140,12 @@ select.input{appearance:auto}
 .editor-toolbar .sep{width:1px;height:18px;background:rgba(255,255,255,.1);margin:0 .3rem}
 .draft-notice{padding:.5rem .8rem;background:rgba(210,170,90,.08);border:1px solid rgba(210,170,90,.25);border-radius:4px;margin-bottom:.8rem;font-size:.85rem}
 .draft-notice .btn{margin-left:.5rem}
+.draft-notice-warning{background:rgba(196,92,106,.08);border-color:rgba(196,92,106,.25)}
+.btn-danger-outline{border-color:rgba(196,92,106,.4);color:#e88898}
+.btn-danger-outline:hover{border-color:#c45c6a;background:rgba(196,92,106,.12)}
+.draft-manager-table{width:100%;border-collapse:collapse;font-size:.88rem}
+.draft-manager-table th{text-align:left;padding:.4rem .6rem;border-bottom:1px solid rgba(255,255,255,.08);opacity:.6;font-weight:500}
+.draft-manager-table td{padding:.5rem .6rem;border-bottom:1px solid rgba(255,255,255,.04)}
 
 /* Legacy editor (create page) */
 .editor-area-legacy{width:100%;min-height:300px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.1);border-radius:4px;color:var(--text);font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;font-size:.88rem;padding:.8rem 1rem;resize:vertical;line-height:1.7}

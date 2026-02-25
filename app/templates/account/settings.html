@@ -61,6 +61,12 @@
 </div>
 {% endif %}
 
+<div class="settings-section">
+    <h3>My Drafts</h3>
+    <p style="font-size:.85rem;opacity:.7;margin-bottom:.8rem">Pages you have unsaved drafts for. You can continue editing or discard them.</p>
+    <div id="draft-manager-list"><p style="opacity:.7;font-size:.9rem">Loading drafts…</p></div>
+</div>
+
 <div class="settings-section" style="border-color:#f38ba8">
     <h3 style="color:#f38ba8">Delete Account</h3>
     <p style="font-size:.85rem;margin-bottom:.8rem;opacity:.7">This action is irreversible. Your username will be freed for registration.</p>
@@ -74,4 +80,12 @@
         <button type="submit" class="btn btn-danger">Delete My Account</button>
     </form>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        initDraftManager();
+    });
+</script>
 {% endblock %}
