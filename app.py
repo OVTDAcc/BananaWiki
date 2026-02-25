@@ -366,7 +366,12 @@ def before_request_hook():
             log_action("rate_limited_global", request)
             if request.path.startswith("/api/"):
                 return jsonify({"error": "Too many requests. Please slow down."}), 429
-            return render_template("wiki/429.html"), 429
+            try:
+                categories, uncategorized = db.get_category_tree()
+            except Exception:
+                categories, uncategorized = [], []
+            return render_template("wiki/429.html", categories=categories,
+                                   uncategorized=uncategorized), 429
 
     user = get_current_user()
     log_request(request, user)

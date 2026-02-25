@@ -189,6 +189,18 @@ def test_global_rate_limit_json_response(client, admin_user, monkeypatch):
     assert "error" in data
 
 
+def test_global_rate_limit_logged_in_user_renders_429(logged_in_admin, monkeypatch):
+    """Global rate limit renders 429 page correctly for a logged-in user (sidebar uses categories)."""
+    import app as app_mod
+    monkeypatch.setattr(app_mod, "_RL_GLOBAL_MAX", 1)
+    with app_mod._RL_LOCK:
+        app_mod._RL_STORE.clear()
+    logged_in_admin.get("/")
+    resp = logged_in_admin.get("/")
+    assert resp.status_code == 429
+    assert b"Too Many Requests" in resp.data
+
+
 # -----------------------------------------------------------------------
 # 429 error handler
 # -----------------------------------------------------------------------
