@@ -24,6 +24,17 @@ def isolated_db(tmp_path, monkeypatch):
     yield db_path
 
 
+@pytest.fixture(autouse=True)
+def clear_rl_store():
+    """Clear the in-memory rate limit store before and after each test."""
+    import app as app_mod
+    with app_mod._RL_LOCK:
+        app_mod._RL_STORE.clear()
+    yield
+    with app_mod._RL_LOCK:
+        app_mod._RL_STORE.clear()
+
+
 @pytest.fixture
 def client():
     from app import app
