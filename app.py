@@ -1224,6 +1224,7 @@ def api_my_drafts():
             "page_slug": d["page_slug"],
             "title": d["title"],
             "updated_at": d["updated_at"],
+            "updated_at_formatted": format_datetime(d["updated_at"]),
         }
         for d in drafts
     ])

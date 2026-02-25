@@ -314,7 +314,7 @@ function initDraftManager() {
                 var editUrl = '/page/' + d.page_slug + '/edit';
                 html += '<tr data-page-id="' + d.page_id + '">'
                     + '<td>' + escapeHtml(d.page_title) + '</td>'
-                    + '<td style="white-space:nowrap;font-size:.85rem;opacity:.7">' + escapeHtml(d.updated_at) + '</td>'
+                    + '<td style="white-space:nowrap;font-size:.85rem;opacity:.7">' + escapeHtml(d.updated_at_formatted || d.updated_at) + '</td>'
                     + '<td style="white-space:nowrap">'
                     + '<a href="' + editUrl + '" class="btn btn-sm" style="margin-right:.4rem">Continue editing</a>'
                     + '<button class="btn btn-sm btn-outline btn-danger-outline" onclick="discardDraftFromSettings(' + d.page_id + ', this)">Discard</button>'
