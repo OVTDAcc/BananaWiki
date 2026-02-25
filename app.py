@@ -1311,6 +1311,20 @@ def delete_upload():
     return jsonify({"ok": True})
 
 
+@app.route("/easter-egg")
+@login_required
+def easter_egg():
+    """Easter egg celebration page — shows whether the user has found the egg."""
+    user = get_current_user()
+    categories, uncategorized = db.get_category_tree()
+    return render_template(
+        "wiki/easter_egg.html",
+        user=user,
+        categories=categories,
+        uncategorized=uncategorized,
+    )
+
+
 @app.route("/api/easter-egg/trigger", methods=["POST"])
 @login_required
 def easter_egg_trigger():

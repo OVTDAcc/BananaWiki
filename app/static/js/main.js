@@ -559,7 +559,7 @@ function initAnnouncements() {
             })(i * 80);
         }
 
-        // Notify the backend (fire-and-forget, best effort)
+        // Notify the backend (fire-and-forget, best effort), then navigate to easter egg page
         var csrfMeta = document.querySelector('meta[name="csrf-token"]');
         var csrf = csrfMeta ? csrfMeta.getAttribute('content') : '';
         fetch('/api/easter-egg/trigger', {
@@ -568,6 +568,8 @@ function initAnnouncements() {
             credentials: 'same-origin',
             body: '{}',
         }).catch(function () {});
+        // Navigate to the easter egg page after the animation finishes
+        setTimeout(function () { window.location.href = '/easter-egg'; }, (30 * 80) + 2500);
     }
 
     document.addEventListener('keydown', function (e) {

@@ -3385,3 +3385,53 @@ def test_view_page_has_move_modal_with_categories(logged_in_admin):
     resp = logged_in_admin.get("/page/testmovepage")
     assert resp.status_code == 200
     assert b"MovePageCat" in resp.data
+
+
+# ---------------------------------------------------------------------------
+# Easter egg page (/easter-egg)
+# ---------------------------------------------------------------------------
+def test_easter_egg_page_requires_login(client, admin_user):
+    """The /easter-egg route must redirect unauthenticated visitors to login."""
+    resp = client.get("/easter-egg")
+    assert resp.status_code == 302
+    assert "/login" in resp.headers["Location"]
+
+
+def test_easter_egg_page_renders_for_logged_in_user(logged_in_admin):
+    """The /easter-egg route must return 200 for any logged-in user."""
+    resp = logged_in_admin.get("/easter-egg")
+    assert resp.status_code == 200
+    assert b"Easter Egg" in resp.data
+
+
+def test_easter_egg_page_shows_not_found_message_before_trigger(logged_in_admin):
+    """Before the Konami code is triggered the page shows a 'nothing yet' message."""
+    resp = logged_in_admin.get("/easter-egg")
+    assert resp.status_code == 200
+    assert b"Nothing to see here" in resp.data
+
+
+def test_easter_egg_page_shows_found_message_after_trigger(logged_in_admin, admin_user):
+    """After triggering the easter egg the page shows the congratulations message."""
+    import db
+    db.set_easter_egg_found(admin_user)
+    resp = logged_in_admin.get("/easter-egg")
+    assert resp.status_code == 200
+    assert b"You found it" in resp.data
+
+
+def test_easter_egg_badge_shown_in_account_settings_when_found(logged_in_admin, admin_user):
+    """Account settings shows the easter egg badge when the user has found it."""
+    import db
+    db.set_easter_egg_found(admin_user)
+    resp = logged_in_admin.get("/account")
+    assert resp.status_code == 200
+    assert b"Easter Egg Found" in resp.data
+    assert b"/easter-egg" in resp.data
+
+
+def test_easter_egg_badge_absent_in_account_settings_when_not_found(logged_in_admin):
+    """Account settings does NOT show the easter egg badge before it is found."""
+    resp = logged_in_admin.get("/account")
+    assert resp.status_code == 200
+    assert b"Easter Egg Found" not in resp.data
