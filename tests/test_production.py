@@ -156,10 +156,10 @@ def test_admin_settings_requires_login(client, admin_user):
 # Page delete route
 # ---------------------------------------------------------------------------
 
-def test_delete_page_success(logged_in_admin):
+def test_delete_page_success(logged_in_admin, admin_user):
     """Deleting a non-home page succeeds and removes it from the DB."""
     import db
-    page_id = db.create_page("ToDelete", "to-delete", "content", None, 1)
+    page_id = db.create_page("ToDelete", "to-delete", "content", None, admin_user)
     resp = logged_in_admin.post("/page/to-delete/delete", follow_redirects=True)
     assert resp.status_code == 200
     assert b"Page deleted" in resp.data
@@ -216,11 +216,11 @@ def test_create_page_generates_unique_slug(logged_in_admin):
 # View history entry
 # ---------------------------------------------------------------------------
 
-def test_view_history_entry(logged_in_admin):
+def test_view_history_entry(logged_in_admin, admin_user):
     """GET /page/<slug>/history/<id> renders the historic version."""
     import db
     home = db.get_home_page()
-    db.update_page(home["id"], "Home", "Version for history", 1, "history entry test")
+    db.update_page(home["id"], "Home", "Version for history", admin_user, "history entry test")
     history = db.get_page_history(home["id"])
     entry = history[0]
     resp = logged_in_admin.get(f"/page/home/history/{entry['id']}")
@@ -228,15 +228,15 @@ def test_view_history_entry(logged_in_admin):
     assert b"Version for history" in resp.data or b"history" in resp.data.lower()
 
 
-def test_view_history_entry_wrong_slug_returns_404(logged_in_admin):
+def test_view_history_entry_wrong_slug_returns_404(logged_in_admin, admin_user):
     """History entry belonging to a different page returns 404."""
     import db
     home = db.get_home_page()
-    db.update_page(home["id"], "Home", "some content", 1, "msg")
+    db.update_page(home["id"], "Home", "some content", admin_user, "msg")
     history = db.get_page_history(home["id"])
     entry = history[0]
     # Create a different page and try to access home's history entry under its slug
-    db.create_page("Other", "other-page", "content", None, 1)
+    db.create_page("Other", "other-page", "content", None, admin_user)
     resp = logged_in_admin.get(f"/page/other-page/history/{entry['id']}")
     assert resp.status_code == 404
 

@@ -584,3 +584,71 @@ function initAnnouncements() {
 }());
 
 document.addEventListener('DOMContentLoaded', initAnnouncements);
+
+// ---------------------------------------------------------------------------
+// Sidebar reorder (up/down arrows for pages and categories)
+// ---------------------------------------------------------------------------
+(function initReorder() {
+    function postReorder(url, ids) {
+        return fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+            credentials: 'same-origin',
+            body: JSON.stringify({ ids: ids }),
+        }).then(function(r) { if (!r.ok) throw new Error('reorder failed'); });
+    }
+
+    function siblingsOf(el, selector) {
+        return Array.from(el.parentNode.children).filter(function(c) {
+            return c.matches(selector);
+        });
+    }
+
+    document.addEventListener('click', function(e) {
+        var btn = e.target.closest('.reorder-btn');
+        if (!btn) return;
+        e.preventDefault();
+
+        var dir = btn.dataset.dir;
+        var type = btn.dataset.type;
+        var id = parseInt(btn.dataset.id, 10);
+
+        if (type === 'page') {
+            var row = btn.closest('.nav-item-row');
+            if (!row) return;
+            var siblings = siblingsOf(row, '.nav-item-row');
+            var idx = siblings.indexOf(row);
+            var swapIdx = dir === 'up' ? idx - 1 : idx + 1;
+            if (swapIdx < 0 || swapIdx >= siblings.length) return;
+            // Swap in DOM
+            if (dir === 'up') {
+                row.parentNode.insertBefore(row, siblings[swapIdx]);
+            } else {
+                row.parentNode.insertBefore(siblings[swapIdx], row);
+            }
+            // Collect new order (all page rows in the same container)
+            var container = row.parentNode;
+            var ids = Array.from(container.querySelectorAll(':scope > .nav-item-row')).map(function(r) {
+                return parseInt(r.dataset.pageId, 10);
+            });
+            postReorder('/api/reorder/pages', ids).catch(function() {});
+
+        } else if (type === 'category') {
+            var section = btn.closest('.nav-section');
+            if (!section) return;
+            var siblings = siblingsOf(section, '.nav-section[data-cat-id]');
+            var idx = siblings.indexOf(section);
+            var swapIdx = dir === 'up' ? idx - 1 : idx + 1;
+            if (swapIdx < 0 || swapIdx >= siblings.length) return;
+            if (dir === 'up') {
+                section.parentNode.insertBefore(section, siblings[swapIdx]);
+            } else {
+                section.parentNode.insertBefore(siblings[swapIdx], section);
+            }
+            var ids = Array.from(section.parentNode.querySelectorAll(':scope > .nav-section[data-cat-id]')).map(function(s) {
+                return parseInt(s.dataset.catId, 10);
+            });
+            postReorder('/api/reorder/categories', ids).catch(function() {});
+        }
+    });
+}());
