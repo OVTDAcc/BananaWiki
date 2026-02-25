@@ -13,7 +13,15 @@
         <label>Title</label>
         <input type="text" name="title" class="input" required value="{{ form.title if form else '' }}" style="max-width:500px">
     </div>
-
+    <div class="form-group">
+        <label>Category (optional)</label>
+        <select name="category_id" class="input" style="max-width:300px">
+            <option value="" {% if not form or not form.category_id %}selected{% endif %}>Uncategorized</option>
+            {% for cat in all_categories %}
+            <option value="{{ cat.id }}" {% if form and form.category_id == cat.id|string %}selected{% endif %}>{{ cat.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
     <div class="form-actions">
         <button type="submit" class="btn">Create Page</button>
         <a href="{{ url_for('home') }}" class="btn btn-outline">Cancel</a>

@@ -5,7 +5,7 @@
 ## Evidence
 
 ### Tests
-All **331 tests pass** across five test files (`test_fixes.py`, `test_production.py`,
+All **371 tests pass** across five test files (`test_fixes.py`, `test_production.py`,
 `test_networking.py`, `test_rate_limiting.py`, `test_sync.py`) with zero failures.
 
 ### Code quality
@@ -22,10 +22,10 @@ All **331 tests pass** across five test files (`test_fixes.py`, `test_production
   so existing databases upgrade safely.
 
 ### Feature completeness
-- **43 routes** cover the full lifecycle: setup wizard, login/signup with invite codes,
+- **48 routes** cover the full lifecycle: setup wizard, login/signup with invite codes,
   page CRUD, category management, page history & rollback, file uploads, admin panel
   (users, audit log, invite codes, site settings, announcements), account settings,
-  rate-limit pages, and error handlers (403/404/429/500).
+  lockdown mode, easter egg, rate-limit pages, and error handlers (403/404/429/500).
 - All HTML templates are present for every route.
 
 ### Security

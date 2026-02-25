@@ -381,6 +381,8 @@ def before_request_hook():
         if not user or user["role"] != "admin":
             if user:
                 session.clear()
+            if request.path.startswith("/api/"):
+                return jsonify({"error": "Wiki is in lockdown mode."}), 403
             return redirect(url_for("lockdown"))
 
     # Global rate limit (skip static files)
