@@ -1,0 +1,204 @@
+"""
+Tests for BananaWiki rate limiting.
+"""
+
+import os
+import sys
+
+import pytest
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+import config
+
+
+@pytest.fixture(autouse=True)
+def isolated_db(tmp_path, monkeypatch):
+    """Use a temporary database for every test."""
+    db_path = str(tmp_path / "test.db")
+    monkeypatch.setattr(config, "DATABASE_PATH", db_path)
+    monkeypatch.setattr(config, "LOGGING_ENABLED", False)
+    import db as db_mod
+    db_mod.init_db()
+    yield db_path
+
+
+@pytest.fixture(autouse=True)
+def clear_rl_store():
+    """Clear the in-memory rate limit store before and after each test."""
+    import app as app_mod
+    with app_mod._RL_LOCK:
+        app_mod._RL_STORE.clear()
+    yield
+    with app_mod._RL_LOCK:
+        app_mod._RL_STORE.clear()
+
+
+@pytest.fixture
+def client():
+    from app import app
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
+    with app.test_client() as c:
+        yield c
+
+
+@pytest.fixture
+def admin_user():
+    """Create an admin user and mark setup as done."""
+    from werkzeug.security import generate_password_hash
+    import db
+    uid = db.create_user("admin", generate_password_hash("admin123"), role="admin")
+    db.update_site_settings(setup_done=1)
+    return uid
+
+
+@pytest.fixture
+def logged_in_admin(client, admin_user):
+    """Return a client logged in as admin."""
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    return client
+
+
+# -----------------------------------------------------------------------
+# _rl_check unit tests
+# -----------------------------------------------------------------------
+def test_rl_check_allows_within_limit():
+    from app import _rl_check
+    for _ in range(5):
+        assert _rl_check("1.2.3.4", "bucket_a", 5, 60) is True
+
+
+def test_rl_check_blocks_over_limit():
+    from app import _rl_check
+    for _ in range(5):
+        _rl_check("1.2.3.4", "bucket_b", 5, 60)
+    assert _rl_check("1.2.3.4", "bucket_b", 5, 60) is False
+
+
+def test_rl_check_different_ips_are_independent():
+    from app import _rl_check
+    for _ in range(5):
+        _rl_check("1.2.3.4", "bucket_c", 5, 60)
+    # A different IP should have its own independent counter
+    assert _rl_check("5.6.7.8", "bucket_c", 5, 60) is True
+
+
+def test_rl_check_different_buckets_are_independent():
+    from app import _rl_check
+    for _ in range(5):
+        _rl_check("1.2.3.4", "bucket_d1", 5, 60)
+    # A different bucket for the same IP should be independent
+    assert _rl_check("1.2.3.4", "bucket_d2", 5, 60) is True
+
+
+# -----------------------------------------------------------------------
+# Signup rate limit
+# -----------------------------------------------------------------------
+def test_signup_rate_limited(client, admin_user):
+    """Signup endpoint returns 429 after exceeding the per-IP limit."""
+    for _ in range(10):
+        client.post("/signup", data={
+            "username": "user", "password": "pass",
+            "confirm_password": "pass", "invite_code": "INVALID",
+        })
+    resp = client.post("/signup", data={
+        "username": "user", "password": "pass",
+        "confirm_password": "pass", "invite_code": "INVALID",
+    })
+    assert resp.status_code == 429
+    assert b"Too Many Requests" in resp.data
+
+
+# -----------------------------------------------------------------------
+# API endpoint rate limits (JSON responses)
+# -----------------------------------------------------------------------
+def test_api_preview_rate_limited(logged_in_admin):
+    """API preview endpoint returns JSON 429 after exceeding the limit."""
+    for _ in range(30):
+        logged_in_admin.post(
+            "/api/preview",
+            json={"content": "test"},
+            content_type="application/json",
+        )
+    resp = logged_in_admin.post(
+        "/api/preview",
+        json={"content": "test"},
+        content_type="application/json",
+    )
+    assert resp.status_code == 429
+    data = resp.get_json()
+    assert data is not None
+    assert "error" in data
+
+
+def test_upload_rate_limited(logged_in_admin):
+    """Upload endpoint returns JSON 429 after exceeding the limit."""
+    for _ in range(10):
+        logged_in_admin.post(
+            "/api/upload",
+            data={},
+            content_type="multipart/form-data",
+        )
+    resp = logged_in_admin.post(
+        "/api/upload",
+        data={},
+        content_type="multipart/form-data",
+    )
+    assert resp.status_code == 429
+    data = resp.get_json()
+    assert data is not None
+    assert "error" in data
+
+
+# -----------------------------------------------------------------------
+# Global rate limit
+# -----------------------------------------------------------------------
+def test_global_rate_limit(client, admin_user, monkeypatch):
+    """All non-static endpoints are blocked after hitting the global limit."""
+    import app as app_mod
+    monkeypatch.setattr(app_mod, "_RL_GLOBAL_MAX", 3)
+    with app_mod._RL_LOCK:
+        app_mod._RL_STORE.clear()
+    for _ in range(3):
+        client.get("/login")
+    resp = client.get("/login")
+    assert resp.status_code == 429
+    assert b"Too Many Requests" in resp.data
+
+
+def test_global_rate_limit_json_response(client, admin_user, monkeypatch):
+    """Global rate limit on API paths returns JSON 429."""
+    import app as app_mod
+    monkeypatch.setattr(app_mod, "_RL_GLOBAL_MAX", 1)
+    # Log in first (this consumes 1 request toward global)
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    with app_mod._RL_LOCK:
+        app_mod._RL_STORE.clear()
+    # Use one request
+    client.get("/login")
+    # Next request to an API path should be rate-limited with JSON
+    resp = client.post(
+        "/api/preview",
+        json={"content": "test"},
+        content_type="application/json",
+    )
+    assert resp.status_code == 429
+    data = resp.get_json()
+    assert data is not None
+    assert "error" in data
+
+
+# -----------------------------------------------------------------------
+# 429 error handler
+# -----------------------------------------------------------------------
+def test_429_error_handler(client, admin_user, monkeypatch):
+    """The 429 error handler renders the 429 template."""
+    import app as app_mod
+    monkeypatch.setattr(app_mod, "_RL_GLOBAL_MAX", 1)
+    with app_mod._RL_LOCK:
+        app_mod._RL_STORE.clear()
+    client.get("/login")
+    resp = client.get("/login")
+    assert resp.status_code == 429
+    assert b"429" in resp.data
