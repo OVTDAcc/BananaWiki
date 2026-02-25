@@ -191,8 +191,8 @@ function initAutosave(pageId) {
             if (saveTimer) clearTimeout(saveTimer);
             doSave(function(ok) {
                 if (ok) {
-                    var cancelLink = document.querySelector('.form-actions a.btn-outline');
-                    if (cancelLink) window.location.href = cancelLink.href;
+                    var redirectUrl = saveDraftCloseBtn.dataset.redirect || '/';
+                    window.location.href = redirectUrl;
                 } else {
                     alert('Failed to save draft. Please try again.');
                 }
@@ -206,14 +206,16 @@ function initAutosave(pageId) {
     // Expose stop function for draft deletion
     window._bwStopAutosave = stopAutosave;
 
-    // Check for other drafts periodically
+    // Check for other drafts and page staleness periodically
+    var pageLoadedAt = new Date().toISOString();
     setInterval(function() {
         fetch('/api/draft/others/' + pageId)
             .then(function(r) {
                 if (!r.ok) throw new Error('Failed to check drafts');
                 return r.json();
             })
-            .then(function(drafts) {
+            .then(function(resp) {
+                var drafts = resp.drafts || [];
                 var notice = document.getElementById('other-drafts-notice');
                 if (notice && drafts.length > 0) {
                     notice.innerHTML = '';
@@ -233,6 +235,14 @@ function initAutosave(pageId) {
                         notice.appendChild(btn);
                     });
                     notice.style.display = 'block';
+                }
+                // Stale draft detection: page was updated after we opened the editor
+                var staleNotice = document.getElementById('stale-draft-notice');
+                if (staleNotice && resp.page_last_edited_at) {
+                    if (!staleNotice.dataset.shown && resp.page_last_edited_at > pageLoadedAt) {
+                        staleNotice.style.display = 'block';
+                        staleNotice.dataset.shown = '1';
+                    }
                 }
             })
             .catch(function() { /* silently ignore polling errors */ });
@@ -270,6 +280,85 @@ function deleteDraft(pageId) {
     }).catch(function() {
         alert('Failed to delete draft.');
     });
+}
+
+function discardDraftAndClose(pageId, redirectUrl) {
+    if (!confirm('Discard this draft? All unsaved changes will be lost.')) return;
+    if (window._bwStopAutosave) window._bwStopAutosave();
+    fetch('/api/draft/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+        body: JSON.stringify({ page_id: pageId })
+    }).then(function(r) {
+        if (!r.ok) throw new Error('Delete failed');
+        return r.json();
+    }).then(function() {
+        window.location.href = redirectUrl;
+    }).catch(function() {
+        alert('Failed to discard draft.');
+    });
+}
+
+function initDraftManager() {
+    var container = document.getElementById('draft-manager-list');
+    if (!container) return;
+    fetch('/api/draft/mine')
+        .then(function(r) { return r.json(); })
+        .then(function(drafts) {
+            if (!drafts.length) {
+                container.innerHTML = '<p style="opacity:.7;font-size:.9rem">No pending drafts.</p>';
+                return;
+            }
+            var html = '<table class="draft-manager-table"><thead><tr><th>Page</th><th>Last saved</th><th>Actions</th></tr></thead><tbody>';
+            drafts.forEach(function(d) {
+                var editUrl = '/page/' + d.page_slug + '/edit';
+                html += '<tr data-page-id="' + d.page_id + '">'
+                    + '<td>' + escapeHtml(d.page_title) + '</td>'
+                    + '<td style="white-space:nowrap;font-size:.85rem;opacity:.7">' + escapeHtml(d.updated_at) + '</td>'
+                    + '<td style="white-space:nowrap">'
+                    + '<a href="' + editUrl + '" class="btn btn-sm" style="margin-right:.4rem">Continue editing</a>'
+                    + '<button class="btn btn-sm btn-outline btn-danger-outline" onclick="discardDraftFromSettings(' + d.page_id + ', this)">Discard</button>'
+                    + '</td>'
+                    + '</tr>';
+            });
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        })
+        .catch(function() {
+            container.innerHTML = '<p style="opacity:.7;font-size:.9rem">Could not load drafts.</p>';
+        });
+}
+
+function discardDraftFromSettings(pageId, btn) {
+    if (!confirm('Discard this draft? This cannot be undone.')) return;
+    btn.disabled = true;
+    fetch('/api/draft/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+        body: JSON.stringify({ page_id: pageId })
+    }).then(function(r) {
+        if (!r.ok) throw new Error('Delete failed');
+        return r.json();
+    }).then(function() {
+        var row = btn.closest('tr');
+        if (row) row.remove();
+        var tbody = document.querySelector('#draft-manager-list tbody');
+        if (tbody && tbody.querySelectorAll('tr').length === 0) {
+            document.getElementById('draft-manager-list').innerHTML =
+                '<p style="opacity:.7;font-size:.9rem">No pending drafts.</p>';
+        }
+    }).catch(function() {
+        btn.disabled = false;
+        alert('Failed to discard draft.');
+    });
+}
+
+function escapeHtml(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
 }
 
 // Image upload via drag & drop or file input

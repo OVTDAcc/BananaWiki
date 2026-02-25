@@ -6,6 +6,14 @@
     <span class="save-indicator" id="save-indicator"></span>
 </div>
 
+{% if draft and page.last_edited_at and page.last_edited_at > draft.updated_at %}
+<div class="draft-notice draft-notice-warning" id="stale-draft-notice">
+    ⚠ This page was updated by another user after your draft was saved. Your draft may be based on outdated content.
+</div>
+{% else %}
+<div class="draft-notice draft-notice-warning" id="stale-draft-notice" style="display:none"></div>
+{% endif %}
+
 {% if other_drafts %}
 <div class="draft-notice" id="other-drafts-notice">
     Warning: Other users have drafts for this page:
@@ -75,8 +83,8 @@
 
     <div class="form-actions">
         <button type="submit" class="btn">Commit Changes</button>
-        <button type="button" class="btn btn-outline" id="save-draft-close">Save Draft &amp; Close</button>
-        <a href="{% if page.is_home %}{{ url_for('home') }}{% else %}{{ url_for('view_page', slug=page.slug) }}{% endif %}" class="btn btn-outline">Cancel</a>
+        <button type="button" class="btn btn-outline" id="save-draft-close" data-redirect="{% if page.is_home %}{{ url_for('home') }}{% else %}{{ url_for('view_page', slug=page.slug) }}{% endif %}">Save Draft &amp; Close</button>
+        <button type="button" class="btn btn-outline" onclick="discardDraftAndClose({{ page.id }}, '{% if page.is_home %}{{ url_for('home') }}{% else %}{{ url_for('view_page', slug=page.slug) }}{% endif %}')">Discard Draft</button>
     </div>
 </form>
 {% endblock %}
