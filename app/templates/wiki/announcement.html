@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Announcement – {{ settings.site_name }}{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Announcement</h1>
+</div>
+<div class="announcement-full announcement-color-{{ ann.color }}">
+    <div class="wiki-content announcement-size-{{ ann.text_size }}">
+        {{ content_html | safe }}
+    </div>
+    {% if ann.expires_at %}
+    <div style="margin-top:1rem;font-size:.78rem;opacity:.45">
+        Expires: {{ ann.expires_at[:16] }} UTC
+    </div>
+    {% endif %}
+</div>
+<div style="margin-top:1.5rem">
+    <a href="javascript:history.back()" class="btn btn-outline btn-sm">← Back</a>
+</div>
+{% endblock %}

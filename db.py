@@ -112,6 +112,21 @@ def init_db():
         attempted_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS announcements (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        content     TEXT    NOT NULL DEFAULT '',
+        color       TEXT    NOT NULL DEFAULT 'orange'
+                            CHECK(color IN ('red','orange','yellow','blue','green')),
+        text_size   TEXT    NOT NULL DEFAULT 'normal'
+                            CHECK(text_size IN ('small','normal','large')),
+        visibility  TEXT    NOT NULL DEFAULT 'both'
+                            CHECK(visibility IN ('logged_in','logged_out','both')),
+        expires_at  TEXT,
+        is_active   INTEGER NOT NULL DEFAULT 1,
+        created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+    );
+
     INSERT OR IGNORE INTO site_settings (id) VALUES (1);
     """)
 
@@ -681,3 +696,80 @@ def update_site_settings(**kwargs):
     conn.execute(f"UPDATE site_settings SET {sets} WHERE id=1", vals)
     conn.commit()
     conn.close()
+
+
+# ---------------------------------------------------------------------------
+#  Announcement helpers
+# ---------------------------------------------------------------------------
+def create_announcement(content, color, text_size, visibility, expires_at, user_id):
+    conn = get_db()
+    cur = conn.cursor()
+    now = datetime.now(timezone.utc).isoformat()
+    cur.execute(
+        "INSERT INTO announcements (content, color, text_size, visibility, expires_at, is_active, created_by, created_at) "
+        "VALUES (?, ?, ?, ?, ?, 1, ?, ?)",
+        (content, color, text_size, visibility, expires_at or None, user_id, now),
+    )
+    ann_id = cur.lastrowid
+    conn.commit()
+    conn.close()
+    return ann_id
+
+
+def get_announcement(ann_id):
+    conn = get_db()
+    row = conn.execute("SELECT * FROM announcements WHERE id=?", (ann_id,)).fetchone()
+    conn.close()
+    return row
+
+
+def list_announcements():
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT a.*, COALESCE(u.username, 'deleted user') AS creator_name "
+        "FROM announcements a LEFT JOIN users u ON a.created_by=u.id "
+        "ORDER BY a.created_at DESC"
+    ).fetchall()
+    conn.close()
+    return rows
+
+
+_ALLOWED_ANN_COLUMNS = {"content", "color", "text_size", "visibility", "expires_at", "is_active"}
+
+
+def update_announcement(ann_id, **kwargs):
+    for k in kwargs:
+        if k not in _ALLOWED_ANN_COLUMNS:
+            raise ValueError(f"Invalid column: {k}")
+    conn = get_db()
+    sets = ", ".join(f"{k}=?" for k in kwargs)
+    vals = list(kwargs.values()) + [ann_id]
+    conn.execute(f"UPDATE announcements SET {sets} WHERE id=?", vals)
+    conn.commit()
+    conn.close()
+
+
+def delete_announcement(ann_id):
+    conn = get_db()
+    conn.execute("DELETE FROM announcements WHERE id=?", (ann_id,))
+    conn.commit()
+    conn.close()
+
+
+def get_active_announcements(is_logged_in):
+    """Return active, non-expired announcements matching the user's login state."""
+    conn = get_db()
+    now = datetime.now(timezone.utc).isoformat()
+    logged_in_int = 1 if is_logged_in else 0
+    rows = conn.execute(
+        "SELECT * FROM announcements "
+        "WHERE is_active=1 "
+        "  AND (expires_at IS NULL OR expires_at > ?) "
+        "  AND (visibility='both' "
+        "       OR (visibility='logged_in' AND ?=1) "
+        "       OR (visibility='logged_out' AND ?=0)) "
+        "ORDER BY created_at DESC",
+        (now, logged_in_int, logged_in_int),
+    ).fetchall()
+    conn.close()
+    return rows

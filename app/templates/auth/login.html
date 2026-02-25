@@ -8,6 +8,7 @@
     <style>:root{--primary:{{ settings.primary_color }};--secondary:{{ settings.secondary_color }};--accent:{{ settings.accent_color }};--text:{{ settings.text_color }};--sidebar:{{ settings.sidebar_color }};--bg:{{ settings.bg_color }}}</style>
 </head>
 <body>
+    {% include "_announcements_bar.html" %}
     <div class="auth-container">
         <div class="auth-box">
             <h1>{{ settings.site_name }}</h1>
@@ -36,5 +37,6 @@
             </div>
         </div>
     </div>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
 </html>

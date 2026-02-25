@@ -376,3 +376,72 @@ function confirmCatDelete(form, pageCount, catName) {
     }
     return confirm(msg);
 }
+
+
+// ---------------------------------------------------------------------------
+//  Announcements bar
+// ---------------------------------------------------------------------------
+function initAnnouncements() {
+    var bar = document.getElementById('announcements-bar');
+    if (!bar) return;
+
+    var allSlides = Array.from(bar.querySelectorAll('.announcement-slide'));
+    if (!allSlides.length) return;
+
+    // Filter out session-dismissed announcements
+    var dismissed = [];
+    try {
+        dismissed = JSON.parse(sessionStorage.getItem('dismissed_announcements') || '[]');
+    } catch (e) { dismissed = []; }
+
+    var slides = allSlides.filter(function(s) {
+        return dismissed.indexOf(parseInt(s.dataset.annId, 10)) === -1;
+    });
+
+    if (!slides.length) return;
+
+    bar.style.display = 'block';
+    var current = 0;
+
+    function showSlide(idx) {
+        slides.forEach(function(s) { s.style.display = 'none'; });
+        if (!slides.length) { bar.style.display = 'none'; return; }
+        slides[idx].style.display = 'block';
+        // Update nav visibility and counter in the active slide
+        var slide = slides[idx];
+        var prev = slide.querySelector('.ann-prev');
+        var next = slide.querySelector('.ann-next');
+        var counter = slide.querySelector('.ann-counter');
+        var cur = slide.querySelector('.ann-current');
+        var hasMany = slides.length > 1;
+        if (prev) prev.style.display = hasMany ? '' : 'none';
+        if (next) next.style.display = hasMany ? '' : 'none';
+        if (counter) counter.style.display = hasMany ? '' : 'none';
+        if (cur) cur.textContent = (idx + 1) + ' / ' + slides.length;
+    }
+
+    showSlide(0);
+
+    bar.addEventListener('click', function(e) {
+        var target = e.target;
+        if (target.classList.contains('ann-prev')) {
+            current = (current - 1 + slides.length) % slides.length;
+            showSlide(current);
+        } else if (target.classList.contains('ann-next')) {
+            current = (current + 1) % slides.length;
+            showSlide(current);
+        } else if (target.classList.contains('ann-close')) {
+            var id = parseInt(target.dataset.annId, 10);
+            dismissed.push(id);
+            try { sessionStorage.setItem('dismissed_announcements', JSON.stringify(dismissed)); } catch (e) {}
+            slides = slides.filter(function(s) {
+                return parseInt(s.dataset.annId, 10) !== id;
+            });
+            if (!slides.length) { bar.style.display = 'none'; return; }
+            if (current >= slides.length) current = slides.length - 1;
+            showSlide(current);
+        }
+    });
+}
+
+document.addEventListener('DOMContentLoaded', initAnnouncements);

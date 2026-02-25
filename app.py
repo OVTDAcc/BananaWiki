@@ -128,6 +128,12 @@ def render_markdown(text):
     return bleach.clean(html, tags=ALLOWED_TAGS, attributes=ALLOWED_ATTRS)
 
 
+@app.template_filter("render_md")
+def render_md_filter(text):
+    from markupsafe import Markup
+    return Markup(render_markdown(text or ""))
+
+
 def slugify(text):
     text = text.lower().strip()
     text = re.sub(r"[^\w\s-]", "", text)
@@ -182,7 +188,6 @@ def login_required(f):
     @functools.wraps(f)
     def wrapper(*args, **kwargs):
         if "user_id" not in session:
-            flash("Please log in to continue.", "warning")
             return redirect(url_for("login"))
         user = db.get_user_by_id(session["user_id"])
         if not user:
@@ -274,6 +279,7 @@ def format_datetime(dt_str):
 def inject_globals():
     settings = db.get_site_settings()
     user = get_current_user()
+    active_announcements = db.get_active_announcements(bool(user))
     return {
         "current_user": user,
         "settings": settings,
@@ -281,6 +287,7 @@ def inject_globals():
         "format_datetime": format_datetime,
         "page_history_enabled": config.PAGE_HISTORY_ENABLED,
         "all_categories": db.list_categories(),
+        "active_announcements": active_announcements,
     }
 
 
@@ -1421,6 +1428,151 @@ def _read_user_audit_log(username, max_entries=200):
 
 
 # ---------------------------------------------------------------------------
+#  Admin – Announcements
+# ---------------------------------------------------------------------------
+_VALID_ANN_COLORS = {"red", "orange", "yellow", "blue", "green"}
+_VALID_ANN_SIZES = {"small", "normal", "large"}
+_VALID_ANN_VISIBILITY = {"logged_in", "logged_out", "both"}
+
+
+@app.route("/admin/announcements")
+@login_required
+@admin_required
+def admin_announcements():
+    announcements = db.list_announcements()
+    categories, uncategorized = db.get_category_tree()
+    return render_template("admin/announcements.html",
+                           announcements=announcements,
+                           categories=categories, uncategorized=uncategorized)
+
+
+@app.route("/admin/announcements/create", methods=["POST"])
+@login_required
+@admin_required
+def admin_create_announcement():
+    content = request.form.get("content", "").strip()
+    color = request.form.get("color", "orange")
+    text_size = request.form.get("text_size", "normal")
+    visibility = request.form.get("visibility", "both")
+    expires_at = request.form.get("expires_at", "").strip() or None
+    user = get_current_user()
+
+    if not content:
+        flash("Announcement content is required.", "error")
+        return redirect(url_for("admin_announcements"))
+    if len(content) > 2000:
+        flash("Announcement content must be 2000 characters or fewer.", "error")
+        return redirect(url_for("admin_announcements"))
+    if color not in _VALID_ANN_COLORS:
+        flash("Invalid color.", "error")
+        return redirect(url_for("admin_announcements"))
+    if text_size not in _VALID_ANN_SIZES:
+        flash("Invalid text size.", "error")
+        return redirect(url_for("admin_announcements"))
+    if visibility not in _VALID_ANN_VISIBILITY:
+        flash("Invalid visibility.", "error")
+        return redirect(url_for("admin_announcements"))
+    if expires_at:
+        try:
+            datetime.fromisoformat(expires_at)
+        except ValueError:
+            flash("Invalid expiration date format.", "error")
+            return redirect(url_for("admin_announcements"))
+
+    db.create_announcement(content, color, text_size, visibility, expires_at, user["id"])
+    log_action("create_announcement", request, user=user)
+    flash("Announcement created.", "success")
+    return redirect(url_for("admin_announcements"))
+
+
+@app.route("/admin/announcements/<int:ann_id>/edit", methods=["POST"])
+@login_required
+@admin_required
+def admin_edit_announcement(ann_id):
+    ann = db.get_announcement(ann_id)
+    if not ann:
+        abort(404)
+    content = request.form.get("content", "").strip()
+    color = request.form.get("color", "orange")
+    text_size = request.form.get("text_size", "normal")
+    visibility = request.form.get("visibility", "both")
+    expires_at = request.form.get("expires_at", "").strip() or None
+    is_active = 1 if request.form.get("is_active") else 0
+    user = get_current_user()
+
+    if not content:
+        flash("Announcement content is required.", "error")
+        return redirect(url_for("admin_announcements"))
+    if len(content) > 2000:
+        flash("Announcement content must be 2000 characters or fewer.", "error")
+        return redirect(url_for("admin_announcements"))
+    if color not in _VALID_ANN_COLORS:
+        flash("Invalid color.", "error")
+        return redirect(url_for("admin_announcements"))
+    if text_size not in _VALID_ANN_SIZES:
+        flash("Invalid text size.", "error")
+        return redirect(url_for("admin_announcements"))
+    if visibility not in _VALID_ANN_VISIBILITY:
+        flash("Invalid visibility.", "error")
+        return redirect(url_for("admin_announcements"))
+    if expires_at:
+        try:
+            datetime.fromisoformat(expires_at)
+        except ValueError:
+            flash("Invalid expiration date format.", "error")
+            return redirect(url_for("admin_announcements"))
+
+    db.update_announcement(ann_id, content=content, color=color, text_size=text_size,
+                           visibility=visibility, expires_at=expires_at, is_active=is_active)
+    log_action("edit_announcement", request, user=user, ann_id=ann_id)
+    flash("Announcement updated.", "success")
+    return redirect(url_for("admin_announcements"))
+
+
+@app.route("/admin/announcements/<int:ann_id>/delete", methods=["POST"])
+@login_required
+@admin_required
+def admin_delete_announcement(ann_id):
+    ann = db.get_announcement(ann_id)
+    if not ann:
+        abort(404)
+    user = get_current_user()
+    db.delete_announcement(ann_id)
+    log_action("delete_announcement", request, user=user, ann_id=ann_id)
+    flash("Announcement deleted.", "success")
+    return redirect(url_for("admin_announcements"))
+
+
+# ---------------------------------------------------------------------------
+#  Public – Announcement full view
+# ---------------------------------------------------------------------------
+@app.route("/announcements/<int:ann_id>")
+def view_announcement(ann_id):
+    ann = db.get_announcement(ann_id)
+    if not ann:
+        abort(404)
+    # Check visibility
+    user = get_current_user()
+    is_logged_in = bool(user)
+    if ann["visibility"] == "logged_in" and not is_logged_in:
+        abort(404)
+    if ann["visibility"] == "logged_out" and is_logged_in:
+        abort(404)
+    # Check if active and not expired
+    if not ann["is_active"]:
+        abort(404)
+    if ann["expires_at"]:
+        try:
+            exp = datetime.fromisoformat(ann["expires_at"]).replace(tzinfo=timezone.utc)
+            if datetime.now(timezone.utc) > exp:
+                abort(404)
+        except ValueError:
+            pass
+    content_html = render_markdown(ann["content"])
+    categories, uncategorized = db.get_category_tree()
+    return render_template("wiki/announcement.html", ann=ann,
+                           content_html=content_html,
+                           categories=categories, uncategorized=uncategorized)
 #  Error handlers
 # ---------------------------------------------------------------------------
 @app.errorhandler(404)
