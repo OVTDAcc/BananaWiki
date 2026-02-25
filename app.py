@@ -575,6 +575,9 @@ def account_settings():
     action = request.form.get("action", "") if request.method == "POST" else ""
 
     if action == "change_username":
+        if user["is_superuser"]:
+            flash("This account is protected and cannot be modified.", "error")
+            return redirect(url_for("account_settings"))
         new_username = request.form.get("new_username", "").strip()
         password = request.form.get("password", "")
         if not check_password_hash(user["password"], password):
@@ -600,6 +603,9 @@ def account_settings():
         return redirect(url_for("account_settings"))
 
     if action == "change_password":
+        if user["is_superuser"]:
+            flash("This account is protected and cannot be modified.", "error")
+            return redirect(url_for("account_settings"))
         current_pw = request.form.get("current_password", "")
         new_pw = request.form.get("new_password", "")
         confirm_pw = request.form.get("confirm_password", "")
@@ -617,6 +623,9 @@ def account_settings():
         return redirect(url_for("account_settings"))
 
     if action == "delete_account":
+        if user["is_superuser"]:
+            flash("This account is protected and cannot be deleted.", "error")
+            return redirect(url_for("account_settings"))
         password = request.form.get("password", "")
         if not check_password_hash(user["password"], password):
             flash("Incorrect password.", "error")
@@ -1338,6 +1347,10 @@ def admin_edit_user(user_id):
         abort(404)
     action = request.form.get("action", "")
     current_user = get_current_user()
+
+    if target["is_superuser"]:
+        flash("This account is protected and cannot be modified.", "error")
+        return redirect(url_for("admin_users"))
 
     if action == "change_username":
         new_name = request.form.get("username", "").strip()

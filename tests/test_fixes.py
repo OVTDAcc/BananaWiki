@@ -2827,3 +2827,172 @@ def test_reset_password_invalid_selection_then_valid(monkeypatch, capsys):
 
     user = db.get_user_by_id(uid)
     assert check_password_hash(user["password"], "validpassword")
+
+
+# -----------------------------------------------------------------------
+# Superuser: protected account tests
+# -----------------------------------------------------------------------
+def _make_superuser(username="superadmin", password="super123"):
+    """Helper: create a user with is_superuser=1 via direct DB write."""
+    from werkzeug.security import generate_password_hash
+    import db
+    import sqlite3
+    import config
+    uid = db.create_user(username, generate_password_hash(password), role="admin")
+    conn = sqlite3.connect(config.DATABASE_PATH)
+    conn.execute("UPDATE users SET is_superuser=1 WHERE id=?", (uid,))
+    conn.commit()
+    conn.close()
+    return uid, username, password
+
+
+def test_superuser_column_exists(isolated_db):
+    """is_superuser column should exist with default 0 after init_db."""
+    import db, sqlite3, config
+    conn = sqlite3.connect(config.DATABASE_PATH)
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(users)").fetchall()]
+    conn.close()
+    assert "is_superuser" in cols
+
+
+def test_superuser_default_zero(isolated_db):
+    """Newly created users should have is_superuser=0."""
+    from werkzeug.security import generate_password_hash
+    import db
+    uid = db.create_user("normaluser", generate_password_hash("pass123"), role="admin")
+    user = db.get_user_by_id(uid)
+    assert user["is_superuser"] == 0
+
+
+def test_admin_cannot_delete_superuser(client, admin_user):
+    """Admin should not be able to delete a superuser account."""
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    su_uid, _, _ = _make_superuser()
+    resp = client.post(f"/admin/users/{su_uid}/edit",
+                       data={"action": "delete"},
+                       follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"protected" in resp.data.lower()
+    import db
+    assert db.get_user_by_id(su_uid) is not None
+
+
+def test_admin_cannot_suspend_superuser(client, admin_user):
+    """Admin should not be able to suspend a superuser account."""
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    su_uid, _, _ = _make_superuser()
+    resp = client.post(f"/admin/users/{su_uid}/edit",
+                       data={"action": "suspend"},
+                       follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"protected" in resp.data.lower()
+    import db
+    user = db.get_user_by_id(su_uid)
+    assert user["suspended"] == 0
+
+
+def test_admin_cannot_change_superuser_role(client, admin_user):
+    """Admin should not be able to change the role of a superuser."""
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    su_uid, _, _ = _make_superuser()
+    resp = client.post(f"/admin/users/{su_uid}/edit",
+                       data={"action": "change_role", "role": "user"},
+                       follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"protected" in resp.data.lower()
+    import db
+    user = db.get_user_by_id(su_uid)
+    assert user["role"] == "admin"
+
+
+def test_admin_cannot_change_superuser_username(client, admin_user):
+    """Admin should not be able to rename a superuser."""
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    su_uid, su_name, _ = _make_superuser()
+    resp = client.post(f"/admin/users/{su_uid}/edit",
+                       data={"action": "change_username", "username": "hacked"},
+                       follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"protected" in resp.data.lower()
+    import db
+    user = db.get_user_by_id(su_uid)
+    assert user["username"] == su_name
+
+
+def test_admin_cannot_change_superuser_password(client, admin_user):
+    """Admin should not be able to change a superuser's password."""
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    su_uid, _, su_pw = _make_superuser()
+    resp = client.post(f"/admin/users/{su_uid}/edit",
+                       data={"action": "change_password",
+                             "password": "newpass1", "confirm_password": "newpass1"},
+                       follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"protected" in resp.data.lower()
+    from werkzeug.security import check_password_hash
+    import db
+    user = db.get_user_by_id(su_uid)
+    assert check_password_hash(user["password"], su_pw)
+
+
+def test_superuser_cannot_delete_own_account(client, admin_user):
+    """A superuser cannot delete their own account via account settings."""
+    su_uid, su_name, su_pw = _make_superuser()
+    client.post("/login", data={"username": su_name, "password": su_pw})
+    resp = client.post("/account",
+                       data={"action": "delete_account", "password": su_pw},
+                       follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"protected" in resp.data.lower()
+    import db
+    assert db.get_user_by_id(su_uid) is not None
+
+
+def test_superuser_cannot_change_own_username(client, admin_user):
+    """A superuser cannot change their own username via account settings."""
+    su_uid, su_name, su_pw = _make_superuser()
+    client.post("/login", data={"username": su_name, "password": su_pw})
+    resp = client.post("/account",
+                       data={"action": "change_username",
+                             "new_username": "hacked", "password": su_pw},
+                       follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"protected" in resp.data.lower()
+    import db
+    user = db.get_user_by_id(su_uid)
+    assert user["username"] == su_name
+
+
+def test_superuser_cannot_change_own_password(client, admin_user):
+    """A superuser cannot change their own password via account settings."""
+    su_uid, su_name, su_pw = _make_superuser()
+    client.post("/login", data={"username": su_name, "password": su_pw})
+    resp = client.post("/account",
+                       data={"action": "change_password",
+                             "current_password": su_pw,
+                             "new_password": "newpass1",
+                             "confirm_password": "newpass1"},
+                       follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"protected" in resp.data.lower()
+    from werkzeug.security import check_password_hash
+    import db
+    user = db.get_user_by_id(su_uid)
+    assert check_password_hash(user["password"], su_pw)
+
+
+def test_superuser_has_admin_access(client, admin_user):
+    """A superuser can access admin pages since they have role='admin'."""
+    su_uid, su_name, su_pw = _make_superuser("super2", "super456")
+    client.post("/login", data={"username": su_name, "password": su_pw})
+    resp = client.get("/admin/users")
+    assert resp.status_code == 200
+
+
+def test_superuser_not_assigned_on_setup(isolated_db):
+    """Users created during setup have is_superuser=0."""
+    from werkzeug.security import generate_password_hash
+    import db
+    uid = db.create_user("setupadmin", generate_password_hash("pass123"), role="admin")
+    user = db.get_user_by_id(uid)
+    assert user["is_superuser"] == 0

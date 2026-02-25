@@ -58,7 +58,7 @@
         <tr>
             <td>{{ u.id }}</td>
             <td>{{ u.username }}</td>
-            <td><span class="badge badge-{{ u.role }}">{{ u.role }}</span></td>
+            <td><span class="badge badge-{{ u.role }}">{{ u.role }}{% if u.is_superuser %} ★{% endif %}</span></td>
             <td>
                 {% if u.suspended %}
                 <span class="badge badge-suspended">Suspended</span>
@@ -75,6 +75,9 @@
         </tr>
         <tr id="editUser{{ u.id }}" style="display:none;background:rgba(255,255,255,.02)">
             <td colspan="7" style="padding:.8rem">
+                {% if u.is_superuser %}
+                <p style="opacity:.7;font-size:.9rem">⚠ This is a protected superuser account. It cannot be modified from here.</p>
+                {% else %}
                 <div style="display:flex;gap:1rem;flex-wrap:wrap">
                     <!-- Change username -->
                     <form method="POST" action="{{ url_for('admin_edit_user', user_id=u.id) }}" class="inline-form">
@@ -123,6 +126,7 @@
                         <button class="btn btn-sm btn-danger">Delete</button>
                     </form>
                 </div>
+                {% endif %}
             </td>
         </tr>
         {% endfor %}
