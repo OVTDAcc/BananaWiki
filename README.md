@@ -57,7 +57,7 @@ A lightweight, self-hosted wiki built with Flask and SQLite. Clean, fast, and ea
 **Requirements:** Python 3.9+
 
 ```bash
-git clone https://github.com/OverloadedTech/BananaWiki.git
+git clone https://github.com/overdeckat/BananaWiki.git
 cd BananaWiki
 python -m venv venv
 source venv/bin/activate        # Windows: venv\Scripts\activate
@@ -114,7 +114,7 @@ BananaWiki/
 │   └── templates/
 │       ├── base.html                  # Base layout with sidebar
 │       ├── _announcements_bar.html    # Announcement banner partial
-│       ├── auth/       # Login, signup, setup pages
+│       ├── auth/       # Login, signup, setup, and lockdown pages
 │       ├── wiki/       # Page view, edit, create, history, and error pages
 │       ├── account/    # Account settings
 │       └── admin/      # Admin panel: users, settings, codes, announcements

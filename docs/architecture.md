@@ -142,8 +142,8 @@ Templates live in `app/templates/` and use Jinja2.
 |---|---|
 | `base.html` | Main layout: sidebar with category tree, header, flash messages, announcement bar. All page templates extend this. |
 | `_announcements_bar.html` | Announcement banner partial — included in `base.html` and auth pages. |
-| `auth/` | `login.html`, `signup.html`, `setup.html` |
-| `wiki/` | `page.html`, `edit.html`, `create_page.html`, `history.html`, `history_entry.html`, `announcement.html`, `404.html`, `429.html`, `500.html` |
+| `auth/` | `login.html`, `signup.html`, `setup.html`, `lockdown.html` |
+| `wiki/` | `page.html`, `edit.html`, `create_page.html`, `history.html`, `history_entry.html`, `announcement.html`, `easter_egg.html`, `403.html`, `404.html`, `429.html`, `500.html` |
 | `account/settings.html` | Account settings page |
 | `admin/` | `users.html`, `codes.html`, `codes_expired.html`, `settings.html`, `announcements.html`, `audit.html` |
 
@@ -215,5 +215,6 @@ For a typical page view (`GET /page/<slug>`):
 | `site_settings` | Single-row table (id=1): site name, color palette, timezone, favicon, setup flag |
 | `login_attempts` | Failed login records used for per-IP rate limiting across workers |
 | `announcements` | Site-wide banner content, color, visibility, expiry, active flag |
+| `username_history` | Every username change (old name, new name, timestamp) per user |
 
 All timestamps are stored as UTC ISO-8601 strings (`datetime.now(timezone.utc).isoformat()`). The `format_datetime()` helper converts them to the site's configured timezone for display.

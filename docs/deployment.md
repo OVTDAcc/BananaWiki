@@ -24,7 +24,7 @@ A systemd service keeps BananaWiki running continuously and restarts it automati
 sudo mkdir -p /opt/BananaWiki
 sudo chown www-data:www-data /opt/BananaWiki
 cd /opt/BananaWiki
-git clone https://github.com/OverloadedTech/BananaWiki.git .
+git clone https://github.com/overdeckat/BananaWiki.git .
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
