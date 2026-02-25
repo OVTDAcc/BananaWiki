@@ -599,6 +599,7 @@ def lockdown():
 # ---------------------------------------------------------------------------
 @app.route("/account", methods=["GET", "POST"])
 @login_required
+@rate_limit(10, 60)
 def account_settings():
     user = get_current_user()
     action = request.form.get("action", "") if request.method == "POST" else ""
@@ -808,6 +809,7 @@ def revert_page(slug, entry_id):
 @app.route("/page/<slug>/history/<int:entry_id>/transfer", methods=["POST"])
 @login_required
 @admin_required
+@rate_limit(20, 60)
 def transfer_attribution(slug, entry_id):
     if not config.PAGE_HISTORY_ENABLED:
         abort(404)
@@ -835,6 +837,7 @@ def transfer_attribution(slug, entry_id):
 @app.route("/page/<slug>/history/bulk-transfer", methods=["POST"])
 @login_required
 @admin_required
+@rate_limit(20, 60)
 def bulk_transfer_attribution(slug):
     if not config.PAGE_HISTORY_ENABLED:
         abort(404)
@@ -1227,6 +1230,7 @@ def api_other_drafts(page_id):
 @app.route("/api/draft/transfer", methods=["POST"])
 @login_required
 @editor_required
+@rate_limit(30, 60)
 def api_transfer_draft():
     data = request.get_json(silent=True)
     if not data:
@@ -1390,6 +1394,7 @@ def easter_egg():
 
 @app.route("/api/easter-egg/trigger", methods=["POST"])
 @login_required
+@rate_limit(10, 60)
 def easter_egg_trigger():
     """Record that the logged-in user has found the easter egg (one-way flag)."""
     user = get_current_user()
