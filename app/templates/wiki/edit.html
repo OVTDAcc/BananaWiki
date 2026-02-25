@@ -19,7 +19,7 @@
     Warning: Other users have drafts for this page:
     {% for d in other_drafts %}
     <strong>{{ d.username }}</strong> (updated {{ time_ago(d.updated_at) }})
-    <button class="btn btn-sm" onclick="transferDraft({{ page.id }}, {{ d.user_id }})">Transfer draft</button>
+    <button class="btn btn-sm" onclick="transferDraft({{ page.id }}, {{ d.user_id | tojson }})">Transfer draft</button>
     {% endfor %}
 </div>
 {% else %}

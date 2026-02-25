@@ -246,6 +246,8 @@ select.input{appearance:auto}
 .announcement-color-yellow{background:rgba(210,170,90,.15);color:#d2aa5a}
 .announcement-color-blue{background:rgba(110,138,202,.15);color:#6e8aca}
 .announcement-color-green{background:rgba(100,180,100,.15);color:#7cc07c}
+/* Admin panel announcement border color variables */
+:root{--ann-red-border:#e88898;--ann-orange-border:#d4905a;--ann-yellow-border:#d2aa5a;--ann-blue-border:#6e8aca;--ann-green-border:#7cc07c}
 /* Text size variants */
 .announcement-size-small .ann-body{font-size:.78rem}
 .announcement-size-normal .ann-body{font-size:.85rem}

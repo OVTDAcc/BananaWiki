@@ -48,7 +48,7 @@ def init_db():
         created_by  TEXT REFERENCES users(id) ON DELETE SET NULL,
         created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
         expires_at  TEXT    NOT NULL,
-        used_by     TEXT REFERENCES users(id),
+        used_by     TEXT REFERENCES users(id) ON DELETE SET NULL,
         used_at     TEXT,
         deleted     INTEGER NOT NULL DEFAULT 0,
         deleted_at  TEXT
@@ -220,7 +220,7 @@ def _migrate_user_id_to_text(conn, cur):
             created_by  TEXT REFERENCES users(id) ON DELETE SET NULL,
             created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
             expires_at  TEXT    NOT NULL,
-            used_by     TEXT REFERENCES users(id),
+            used_by     TEXT REFERENCES users(id) ON DELETE SET NULL,
             used_at     TEXT,
             deleted     INTEGER NOT NULL DEFAULT 0,
             deleted_at  TEXT

@@ -49,16 +49,14 @@
 </div>
 {% endif %}
 
-{% if current_user.role in ('editor', 'admin') %}
+{% if current_user.role == 'admin' %}
 <div class="settings-section">
     <h3>Admin Operations</h3>
     <div style="display:flex;gap:.5rem;flex-wrap:wrap">
-        {% if current_user.role == 'admin' %}
         <a href="{{ url_for('admin_users') }}" class="btn btn-outline">👥 Manage Users</a>
         <a href="{{ url_for('admin_settings') }}" class="btn btn-outline">⚙ Site Settings</a>
         <a href="{{ url_for('admin_codes') }}" class="btn btn-outline">🔑 Invite Codes</a>
         <a href="{{ url_for('admin_announcements') }}" class="btn btn-outline">📢 Announcements</a>
-        {% endif %}
     </div>
 </div>
 {% endif %}
