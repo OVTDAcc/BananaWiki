@@ -2496,3 +2496,96 @@ def test_commit_clears_all_page_drafts(logged_in_admin, admin_user):
     # Both drafts should be gone
     assert db.get_draft(home["id"], admin_user) is None
     assert db.get_draft(home["id"], uid2) is None
+
+
+# -----------------------------------------------------------------------
+# Timezone, DST, and leap year support
+# -----------------------------------------------------------------------
+def test_default_timezone_is_utc():
+    """site_settings.timezone defaults to 'UTC'."""
+    import db
+    settings = db.get_site_settings()
+    assert settings["timezone"] == "UTC"
+
+
+def test_update_and_retrieve_timezone():
+    """Timezone can be updated and retrieved from site_settings."""
+    import db
+    db.update_site_settings(timezone="Europe/Rome")
+    settings = db.get_site_settings()
+    assert settings["timezone"] == "Europe/Rome"
+
+
+def test_format_datetime_uses_configured_timezone(monkeypatch):
+    """format_datetime returns time in the configured site timezone."""
+    import db
+    db.update_site_settings(timezone="Europe/Rome")
+    from app import format_datetime
+    # 2026-02-25T10:00:00 UTC → 11:00 CET (UTC+1) in winter
+    result = format_datetime("2026-02-25T10:00:00")
+    assert "11:00" in result
+    assert "CET" in result or "CE" in result or "+01" in result or "Rome" in result
+
+
+def test_format_datetime_dst_handling(monkeypatch):
+    """format_datetime correctly applies DST (summer time = UTC+2 for Rome)."""
+    import db
+    db.update_site_settings(timezone="Europe/Rome")
+    from app import format_datetime
+    # 2026-07-01T10:00:00 UTC → 12:00 CEST (UTC+2) in summer
+    result = format_datetime("2026-07-01T10:00:00")
+    assert "12:00" in result
+    assert "CEST" in result or "CE" in result or "+02" in result or "Rome" in result
+
+
+def test_format_datetime_leap_year():
+    """format_datetime correctly handles Feb 29 in a leap year."""
+    import db
+    db.update_site_settings(timezone="UTC")
+    from app import format_datetime
+    result = format_datetime("2028-02-29T12:00:00")
+    assert "2028-02-29" in result
+    assert "12:00" in result
+
+
+def test_admin_settings_saves_timezone(logged_in_admin):
+    """POST to /admin/settings updates timezone in the database."""
+    import db
+    resp = logged_in_admin.post("/admin/settings", data={
+        "site_name": "TestWiki",
+        "timezone": "America/New_York",
+        "primary_color": "#7c8dc6",
+        "secondary_color": "#151520",
+        "accent_color": "#6e8aca",
+        "text_color": "#b8bcc8",
+        "sidebar_color": "#111118",
+        "bg_color": "#0d0d14",
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    settings = db.get_site_settings()
+    assert settings["timezone"] == "America/New_York"
+
+
+def test_admin_settings_rejects_invalid_timezone(logged_in_admin):
+    """POST to /admin/settings with an invalid timezone returns an error."""
+    resp = logged_in_admin.post("/admin/settings", data={
+        "site_name": "TestWiki",
+        "timezone": "Not/A/Real/Zone",
+        "primary_color": "#7c8dc6",
+        "secondary_color": "#151520",
+        "accent_color": "#6e8aca",
+        "text_color": "#b8bcc8",
+        "sidebar_color": "#111118",
+        "bg_color": "#0d0d14",
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"Invalid time zone" in resp.data
+
+
+def test_admin_settings_page_shows_timezone_dropdown(logged_in_admin):
+    """GET /admin/settings renders the timezone selector."""
+    resp = logged_in_admin.get("/admin/settings")
+    assert resp.status_code == 200
+    assert b"Time Zone" in resp.data
+    assert b"Europe/Rome" in resp.data
+    assert b"America/New_York" in resp.data

@@ -24,6 +24,7 @@ from werkzeug.utils import secure_filename
 import markdown
 import bleach
 from PIL import Image
+import pytz
 
 import config
 import db
@@ -265,6 +266,16 @@ def admin_required(f):
     return wrapper
 
 
+def get_site_timezone():
+    """Return the pytz timezone configured in site settings (defaults to UTC)."""
+    settings = db.get_site_settings()
+    tz_name = (settings["timezone"] if settings and settings["timezone"] else "UTC")
+    try:
+        return pytz.timezone(tz_name)
+    except pytz.exceptions.UnknownTimeZoneError:
+        return pytz.utc
+
+
 def time_ago(dt_str):
     """Return a human-readable 'X ago' or 'in X' string."""
     if not dt_str:
@@ -303,14 +314,17 @@ def time_ago(dt_str):
 
 
 def format_datetime(dt_str):
-    """Return a human-readable date/time string like '2026-02-20 18:07 UTC'."""
+    """Return a human-readable date/time string in the configured site timezone."""
     if not dt_str:
         return ""
     try:
         dt = datetime.fromisoformat(dt_str).replace(tzinfo=timezone.utc)
     except (ValueError, TypeError):
         return ""
-    return dt.strftime("%Y-%m-%d %H:%M UTC")
+    site_tz = get_site_timezone()
+    dt_local = dt.astimezone(site_tz)
+    tz_label = dt_local.strftime("%Z")
+    return dt_local.strftime(f"%Y-%m-%d %H:%M {tz_label}")
 
 
 # ---------------------------------------------------------------------------
@@ -1487,8 +1501,15 @@ def admin_settings():
             if not _is_valid_hex_color(val):
                 flash(f"Invalid color value for {name}.", "error")
                 return redirect(url_for("admin_settings"))
+        tz_name = request.form.get("timezone", "UTC").strip() or "UTC"
+        try:
+            pytz.timezone(tz_name)
+        except pytz.exceptions.UnknownTimeZoneError:
+            flash("Invalid time zone selected.", "error")
+            return redirect(url_for("admin_settings"))
         db.update_site_settings(
             site_name=site_name,
+            timezone=tz_name,
             **color_fields,
         )
         user = get_current_user()
@@ -1500,6 +1521,7 @@ def admin_settings():
     settings = db.get_site_settings()
     categories, uncategorized = db.get_category_tree()
     return render_template("admin/settings.html", settings=settings,
+                           timezones=pytz.common_timezones,
                            categories=categories, uncategorized=uncategorized)
 
 
