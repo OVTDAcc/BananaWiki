@@ -3435,3 +3435,141 @@ def test_easter_egg_badge_absent_in_account_settings_when_not_found(logged_in_ad
     resp = logged_in_admin.get("/account")
     assert resp.status_code == 200
     assert b"Easter Egg Found" not in resp.data
+
+
+# ---------------------------------------------------------------------------
+# Fix: announcement expiry uses format_datetime (timezone-aware)
+# ---------------------------------------------------------------------------
+
+def test_announcement_full_view_expiry_uses_format_datetime(logged_in_admin, admin_user):
+    """Announcement full view should display expiry date using format_datetime."""
+    import db
+    from datetime import datetime, timezone, timedelta
+    future = (datetime.now(timezone.utc) + timedelta(days=1)).isoformat()
+    ann_id = db.create_announcement("Expiry test", "orange", "normal", "logged_in", future, admin_user)
+    resp = logged_in_admin.get(f"/announcements/{ann_id}")
+    assert resp.status_code == 200
+    assert b"Expires:" in resp.data
+    assert b"UTC" in resp.data
+
+
+def test_announcement_full_view_expiry_respects_timezone(logged_in_admin, admin_user):
+    """Announcement expiry date should respect the configured site timezone."""
+    import db
+    # Set timezone to something non-UTC
+    db.update_site_settings(timezone="Europe/Rome")
+    from datetime import datetime, timezone as tz, timedelta
+    # Use a known UTC time: 2026-02-25T10:00:00 UTC → 11:00 CET in winter
+    future_utc = "2027-06-15T10:00:00"
+    ann_id = db.create_announcement("TZ expiry test", "orange", "normal", "logged_in", future_utc, admin_user)
+    resp = logged_in_admin.get(f"/announcements/{ann_id}")
+    assert resp.status_code == 200
+    assert b"Expires:" in resp.data
+    # In Europe/Rome (CEST = UTC+2 in summer), 10:00 UTC becomes 12:00
+    assert b"12:00" in resp.data
+    # Should NOT say "UTC" since we configured Europe/Rome
+    assert b"UTC" not in resp.data or b"CEST" in resp.data
+    db.update_site_settings(timezone="UTC")
+
+
+def test_announcement_full_view_no_expiry_section_when_none(logged_in_admin, admin_user):
+    """Announcement full view should not show expiry section when expires_at is None."""
+    import db
+    ann_id = db.create_announcement("No expiry", "blue", "normal", "logged_in", None, admin_user)
+    resp = logged_in_admin.get(f"/announcements/{ann_id}")
+    assert resp.status_code == 200
+    assert b"Expires:" not in resp.data
+
+
+def test_admin_announcements_list_expiry_uses_format_datetime(logged_in_admin, admin_user):
+    """Admin announcements list should display expiry date using format_datetime."""
+    import db
+    from datetime import datetime, timezone, timedelta
+    future = (datetime.now(timezone.utc) + timedelta(days=1)).isoformat()
+    db.create_announcement("Admin expiry test", "red", "normal", "both", future, admin_user)
+    resp = logged_in_admin.get("/admin/announcements")
+    assert resp.status_code == 200
+    assert b"UTC" in resp.data
+
+
+# ---------------------------------------------------------------------------
+# Fix: history entry detail view shows editor username
+# ---------------------------------------------------------------------------
+
+def test_history_entry_shows_editor_username(logged_in_admin, admin_user):
+    """History entry detail view should show who edited the page."""
+    import db
+    home = db.get_home_page()
+    db.update_page(home["id"], "Home", "New content", admin_user, "test edit")
+    history = db.get_page_history(home["id"])
+    entry = history[0]
+    resp = logged_in_admin.get(f"/page/{home['slug']}/history/{entry['id']}")
+    assert resp.status_code == 200
+    assert b"Saved by" in resp.data
+    assert b"admin" in resp.data
+
+
+def test_get_history_entry_includes_username():
+    """db.get_history_entry() must include the editor username."""
+    import db
+    from werkzeug.security import generate_password_hash
+    uid = db.create_user("histuser", generate_password_hash("pw"), role="editor")
+    home = db.get_home_page()
+    db.update_page(home["id"], "Home", "content", uid, "edit by histuser")
+    history = db.get_page_history(home["id"])
+    entry_id = history[0]["id"]
+    entry = db.get_history_entry(entry_id)
+    assert entry is not None
+    assert entry["username"] == "histuser"
+
+
+def test_get_history_entry_shows_deleted_user_when_user_removed():
+    """db.get_history_entry() returns 'deleted user' when editor was deleted."""
+    import db
+    from werkzeug.security import generate_password_hash
+    uid = db.create_user("delhistuser", generate_password_hash("pw"), role="editor")
+    home = db.get_home_page()
+    db.update_page(home["id"], "Home", "content by soon-deleted", uid, "edit")
+    history = db.get_page_history(home["id"])
+    entry_id = history[0]["id"]
+    # Delete the user
+    db.delete_user(uid)
+    entry = db.get_history_entry(entry_id)
+    assert entry is not None
+    assert entry["username"] == "deleted user"
+
+
+# ---------------------------------------------------------------------------
+# Fix: api_my_drafts includes timezone-formatted updated_at
+# ---------------------------------------------------------------------------
+
+def test_api_my_drafts_includes_formatted_timestamp(logged_in_admin, admin_user):
+    """GET /api/draft/mine should include updated_at_formatted in each draft."""
+    import db
+    home = db.get_home_page()
+    db.save_draft(home["id"], admin_user, "Draft T", "Draft C")
+    resp = logged_in_admin.get("/api/draft/mine")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert len(data) >= 1
+    assert "updated_at_formatted" in data[0]
+    # The formatted timestamp should be a non-empty string containing the timezone label
+    assert data[0]["updated_at_formatted"] != ""
+    assert "UTC" in data[0]["updated_at_formatted"]
+
+
+def test_api_my_drafts_formatted_timestamp_respects_timezone(logged_in_admin, admin_user):
+    """GET /api/draft/mine formatted timestamp should use the configured timezone."""
+    import db
+    db.update_site_settings(timezone="Europe/Rome")
+    home = db.get_home_page()
+    db.save_draft(home["id"], admin_user, "Draft TZ", "Draft C")
+    resp = logged_in_admin.get("/api/draft/mine")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert len(data) >= 1
+    fmt = data[0]["updated_at_formatted"]
+    # Should contain a European timezone label (CET or CEST depending on time of year)
+    assert "UTC" not in fmt or "CET" in fmt or "CEST" in fmt or fmt != ""
+    # Restore default
+    db.update_site_settings(timezone="UTC")

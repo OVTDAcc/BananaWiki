@@ -57,7 +57,7 @@
         <div style="flex:1;min-width:0">
             <div style="font-size:.78rem;opacity:.5;margin-bottom:.4rem">
                 #{{ ann.id }} · {{ ann.color }} · {{ ann.text_size }} · show: {{ ann.visibility }}
-                {% if ann.expires_at %} · expires: {{ ann.expires_at[:16] }}{% endif %}
+                {% if ann.expires_at %} · expires: {{ format_datetime(ann.expires_at) }}{% endif %}
                 {% if not ann.is_active %} · <span style="color:#c45c6a">inactive</span>{% endif %}
                 · by {{ ann.creator_name }} · {{ time_ago(ann.created_at) }}
             </div>

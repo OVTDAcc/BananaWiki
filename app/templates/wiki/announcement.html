@@ -10,7 +10,7 @@
     </div>
     {% if ann.expires_at %}
     <div style="margin-top:1rem;font-size:.78rem;opacity:.45">
-        Expires: {{ ann.expires_at[:16] }} UTC
+        Expires: {{ format_datetime(ann.expires_at) }}
     </div>
     {% endif %}
 </div>

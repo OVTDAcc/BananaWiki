@@ -819,7 +819,11 @@ def get_page_history(page_id):
 
 def get_history_entry(entry_id):
     conn = get_db()
-    row = conn.execute("SELECT * FROM page_history WHERE id=?", (entry_id,)).fetchone()
+    row = conn.execute(
+        "SELECT ph.*, COALESCE(u.username, 'deleted user') AS username "
+        "FROM page_history ph LEFT JOIN users u ON ph.edited_by=u.id "
+        "WHERE ph.id=?", (entry_id,)
+    ).fetchone()
     conn.close()
     return row
 
