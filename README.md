@@ -137,6 +137,7 @@ Tests use isolated temporary databases and cover routes, database logic, rate li
 
 Detailed docs live in the [`docs/`](docs/) directory:
 
+- **[Features](docs/features.md)** — complete feature list from most visible to most undocumented
 - **[Configuration](docs/configuration.md)** — every `config.py` setting explained
 - **[Deployment](docs/deployment.md)** — systemd, Gunicorn, Cloudflare, nginx, and SSL setup
 - **[Architecture](docs/architecture.md)** — how the codebase is structured and how everything works
