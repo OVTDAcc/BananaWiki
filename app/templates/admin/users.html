@@ -66,7 +66,7 @@
                 Active
                 {% endif %}
             </td>
-            <td style="font-size:.82rem">{% if u.last_login_at %}<span title="{{ u.last_login_at }}">{{ time_ago(u.last_login_at) }}</span>{% else %}Never{% endif %}</td>
+            <td style="font-size:.82rem">{% if u.last_login_at %}<span title="{{ format_datetime(u.last_login_at) }}">{{ time_ago(u.last_login_at) }}</span>{% else %}Never{% endif %}</td>
             <td>{{ time_ago(u.created_at) }}</td>
             <td>
                 <button class="btn btn-sm btn-outline" onclick="document.getElementById('editUser{{ u.id }}').style.display=document.getElementById('editUser{{ u.id }}').style.display==='none'?'table-row':'none'">Edit</button>

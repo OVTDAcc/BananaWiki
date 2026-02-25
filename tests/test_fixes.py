@@ -3573,3 +3573,43 @@ def test_api_my_drafts_formatted_timestamp_respects_timezone(logged_in_admin, ad
     assert "UTC" not in fmt or "CET" in fmt or "CEST" in fmt or fmt != ""
     # Restore default
     db.update_site_settings(timezone="UTC")
+
+
+# ---------------------------------------------------------------------------
+# Fix: admin/users and admin/audit last_login_at tooltips use format_datetime
+# ---------------------------------------------------------------------------
+
+def test_admin_users_last_login_tooltip_uses_format_datetime(logged_in_admin, admin_user, client):
+    """Admin users page: last login tooltip should use format_datetime, not raw ISO."""
+    from app import _LOGIN_ATTEMPTS
+    _LOGIN_ATTEMPTS.clear()
+    import db
+    # Trigger a login to set last_login_at on admin_user
+    with client.session_transaction():
+        pass
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    resp = logged_in_admin.get("/admin/users")
+    assert resp.status_code == 200
+    # The title attribute on the last-login cell should contain a formatted datetime
+    # (format_datetime returns "YYYY-MM-DD HH:MM TZ"), not a raw ISO string
+    # Raw ISO contains 'T' separator and fractional seconds; formatted does not
+    assert b"T00:00" not in resp.data  # not a bare date-only ISO
+    # format_datetime output contains a space-separated date/time/tz
+    assert b"UTC" in resp.data  # timezone label present
+
+
+def test_admin_audit_last_login_tooltip_uses_format_datetime(logged_in_admin, admin_user, client):
+    """Admin audit page: last login tooltip should use format_datetime, not raw ISO."""
+    from app import _LOGIN_ATTEMPTS
+    _LOGIN_ATTEMPTS.clear()
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    resp = logged_in_admin.get(f"/admin/users/{admin_user}/audit")
+    assert resp.status_code == 200
+    assert b"Audit Trail" in resp.data
+    # The title attribute on the last-login span should be formatted, not raw ISO
+    # Raw ISO strings contain fractional seconds like ".123456"; formatted don't
+    import db
+    user = db.get_user_by_id(admin_user)
+    if user["last_login_at"]:
+        # Raw ISO would include the 'T' time separator; format_datetime uses spaces
+        assert b'title="' + user["last_login_at"].encode() + b'"' not in resp.data

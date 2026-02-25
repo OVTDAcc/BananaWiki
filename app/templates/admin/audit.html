@@ -7,7 +7,7 @@
     &nbsp;·&nbsp;
     Role: <span class="badge badge-{{ target.role }}">{{ target.role }}</span>
     {% if target.last_login_at %}
-    &nbsp;·&nbsp; Last login: <span title="{{ target.last_login_at }}">{{ time_ago(target.last_login_at) }}</span>
+    &nbsp;·&nbsp; Last login: <span title="{{ format_datetime(target.last_login_at) }}">{{ time_ago(target.last_login_at) }}</span>
     {% else %}
     &nbsp;·&nbsp; Last login: Never
     {% endif %}
