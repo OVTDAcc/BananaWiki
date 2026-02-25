@@ -703,7 +703,6 @@ def home():
         categories=categories,
         uncategorized=uncategorized,
         editor_info=editor_info,
-        all_categories=db.list_categories(),
     )
 
 
@@ -735,13 +734,14 @@ def view_page(slug):
         categories=categories,
         uncategorized=uncategorized,
         editor_info=editor_info,
-        all_categories=db.list_categories(),
     )
 
 
 @app.route("/page/<slug>/history")
 @login_required
 def page_history(slug):
+    if not config.PAGE_HISTORY_ENABLED:
+        abort(404)
     page = db.get_page_by_slug(slug)
     if not page:
         abort(404)
@@ -759,6 +759,8 @@ def page_history(slug):
 @app.route("/page/<slug>/history/<int:entry_id>")
 @login_required
 def view_history_entry(slug, entry_id):
+    if not config.PAGE_HISTORY_ENABLED:
+        abort(404)
     page = db.get_page_by_slug(slug)
     if not page:
         abort(404)
@@ -781,6 +783,8 @@ def view_history_entry(slug, entry_id):
 @login_required
 @editor_required
 def revert_page(slug, entry_id):
+    if not config.PAGE_HISTORY_ENABLED:
+        abort(404)
     page = db.get_page_by_slug(slug)
     if not page:
         abort(404)
@@ -859,7 +863,6 @@ def edit_page(slug):
         other_drafts=other_drafts,
         categories=categories,
         uncategorized=uncategorized,
-        all_categories=db.list_categories(),
     )
 
 
