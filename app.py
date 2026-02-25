@@ -1155,6 +1155,15 @@ def delete_upload():
     return jsonify({"ok": True})
 
 
+@app.route("/api/easter-egg/trigger", methods=["POST"])
+@login_required
+def easter_egg_trigger():
+    """Record that the logged-in user has found the easter egg (one-way flag)."""
+    user = get_current_user()
+    db.set_easter_egg_found(user["id"])
+    return jsonify({"ok": True})
+
+
 # ---------------------------------------------------------------------------
 #  Admin – User management
 # ---------------------------------------------------------------------------

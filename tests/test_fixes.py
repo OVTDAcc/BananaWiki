@@ -2201,3 +2201,58 @@ def test_announcement_admin_link_in_account_settings(logged_in_admin):
     resp = logged_in_admin.get("/account")
     assert resp.status_code == 200
     assert b"Announcements" in resp.data
+
+
+# -----------------------------------------------------------------------
+# Easter egg tests
+# -----------------------------------------------------------------------
+def test_easter_egg_column_exists():
+    """The users table must have an easter_egg_found column defaulting to 0."""
+    import db
+    from werkzeug.security import generate_password_hash
+    uid = db.create_user("egguser", generate_password_hash("pw"), role="user")
+    user = db.get_user_by_id(uid)
+    assert user["easter_egg_found"] == 0
+
+
+def test_set_easter_egg_found():
+    """set_easter_egg_found() flips the flag from 0 to 1."""
+    import db
+    from werkzeug.security import generate_password_hash
+    uid = db.create_user("egguser2", generate_password_hash("pw"), role="user")
+    db.set_easter_egg_found(uid)
+    user = db.get_user_by_id(uid)
+    assert user["easter_egg_found"] == 1
+
+
+def test_set_easter_egg_found_idempotent():
+    """Calling set_easter_egg_found() multiple times keeps flag at 1."""
+    import db
+    from werkzeug.security import generate_password_hash
+    uid = db.create_user("egguser3", generate_password_hash("pw"), role="user")
+    db.set_easter_egg_found(uid)
+    db.set_easter_egg_found(uid)
+    user = db.get_user_by_id(uid)
+    assert user["easter_egg_found"] == 1
+
+
+def test_easter_egg_trigger_endpoint_requires_login(client):
+    """The trigger endpoint must refuse unauthenticated requests."""
+    resp = client.post("/api/easter-egg/trigger",
+                       json={},
+                       content_type="application/json")
+    # Redirected to login (302) – not allowed
+    assert resp.status_code in (302, 401, 403)
+
+
+def test_easter_egg_trigger_endpoint_sets_flag(logged_in_admin, admin_user):
+    """POSTing to the trigger endpoint sets easter_egg_found=1 in the DB."""
+    import db
+    resp = logged_in_admin.post("/api/easter-egg/trigger",
+                                json={},
+                                content_type="application/json")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data == {"ok": True}
+    user = db.get_user_by_id(admin_user)
+    assert user["easter_egg_found"] == 1

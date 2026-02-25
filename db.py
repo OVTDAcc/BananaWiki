@@ -135,6 +135,8 @@ def init_db():
     cols = [r[1] for r in cur.execute("PRAGMA table_info(users)").fetchall()]
     if "last_login_at" not in cols:
         cur.execute("ALTER TABLE users ADD COLUMN last_login_at TEXT")
+    if "easter_egg_found" not in cols:
+        cur.execute("ALTER TABLE users ADD COLUMN easter_egg_found INTEGER NOT NULL DEFAULT 0")
 
     # Ensure home page exists
     home = cur.execute("SELECT id FROM pages WHERE is_home=1").fetchone()
@@ -197,6 +199,17 @@ def delete_user(user_id):
     conn = get_db()
     conn.execute("UPDATE invite_codes SET used_by=NULL WHERE used_by=?", (user_id,))
     conn.execute("DELETE FROM users WHERE id=?", (user_id,))
+    conn.commit()
+    conn.close()
+
+
+def set_easter_egg_found(user_id):
+    """Mark that the user has found the easter egg (one-way: 0 -> 1 only)."""
+    conn = get_db()
+    conn.execute(
+        "UPDATE users SET easter_egg_found=1 WHERE id=? AND easter_egg_found=0",
+        (user_id,),
+    )
     conn.commit()
     conn.close()
 
