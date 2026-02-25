@@ -1999,3 +1999,194 @@ def test_delete_category_move_validates_target(logged_in_admin):
     # Page should be uncategorized (fallback), not moved to non-existent 9999
     page = db.get_page(page_id)
     assert page["category_id"] is None
+
+
+# -----------------------------------------------------------------------
+# Fix: login_required no longer shows duplicate "please log in" flash
+# -----------------------------------------------------------------------
+def test_login_required_no_duplicate_flash(client, admin_user):
+    """Accessing multiple protected pages without login should not produce
+    duplicate flash messages on the login page."""
+    # Access multiple protected pages without being logged in
+    client.get("/")
+    client.get("/account")
+    # Now visit the login page – should have no "Please log in" flash since
+    # the decorator was updated to redirect silently
+    resp = client.get("/login")
+    assert resp.status_code == 200
+    # No "Please log in to continue" messages should be present
+    assert b"Please log in to continue" not in resp.data
+
+
+# -----------------------------------------------------------------------
+# Announcements – DB helpers
+# -----------------------------------------------------------------------
+def test_create_and_get_announcement(admin_user):
+    import db
+    ann_id = db.create_announcement(
+        content="Test announcement",
+        color="orange",
+        text_size="normal",
+        visibility="both",
+        expires_at=None,
+        user_id=admin_user,
+    )
+    assert ann_id is not None
+    ann = db.get_announcement(ann_id)
+    assert ann is not None
+    assert ann["content"] == "Test announcement"
+    assert ann["color"] == "orange"
+    assert ann["is_active"] == 1
+
+
+def test_list_announcements(admin_user):
+    import db
+    db.create_announcement("Ann 1", "red", "normal", "both", None, admin_user)
+    db.create_announcement("Ann 2", "blue", "large", "logged_in", None, admin_user)
+    rows = db.list_announcements()
+    assert len(rows) >= 2
+    assert any(r["content"] == "Ann 1" for r in rows)
+
+
+def test_update_announcement(admin_user):
+    import db
+    ann_id = db.create_announcement("Original", "orange", "normal", "both", None, admin_user)
+    db.update_announcement(ann_id, content="Updated", is_active=0)
+    ann = db.get_announcement(ann_id)
+    assert ann["content"] == "Updated"
+    assert ann["is_active"] == 0
+
+
+def test_delete_announcement(admin_user):
+    import db
+    ann_id = db.create_announcement("ToDelete", "orange", "normal", "both", None, admin_user)
+    db.delete_announcement(ann_id)
+    assert db.get_announcement(ann_id) is None
+
+
+def test_get_active_announcements_visibility(admin_user):
+    import db
+    db.create_announcement("For logged in", "orange", "normal", "logged_in", None, admin_user)
+    db.create_announcement("For logged out", "red", "normal", "logged_out", None, admin_user)
+    db.create_announcement("For everyone", "blue", "normal", "both", None, admin_user)
+
+    logged_in = db.get_active_announcements(True)
+    slugs_in = [r["content"] for r in logged_in]
+    assert "For logged in" in slugs_in
+    assert "For everyone" in slugs_in
+    assert "For logged out" not in slugs_in
+
+    logged_out = db.get_active_announcements(False)
+    slugs_out = [r["content"] for r in logged_out]
+    assert "For logged out" in slugs_out
+    assert "For everyone" in slugs_out
+    assert "For logged in" not in slugs_out
+
+
+def test_get_active_announcements_expired(admin_user):
+    import db
+    from datetime import datetime, timezone, timedelta
+    past = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+    db.create_announcement("Expired", "orange", "normal", "both", past, admin_user)
+    active = db.get_active_announcements(True)
+    assert all(r["content"] != "Expired" for r in active)
+
+
+def test_get_active_announcements_inactive(admin_user):
+    import db
+    ann_id = db.create_announcement("Inactive", "orange", "normal", "both", None, admin_user)
+    db.update_announcement(ann_id, is_active=0)
+    active = db.get_active_announcements(True)
+    assert all(r["content"] != "Inactive" for r in active)
+
+
+# -----------------------------------------------------------------------
+# Announcements – Admin routes
+# -----------------------------------------------------------------------
+def test_admin_announcements_page(logged_in_admin):
+    resp = logged_in_admin.get("/admin/announcements")
+    assert resp.status_code == 200
+    assert b"Announcement" in resp.data
+
+
+def test_admin_create_announcement(logged_in_admin):
+    resp = logged_in_admin.post("/admin/announcements/create", data={
+        "content": "Hello world",
+        "color": "orange",
+        "text_size": "normal",
+        "visibility": "both",
+        "expires_at": "",
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"Announcement created" in resp.data
+    assert b"Hello world" in resp.data
+
+
+def test_admin_create_announcement_requires_content(logged_in_admin):
+    resp = logged_in_admin.post("/admin/announcements/create", data={
+        "content": "",
+        "color": "orange",
+        "text_size": "normal",
+        "visibility": "both",
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"required" in resp.data.lower()
+
+
+def test_admin_edit_announcement(logged_in_admin, admin_user):
+    import db
+    ann_id = db.create_announcement("Old text", "orange", "normal", "both", None, admin_user)
+    resp = logged_in_admin.post(f"/admin/announcements/{ann_id}/edit", data={
+        "content": "New text",
+        "color": "red",
+        "text_size": "large",
+        "visibility": "logged_in",
+        "expires_at": "",
+        "is_active": "1",
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"Announcement updated" in resp.data
+    ann = db.get_announcement(ann_id)
+    assert ann["content"] == "New text"
+    assert ann["color"] == "red"
+
+
+def test_admin_delete_announcement(logged_in_admin, admin_user):
+    import db
+    ann_id = db.create_announcement("To delete", "orange", "normal", "both", None, admin_user)
+    resp = logged_in_admin.post(f"/admin/announcements/{ann_id}/delete",
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"Announcement deleted" in resp.data
+    assert db.get_announcement(ann_id) is None
+
+
+def test_announcement_shown_in_base(logged_in_admin, admin_user):
+    import db
+    db.create_announcement("Visible banner", "orange", "normal", "both", None, admin_user)
+    resp = logged_in_admin.get("/")
+    assert resp.status_code == 200
+    assert b"announcements-bar" in resp.data
+    assert b"Visible banner" in resp.data
+
+
+def test_announcement_full_view(logged_in_admin, admin_user):
+    import db
+    ann_id = db.create_announcement("Full content here", "blue", "normal", "logged_in", None, admin_user)
+    resp = logged_in_admin.get(f"/announcements/{ann_id}")
+    assert resp.status_code == 200
+    assert b"Full content here" in resp.data
+
+
+def test_announcement_full_view_404_for_wrong_visibility(client, admin_user):
+    import db
+    ann_id = db.create_announcement("Logged in only", "blue", "normal", "logged_in", None, admin_user)
+    # Not logged in – should get 404
+    resp = client.get(f"/announcements/{ann_id}")
+    assert resp.status_code == 404
+
+
+def test_announcement_admin_link_in_account_settings(logged_in_admin):
+    resp = logged_in_admin.get("/account")
+    assert resp.status_code == 200
+    assert b"Announcements" in resp.data

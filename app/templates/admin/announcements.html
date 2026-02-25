@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% block title %}Announcements – {{ settings.site_name }}{% endblock %}
+{% block content %}
+<h1>Announcements</h1>
+
+<div class="settings-section">
+    <h3>Create Announcement</h3>
+    <form method="POST" action="{{ url_for('admin_create_announcement') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-group">
+            <label>Content (Markdown supported)</label>
+            <textarea name="content" class="input" rows="4" required
+                      placeholder="Enter announcement text..."></textarea>
+        </div>
+        <div style="display:flex;gap:1rem;flex-wrap:wrap">
+            <div class="form-group">
+                <label>Color</label>
+                <select name="color" class="input input-sm">
+                    <option value="orange">Orange</option>
+                    <option value="red">Red</option>
+                    <option value="yellow">Yellow</option>
+                    <option value="blue">Blue</option>
+                    <option value="green">Green</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Text Size</label>
+                <select name="text_size" class="input input-sm">
+                    <option value="normal">Normal</option>
+                    <option value="small">Small</option>
+                    <option value="large">Large</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Show To</label>
+                <select name="visibility" class="input input-sm">
+                    <option value="both">Everyone</option>
+                    <option value="logged_in">Logged-in users only</option>
+                    <option value="logged_out">Logged-out users only</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Expires At (optional)</label>
+                <input type="datetime-local" name="expires_at" class="input input-sm"
+                       style="width:200px">
+            </div>
+        </div>
+        <button type="submit" class="btn">Create Announcement</button>
+    </form>
+</div>
+
+{% if announcements %}
+<h2 style="margin-bottom:.8rem;font-size:1.1rem">Existing Announcements</h2>
+{% for ann in announcements %}
+<div class="settings-section" style="border-left:4px solid var(--ann-{{ ann.color }}-border, var(--primary))">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem;flex-wrap:wrap">
+        <div style="flex:1;min-width:0">
+            <div style="font-size:.78rem;opacity:.5;margin-bottom:.4rem">
+                #{{ ann.id }} · {{ ann.color }} · {{ ann.text_size }} · show: {{ ann.visibility }}
+                {% if ann.expires_at %} · expires: {{ ann.expires_at[:16] }}{% endif %}
+                {% if not ann.is_active %} · <span style="color:#c45c6a">inactive</span>{% endif %}
+                · by {{ ann.creator_name }} · {{ time_ago(ann.created_at) }}
+            </div>
+            <div class="wiki-content" style="font-size:.9rem">{{ ann.content | render_md }}</div>
+        </div>
+        <div style="display:flex;gap:.4rem;flex-shrink:0">
+            <button class="btn btn-sm btn-outline"
+                    onclick="toggleEditForm({{ ann.id }})">Edit</button>
+            <form method="POST"
+                  action="{{ url_for('admin_delete_announcement', ann_id=ann.id) }}"
+                  onsubmit="return confirm('Delete this announcement?')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="edit-form-{{ ann.id }}" style="display:none;margin-top:.8rem;border-top:1px solid rgba(255,255,255,.06);padding-top:.8rem">
+        <form method="POST" action="{{ url_for('admin_edit_announcement', ann_id=ann.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="form-group">
+                <label>Content</label>
+                <textarea name="content" class="input" rows="4" required>{{ ann.content }}</textarea>
+            </div>
+            <div style="display:flex;gap:1rem;flex-wrap:wrap">
+                <div class="form-group">
+                    <label>Color</label>
+                    <select name="color" class="input input-sm">
+                        {% for c in ['orange','red','yellow','blue','green'] %}
+                        <option value="{{ c }}" {% if ann.color == c %}selected{% endif %}>{{ c|capitalize }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Text Size</label>
+                    <select name="text_size" class="input input-sm">
+                        {% for s in ['small','normal','large'] %}
+                        <option value="{{ s }}" {% if ann.text_size == s %}selected{% endif %}>{{ s|capitalize }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Show To</label>
+                    <select name="visibility" class="input input-sm">
+                        <option value="both" {% if ann.visibility == 'both' %}selected{% endif %}>Everyone</option>
+                        <option value="logged_in" {% if ann.visibility == 'logged_in' %}selected{% endif %}>Logged-in only</option>
+                        <option value="logged_out" {% if ann.visibility == 'logged_out' %}selected{% endif %}>Logged-out only</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Expires At (optional)</label>
+                    <input type="datetime-local" name="expires_at" class="input input-sm"
+                           style="width:200px"
+                           value="{{ ann.expires_at[:16] if ann.expires_at else '' }}">
+                </div>
+                <div class="form-group">
+                    <label>Active</label>
+                    <label style="cursor:pointer;opacity:.85;font-size:.85rem">
+                        <input type="checkbox" name="is_active" value="1"
+                               {% if ann.is_active %}checked{% endif %}>
+                        Active
+                    </label>
+                </div>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-sm">Save</button>
+                <button type="button" class="btn btn-sm btn-outline"
+                        onclick="toggleEditForm({{ ann.id }})">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endfor %}
+{% else %}
+<p style="opacity:.5;font-size:.9rem">No announcements yet.</p>
+{% endif %}
+
+{% endblock %}
+{% block scripts %}
+<script>
+function toggleEditForm(id) {
+    var el = document.getElementById('edit-form-' + id);
+    if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+</script>
+{% endblock %}
