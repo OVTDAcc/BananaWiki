@@ -24,7 +24,7 @@ from werkzeug.utils import secure_filename
 import markdown
 import bleach
 from PIL import Image
-import pytz
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError, available_timezones
 
 import config
 import db
@@ -267,13 +267,13 @@ def admin_required(f):
 
 
 def get_site_timezone():
-    """Return the pytz timezone configured in site settings (defaults to UTC)."""
+    """Return the zoneinfo timezone configured in site settings (defaults to UTC)."""
     settings = db.get_site_settings()
     tz_name = (settings["timezone"] if settings and settings["timezone"] else "UTC")
     try:
-        return pytz.timezone(tz_name)
-    except pytz.exceptions.UnknownTimeZoneError:
-        return pytz.utc
+        return ZoneInfo(tz_name)
+    except (ZoneInfoNotFoundError, KeyError):
+        return ZoneInfo("UTC")
 
 
 def time_ago(dt_str):
@@ -375,7 +375,7 @@ def before_request_hook():
 
     # Lockdown mode: non-admin users are kicked out
     if settings["lockdown_mode"] and request.endpoint not in (
-        "lockdown", "login", "logout", "static"
+        "lockdown", "login", "logout", "static", "view_announcement"
     ):
         user = get_current_user()
         if not user or user["role"] != "admin":
@@ -1319,7 +1319,6 @@ def easter_egg():
     categories, uncategorized = db.get_category_tree()
     return render_template(
         "wiki/easter_egg.html",
-        user=user,
         categories=categories,
         uncategorized=uncategorized,
     )
@@ -1618,8 +1617,8 @@ def admin_settings():
                 return redirect(url_for("admin_settings"))
         tz_name = request.form.get("timezone", "UTC").strip() or "UTC"
         try:
-            pytz.timezone(tz_name)
-        except pytz.exceptions.UnknownTimeZoneError:
+            ZoneInfo(tz_name)
+        except (ZoneInfoNotFoundError, KeyError):
             flash("Invalid time zone selected.", "error")
             return redirect(url_for("admin_settings"))
 
@@ -1679,7 +1678,7 @@ def admin_settings():
     settings = db.get_site_settings()
     categories, uncategorized = db.get_category_tree()
     return render_template("admin/settings.html", settings=settings,
-                           timezones=pytz.common_timezones,
+                           timezones=sorted(available_timezones()),
                            favicon_types=sorted(_VALID_FAVICON_TYPES - {"custom"}),
                            categories=categories, uncategorized=uncategorized)
 
@@ -1700,7 +1699,6 @@ def admin_user_audit(user_id):
 
 def _read_user_audit_log(username, max_entries=200):
     """Read log entries for a specific user from the log file."""
-    import os
     log_file = config.LOG_FILE
     if not os.path.exists(log_file):
         return []
