@@ -2,6 +2,7 @@
 BananaWiki – Database layer (SQLite)
 """
 
+import re
 import sqlite3
 import os
 import string
@@ -599,6 +600,26 @@ def get_history_entry(entry_id):
     row = conn.execute("SELECT * FROM page_history WHERE id=?", (entry_id,)).fetchone()
     conn.close()
     return row
+
+
+_UPLOAD_REF_RE = re.compile(r'/static/uploads/([^\s)"\']+)')
+
+
+def get_all_referenced_image_filenames():
+    """Return a set of upload filenames referenced in any page content or history.
+
+    Scans both the live ``pages.content`` and every ``page_history.content``
+    entry so that images still present in the revision history are never
+    removed.
+    """
+    conn = get_db()
+    filenames = set()
+    for row in conn.execute("SELECT content FROM pages").fetchall():
+        filenames.update(_UPLOAD_REF_RE.findall(row["content"]))
+    for row in conn.execute("SELECT content FROM page_history").fetchall():
+        filenames.update(_UPLOAD_REF_RE.findall(row["content"]))
+    conn.close()
+    return filenames
 
 
 # ---------------------------------------------------------------------------

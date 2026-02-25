@@ -2256,3 +2256,131 @@ def test_easter_egg_trigger_endpoint_sets_flag(logged_in_admin, admin_user):
     assert data == {"ok": True}
     user = db.get_user_by_id(admin_user)
     assert user["easter_egg_found"] == 1
+
+
+# -----------------------------------------------------------------------
+# Upload cleanup logic
+# -----------------------------------------------------------------------
+@pytest.fixture
+def isolated_uploads(tmp_path, monkeypatch):
+    """Redirect UPLOAD_FOLDER to a temporary directory for cleanup tests."""
+    upload_dir = str(tmp_path / "uploads")
+    os.makedirs(upload_dir, exist_ok=True)
+    monkeypatch.setattr(config, "UPLOAD_FOLDER", upload_dir)
+    return upload_dir
+
+
+def _make_fake_upload(upload_dir, filename="abc123.png"):
+    """Create a dummy file in the upload directory and return its path."""
+    fpath = os.path.join(upload_dir, filename)
+    with open(fpath, "wb") as f:
+        f.write(b"fakeimage")
+    return fpath
+
+
+def test_get_all_referenced_image_filenames_empty():
+    """No images referenced when pages have no image markdown."""
+    import db
+    result = db.get_all_referenced_image_filenames()
+    assert isinstance(result, set)
+    assert len(result) == 0
+
+
+def test_get_all_referenced_image_filenames_from_page():
+    """Images referenced in page content are returned."""
+    import db
+    from werkzeug.security import generate_password_hash
+    uid = db.create_user("u1", generate_password_hash("pw"), role="editor")
+    content = "Hello\n![img](/static/uploads/abc123.png)\nWorld"
+    db.create_page("Test", "test-ref", content, None, uid)
+    result = db.get_all_referenced_image_filenames()
+    assert "abc123.png" in result
+
+
+def test_get_all_referenced_image_filenames_from_history():
+    """Images referenced only in page history (removed from live page) are still returned."""
+    import db
+    from werkzeug.security import generate_password_hash
+    uid = db.create_user("u2", generate_password_hash("pw"), role="editor")
+    # Create page with image, then update without image
+    page_id = db.create_page("HistPage", "hist-page", "![img](/static/uploads/hist1.png)", None, uid)
+    db.update_page(page_id, "HistPage", "no image now", uid, "removed image")
+    result = db.get_all_referenced_image_filenames()
+    # Image removed from live page but still in history → must be kept
+    assert "hist1.png" in result
+
+
+def test_cleanup_unused_uploads_removes_unreferenced(isolated_uploads):
+    """Files not referenced in any page/history are deleted by cleanup."""
+    from app import cleanup_unused_uploads
+    fpath = _make_fake_upload(isolated_uploads, "orphan.png")
+    assert os.path.isfile(fpath)
+    cleanup_unused_uploads()
+    assert not os.path.isfile(fpath)
+
+
+def test_cleanup_unused_uploads_keeps_referenced(isolated_uploads):
+    """Files referenced in a page are preserved by cleanup."""
+    import db
+    from werkzeug.security import generate_password_hash
+    from app import cleanup_unused_uploads
+    uid = db.create_user("u3", generate_password_hash("pw"), role="editor")
+    fpath = _make_fake_upload(isolated_uploads, "keep_me.png")
+    db.create_page("KPage", "k-page", "![img](/static/uploads/keep_me.png)", None, uid)
+    cleanup_unused_uploads()
+    assert os.path.isfile(fpath)
+
+
+def test_cleanup_unused_uploads_keeps_history_referenced(isolated_uploads):
+    """Files referenced only in page history are preserved by cleanup."""
+    import db
+    from werkzeug.security import generate_password_hash
+    from app import cleanup_unused_uploads
+    uid = db.create_user("u4", generate_password_hash("pw"), role="editor")
+    page_id = db.create_page("HPage", "h-page", "![img](/static/uploads/hist_keep.png)", None, uid)
+    fpath = _make_fake_upload(isolated_uploads, "hist_keep.png")
+    # Update page to remove the image; original content is now only in history
+    db.update_page(page_id, "HPage", "no image", uid, "removed")
+    cleanup_unused_uploads()
+    # Image is in history → must be kept
+    assert os.path.isfile(fpath)
+
+
+def test_draft_discard_triggers_cleanup(logged_in_admin, admin_user, isolated_uploads):
+    """Discarding a draft via /api/draft/delete removes unreferenced upload files."""
+    import db
+    # Create a page and a draft that references an orphan image
+    home = db.get_home_page()
+    db.save_draft(home["id"], admin_user, "Draft", "![img](/static/uploads/draft_orphan.png)")
+    fpath = _make_fake_upload(isolated_uploads, "draft_orphan.png")
+    assert os.path.isfile(fpath)
+    resp = logged_in_admin.post("/api/draft/delete",
+                                json={"page_id": home["id"]},
+                                content_type="application/json")
+    assert resp.status_code == 200
+    # Image was in the discarded draft only → should be cleaned up
+    assert not os.path.isfile(fpath)
+
+
+def test_page_commit_removes_images_not_in_content(logged_in_admin, admin_user, isolated_uploads):
+    """Committing a page without an image that was uploaded deletes the orphan file."""
+    import db
+    home = db.get_home_page()
+    fpath = _make_fake_upload(isolated_uploads, "unused_commit.png")
+    # Commit the page WITHOUT including the image URL in the content
+    resp = logged_in_admin.post(f"/page/{home['slug']}/edit",
+                                data={"title": "Home", "content": "Clean content",
+                                      "edit_message": ""},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    assert not os.path.isfile(fpath)
+
+
+def test_cleanup_skips_dotfiles(isolated_uploads):
+    """Files starting with '.' (e.g. .gitkeep) are never removed."""
+    from app import cleanup_unused_uploads
+    gitkeep = os.path.join(isolated_uploads, ".gitkeep")
+    with open(gitkeep, "wb") as f:
+        f.write(b"")
+    cleanup_unused_uploads()
+    assert os.path.isfile(gitkeep)
