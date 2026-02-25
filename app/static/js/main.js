@@ -444,4 +444,54 @@ function initAnnouncements() {
     });
 }
 
+// ---------------------------------------------------------------------------
+//  Easter egg – Konami code → falling bananas
+// ---------------------------------------------------------------------------
+(function () {
+    var KONAMI = [38, 38, 40, 40, 37, 39, 37, 39, 66, 65]; // ↑↑↓↓←→←→BA
+    var pos = 0;
+
+    function launchBananas() {
+        var count = 30;
+        for (var i = 0; i < count; i++) {
+            (function (delay) {
+                setTimeout(function () {
+                    var el = document.createElement('div');
+                    el.className = 'banana-drop';
+                    el.textContent = '🍌';
+                    el.style.left = (Math.random() * 98) + 'vw';
+                    el.style.animationDuration = (1.5 + Math.random() * 2) + 's';
+                    el.style.fontSize = (1.2 + Math.random() * 1.5) + 'rem';
+                    document.body.appendChild(el);
+                    el.addEventListener('animationend', function () {
+                        el.parentNode && el.parentNode.removeChild(el);
+                    });
+                }, delay);
+            })(i * 80);
+        }
+
+        // Notify the backend (fire-and-forget, best effort)
+        var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+        var csrf = csrfMeta ? csrfMeta.getAttribute('content') : '';
+        fetch('/api/easter-egg/trigger', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrf, 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: '{}',
+        }).catch(function () {});
+    }
+
+    document.addEventListener('keydown', function (e) {
+        if (e.keyCode === KONAMI[pos]) {
+            pos++;
+            if (pos === KONAMI.length) {
+                pos = 0;
+                launchBananas();
+            }
+        } else {
+            pos = (e.keyCode === KONAMI[0]) ? 1 : 0;
+        }
+    });
+}());
+
 document.addEventListener('DOMContentLoaded', initAnnouncements);
