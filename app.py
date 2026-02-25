@@ -117,6 +117,47 @@ def _clear_login_attempts():
 
 
 # ---------------------------------------------------------------------------
+#  General rate limiting (in-memory, per-worker, thread-safe)
+# ---------------------------------------------------------------------------
+_RL_LOCK = threading.Lock()
+_RL_STORE = defaultdict(list)   # (ip, bucket) → list of UTC timestamps
+_RL_GLOBAL_MAX = 300            # max requests per window for all endpoints
+_RL_GLOBAL_WINDOW = 60          # window size in seconds
+
+
+def _rl_check(ip, bucket, max_requests, window):
+    """Return True if the request is within the rate limit, and record it."""
+    key = (ip, bucket)
+    now = datetime.now(timezone.utc).timestamp()
+    cutoff = now - window
+    with _RL_LOCK:
+        timestamps = _RL_STORE[key]
+        _RL_STORE[key] = [t for t in timestamps if t > cutoff]
+        if len(_RL_STORE[key]) >= max_requests:
+            return False
+        _RL_STORE[key].append(now)
+        return True
+
+
+def rate_limit(max_requests=60, window=60):
+    """Route decorator that enforces a per-IP rate limit."""
+    def decorator(f):
+        bucket = f.__name__
+        @functools.wraps(f)
+        def wrapper(*args, **kwargs):
+            ip = request.remote_addr or "unknown"
+            if not _rl_check(ip, bucket, max_requests, window):
+                log_action("rate_limited", request, endpoint=bucket)
+                if request.path.startswith("/api/"):
+                    return jsonify({"error": "Too many requests. Please slow down."}), 429
+                flash("Too many requests. Please slow down.", "error")
+                return render_template("wiki/429.html"), 429
+            return f(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
+# ---------------------------------------------------------------------------
 #  Helpers
 # ---------------------------------------------------------------------------
 def render_markdown(text):
@@ -318,6 +359,20 @@ def before_request_hook():
     if not settings["setup_done"] and request.endpoint not in ("setup", "static"):
         return redirect(url_for("setup"))
 
+    # Global rate limit (skip static files)
+    if request.endpoint and request.endpoint != "static":
+        ip = request.remote_addr or "unknown"
+        if not _rl_check(ip, "global", _RL_GLOBAL_MAX, _RL_GLOBAL_WINDOW):
+            log_action("rate_limited_global", request)
+            if request.path.startswith("/api/"):
+                return jsonify({"error": "Too many requests. Please slow down."}), 429
+            try:
+                categories, uncategorized = db.get_category_tree()
+            except Exception:
+                categories, uncategorized = [], []
+            return render_template("wiki/429.html", categories=categories,
+                                   uncategorized=uncategorized), 429
+
     user = get_current_user()
     log_request(request, user)
 
@@ -425,6 +480,7 @@ def login():
 
 
 @app.route("/signup", methods=["GET", "POST"])
+@rate_limit(10, 60)
 def signup():
     settings = db.get_site_settings()
     if not settings["setup_done"]:
@@ -694,6 +750,7 @@ def revert_page(slug, entry_id):
 @app.route("/page/<slug>/edit", methods=["GET", "POST"])
 @login_required
 @editor_required
+@rate_limit(20, 60)
 def edit_page(slug):
     page = db.get_page_by_slug(slug)
     if not page:
@@ -783,6 +840,7 @@ def edit_page_title(slug):
 @app.route("/create-page", methods=["GET", "POST"])
 @login_required
 @editor_required
+@rate_limit(20, 60)
 def create_page():
     user = get_current_user()
     categories, uncategorized = db.get_category_tree()
@@ -831,6 +889,7 @@ def create_page():
 @app.route("/page/<slug>/delete", methods=["POST"])
 @login_required
 @editor_required
+@rate_limit(10, 60)
 def delete_page_route(slug):
     page = db.get_page_by_slug(slug)
     if not page:
@@ -850,6 +909,7 @@ def delete_page_route(slug):
 @app.route("/page/<slug>/move", methods=["POST"])
 @login_required
 @editor_required
+@rate_limit(20, 60)
 def move_page(slug):
     page = db.get_page_by_slug(slug)
     if not page:
@@ -872,6 +932,7 @@ def move_page(slug):
 @app.route("/category/create", methods=["POST"])
 @login_required
 @editor_required
+@rate_limit(20, 60)
 def create_category():
     name = request.form.get("name", "").strip()
     parent_id = request.form.get("parent_id")
@@ -900,6 +961,7 @@ def create_category():
 @app.route("/category/<int:cat_id>/edit", methods=["POST"])
 @login_required
 @editor_required
+@rate_limit(20, 60)
 def edit_category(cat_id):
     cat = db.get_category(cat_id)
     if not cat:
@@ -922,6 +984,7 @@ def edit_category(cat_id):
 @app.route("/category/<int:cat_id>/move", methods=["POST"])
 @login_required
 @editor_required
+@rate_limit(20, 60)
 def move_category(cat_id):
     cat = db.get_category(cat_id)
     if not cat:
@@ -952,6 +1015,7 @@ def move_category(cat_id):
 @app.route("/category/<int:cat_id>/delete", methods=["POST"])
 @login_required
 @editor_required
+@rate_limit(10, 60)
 def delete_category_route(cat_id):
     cat = db.get_category(cat_id)
     if not cat:
@@ -980,6 +1044,7 @@ def delete_category_route(cat_id):
 # ---------------------------------------------------------------------------
 @app.route("/api/preview", methods=["POST"])
 @login_required
+@rate_limit(30, 60)
 def api_preview():
     data = request.get_json(silent=True)
     if not data:
@@ -995,6 +1060,7 @@ def api_preview():
 @app.route("/api/draft/save", methods=["POST"])
 @login_required
 @editor_required
+@rate_limit(30, 60)
 def api_save_draft():
     data = request.get_json(silent=True)
     if not data:
@@ -1067,6 +1133,7 @@ def api_transfer_draft():
 @app.route("/api/draft/delete", methods=["POST"])
 @login_required
 @editor_required
+@rate_limit(30, 60)
 def api_delete_draft():
     data = request.get_json(silent=True)
     if not data:
@@ -1133,6 +1200,7 @@ def cleanup_unused_uploads():
 @app.route("/api/upload", methods=["POST"])
 @login_required
 @editor_required
+@rate_limit(10, 60)
 def upload_image():
     if "file" not in request.files:
         return jsonify({"error": "No file provided"}), 400
@@ -1164,6 +1232,7 @@ def upload_image():
 @app.route("/api/upload/delete", methods=["POST"])
 @login_required
 @editor_required
+@rate_limit(10, 60)
 def delete_upload():
     data = request.get_json(silent=True)
     if not data:
@@ -1630,6 +1699,16 @@ def forbidden(e):
 def request_entity_too_large(e):
     flash("File too large. Maximum upload size is 16 MB.", "error")
     return redirect(_safe_referrer() or url_for("home"))
+
+
+@app.errorhandler(429)
+def too_many_requests(e):
+    try:
+        categories, uncategorized = db.get_category_tree()
+    except Exception:
+        categories, uncategorized = [], []
+    return render_template("wiki/429.html", categories=categories,
+                           uncategorized=uncategorized), 429
 
 
 @app.errorhandler(500)
