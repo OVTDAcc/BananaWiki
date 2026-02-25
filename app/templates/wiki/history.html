@@ -28,6 +28,36 @@
                     <button class="btn btn-sm">Revert</button>
                 </form>
                 {% endif %}
+                {% if current_user and current_user.role == 'admin' %}
+                <button class="btn btn-sm btn-outline" onclick="document.getElementById('transfer-{{ entry.id }}').style.display=document.getElementById('transfer-{{ entry.id }}').style.display==='none'?'block':'none'">Transfer</button>
+                <div id="transfer-{{ entry.id }}" style="display:none;margin-top:.4rem">
+                    <form method="POST" action="{{ url_for('transfer_attribution', slug=page.slug, entry_id=entry.id) }}" style="display:flex;gap:.4rem;flex-wrap:wrap;align-items:center" onsubmit="return confirm('Transfer this contribution to the selected user?')">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <select name="new_user_id" class="input input-sm" style="width:160px" required>
+                            <option value="">— select user —</option>
+                            {% for u in all_users %}
+                            {% if u.id != entry.edited_by %}
+                            <option value="{{ u.id }}">{{ u.username }}</option>
+                            {% endif %}
+                            {% endfor %}
+                        </select>
+                        <button class="btn btn-sm">Move this entry</button>
+                    </form>
+                    <form method="POST" action="{{ url_for('bulk_transfer_attribution', slug=page.slug) }}" style="display:flex;gap:.4rem;flex-wrap:wrap;align-items:center;margin-top:.3rem" onsubmit="return confirm('Transfer ALL contributions by this user on this page to the selected user?')">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="from_user_id" value="{{ entry.edited_by }}">
+                        <select name="new_user_id" class="input input-sm" style="width:160px" required>
+                            <option value="">— select user —</option>
+                            {% for u in all_users %}
+                            {% if u.id != entry.edited_by %}
+                            <option value="{{ u.id }}">{{ u.username }}</option>
+                            {% endif %}
+                            {% endfor %}
+                        </select>
+                        <button class="btn btn-sm">Move all from {{ entry.username }}</button>
+                    </form>
+                </div>
+                {% endif %}
             </td>
         </tr>
         {% endfor %}

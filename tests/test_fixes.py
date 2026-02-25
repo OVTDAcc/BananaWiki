@@ -3613,3 +3613,156 @@ def test_admin_audit_last_login_tooltip_uses_format_datetime(logged_in_admin, ad
     if user["last_login_at"]:
         # Raw ISO would include the 'T' time separator; format_datetime uses spaces
         assert b'title="' + user["last_login_at"].encode() + b'"' not in resp.data
+
+
+# ---------------------------------------------------------------------------
+# Feature: Transfer attribution of page history entries
+# ---------------------------------------------------------------------------
+
+def test_transfer_attribution_single_entry(logged_in_admin, admin_user):
+    """Admin can transfer a single history entry's attribution to another user."""
+    from werkzeug.security import generate_password_hash
+    import db
+    # Create a second user
+    uid2 = db.create_user("editor2", generate_password_hash("pass123"), role="editor")
+    # Create a page with a history entry authored by admin_user
+    page_id = db.create_page("Transfer Test", "transfer-test", "Content", user_id=admin_user)
+    db.update_page(page_id, "Transfer Test", "Updated content", admin_user, "Edit 1")
+    history = db.get_page_history(page_id)
+    assert len(history) >= 1
+    entry = history[0]
+    # Transfer attribution of the most recent entry to uid2
+    resp = logged_in_admin.post(
+        f"/page/transfer-test/history/{entry['id']}/transfer",
+        data={"new_user_id": uid2},
+    )
+    assert resp.status_code in (200, 302)
+    # Verify the attribution changed
+    updated = db.get_history_entry(entry["id"])
+    assert updated["edited_by"] == uid2
+
+
+def test_transfer_attribution_returns_404_when_history_disabled(logged_in_admin, admin_user, monkeypatch):
+    """Transfer attribution returns 404 when PAGE_HISTORY_ENABLED is False."""
+    import config
+    monkeypatch.setattr(config, "PAGE_HISTORY_ENABLED", False)
+    resp = logged_in_admin.post("/page/home/history/1/transfer", data={"new_user_id": "x"})
+    assert resp.status_code == 404
+
+
+def test_bulk_transfer_attribution(logged_in_admin, admin_user):
+    """Admin can bulk-transfer all history entries from one user to another."""
+    from werkzeug.security import generate_password_hash
+    import db
+    uid2 = db.create_user("bulk_target", generate_password_hash("pass123"), role="editor")
+    page_id = db.create_page("Bulk Transfer", "bulk-transfer", "Content", user_id=admin_user)
+    db.update_page(page_id, "Bulk Transfer", "Edit A", admin_user, "Edit A")
+    db.update_page(page_id, "Bulk Transfer", "Edit B", admin_user, "Edit B")
+    resp = logged_in_admin.post(
+        "/page/bulk-transfer/history/bulk-transfer",
+        data={"from_user_id": admin_user, "new_user_id": uid2},
+    )
+    assert resp.status_code in (200, 302)
+    history = db.get_page_history(page_id)
+    # All entries should now be attributed to uid2
+    for entry in history:
+        assert entry["edited_by"] == uid2
+
+
+def test_bulk_transfer_attribution_returns_404_when_history_disabled(logged_in_admin, admin_user, monkeypatch):
+    """Bulk transfer returns 404 when PAGE_HISTORY_ENABLED is False."""
+    import config
+    monkeypatch.setattr(config, "PAGE_HISTORY_ENABLED", False)
+    resp = logged_in_admin.post("/page/home/history/bulk-transfer", data={})
+    assert resp.status_code == 404
+
+
+def test_history_page_shows_transfer_buttons_for_admin(logged_in_admin, admin_user):
+    """History page shows Transfer button for admin users."""
+    import db
+    db.update_page(db.get_home_page()["id"], "Home", "Updated content", admin_user, "Edit")
+    resp = logged_in_admin.get("/page/home/history")
+    assert resp.status_code == 200
+    assert b"Transfer" in resp.data
+
+
+# ---------------------------------------------------------------------------
+# Feature: Username history audit
+# ---------------------------------------------------------------------------
+
+def test_username_history_recorded_on_admin_rename(logged_in_admin, admin_user):
+    """Admin renaming a user records the change in username_history."""
+    from werkzeug.security import generate_password_hash
+    import db
+    uid = db.create_user("original_name", generate_password_hash("pass123"), role="user")
+    resp = logged_in_admin.post(
+        f"/admin/users/{uid}/edit",
+        data={"action": "change_username", "username": "new_name"},
+    )
+    assert resp.status_code in (200, 302)
+    history = db.get_username_history(uid)
+    assert len(history) == 1
+    assert history[0]["old_username"] == "original_name"
+    assert history[0]["new_username"] == "new_name"
+
+
+def test_username_history_recorded_on_self_rename(client, admin_user):
+    """User renaming their own account records the change in username_history."""
+    from werkzeug.security import generate_password_hash
+    import db
+    uid = db.create_user("selfname", generate_password_hash("selfpass"), role="user")
+    client.post("/login", data={"username": "selfname", "password": "selfpass"})
+    resp = client.post(
+        "/account",
+        data={"action": "change_username", "new_username": "selfname_new", "password": "selfpass"},
+    )
+    assert resp.status_code in (200, 302)
+    history = db.get_username_history(uid)
+    assert len(history) == 1
+    assert history[0]["old_username"] == "selfname"
+    assert history[0]["new_username"] == "selfname_new"
+
+
+def test_audit_page_shows_username_history(logged_in_admin, admin_user):
+    """Admin audit page shows username history section when changes exist."""
+    from werkzeug.security import generate_password_hash
+    import db
+    uid = db.create_user("audituser", generate_password_hash("pass123"), role="user")
+    db.record_username_change(uid, "audituser", "audituser_v2")
+    resp = logged_in_admin.get(f"/admin/users/{uid}/audit")
+    assert resp.status_code == 200
+    assert b"Username History" in resp.data
+    assert b"audituser" in resp.data
+    assert b"audituser_v2" in resp.data
+
+
+def test_audit_page_no_username_history_section_when_empty(logged_in_admin, admin_user):
+    """Admin audit page does not show username history section when no changes exist."""
+    resp = logged_in_admin.get(f"/admin/users/{admin_user}/audit")
+    assert resp.status_code == 200
+    assert b"Username History" not in resp.data
+
+
+def test_get_username_history_returns_newest_first():
+    """get_username_history returns entries in descending order."""
+    from werkzeug.security import generate_password_hash
+    import db
+    uid = db.create_user("histuser", generate_password_hash("pass"), role="user")
+    db.record_username_change(uid, "histuser", "histuser_v2")
+    db.record_username_change(uid, "histuser_v2", "histuser_v3")
+    history = db.get_username_history(uid)
+    assert len(history) == 2
+    assert history[0]["new_username"] == "histuser_v3"
+    assert history[1]["new_username"] == "histuser_v2"
+
+
+def test_username_history_deleted_with_user():
+    """Deleting a user also deletes their username history (ON DELETE CASCADE)."""
+    from werkzeug.security import generate_password_hash
+    import db
+    uid = db.create_user("delhistuser", generate_password_hash("pass"), role="user")
+    db.record_username_change(uid, "delhistuser", "delhistuser_v2")
+    assert len(db.get_username_history(uid)) == 1
+    db.delete_user(uid)
+    # After deletion, the user is gone; history should be empty via CASCADE
+    assert db.get_username_history(uid) == []

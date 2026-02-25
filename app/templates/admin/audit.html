@@ -13,8 +13,33 @@
     {% endif %}
 </p>
 
+{% if username_history %}
+<div class="settings-section" style="margin-bottom:1.5rem">
+    <h3>Username History</h3>
+    <table class="admin-table" style="margin-top:.5rem">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Old Username</th>
+                <th>New Username</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for entry in username_history %}
+            <tr>
+                <td><span title="{{ format_datetime(entry.changed_at) }}">{{ time_ago(entry.changed_at) }}</span></td>
+                <td>{{ entry.old_username }}</td>
+                <td>{{ entry.new_username }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
 {% if log_entries %}
 <div class="settings-section">
+    <h3>Activity Log</h3>
     <p style="font-size:.82rem;opacity:.5;margin-bottom:.5rem">Showing up to 200 most recent entries (newest first)</p>
     <div style="max-height:600px;overflow-y:auto;font-family:monospace;font-size:.78rem;line-height:1.6;background:rgba(0,0,0,.2);padding:.8rem;border-radius:4px">
         {% for entry in log_entries %}
