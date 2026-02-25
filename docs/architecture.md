@@ -62,7 +62,7 @@ This document explains how BananaWiki is structured and how the main pieces fit 
    - `/`, `/page/<slug>`, `/page/<slug>/history`, etc. — wiki page viewing and editing
    - `/create-page`, `/page/<slug>/delete`, `/page/<slug>/move` — page management
    - `/category/*` — category CRUD and reordering
-   - `/api/preview`, `/api/draft/*`, `/api/upload`, `/api/upload/delete` — internal JSON API
+   - `/api/preview`, `/api/draft/*`, `/api/upload`, `/api/upload/delete`, `/api/easter-egg/trigger` — internal JSON API
    - `/admin/users`, `/admin/codes`, `/admin/settings`, `/admin/announcements` — admin panel
    - `/announcements/<id>` — public full-content announcement page
    - `/easter-egg` — easter egg page
