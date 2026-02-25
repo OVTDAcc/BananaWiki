@@ -3272,3 +3272,116 @@ def test_lockdown_html_endpoint_still_redirects(client, admin_user):
     resp = client.get("/")
     assert resp.status_code == 302
     assert "/lockdown" in resp.headers["Location"]
+
+
+# ---------------------------------------------------------------------------
+# Fix: page_history_enabled respected in routes and templates
+# ---------------------------------------------------------------------------
+
+def test_page_history_route_returns_404_when_disabled(logged_in_admin, monkeypatch):
+    """When PAGE_HISTORY_ENABLED is False, /page/<slug>/history returns 404."""
+    import config
+    monkeypatch.setattr(config, "PAGE_HISTORY_ENABLED", False)
+    resp = logged_in_admin.get("/page/home/history")
+    assert resp.status_code == 404
+
+
+def test_page_history_entry_route_returns_404_when_disabled(logged_in_admin, monkeypatch):
+    """When PAGE_HISTORY_ENABLED is False, /page/<slug>/history/<id> returns 404."""
+    import config
+    monkeypatch.setattr(config, "PAGE_HISTORY_ENABLED", False)
+    resp = logged_in_admin.get("/page/home/history/1")
+    assert resp.status_code == 404
+
+
+def test_revert_page_route_returns_404_when_disabled(logged_in_admin, monkeypatch):
+    """When PAGE_HISTORY_ENABLED is False, revert endpoint returns 404."""
+    import config
+    monkeypatch.setattr(config, "PAGE_HISTORY_ENABLED", False)
+    resp = logged_in_admin.post("/page/home/revert/1")
+    assert resp.status_code == 404
+
+
+def test_view_history_link_present_when_enabled(logged_in_admin, admin_user):
+    """History link is shown on page view when PAGE_HISTORY_ENABLED is True."""
+    import db
+    home = db.get_home_page()
+    db.update_page(home["id"], "Home", "content", admin_user, "edit")
+    resp = logged_in_admin.get("/")
+    assert resp.status_code == 200
+    assert b"View history" in resp.data
+
+
+def test_view_history_link_absent_when_disabled(logged_in_admin, admin_user, monkeypatch):
+    """History link is hidden on page view when PAGE_HISTORY_ENABLED is False."""
+    import config, db
+    monkeypatch.setattr(config, "PAGE_HISTORY_ENABLED", False)
+    home = db.get_home_page()
+    db.update_page(home["id"], "Home", "content", admin_user, "edit")
+    resp = logged_in_admin.get("/")
+    assert resp.status_code == 200
+    assert b"View history" not in resp.data
+
+
+# ---------------------------------------------------------------------------
+# Fix: My Drafts section hidden for non-editor users
+# ---------------------------------------------------------------------------
+
+def test_my_drafts_section_shown_to_editor(client, admin_user):
+    """My Drafts section is visible when the logged-in user is an editor."""
+    from werkzeug.security import generate_password_hash
+    import db
+    db.create_user("editoruser", generate_password_hash("pass123"), role="editor")
+    client.post("/login", data={"username": "editoruser", "password": "pass123"})
+    resp = client.get("/account")
+    assert resp.status_code == 200
+    assert b"My Drafts" in resp.data
+    assert b"draft-manager-list" in resp.data
+
+
+def test_my_drafts_section_shown_to_admin(logged_in_admin):
+    """My Drafts section is visible when the logged-in user is an admin."""
+    resp = logged_in_admin.get("/account")
+    assert resp.status_code == 200
+    assert b"My Drafts" in resp.data
+    assert b"draft-manager-list" in resp.data
+
+
+def test_my_drafts_section_hidden_for_regular_user(client, admin_user):
+    """My Drafts section is NOT shown for a user with role='user'."""
+    from werkzeug.security import generate_password_hash
+    import db
+    db.create_user("regularuser", generate_password_hash("pass123"), role="user")
+    client.post("/login", data={"username": "regularuser", "password": "pass123"})
+    resp = client.get("/account")
+    assert resp.status_code == 200
+    assert b"My Drafts" not in resp.data
+    assert b"draft-manager-list" not in resp.data
+
+
+# ---------------------------------------------------------------------------
+# Fix: all_categories no longer redundantly passed from home/view_page/edit_page
+# ---------------------------------------------------------------------------
+
+def test_home_page_has_move_modal_with_categories(logged_in_admin):
+    """Home page still shows all_categories (from context processor) in move modal."""
+    import db
+    db.create_category("MoveCat")
+    resp = logged_in_admin.get("/")
+    assert resp.status_code == 200
+    assert b"MoveCat" in resp.data
+
+
+def test_view_page_has_move_modal_with_categories(logged_in_admin):
+    """View page still shows all_categories (from context processor) in move modal."""
+    import db
+    db.create_category("MovePageCat")
+    resp = logged_in_admin.post(
+        "/create-page",
+        data={"title": "TestMovePage", "category_id": ""},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    resp = logged_in_admin.get("/page/testmovepage")
+    assert resp.status_code == 200
+    assert b"MovePageCat" in resp.data
