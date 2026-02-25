@@ -84,4 +84,4 @@ Uploaded image files are sent as individual Telegram messages (not bundled in th
 
 ### Triggering events
 
-A backup is triggered on: user signup, page create/edit/revert/delete, category changes, site settings changes, user management actions, and file uploads.
+A backup is triggered on: user signup, page create/edit/revert/delete, page and category reordering, category changes, site settings changes, user management actions, and file uploads.

@@ -1417,6 +1417,9 @@ def api_reorder_pages():
     except (TypeError, ValueError):
         return jsonify({"error": "invalid ids"}), 400
     db.update_pages_sort_order(ids)
+    user = get_current_user()
+    log_action("reorder_pages", request, user=user, count=len(ids))
+    notify_change("pages_reorder", "Page order updated")
     return jsonify({"ok": True})
 
 
@@ -1434,6 +1437,9 @@ def api_reorder_categories():
     except (TypeError, ValueError):
         return jsonify({"error": "invalid ids"}), 400
     db.update_categories_sort_order(ids)
+    user = get_current_user()
+    log_action("reorder_categories", request, user=user, count=len(ids))
+    notify_change("categories_reorder", "Category order updated")
     return jsonify({"ok": True})
 
 
