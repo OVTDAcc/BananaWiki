@@ -1279,6 +1279,40 @@ def easter_egg_trigger():
     return jsonify({"ok": True})
 
 
+@app.route("/api/reorder/pages", methods=["POST"])
+@login_required
+@editor_required
+@rate_limit(60, 60)
+def api_reorder_pages():
+    """Persist a new page sort order. Body: {"ids": [<page_id>, ...]}"""
+    data = request.get_json(silent=True)
+    if not data or not isinstance(data.get("ids"), list):
+        return jsonify({"error": "invalid request"}), 400
+    try:
+        ids = [int(i) for i in data["ids"]]
+    except (TypeError, ValueError):
+        return jsonify({"error": "invalid ids"}), 400
+    db.update_pages_sort_order(ids)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/reorder/categories", methods=["POST"])
+@login_required
+@editor_required
+@rate_limit(60, 60)
+def api_reorder_categories():
+    """Persist a new category sort order. Body: {"ids": [<cat_id>, ...]}"""
+    data = request.get_json(silent=True)
+    if not data or not isinstance(data.get("ids"), list):
+        return jsonify({"error": "invalid request"}), 400
+    try:
+        ids = [int(i) for i in data["ids"]]
+    except (TypeError, ValueError):
+        return jsonify({"error": "invalid ids"}), 400
+    db.update_categories_sort_order(ids)
+    return jsonify({"ok": True})
+
+
 # ---------------------------------------------------------------------------
 #  Admin – User management
 # ---------------------------------------------------------------------------

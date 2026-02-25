@@ -680,6 +680,24 @@ def get_category_tree():
     return roots, uncategorized_pages
 
 
+def update_pages_sort_order(ordered_ids):
+    """Assign sort_order 0, 1, 2, … to pages given in the specified order."""
+    conn = get_db()
+    for i, page_id in enumerate(ordered_ids):
+        conn.execute("UPDATE pages SET sort_order=? WHERE id=?", (i, page_id))
+    conn.commit()
+    conn.close()
+
+
+def update_categories_sort_order(ordered_ids):
+    """Assign sort_order 0, 1, 2, … to categories given in the specified order."""
+    conn = get_db()
+    for i, cat_id in enumerate(ordered_ids):
+        conn.execute("UPDATE categories SET sort_order=? WHERE id=?", (i, cat_id))
+    conn.commit()
+    conn.close()
+
+
 # ---------------------------------------------------------------------------
 #  Page helpers
 # ---------------------------------------------------------------------------
@@ -687,10 +705,18 @@ def create_page(title, slug, content="", category_id=None, user_id=None):
     conn = get_db()
     cur = conn.cursor()
     now = datetime.now(timezone.utc).isoformat()
+    # New pages go to the bottom: pick max sort_order + 1 within the same category scope
+    max_row = conn.execute(
+        "SELECT COALESCE(MAX(sort_order), -1) FROM pages WHERE is_home=0 AND category_id IS ?"
+        if category_id is None else
+        "SELECT COALESCE(MAX(sort_order), -1) FROM pages WHERE is_home=0 AND category_id=?",
+        (category_id,),
+    ).fetchone()
+    next_sort = (max_row[0] + 1) if max_row else 0
     cur.execute(
-        "INSERT INTO pages (title, slug, content, category_id, last_edited_by, last_edited_at) "
-        "VALUES (?, ?, ?, ?, ?, ?)",
-        (title, slug, content, category_id, user_id, now),
+        "INSERT INTO pages (title, slug, content, category_id, last_edited_by, last_edited_at, sort_order) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (title, slug, content, category_id, user_id, now, next_sort),
     )
     page_id = cur.lastrowid
     if user_id:
