@@ -32,7 +32,7 @@ def init_db():
 
     cur.executescript("""
     CREATE TABLE IF NOT EXISTS users (
-        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        id          TEXT    PRIMARY KEY,
         username    TEXT    NOT NULL UNIQUE COLLATE NOCASE,
         password    TEXT    NOT NULL,
         role        TEXT    NOT NULL DEFAULT 'user'
@@ -45,10 +45,10 @@ def init_db():
     CREATE TABLE IF NOT EXISTS invite_codes (
         id          INTEGER PRIMARY KEY AUTOINCREMENT,
         code        TEXT    NOT NULL UNIQUE,
-        created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_by  TEXT REFERENCES users(id) ON DELETE SET NULL,
         created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
         expires_at  TEXT    NOT NULL,
-        used_by     INTEGER REFERENCES users(id),
+        used_by     TEXT REFERENCES users(id),
         used_at     TEXT,
         deleted     INTEGER NOT NULL DEFAULT 0,
         deleted_at  TEXT
@@ -70,7 +70,7 @@ def init_db():
         category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
         is_home     INTEGER NOT NULL DEFAULT 0,
         sort_order  INTEGER NOT NULL DEFAULT 0,
-        last_edited_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        last_edited_by TEXT REFERENCES users(id) ON DELETE SET NULL,
         last_edited_at TEXT,
         created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
     );
@@ -80,7 +80,7 @@ def init_db():
         page_id     INTEGER NOT NULL REFERENCES pages(id) ON DELETE CASCADE,
         title       TEXT    NOT NULL,
         content     TEXT    NOT NULL,
-        edited_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        edited_by   TEXT REFERENCES users(id) ON DELETE SET NULL,
         edit_message TEXT   NOT NULL DEFAULT '',
         created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
     );
@@ -88,7 +88,7 @@ def init_db():
     CREATE TABLE IF NOT EXISTS drafts (
         id          INTEGER PRIMARY KEY AUTOINCREMENT,
         page_id     INTEGER NOT NULL REFERENCES pages(id) ON DELETE CASCADE,
-        user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        user_id     TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         title       TEXT    NOT NULL DEFAULT '',
         content     TEXT    NOT NULL DEFAULT '',
         updated_at  TEXT    NOT NULL DEFAULT (datetime('now')),
@@ -125,7 +125,7 @@ def init_db():
                             CHECK(visibility IN ('logged_in','logged_out','both')),
         expires_at  TEXT,
         is_active   INTEGER NOT NULL DEFAULT 1,
-        created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_by  TEXT REFERENCES users(id) ON DELETE SET NULL,
         created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
     );
 
@@ -151,6 +151,14 @@ def init_db():
     if "favicon_custom" not in ss_cols:
         cur.execute("ALTER TABLE site_settings ADD COLUMN favicon_custom TEXT NOT NULL DEFAULT ''")
 
+    # Migrate users.id from INTEGER to TEXT if needed
+    user_id_type = next(
+        (r[2] for r in cur.execute("PRAGMA table_info(users)").fetchall() if r[1] == 'id'),
+        None,
+    )
+    if user_id_type and 'INT' in user_id_type.upper():
+        _migrate_user_id_to_text(conn, cur)
+
     # Ensure home page exists
     home = cur.execute("SELECT id FROM pages WHERE is_home=1").fetchone()
     if not home:
@@ -163,20 +171,180 @@ def init_db():
     conn.close()
 
 
+def _migrate_user_id_to_text(conn, cur):
+    """Migrate users.id from INTEGER AUTOINCREMENT to TEXT.
+
+    Existing integer IDs are kept as their string representations (e.g. 1 → '1').
+    All foreign-key columns that reference users(id) are likewise changed to TEXT.
+    """
+    conn.execute("PRAGMA foreign_keys=OFF")
+
+    # ---- users ----
+    cur.execute("""
+        CREATE TABLE users_new (
+            id              TEXT    PRIMARY KEY,
+            username        TEXT    NOT NULL UNIQUE COLLATE NOCASE,
+            password        TEXT    NOT NULL,
+            role            TEXT    NOT NULL DEFAULT 'user'
+                                    CHECK(role IN ('user','editor','admin')),
+            suspended       INTEGER NOT NULL DEFAULT 0,
+            invite_code     TEXT,
+            created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
+            last_login_at   TEXT,
+            easter_egg_found INTEGER NOT NULL DEFAULT 0
+        )
+    """)
+    cur.execute("""
+        INSERT INTO users_new
+        SELECT CAST(id AS TEXT), username, password, role, suspended,
+               invite_code, created_at, last_login_at,
+               COALESCE(easter_egg_found, 0)
+        FROM users
+    """)
+    cur.execute("DROP TABLE users")
+    cur.execute("ALTER TABLE users_new RENAME TO users")
+
+    # ---- invite_codes ----
+    cur.execute("""
+        CREATE TABLE invite_codes_new (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            code        TEXT    NOT NULL UNIQUE,
+            created_by  TEXT REFERENCES users(id) ON DELETE SET NULL,
+            created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+            expires_at  TEXT    NOT NULL,
+            used_by     TEXT REFERENCES users(id),
+            used_at     TEXT,
+            deleted     INTEGER NOT NULL DEFAULT 0,
+            deleted_at  TEXT
+        )
+    """)
+    cur.execute("""
+        INSERT INTO invite_codes_new
+        SELECT id, code, CAST(created_by AS TEXT), created_at, expires_at,
+               CAST(used_by AS TEXT), used_at, deleted, deleted_at
+        FROM invite_codes
+    """)
+    cur.execute("DROP TABLE invite_codes")
+    cur.execute("ALTER TABLE invite_codes_new RENAME TO invite_codes")
+
+    # ---- announcements ----
+    cur.execute("""
+        CREATE TABLE announcements_new (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            content     TEXT    NOT NULL DEFAULT '',
+            color       TEXT    NOT NULL DEFAULT 'orange'
+                                CHECK(color IN ('red','orange','yellow','blue','green')),
+            text_size   TEXT    NOT NULL DEFAULT 'normal'
+                                CHECK(text_size IN ('small','normal','large')),
+            visibility  TEXT    NOT NULL DEFAULT 'both'
+                                CHECK(visibility IN ('logged_in','logged_out','both')),
+            expires_at  TEXT,
+            is_active   INTEGER NOT NULL DEFAULT 1,
+            created_by  TEXT REFERENCES users(id) ON DELETE SET NULL,
+            created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    cur.execute("""
+        INSERT INTO announcements_new
+        SELECT id, content, color, text_size, visibility, expires_at, is_active,
+               CAST(created_by AS TEXT), created_at
+        FROM announcements
+    """)
+    cur.execute("DROP TABLE announcements")
+    cur.execute("ALTER TABLE announcements_new RENAME TO announcements")
+
+    # ---- pages (last_edited_by: INT → TEXT) ----
+    cur.execute("""
+        CREATE TABLE pages_new (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            title           TEXT    NOT NULL,
+            slug            TEXT    NOT NULL UNIQUE,
+            content         TEXT    NOT NULL DEFAULT '',
+            category_id     INTEGER REFERENCES categories(id) ON DELETE SET NULL,
+            is_home         INTEGER NOT NULL DEFAULT 0,
+            sort_order      INTEGER NOT NULL DEFAULT 0,
+            last_edited_by  TEXT REFERENCES users(id) ON DELETE SET NULL,
+            last_edited_at  TEXT,
+            created_at      TEXT    NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    cur.execute("""
+        INSERT INTO pages_new
+        SELECT id, title, slug, content, category_id, is_home, sort_order,
+               CAST(last_edited_by AS TEXT), last_edited_at, created_at
+        FROM pages
+    """)
+
+    # ---- page_history (edited_by: INT → TEXT) ----
+    cur.execute("""
+        CREATE TABLE page_history_new (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            page_id      INTEGER NOT NULL REFERENCES pages_new(id) ON DELETE CASCADE,
+            title        TEXT    NOT NULL,
+            content      TEXT    NOT NULL,
+            edited_by    TEXT REFERENCES users(id) ON DELETE SET NULL,
+            edit_message TEXT    NOT NULL DEFAULT '',
+            created_at   TEXT    NOT NULL DEFAULT (datetime('now'))
+        )
+    """)
+    cur.execute("""
+        INSERT INTO page_history_new
+        SELECT id, page_id, title, content,
+               CAST(edited_by AS TEXT), edit_message, created_at
+        FROM page_history
+    """)
+
+    # ---- drafts (user_id: INT → TEXT) ----
+    cur.execute("""
+        CREATE TABLE drafts_new (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            page_id     INTEGER NOT NULL REFERENCES pages_new(id) ON DELETE CASCADE,
+            user_id     TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            title       TEXT    NOT NULL DEFAULT '',
+            content     TEXT    NOT NULL DEFAULT '',
+            updated_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(page_id, user_id)
+        )
+    """)
+    cur.execute("""
+        INSERT INTO drafts_new
+        SELECT id, page_id, CAST(user_id AS TEXT), title, content, updated_at
+        FROM drafts
+    """)
+
+    # Drop old tables (FK off so order doesn't matter) and rename
+    cur.execute("DROP TABLE drafts")
+    cur.execute("DROP TABLE page_history")
+    cur.execute("DROP TABLE pages")
+    cur.execute("ALTER TABLE pages_new RENAME TO pages")
+    cur.execute("ALTER TABLE page_history_new RENAME TO page_history")
+    cur.execute("ALTER TABLE drafts_new RENAME TO drafts")
+
+    conn.execute("PRAGMA foreign_keys=ON")
+
+
 # ---------------------------------------------------------------------------
 #  User helpers
 # ---------------------------------------------------------------------------
+def _gen_user_id():
+    """Generate a random 8-character alphanumeric lowercase user ID."""
+    chars = string.ascii_lowercase + string.digits
+    return ''.join(secrets.choice(chars) for _ in range(8))
+
+
 def create_user(username, hashed_pw, role="user", invite_code=None):
     conn = get_db()
     cur = conn.cursor()
+    uid = _gen_user_id()
+    while conn.execute("SELECT 1 FROM users WHERE id=?", (uid,)).fetchone():
+        uid = _gen_user_id()
     cur.execute(
-        "INSERT INTO users (username, password, role, invite_code) VALUES (?, ?, ?, ?)",
-        (username, hashed_pw, role, invite_code),
+        "INSERT INTO users (id, username, password, role, invite_code) VALUES (?, ?, ?, ?, ?)",
+        (uid, username, hashed_pw, role, invite_code),
     )
-    user_id = cur.lastrowid
     conn.commit()
     conn.close()
-    return user_id
+    return uid
 
 
 def get_user_by_id(user_id):
@@ -278,7 +446,7 @@ def list_users(role_filter=None, status_filter=None):
         q += " AND suspended=0"
     elif status_filter == "suspended":
         q += " AND suspended=1"
-    q += " ORDER BY id"
+    q += " ORDER BY created_at"
     users = conn.execute(q, params).fetchall()
     conn.close()
     return users
@@ -342,6 +510,14 @@ def delete_invite_code(code_id):
     now = datetime.now(timezone.utc).isoformat()
     conn = get_db()
     conn.execute("UPDATE invite_codes SET deleted=1, deleted_at=? WHERE id=?", (now, code_id))
+    conn.commit()
+    conn.close()
+
+
+def hard_delete_invite_code(code_id):
+    """Permanently remove an expired/used/deleted invite code record."""
+    conn = get_db()
+    conn.execute("DELETE FROM invite_codes WHERE id=?", (code_id,))
     conn.commit()
     conn.close()
 

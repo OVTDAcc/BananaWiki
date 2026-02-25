@@ -1133,8 +1133,9 @@ def api_transfer_draft():
     from_user = data.get("from_user_id")
     try:
         page_id = int(page_id)
-        from_user = int(from_user)
     except (TypeError, ValueError):
+        return jsonify({"error": "invalid page_id or from_user_id"}), 400
+    if not from_user:
         return jsonify({"error": "invalid page_id or from_user_id"}), 400
     user = get_current_user()
     if from_user == user["id"]:
@@ -1294,7 +1295,7 @@ def admin_users():
                            categories=categories, uncategorized=uncategorized)
 
 
-@app.route("/admin/users/<int:user_id>/edit", methods=["POST"])
+@app.route("/admin/users/<string:user_id>/edit", methods=["POST"])
 @login_required
 @admin_required
 def admin_edit_user(user_id):
@@ -1477,6 +1478,17 @@ def admin_delete_code(code_id):
     return redirect(url_for("admin_codes"))
 
 
+@app.route("/admin/codes/expired/<int:code_id>/delete", methods=["POST"])
+@login_required
+@admin_required
+def admin_hard_delete_code(code_id):
+    user = get_current_user()
+    db.hard_delete_invite_code(code_id)
+    log_action("hard_delete_invite_code", request, user=user, code_id=code_id)
+    flash("Invite code permanently removed.", "success")
+    return redirect(url_for("admin_codes_expired"))
+
+
 # ---------------------------------------------------------------------------
 #  Admin – Site settings
 # ---------------------------------------------------------------------------
@@ -1577,7 +1589,7 @@ def admin_settings():
                            categories=categories, uncategorized=uncategorized)
 
 
-@app.route("/admin/users/<int:user_id>/audit")
+@app.route("/admin/users/<string:user_id>/audit")
 @login_required
 @admin_required
 def admin_user_audit(user_id):

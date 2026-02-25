@@ -71,10 +71,10 @@ def test_404_renders(logged_in_admin):
 # -----------------------------------------------------------------------
 # Fix 3: Home page should include editor_info after editing
 # -----------------------------------------------------------------------
-def test_home_page_shows_editor_info(logged_in_admin):
+def test_home_page_shows_editor_info(logged_in_admin, admin_user):
     import db
     home = db.get_home_page()
-    db.update_page(home["id"], "Home", "Updated content", 1, "test edit")
+    db.update_page(home["id"], "Home", "Updated content", admin_user, "test edit")
     resp = logged_in_admin.get("/")
     assert resp.status_code == 200
     assert b"Last edit by" in resp.data
@@ -242,7 +242,7 @@ def test_create_page_invalid_category(logged_in_admin):
 # -----------------------------------------------------------------------
 def test_move_page_invalid_category(logged_in_admin):
     import db
-    db.create_page("Test Move", "test-move", "content", user_id=1)
+    db.create_page("Test Move", "test-move", "content", user_id=None)
     resp = logged_in_admin.post("/page/test-move/move",
                                 data={"category_id": "9999"},
                                 follow_redirects=True)
@@ -306,7 +306,7 @@ def test_create_page_nonnumeric_category(logged_in_admin):
 # -----------------------------------------------------------------------
 def test_move_page_nonnumeric_category(logged_in_admin):
     import db
-    db.create_page("Test Move2", "test-move2", "content", user_id=1)
+    db.create_page("Test Move2", "test-move2", "content", user_id=None)
     resp = logged_in_admin.post("/page/test-move2/move",
                                 data={"category_id": "abc"},
                                 follow_redirects=True)
@@ -359,7 +359,7 @@ def test_admin_cannot_demote_last_admin(logged_in_admin, admin_user):
 def test_move_page_to_uncategorized(logged_in_admin):
     import db
     cat_id = db.create_category("TempCat")
-    db.create_page("TestMove3", "test-move3", "content", category_id=cat_id, user_id=1)
+    db.create_page("TestMove3", "test-move3", "content", category_id=cat_id, user_id=None)
     resp = logged_in_admin.post("/page/test-move3/move",
                                 data={"category_id": ""},
                                 follow_redirects=True)
@@ -485,12 +485,12 @@ def test_editor_cannot_access_invite_codes(client, admin_user):
 # -----------------------------------------------------------------------
 # Fix 27: "Last edit by" and "View history" always shown
 # -----------------------------------------------------------------------
-def test_editor_info_shown_with_history_link(logged_in_admin):
+def test_editor_info_shown_with_history_link(logged_in_admin, admin_user):
     import db
     import config
     assert config.PAGE_HISTORY_ENABLED is True
     home = db.get_home_page()
-    db.update_page(home["id"], "Home", "Updated content", 1, "test edit")
+    db.update_page(home["id"], "Home", "Updated content", admin_user, "test edit")
     resp = logged_in_admin.get("/")
     assert resp.status_code == 200
     assert b"Last edit by" in resp.data
@@ -686,7 +686,7 @@ def test_delete_nonexistent_category(logged_in_admin):
 # -----------------------------------------------------------------------
 def test_move_page_button_visible(logged_in_admin):
     import db
-    db.create_page("Movable Page", "movable-page", "content", user_id=1)
+    db.create_page("Movable Page", "movable-page", "content", user_id=None)
     resp = logged_in_admin.get("/page/movable-page")
     assert resp.status_code == 200
     assert b"Move" in resp.data
@@ -923,19 +923,19 @@ def test_format_datetime_edge_cases():
 # -----------------------------------------------------------------------
 # New tests: Time hover tooltip on page view
 # -----------------------------------------------------------------------
-def test_time_hover_tooltip_on_page(logged_in_admin):
+def test_time_hover_tooltip_on_page(logged_in_admin, admin_user):
     import db
     home = db.get_home_page()
-    db.update_page(home["id"], "Home", "Updated content", 1, "test edit")
+    db.update_page(home["id"], "Home", "Updated content", admin_user, "test edit")
     resp = logged_in_admin.get("/")
     assert resp.status_code == 200
     assert b"title=" in resp.data
     assert b"UTC" in resp.data
 
 
-def test_time_hover_tooltip_on_slug_page(logged_in_admin):
+def test_time_hover_tooltip_on_slug_page(logged_in_admin, admin_user):
     import db
-    db.create_page("Test Page", "test-page", "content", user_id=1)
+    db.create_page("Test Page", "test-page", "content", user_id=admin_user)
     resp = logged_in_admin.get("/page/test-page")
     assert resp.status_code == 200
     assert b"title=" in resp.data
@@ -945,20 +945,20 @@ def test_time_hover_tooltip_on_slug_page(logged_in_admin):
 # -----------------------------------------------------------------------
 # New tests: Page history always active
 # -----------------------------------------------------------------------
-def test_history_link_always_shown(logged_in_admin):
+def test_history_link_always_shown(logged_in_admin, admin_user):
     import db
     home = db.get_home_page()
-    db.update_page(home["id"], "Home", "Updated content", 1, "test edit")
+    db.update_page(home["id"], "Home", "Updated content", admin_user, "test edit")
     resp = logged_in_admin.get("/")
     assert resp.status_code == 200
     assert b"View history" in resp.data
 
 
-def test_revert_preserves_old_versions(logged_in_admin):
+def test_revert_preserves_old_versions(logged_in_admin, admin_user):
     import db
     home = db.get_home_page()
-    db.update_page(home["id"], "Home", "Version 1", 1, "first edit")
-    db.update_page(home["id"], "Home", "Version 2", 1, "second edit")
+    db.update_page(home["id"], "Home", "Version 1", admin_user, "first edit")
+    db.update_page(home["id"], "Home", "Version 2", admin_user, "second edit")
     history_before = db.get_page_history(home["id"])
 
     # Revert to first version
@@ -979,11 +979,11 @@ def test_revert_preserves_old_versions(logged_in_admin):
 # -----------------------------------------------------------------------
 # New tests: Draft contributors in commit message
 # -----------------------------------------------------------------------
-def test_commit_includes_contributor_names(logged_in_admin):
+def test_commit_includes_contributor_names(logged_in_admin, admin_user):
     import db
     from werkzeug.security import generate_password_hash
     # Create a page
-    page_id = db.create_page("Collab Page", "collab-page", "initial", user_id=1)
+    page_id = db.create_page("Collab Page", "collab-page", "initial", user_id=admin_user)
     # Create another user with a draft
     editor_id = db.create_user("editor1", generate_password_hash("pass123"), role="editor")
     db.save_draft(page_id, editor_id, "Collab Page", "editor1 content")
@@ -1001,13 +1001,13 @@ def test_commit_includes_contributor_names(logged_in_admin):
     assert "contributors" in latest["edit_message"].lower()
 
 
-def test_commit_cleans_up_all_drafts(logged_in_admin):
+def test_commit_cleans_up_all_drafts(logged_in_admin, admin_user):
     import db
     from werkzeug.security import generate_password_hash
-    page_id = db.create_page("Draft Cleanup", "draft-cleanup", "initial", user_id=1)
+    page_id = db.create_page("Draft Cleanup", "draft-cleanup", "initial", user_id=admin_user)
     editor_id = db.create_user("editor2", generate_password_hash("pass123"), role="editor")
     db.save_draft(page_id, editor_id, "Draft Cleanup", "editor2 content")
-    db.save_draft(page_id, 1, "Draft Cleanup", "admin content")
+    db.save_draft(page_id, admin_user, "Draft Cleanup", "admin content")
     # Admin commits
     logged_in_admin.post("/page/draft-cleanup/edit", data={
         "title": "Draft Cleanup",
@@ -1019,9 +1019,9 @@ def test_commit_cleans_up_all_drafts(logged_in_admin):
     assert len(drafts) == 0
 
 
-def test_commit_without_contributors_no_extra_message(logged_in_admin):
+def test_commit_without_contributors_no_extra_message(logged_in_admin, admin_user):
     import db
-    page_id = db.create_page("Solo Page", "solo-page", "initial", user_id=1)
+    page_id = db.create_page("Solo Page", "solo-page", "initial", user_id=admin_user)
     logged_in_admin.post("/page/solo-page/edit", data={
         "title": "Solo Page",
         "content": "solo content",
@@ -1708,11 +1708,11 @@ def test_admin_codes_forms_have_csrf(logged_in_admin):
     assert b'name="csrf_token"' in resp.data
 
 
-def test_history_revert_form_has_csrf(logged_in_admin):
+def test_history_revert_form_has_csrf(logged_in_admin, admin_user):
     """History revert form should contain CSRF token."""
     import db
     home = db.get_home_page()
-    db.update_page(home["id"], "Home", "Updated", 1, "test edit")
+    db.update_page(home["id"], "Home", "Updated", admin_user, "test edit")
     resp = logged_in_admin.get(f"/page/{home['slug']}/history")
     assert resp.status_code == 200
     assert b'name="csrf_token"' in resp.data
@@ -1851,7 +1851,7 @@ def test_category_delete_moves_pages_to_uncategorized(logged_in_admin):
     """Deleting a category with uncategorize action moves pages to uncategorized."""
     import db
     cat_id = db.create_category("DelCat")
-    page_id = db.create_page("TestPage", "test-del-page", "content", cat_id, 1)
+    page_id = db.create_page("TestPage", "test-del-page", "content", cat_id, None)
     resp = logged_in_admin.post(f"/category/{cat_id}/delete",
                                 data={"page_action": "uncategorize"},
                                 follow_redirects=True)
@@ -1865,7 +1865,7 @@ def test_category_delete_bulk_deletes_pages(logged_in_admin):
     """Deleting a category with delete action removes its pages."""
     import db
     cat_id = db.create_category("DelCat2")
-    page_id = db.create_page("DelPage", "test-del-page2", "content", cat_id, 1)
+    page_id = db.create_page("DelPage", "test-del-page2", "content", cat_id, None)
     resp = logged_in_admin.post(f"/category/{cat_id}/delete",
                                 data={"page_action": "delete"},
                                 follow_redirects=True)
@@ -1878,7 +1878,7 @@ def test_category_delete_moves_pages_to_another_category(logged_in_admin):
     import db
     cat_id = db.create_category("MoveSrc")
     target_id = db.create_category("MoveDst")
-    page_id = db.create_page("MovePage", "test-move-page", "content", cat_id, 1)
+    page_id = db.create_page("MovePage", "test-move-page", "content", cat_id, None)
     resp = logged_in_admin.post(f"/category/{cat_id}/delete",
                                 data={"page_action": "move",
                                       "target_category_id": str(target_id)},
