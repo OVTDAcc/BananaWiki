@@ -4007,3 +4007,63 @@ def test_account_settings_rate_limited(client, admin_user):
         "password": "wrongpassword",
     })
     assert resp.status_code == 429
+
+
+# ---------------------------------------------------------------------------
+# Feature: api_reorder_pages and api_reorder_categories log the action
+# ---------------------------------------------------------------------------
+
+def test_reorder_pages_logs_action(logged_in_admin, admin_user, monkeypatch):
+    """api_reorder_pages calls log_action after updating sort order."""
+    import app as app_mod
+    import db
+
+    logged_calls = []
+
+    original_log_action = app_mod.log_action
+
+    def capturing_log_action(action, *args, **kwargs):
+        logged_calls.append(action)
+        return original_log_action(action, *args, **kwargs)
+
+    monkeypatch.setattr(app_mod, "log_action", capturing_log_action)
+
+    home = db.get_home_page()
+    page_id = db.create_page("ReorderTest", "reorder-test", "content", None, admin_user)
+
+    resp = logged_in_admin.post(
+        "/api/reorder/pages",
+        json={"ids": [home["id"], page_id]},
+        content_type="application/json",
+    )
+    assert resp.status_code == 200
+    assert resp.get_json()["ok"] is True
+    assert "reorder_pages" in logged_calls
+
+
+def test_reorder_categories_logs_action(logged_in_admin, admin_user, monkeypatch):
+    """api_reorder_categories calls log_action after updating sort order."""
+    import app as app_mod
+    import db
+
+    logged_calls = []
+
+    original_log_action = app_mod.log_action
+
+    def capturing_log_action(action, *args, **kwargs):
+        logged_calls.append(action)
+        return original_log_action(action, *args, **kwargs)
+
+    monkeypatch.setattr(app_mod, "log_action", capturing_log_action)
+
+    cat1 = db.create_category("Cat1")
+    cat2 = db.create_category("Cat2")
+
+    resp = logged_in_admin.post(
+        "/api/reorder/categories",
+        json={"ids": [cat1, cat2]},
+        content_type="application/json",
+    )
+    assert resp.status_code == 200
+    assert resp.get_json()["ok"] is True
+    assert "reorder_categories" in logged_calls
