@@ -4,8 +4,8 @@ After=network.target
 
 [Service]
 Type=notify
-User=www-data
-Group=www-data
+User=root
+Group=root
 WorkingDirectory=/opt/BananaWiki
 Environment="PATH=/opt/BananaWiki/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin"
 ExecStart=/opt/BananaWiki/venv/bin/gunicorn wsgi:app -c gunicorn.conf.py
