@@ -2996,3 +2996,175 @@ def test_superuser_not_assigned_on_setup(isolated_db):
     uid = db.create_user("setupadmin", generate_password_hash("pass123"), role="admin")
     user = db.get_user_by_id(uid)
     assert user["is_superuser"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Lockdown mode tests
+# ---------------------------------------------------------------------------
+
+def test_lockdown_columns_exist_in_db():
+    """lockdown_mode and lockdown_message columns exist in site_settings."""
+    import db
+    settings = db.get_site_settings()
+    assert settings["lockdown_mode"] == 0
+    assert settings["lockdown_message"] == ""
+
+
+def test_lockdown_page_redirects_to_login_when_inactive(client, admin_user):
+    """/lockdown redirects to /login when lockdown mode is off."""
+    resp = client.get("/lockdown")
+    assert resp.status_code == 302
+    assert "/login" in resp.headers["Location"]
+
+
+def test_lockdown_page_renders_when_active(client, admin_user):
+    """/lockdown page renders the custom message when lockdown mode is on."""
+    import db
+    db.update_site_settings(lockdown_mode=1, lockdown_message="Maintenance in progress.")
+    resp = client.get("/lockdown")
+    assert resp.status_code == 200
+    assert b"lockdown" in resp.data.lower()
+    assert b"Maintenance in progress." in resp.data
+
+
+def test_lockdown_page_shows_admin_login_link(client, admin_user):
+    """/lockdown page shows a link to the login page."""
+    import db
+    db.update_site_settings(lockdown_mode=1)
+    resp = client.get("/lockdown")
+    assert resp.status_code == 200
+    assert b"/login" in resp.data
+
+
+def test_lockdown_redirects_unauthenticated_users(client, admin_user):
+    """Unauthenticated users are redirected to /lockdown when mode is active."""
+    import db
+    db.update_site_settings(lockdown_mode=1)
+    resp = client.get("/")
+    assert resp.status_code == 302
+    assert "/lockdown" in resp.headers["Location"]
+
+
+def test_lockdown_redirects_regular_user(client, admin_user):
+    """A logged-in regular user is kicked to /lockdown when mode is activated."""
+    from werkzeug.security import generate_password_hash
+    import db
+    db.create_user("regular", generate_password_hash("pass123"), role="user")
+    # Log in as regular user before lockdown
+    client.post("/login", data={"username": "regular", "password": "pass123"})
+    # Enable lockdown
+    db.update_site_settings(lockdown_mode=1)
+    resp = client.get("/")
+    assert resp.status_code == 302
+    assert "/lockdown" in resp.headers["Location"]
+
+
+def test_lockdown_allows_admin_through(client, admin_user):
+    """An admin can still browse the wiki when lockdown is active."""
+    import db
+    db.update_site_settings(lockdown_mode=1)
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    resp = client.get("/")
+    assert resp.status_code == 200
+
+
+def test_lockdown_blocks_non_admin_login(client, admin_user):
+    """A non-admin user cannot log in while lockdown mode is active."""
+    from werkzeug.security import generate_password_hash
+    import db
+    db.create_user("regular", generate_password_hash("pass123"), role="user")
+    db.update_site_settings(lockdown_mode=1)
+    resp = client.post(
+        "/login",
+        data={"username": "regular", "password": "pass123"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"lockdown" in resp.data.lower()
+
+
+def test_lockdown_allows_admin_login(client, admin_user):
+    """An admin can log in successfully while lockdown mode is active."""
+    import db
+    db.update_site_settings(lockdown_mode=1)
+    resp = client.post(
+        "/login",
+        data={"username": "admin", "password": "admin123"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    # Should land on home page, not lockdown page
+    assert b"lockdown" not in resp.data.lower() or b"Admin Login" not in resp.data
+
+
+def test_lockdown_login_hides_signup_link(client, admin_user):
+    """The login page hides the signup link when lockdown mode is active."""
+    import db
+    db.update_site_settings(lockdown_mode=1)
+    resp = client.get("/login")
+    assert resp.status_code == 200
+    assert b"Sign up" not in resp.data
+
+
+def test_lockdown_login_shows_signup_link_when_inactive(client, admin_user):
+    """The login page shows the signup link when lockdown is off."""
+    resp = client.get("/login")
+    assert resp.status_code == 200
+    assert b"Sign up" in resp.data
+
+
+def test_lockdown_signup_redirects_to_lockdown(client, admin_user):
+    """The signup page redirects to /lockdown when lockdown mode is active."""
+    import db
+    db.update_site_settings(lockdown_mode=1)
+    resp = client.get("/signup")
+    assert resp.status_code == 302
+    assert "/lockdown" in resp.headers["Location"]
+
+
+def test_lockdown_settings_saved_via_admin(logged_in_admin):
+    """Admin can enable lockdown mode and set a message via site settings."""
+    import db
+    resp = logged_in_admin.post("/admin/settings", data={
+        "site_name": "BananaWiki",
+        "primary_color": "#7c8dc6",
+        "secondary_color": "#151520",
+        "accent_color": "#6e8aca",
+        "text_color": "#b8bcc8",
+        "sidebar_color": "#111118",
+        "bg_color": "#0d0d14",
+        "lockdown_mode": "1",
+        "lockdown_message": "We are down for maintenance.",
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"Settings updated" in resp.data
+    settings = db.get_site_settings()
+    assert settings["lockdown_mode"] == 1
+    assert settings["lockdown_message"] == "We are down for maintenance."
+
+
+def test_lockdown_settings_disabled_by_default(logged_in_admin):
+    """Submitting settings without lockdown_mode disables it."""
+    import db
+    db.update_site_settings(lockdown_mode=1)
+    logged_in_admin.post("/admin/settings", data={
+        "site_name": "BananaWiki",
+        "primary_color": "#7c8dc6",
+        "secondary_color": "#151520",
+        "accent_color": "#6e8aca",
+        "text_color": "#b8bcc8",
+        "sidebar_color": "#111118",
+        "bg_color": "#0d0d14",
+        # lockdown_mode not submitted → checkbox off
+    }, follow_redirects=True)
+    settings = db.get_site_settings()
+    assert settings["lockdown_mode"] == 0
+
+
+def test_admin_settings_page_shows_lockdown_section(logged_in_admin):
+    """GET /admin/settings includes the lockdown section."""
+    resp = logged_in_admin.get("/admin/settings")
+    assert resp.status_code == 200
+    assert b"Lockdown Mode" in resp.data
+    assert b"lockdown_mode" in resp.data
+    assert b"lockdown_message" in resp.data
