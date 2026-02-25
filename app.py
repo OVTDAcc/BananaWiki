@@ -733,6 +733,7 @@ def edit_page(slug):
             if d["user_id"] != user["id"]:
                 db.delete_draft(page["id"], d["user_id"])
 
+        cleanup_unused_uploads()
         log_action("edit_page", request, user=user, page=slug, message=edit_message)
         notify_change("page_edit", f"Page '{slug}' edited")
         flash("Page updated.", "success")
@@ -817,6 +818,7 @@ def create_page():
             slug = f"{base_slug}-{counter}"
             counter += 1
         db.create_page(title, slug, content, cat_id, user["id"])
+        cleanup_unused_uploads()
         log_action("create_page", request, user=user, page=slug)
         notify_change("page_create", f"Page '{slug}' created")
         flash("Page created. Open it to start editing with Markdown.", "success")
@@ -838,6 +840,7 @@ def delete_page_route(slug):
         return redirect(url_for("view_page", slug=slug))
     user = get_current_user()
     db.delete_page(page["id"])
+    cleanup_unused_uploads()
     log_action("delete_page", request, user=user, page=slug)
     notify_change("page_delete", f"Page '{slug}' deleted")
     flash("Page deleted.", "success")
@@ -1077,6 +1080,7 @@ def api_delete_draft():
         return jsonify({"error": "invalid page_id"}), 400
     user = get_current_user()
     db.delete_draft(page_id, user["id"])
+    cleanup_unused_uploads()
     return jsonify({"ok": True})
 
 
@@ -1102,6 +1106,30 @@ def api_my_drafts():
 # ---------------------------------------------------------------------------
 #  Image upload
 # ---------------------------------------------------------------------------
+def cleanup_unused_uploads():
+    """Delete uploaded image files that are not referenced in any page or history.
+
+    Called after draft deletion, page commit, page creation, and page deletion
+    so that images uploaded but never committed (or removed before committing)
+    are automatically purged.  Images still present in the revision history are
+    preserved because :func:`db.get_all_referenced_image_filenames` scans
+    both ``pages.content`` and ``page_history.content``.
+    """
+    if not os.path.isdir(config.UPLOAD_FOLDER):
+        return
+    referenced = db.get_all_referenced_image_filenames()
+    for fname in os.listdir(config.UPLOAD_FOLDER):
+        if fname.startswith("."):
+            continue
+        if fname not in referenced:
+            fpath = os.path.join(config.UPLOAD_FOLDER, fname)
+            if os.path.isfile(fpath):
+                try:
+                    os.remove(fpath)
+                except OSError:
+                    pass
+
+
 @app.route("/api/upload", methods=["POST"])
 @login_required
 @editor_required
