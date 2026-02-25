@@ -104,7 +104,8 @@ def init_db():
         text_color       TEXT NOT NULL DEFAULT '#b8bcc8',
         sidebar_color    TEXT NOT NULL DEFAULT '#111118',
         bg_color         TEXT NOT NULL DEFAULT '#0d0d14',
-        setup_done  INTEGER NOT NULL DEFAULT 0
+        setup_done  INTEGER NOT NULL DEFAULT 0,
+        timezone    TEXT    NOT NULL DEFAULT 'UTC'
     );
 
     CREATE TABLE IF NOT EXISTS login_attempts (
@@ -138,6 +139,11 @@ def init_db():
         cur.execute("ALTER TABLE users ADD COLUMN last_login_at TEXT")
     if "easter_egg_found" not in cols:
         cur.execute("ALTER TABLE users ADD COLUMN easter_egg_found INTEGER NOT NULL DEFAULT 0")
+
+    # Add timezone to site_settings if missing
+    ss_cols = [r[1] for r in cur.execute("PRAGMA table_info(site_settings)").fetchall()]
+    if "timezone" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN timezone TEXT NOT NULL DEFAULT 'UTC'")
 
     # Ensure home page exists
     home = cur.execute("SELECT id FROM pages WHERE is_home=1").fetchone()
@@ -716,7 +722,7 @@ def get_site_settings():
 
 _ALLOWED_SETTINGS_COLUMNS = {
     "site_name", "primary_color", "secondary_color", "accent_color",
-    "text_color", "sidebar_color", "bg_color", "setup_done",
+    "text_color", "sidebar_color", "bg_color", "setup_done", "timezone",
 }
 
 

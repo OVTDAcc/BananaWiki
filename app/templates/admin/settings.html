@@ -11,6 +11,18 @@
             <label>Site Name</label>
             <input type="text" name="site_name" value="{{ settings.site_name }}" class="input" style="max-width:300px">
         </div>
+        <div class="form-group">
+            <label>Time Zone</label>
+            <select name="timezone" class="input" style="max-width:300px">
+                {% for tz in timezones %}
+                <option value="{{ tz }}"{% if tz == settings.timezone %} selected{% endif %}>{{ tz }}</option>
+                {% endfor %}
+            </select>
+            <small style="opacity:.7;display:block;margin-top:.3rem">
+                Dates and times are stored in UTC and displayed in the selected time zone.
+                Daylight saving time (DST) transitions and leap years are handled automatically.
+            </small>
+        </div>
     </div>
 
     <div class="settings-section">
