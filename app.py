@@ -152,7 +152,7 @@ def rate_limit(max_requests=60, window=60):
                 if request.path.startswith("/api/"):
                     return jsonify({"error": "Too many requests. Please slow down."}), 429
                 flash("Too many requests. Please slow down.", "error")
-                return render_template("wiki/429.html"), 429
+                abort(429)
             return f(*args, **kwargs)
         return wrapper
     return decorator
