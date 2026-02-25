@@ -139,6 +139,8 @@ def init_db():
         cur.execute("ALTER TABLE users ADD COLUMN last_login_at TEXT")
     if "easter_egg_found" not in cols:
         cur.execute("ALTER TABLE users ADD COLUMN easter_egg_found INTEGER NOT NULL DEFAULT 0")
+    if "is_superuser" not in cols:
+        cur.execute("ALTER TABLE users ADD COLUMN is_superuser INTEGER NOT NULL DEFAULT 0")
 
     # Add timezone / favicon columns to site_settings if missing
     ss_cols = [r[1] for r in cur.execute("PRAGMA table_info(site_settings)").fetchall()]
@@ -191,14 +193,16 @@ def _migrate_user_id_to_text(conn, cur):
             invite_code     TEXT,
             created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
             last_login_at   TEXT,
-            easter_egg_found INTEGER NOT NULL DEFAULT 0
+            easter_egg_found INTEGER NOT NULL DEFAULT 0,
+            is_superuser    INTEGER NOT NULL DEFAULT 0
         )
     """)
     cur.execute("""
         INSERT INTO users_new
         SELECT CAST(id AS TEXT), username, password, role, suspended,
                invite_code, created_at, last_login_at,
-               COALESCE(easter_egg_found, 0)
+               COALESCE(easter_egg_found, 0),
+               COALESCE(is_superuser, 0)
         FROM users
     """)
     cur.execute("DROP TABLE users")
