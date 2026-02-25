@@ -35,6 +35,9 @@ MIN_BACKUP_INTERVAL = 300  # 5 minutes
 # Debounce delay – wait this many seconds after the last change before sending
 DEBOUNCE_DELAY = 60  # 1 minute
 
+# Maximum seconds to wait before forcing a backup, even with continuous changes
+MAX_DEBOUNCE_WAIT = 600  # 10 minutes
+
 # Number of retry attempts for failed Telegram sends
 MAX_RETRIES = 3
 
@@ -47,7 +50,9 @@ RETRY_BASE_DELAY = 5
 _lock = threading.Lock()
 _pending_changes: list[dict] = []
 _last_backup_time: float = 0
+_first_pending_time: float = 0
 _debounce_timer: threading.Timer | None = None
+_upload_msgs_lock = threading.Lock()
 _logger = None
 
 
@@ -76,13 +81,17 @@ def notify_change(change_type: str, description: str = "") -> None:
     """Record a significant change and schedule a debounced backup.
 
     This is called from Flask routes whenever a runtime artifact changes
-    (DB mutation, file upload/delete, settings change, etc.).
+    (DB mutation, settings change, etc.).
     Log-only changes do NOT call this function.
+
+    Multiple rapid changes are merged into a single backup.  A backup is
+    guaranteed to fire within MAX_DEBOUNCE_WAIT seconds of the first
+    queued change, even if new changes keep arriving.
     """
     if not is_enabled():
         return
 
-    global _debounce_timer
+    global _debounce_timer, _first_pending_time
 
     with _lock:
         _pending_changes.append(
@@ -98,8 +107,17 @@ def notify_change(change_type: str, description: str = "") -> None:
             _debounce_timer.cancel()
 
         now = time.time()
+        # Record the time of the very first queued change in this batch
+        if _first_pending_time == 0:
+            _first_pending_time = now
+
         time_since_last = now - _last_backup_time
         delay = max(DEBOUNCE_DELAY, MIN_BACKUP_INTERVAL - time_since_last)
+
+        # Cap the delay so the backup fires within MAX_DEBOUNCE_WAIT of the
+        # first pending change, preventing indefinite postponement.
+        elapsed_since_first = now - _first_pending_time
+        delay = min(delay, max(0, MAX_DEBOUNCE_WAIT - elapsed_since_first))
 
         _debounce_timer = threading.Timer(delay, _execute_backup)
         _debounce_timer.daemon = True
@@ -111,7 +129,7 @@ def notify_change(change_type: str, description: str = "") -> None:
 # ---------------------------------------------------------------------------
 def _execute_backup() -> None:
     """Create a zip of all runtime artifacts and send it to Telegram."""
-    global _last_backup_time, _debounce_timer
+    global _last_backup_time, _debounce_timer, _first_pending_time
 
     with _lock:
         if not _pending_changes:
@@ -119,6 +137,7 @@ def _execute_backup() -> None:
         changes = _pending_changes.copy()
         _pending_changes.clear()
         _debounce_timer = None
+        _first_pending_time = 0
 
     logger = _get_logger()
     zip_path = None
@@ -228,23 +247,7 @@ def _create_backup(changes: list[dict]) -> tuple[str | None, list[tuple]]:
                             (f"logs/{log_file}", file_size, "Excluded by config" if not include_sensitive else "Exceeds size limit")
                         )
 
-            # 5. Upload assets -------------------------------------------
-            upload_dir = config.UPLOAD_FOLDER
-            if os.path.isdir(upload_dir):
-                for fname in sorted(os.listdir(upload_dir)):
-                    fpath = os.path.join(upload_dir, fname)
-                    if not os.path.isfile(fpath) or fname == ".gitkeep":
-                        continue
-                    file_size = os.path.getsize(fpath)
-                    if current_size + file_size < max_size:
-                        zf.write(fpath, f"uploads/{fname}")
-                        current_size += file_size
-                    else:
-                        excluded_files.append(
-                            (f"uploads/{fname}", file_size, "Exceeds size limit")
-                        )
-
-            # 6. Backup manifest -----------------------------------------
+            # 5. Backup manifest -----------------------------------------
             manifest = {
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "changes": changes,
@@ -346,3 +349,218 @@ def _send_to_telegram(
     except (URLError, OSError, ValueError) as exc:
         _get_logger().error(f"SYNC | Telegram API error: {exc}")
         return False
+
+
+# ---------------------------------------------------------------------------
+#  Per-upload Telegram notifications
+# ---------------------------------------------------------------------------
+def notify_file_upload(filename: str, filepath: str) -> None:
+    """Send a newly uploaded file to Telegram as a dedicated message.
+
+    Each upload is sent as an individual document message so that file-size
+    limits are applied per file rather than across an entire backup zip.
+    The returned Telegram message_id is persisted so that a subsequent
+    deletion can reply to the original message.
+    """
+    if not is_enabled():
+        return
+    t = threading.Thread(
+        target=_do_send_upload,
+        args=(filename, filepath),
+        daemon=True,
+    )
+    t.start()
+
+
+def notify_file_deleted(filename: str) -> None:
+    """Notify Telegram that an upload was deleted.
+
+    Replies to the original upload message (if the message_id was recorded)
+    so the file remains in the chat for reference while the deletion is noted.
+    """
+    if not is_enabled():
+        return
+    t = threading.Thread(
+        target=_do_send_deletion_notice,
+        args=(filename,),
+        daemon=True,
+    )
+    t.start()
+
+
+# ---------------------------------------------------------------------------
+#  Upload message-ID persistence
+# ---------------------------------------------------------------------------
+def _get_upload_msg_store_path() -> str:
+    """Path to the JSON file that maps filenames to Telegram message IDs."""
+    return os.path.join(config.BASE_DIR, "instance", "sync_upload_msgs.json")
+
+
+def _store_upload_msg_id(filename: str, msg_id: int) -> None:
+    """Persist a filename → Telegram message_id mapping to disk."""
+    with _upload_msgs_lock:
+        path = _get_upload_msg_store_path()
+        msgs: dict = {}
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    msgs = json.load(f)
+            except (OSError, ValueError):
+                msgs = {}
+        msgs[filename] = msg_id
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(msgs, f, indent=2)
+
+
+def _get_upload_msg_id(filename: str) -> int | None:
+    """Return the stored Telegram message_id for *filename*, or None."""
+    with _upload_msgs_lock:
+        path = _get_upload_msg_store_path()
+        if not os.path.exists(path):
+            return None
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                msgs = json.load(f)
+            return msgs.get(filename)
+        except (OSError, ValueError):
+            return None
+
+
+# ---------------------------------------------------------------------------
+#  Internal helpers for per-upload sends
+# ---------------------------------------------------------------------------
+def _do_send_upload(filename: str, filepath: str) -> None:
+    """Send *filepath* to Telegram as a dedicated document message."""
+    token = config.SYNC_TOKEN
+    user_id = config.SYNC_USERID
+    if not token or not user_id:
+        return
+
+    if not os.path.isfile(filepath):
+        _get_logger().warning(f"SYNC | Upload file not found: {filepath}")
+        return
+
+    file_size = os.path.getsize(filepath)
+    if file_size > TELEGRAM_FILE_LIMIT:
+        _get_logger().warning(
+            f"SYNC | Upload '{filename}' too large ({file_size} bytes), skipping"
+        )
+        return
+
+    caption = (
+        f"\U0001f4ce New upload: {filename}\n"
+        f"\U0001f4c5 {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}"
+    )
+
+    boundary = f"----BananaWikiSync{int(time.time())}"
+    parts: list[bytes] = []
+
+    parts.append(f"--{boundary}\r\n".encode())
+    parts.append(b'Content-Disposition: form-data; name="chat_id"\r\n\r\n')
+    parts.append(f"{user_id}\r\n".encode())
+
+    parts.append(f"--{boundary}\r\n".encode())
+    parts.append(b'Content-Disposition: form-data; name="caption"\r\n\r\n')
+    parts.append(f"{caption}\r\n".encode())
+
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    _MIME = {
+        "png": "image/png",
+        "jpg": "image/jpeg",
+        "jpeg": "image/jpeg",
+        "gif": "image/gif",
+        "webp": "image/webp",
+    }
+    content_type = _MIME.get(ext, "application/octet-stream")
+
+    parts.append(f"--{boundary}\r\n".encode())
+    parts.append(
+        f'Content-Disposition: form-data; name="document"; '
+        f'filename="{filename}"\r\n'.encode()
+    )
+    parts.append(f"Content-Type: {content_type}\r\n\r\n".encode())
+    with open(filepath, "rb") as fp:
+        parts.append(fp.read())
+    parts.append(f"\r\n--{boundary}--\r\n".encode())
+
+    body = b"".join(parts)
+    url = f"https://api.telegram.org/bot{token}/sendDocument"
+    req = Request(
+        url,
+        data=body,
+        headers={
+            "Content-Type": f"multipart/form-data; boundary={boundary}",
+            "Content-Length": str(len(body)),
+        },
+        method="POST",
+    )
+
+    try:
+        with urlopen(req, timeout=120) as resp:
+            result = json.loads(resp.read().decode())
+            if result.get("ok"):
+                msg_id = result["result"]["message_id"]
+                _store_upload_msg_id(filename, msg_id)
+                _get_logger().info(
+                    f"SYNC | Upload '{filename}' sent (msg_id={msg_id})"
+                )
+            else:
+                _get_logger().error(
+                    f"SYNC | Failed to send upload '{filename}': "
+                    f"{result.get('description')}"
+                )
+    except (URLError, OSError, ValueError) as exc:
+        _get_logger().error(f"SYNC | Error sending upload '{filename}': {exc}")
+
+
+def _do_send_deletion_notice(filename: str) -> None:
+    """Send a Telegram message noting that *filename* was deleted.
+
+    If the original upload message_id is known, this is sent as a reply so
+    the file remains visible in the chat for reference.
+    """
+    token = config.SYNC_TOKEN
+    user_id = config.SYNC_USERID
+    if not token or not user_id:
+        return
+
+    msg_id = _get_upload_msg_id(filename)
+
+    text = (
+        f"\U0001f5d1\ufe0f File deleted: {filename}\n"
+        f"\U0001f4c5 {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}"
+    )
+
+    payload: dict = {"chat_id": user_id, "text": text}
+    if msg_id is not None:
+        payload["reply_to_message_id"] = msg_id
+
+    body = json.dumps(payload).encode()
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    req = Request(
+        url,
+        data=body,
+        headers={
+            "Content-Type": "application/json",
+            "Content-Length": str(len(body)),
+        },
+        method="POST",
+    )
+
+    try:
+        with urlopen(req, timeout=30) as resp:
+            result = json.loads(resp.read().decode())
+            if result.get("ok"):
+                _get_logger().info(
+                    f"SYNC | Deletion notice sent for '{filename}'"
+                )
+            else:
+                _get_logger().error(
+                    f"SYNC | Failed to send deletion notice for '{filename}': "
+                    f"{result.get('description')}"
+                )
+    except (URLError, OSError, ValueError) as exc:
+        _get_logger().error(
+            f"SYNC | Error sending deletion notice for '{filename}': {exc}"
+        )
