@@ -140,10 +140,16 @@ def init_db():
     if "easter_egg_found" not in cols:
         cur.execute("ALTER TABLE users ADD COLUMN easter_egg_found INTEGER NOT NULL DEFAULT 0")
 
-    # Add timezone to site_settings if missing
+    # Add timezone / favicon columns to site_settings if missing
     ss_cols = [r[1] for r in cur.execute("PRAGMA table_info(site_settings)").fetchall()]
     if "timezone" not in ss_cols:
         cur.execute("ALTER TABLE site_settings ADD COLUMN timezone TEXT NOT NULL DEFAULT 'UTC'")
+    if "favicon_enabled" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN favicon_enabled INTEGER NOT NULL DEFAULT 0")
+    if "favicon_type" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN favicon_type TEXT NOT NULL DEFAULT 'yellow'")
+    if "favicon_custom" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN favicon_custom TEXT NOT NULL DEFAULT ''")
 
     # Ensure home page exists
     home = cur.execute("SELECT id FROM pages WHERE is_home=1").fetchone()
@@ -723,6 +729,7 @@ def get_site_settings():
 _ALLOWED_SETTINGS_COLUMNS = {
     "site_name", "primary_color", "secondary_color", "accent_color",
     "text_color", "sidebar_color", "bg_color", "setup_done", "timezone",
+    "favicon_enabled", "favicon_type", "favicon_custom",
 }
 
 

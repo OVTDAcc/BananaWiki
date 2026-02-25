@@ -1480,6 +1480,16 @@ def admin_delete_code(code_id):
 # ---------------------------------------------------------------------------
 #  Admin – Site settings
 # ---------------------------------------------------------------------------
+
+_VALID_FAVICON_TYPES = {'yellow', 'green', 'blue', 'red', 'orange', 'cyan', 'purple', 'lime', 'custom'}
+_FAVICON_ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "ico", "gif", "webp"}
+FAVICON_UPLOAD_FOLDER = os.path.join(app.static_folder, "favicons")
+
+
+def _allowed_favicon_file(filename):
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in _FAVICON_ALLOWED_EXTENSIONS
+
+
 @app.route("/admin/settings", methods=["GET", "POST"])
 @login_required
 @admin_required
@@ -1507,9 +1517,50 @@ def admin_settings():
         except pytz.exceptions.UnknownTimeZoneError:
             flash("Invalid time zone selected.", "error")
             return redirect(url_for("admin_settings"))
+
+        # Favicon settings
+        favicon_enabled = 1 if request.form.get("favicon_enabled") else 0
+        favicon_type = request.form.get("favicon_type", "yellow").strip()
+        if favicon_type not in _VALID_FAVICON_TYPES:
+            favicon_type = "yellow"
+
+        current_settings = db.get_site_settings()
+        favicon_custom = current_settings["favicon_custom"] if current_settings["favicon_custom"] else ""
+
+        if favicon_type == "custom":
+            f = request.files.get("favicon_custom_file")
+            if f and f.filename and _allowed_favicon_file(f.filename):
+                try:
+                    img = Image.open(f.stream)
+                    img.verify()
+                    f.stream.seek(0)
+                except Exception:
+                    flash("Custom favicon is not a valid image.", "error")
+                    return redirect(url_for("admin_settings"))
+                # Remove old custom favicon if present
+                if favicon_custom:
+                    old_path = os.path.join(FAVICON_UPLOAD_FOLDER, favicon_custom)
+                    if os.path.isfile(old_path) and favicon_custom.startswith("custom_"):
+                        try:
+                            os.remove(old_path)
+                        except OSError:
+                            pass
+                os.makedirs(FAVICON_UPLOAD_FOLDER, exist_ok=True)
+                ext = f.filename.rsplit(".", 1)[1].lower()
+                favicon_custom = f"custom_{uuid.uuid4().hex}.{ext}"
+                upload_root = os.path.abspath(FAVICON_UPLOAD_FOLDER)
+                filepath = os.path.abspath(os.path.join(upload_root, favicon_custom))
+                if os.path.commonpath([upload_root, filepath]) != upload_root:
+                    flash("Invalid favicon upload path.", "error")
+                    return redirect(url_for("admin_settings"))
+                f.save(filepath)
+
         db.update_site_settings(
             site_name=site_name,
             timezone=tz_name,
+            favicon_enabled=favicon_enabled,
+            favicon_type=favicon_type,
+            favicon_custom=favicon_custom,
             **color_fields,
         )
         user = get_current_user()
@@ -1522,6 +1573,7 @@ def admin_settings():
     categories, uncategorized = db.get_category_tree()
     return render_template("admin/settings.html", settings=settings,
                            timezones=pytz.common_timezones,
+                           favicon_types=sorted(_VALID_FAVICON_TYPES - {"custom"}),
                            categories=categories, uncategorized=uncategorized)
 
 

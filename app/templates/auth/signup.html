@@ -5,6 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sign Up – {{ settings.site_name }}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% if settings.favicon_enabled %}
+      {% if settings.favicon_type == 'custom' and settings.favicon_custom %}
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicons/' + settings.favicon_custom) }}">
+      {% elif settings.favicon_type != 'custom' %}
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicons/banana_' + settings.favicon_type + '.png') }}">
+      {% endif %}
+    {% endif %}
     <style>:root{--primary:{{ settings.primary_color }};--secondary:{{ settings.secondary_color }};--accent:{{ settings.accent_color }};--text:{{ settings.text_color }};--sidebar:{{ settings.sidebar_color }};--bg:{{ settings.bg_color }}}</style>
 </head>
 <body>

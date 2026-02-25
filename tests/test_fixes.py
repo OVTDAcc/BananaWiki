@@ -2589,3 +2589,130 @@ def test_admin_settings_page_shows_timezone_dropdown(logged_in_admin):
     assert b"Time Zone" in resp.data
     assert b"Europe/Rome" in resp.data
     assert b"America/New_York" in resp.data
+
+
+# -----------------------------------------------------------------------
+# Favicon settings tests
+# -----------------------------------------------------------------------
+
+def test_favicon_columns_exist_in_db():
+    """New favicon columns should exist in site_settings after init_db."""
+    import db
+    conn = db.get_db()
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(site_settings)").fetchall()]
+    conn.close()
+    assert "favicon_enabled" in cols
+    assert "favicon_type" in cols
+    assert "favicon_custom" in cols
+
+
+def test_favicon_defaults():
+    """Favicon should be disabled with 'yellow' type by default."""
+    import db
+    settings = db.get_site_settings()
+    assert settings["favicon_enabled"] == 0
+    assert settings["favicon_type"] == "yellow"
+    assert settings["favicon_custom"] == ""
+
+
+def test_admin_settings_page_shows_favicon_section(logged_in_admin):
+    """GET /admin/settings renders the Favicon section."""
+    resp = logged_in_admin.get("/admin/settings")
+    assert resp.status_code == 200
+    assert b"Favicon" in resp.data
+    assert b"favicon_enabled" in resp.data
+
+
+def test_favicon_enable_sets_flag(logged_in_admin):
+    """Enabling favicon via POST sets favicon_enabled=1 in DB."""
+    import db
+    resp = logged_in_admin.post("/admin/settings", data={
+        "site_name": "TestWiki",
+        "primary_color": "#7c8dc6",
+        "secondary_color": "#151520",
+        "accent_color": "#6e8aca",
+        "text_color": "#b8bcc8",
+        "sidebar_color": "#111118",
+        "bg_color": "#0d0d14",
+        "favicon_enabled": "1",
+        "favicon_type": "green",
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"Settings updated" in resp.data
+    settings = db.get_site_settings()
+    assert settings["favicon_enabled"] == 1
+    assert settings["favicon_type"] == "green"
+
+
+def test_favicon_disable_clears_flag(logged_in_admin):
+    """Submitting settings without favicon_enabled checkbox sets it to 0."""
+    import db
+    db.update_site_settings(favicon_enabled=1, favicon_type="blue")
+    resp = logged_in_admin.post("/admin/settings", data={
+        "site_name": "TestWiki",
+        "primary_color": "#7c8dc6",
+        "secondary_color": "#151520",
+        "accent_color": "#6e8aca",
+        "text_color": "#b8bcc8",
+        "sidebar_color": "#111118",
+        "bg_color": "#0d0d14",
+        # no favicon_enabled checkbox
+        "favicon_type": "blue",
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    settings = db.get_site_settings()
+    assert settings["favicon_enabled"] == 0
+
+
+def test_favicon_invalid_type_falls_back_to_yellow(logged_in_admin):
+    """An unrecognised favicon_type value is replaced with 'yellow'."""
+    import db
+    resp = logged_in_admin.post("/admin/settings", data={
+        "site_name": "TestWiki",
+        "primary_color": "#7c8dc6",
+        "secondary_color": "#151520",
+        "accent_color": "#6e8aca",
+        "text_color": "#b8bcc8",
+        "sidebar_color": "#111118",
+        "bg_color": "#0d0d14",
+        "favicon_enabled": "1",
+        "favicon_type": "notacolor",
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    settings = db.get_site_settings()
+    assert settings["favicon_type"] == "yellow"
+
+
+def test_favicon_link_tag_in_base_when_enabled(logged_in_admin):
+    """When favicon is enabled, the <link rel=icon> tag appears in pages."""
+    import db
+    db.update_site_settings(favicon_enabled=1, favicon_type="orange")
+    resp = logged_in_admin.get("/")
+    assert resp.status_code == 200
+    assert b'rel="icon"' in resp.data
+    assert b"banana_orange.png" in resp.data
+
+
+def test_favicon_link_tag_absent_when_disabled(logged_in_admin):
+    """When favicon is disabled, no <link rel=icon> tag should appear."""
+    import db
+    db.update_site_settings(favicon_enabled=0)
+    resp = logged_in_admin.get("/")
+    assert resp.status_code == 200
+    assert b"banana_" not in resp.data or b'rel="icon"' not in resp.data
+
+
+def test_banana_favicon_files_exist():
+    """All 8 bundled banana favicon PNG files must exist on disk."""
+    import os
+    favicons_dir = os.path.join(
+        os.path.dirname(__file__), "..", "app", "static", "favicons"
+    )
+    expected = [
+        "banana_yellow.png", "banana_green.png", "banana_blue.png",
+        "banana_red.png", "banana_orange.png", "banana_cyan.png",
+        "banana_purple.png", "banana_lime.png",
+    ]
+    for fname in expected:
+        assert os.path.isfile(os.path.join(favicons_dir, fname)), \
+            f"Missing favicon file: {fname}"
