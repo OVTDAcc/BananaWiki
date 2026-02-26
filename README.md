@@ -45,7 +45,7 @@ A lightweight, self-hosted wiki built with Flask and SQLite. Clean, fast, and ea
 - **Page History** — Full revision history with edit summaries, diff viewing, and one-click revert
 - **Draft Autosave** — Auto-saves every few seconds; detects conflicts when multiple users edit the same page
 - **Image Uploads** — Drag-and-drop or file picker with automatic Markdown insertion
-- **Role-Based Access** — Three roles (user, editor, admin) with clear permission boundaries
+- **Role-Based Access** — Four roles (user, editor, admin, protected_admin) with clear permission boundaries
 - **Invite Code System** — Time-limited codes control who can sign up
 - **Announcement Banners** — Site-wide banners with color themes, text sizes, visibility controls, expiry dates, and Markdown support
 - **Customizable Appearance** — Change site name and full color palette from the admin panel
@@ -90,8 +90,9 @@ This creates the first admin account and marks setup complete. All subsequent us
 | **User** | View pages |
 | **Editor** | View, create, and edit pages; manage categories; revert history |
 | **Admin** | Everything editors can do, plus: manage users, generate invite codes, configure settings, post announcements, delete pages |
+| **Protected Admin** | Same as admin, but the account is shielded from modifications by other admins |
 
-New users signing up with an invite code receive the **user** role by default. Admins can change roles from **Admin Operations → Manage Users**.
+New users signing up with an invite code receive the **user** role by default. Admins can change roles from **Admin Operations → Manage Users**. The **protected_admin** role can only be toggled by the account owner from their account settings.
 
 ## Project Structure
 

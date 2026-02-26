@@ -8,7 +8,7 @@ Here is the evidence behind that conclusion.
 
 ## Test suite
 
-All **420 tests pass** with zero failures or errors across five test files:
+All **444 tests pass** with zero failures or errors across five test files:
 
 - `test_production.py` — core page/user/admin workflows
 - `test_rate_limiting.py` — every mutation route is covered
@@ -25,7 +25,7 @@ Every layer that handles user input or data mutation is protected:
 | Concern | What is in place |
 |---|---|
 | **Authentication** | Flask-Login sessions; all protected routes use `@login_required` |
-| **Authorization** | Three-tier role system (user / editor / admin); `@editor_required` and `@admin_required` decorators enforced on every relevant route |
+| **Authorization** | Four-tier role system (user / editor / admin / protected_admin); `@editor_required` and `@admin_required` decorators enforced on every relevant route |
 | **Rate limiting** | Custom `@rate_limit` decorator applied to every write/mutation route (10–30 requests per 60 s depending on sensitivity) |
 | **Input sanitization** | Markdown rendered through Bleach with an explicit tag + attribute allowlist — no raw HTML reaches the browser |
 | **File uploads** | Extension whitelist (`png`, `jpg`, `jpeg`, `gif`, `webp`); SVG intentionally excluded to prevent XSS via embedded scripts |
@@ -44,7 +44,7 @@ All advertised features are implemented and working:
 - Full page revision history with diff view and one-click revert
 - Draft autosave with conflict detection
 - Image upload with drag-and-drop
-- Role-based access (user / editor / admin)
+- Role-based access (user / editor / admin / protected_admin)
 - Time-limited invite codes
 - Announcement banners with colour themes, expiry, and Markdown
 - Appearance customisation (site name, full colour palette)

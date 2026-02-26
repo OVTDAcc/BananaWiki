@@ -248,7 +248,7 @@ def editor_required(f):
     @functools.wraps(f)
     def wrapper(*args, **kwargs):
         user = get_current_user()
-        if not user or user["role"] not in ("editor", "admin"):
+        if not user or user["role"] not in ("editor", "admin", "protected_admin"):
             flash("You do not have permission to perform this action.", "error")
             return redirect(url_for("home"))
         return f(*args, **kwargs)
@@ -496,7 +496,7 @@ def login():
             flash("Your account has been suspended. Contact an administrator.", "error")
             return render_template("auth/login.html", lockdown=lockdown)
 
-        if lockdown and user["role"] != "admin":
+        if lockdown and user["role"] not in ("admin", "protected_admin"):
             log_action("login_blocked_lockdown", request, username=username)
             flash("This wiki is currently in lockdown. Only admins can log in.", "error")
             return render_template("auth/login.html", lockdown=lockdown)

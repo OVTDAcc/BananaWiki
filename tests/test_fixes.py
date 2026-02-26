@@ -4424,3 +4424,46 @@ def test_protected_admin_can_edit_own_account_in_panel(client, admin_user):
     assert resp.status_code == 200
     assert b"Username updated" in resp.data
     assert db.get_user_by_id(admin_user)["username"] == "adminrenamed"
+
+
+def test_protected_admin_can_edit_page(client, admin_user):
+    """A protected_admin can edit pages (editor_required should allow protected_admin)."""
+    import db
+    db.update_user(admin_user, role="protected_admin")
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    page = db.get_home_page()
+    resp = client.post(
+        f"/page/{page['slug']}/edit",
+        data={"title": "Home", "content": "Updated content", "edit_message": "test"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert db.get_home_page()["content"] == "Updated content"
+
+
+def test_protected_admin_can_create_page(client, admin_user):
+    """A protected_admin can create pages (editor_required should allow protected_admin)."""
+    import db
+    db.update_user(admin_user, role="protected_admin")
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    resp = client.post(
+        "/create-page",
+        data={"title": "New Page", "content": "hello"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert db.get_page_by_slug("new-page") is not None
+
+
+def test_protected_admin_can_login_during_lockdown(client, admin_user):
+    """A protected_admin can log in when lockdown mode is active."""
+    import db
+    db.update_user(admin_user, role="protected_admin")
+    db.update_site_settings(lockdown_mode=1)
+    resp = client.post(
+        "/login",
+        data={"username": "admin", "password": "admin123"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"lockdown" not in resp.data.lower() or b"Admin Login" not in resp.data
