@@ -49,42 +49,42 @@
 </div>
 {% endif %}
 
-{% if current_user.role in ('admin', 'superadmin') %}
+{% if current_user.role in ('admin', 'protected_admin') %}
 <div class="settings-section">
-    <h3>Superadmin Status</h3>
-    {% if current_user.role == 'superadmin' %}
-    <p style="font-size:.85rem;margin-bottom:.8rem;opacity:.7">Your account currently has <strong>superadmin</strong> status. You can revert to standard admin at any time.</p>
-    <button class="btn btn-outline" onclick="document.getElementById('superadmin-toggle').style.display=document.getElementById('superadmin-toggle').style.display==='none'?'block':'none'">Disable Superadmin</button>
-    <div id="superadmin-toggle" style="display:none;margin-top:.8rem">
+    <h3>Admin Account Protection</h3>
+    {% if current_user.role == 'protected_admin' %}
+    <p style="font-size:.85rem;margin-bottom:.8rem;opacity:.7">Your account is currently <strong>protected</strong>. Other admins cannot change your role. You can remove this protection at any time.</p>
+    <button class="btn btn-outline" onclick="document.getElementById('protected-admin-toggle').style.display=document.getElementById('protected-admin-toggle').style.display==='none'?'block':'none'">Disable Protection</button>
+    <div id="protected-admin-toggle" style="display:none;margin-top:.8rem">
         <form method="POST">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="action" value="toggle_superadmin">
+            <input type="hidden" name="action" value="toggle_protected_admin">
             <div class="form-group">
                 <label>Confirm with your password</label>
                 <input type="password" name="password" class="input" required autocomplete="current-password">
             </div>
-            <button type="submit" class="btn">Confirm – Disable Superadmin</button>
+            <button type="submit" class="btn">Confirm – Disable Protection</button>
         </form>
     </div>
     {% else %}
-    <p style="font-size:.85rem;margin-bottom:.8rem;opacity:.7">Enable superadmin status to grant yourself elevated privileges. Only you can toggle this setting.</p>
-    <button class="btn btn-outline" onclick="document.getElementById('superadmin-toggle').style.display=document.getElementById('superadmin-toggle').style.display==='none'?'block':'none'">Enable Superadmin</button>
-    <div id="superadmin-toggle" style="display:none;margin-top:.8rem">
+    <p style="font-size:.85rem;margin-bottom:.8rem;opacity:.7">Enable account protection to prevent other admins from changing your role. Only you can toggle this setting.</p>
+    <button class="btn btn-outline" onclick="document.getElementById('protected-admin-toggle').style.display=document.getElementById('protected-admin-toggle').style.display==='none'?'block':'none'">Enable Protection</button>
+    <div id="protected-admin-toggle" style="display:none;margin-top:.8rem">
         <form method="POST">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="action" value="toggle_superadmin">
+            <input type="hidden" name="action" value="toggle_protected_admin">
             <div class="form-group">
                 <label>Confirm with your password</label>
                 <input type="password" name="password" class="input" required autocomplete="current-password">
             </div>
-            <button type="submit" class="btn">Confirm – Enable Superadmin</button>
+            <button type="submit" class="btn">Confirm – Enable Protection</button>
         </form>
     </div>
     {% endif %}
 </div>
 {% endif %}
 
-{% if current_user.role in ('admin', 'superadmin') %}
+{% if current_user.role in ('admin', 'protected_admin') %}
 <div class="settings-section">
     <h3>Admin Operations</h3>
     <div style="display:flex;gap:.5rem;flex-wrap:wrap">
@@ -96,7 +96,7 @@
 </div>
 {% endif %}
 
-{% if current_user.role in ('editor', 'admin', 'superadmin') %}
+{% if current_user.role in ('editor', 'admin', 'protected_admin') %}
 <div class="settings-section">
     <h3>My Drafts</h3>
     <p style="font-size:.85rem;opacity:.7;margin-bottom:.8rem">Pages you have unsaved drafts for. You can continue editing or discard them.</p>
@@ -122,7 +122,7 @@
 {% endblock %}
 
 {% block scripts %}
-{% if current_user.role in ('editor', 'admin', 'superadmin') %}
+{% if current_user.role in ('editor', 'admin', 'protected_admin') %}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         initDraftManager();

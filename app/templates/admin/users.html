@@ -5,7 +5,7 @@
 
 <div class="tabs">
     <a href="{{ url_for('admin_users') }}" class="tab {% if not role_filter and not status_filter %}active{% endif %}">All</a>
-    <a href="{{ url_for('admin_users', role='superadmin') }}" class="tab {% if role_filter == 'superadmin' %}active{% endif %}">Superadmins</a>
+    <a href="{{ url_for('admin_users', role='protected_admin') }}" class="tab {% if role_filter == 'protected_admin' %}active{% endif %}">Protected</a>
     <a href="{{ url_for('admin_users', role='admin') }}" class="tab {% if role_filter == 'admin' %}active{% endif %}">Admins</a>
     <a href="{{ url_for('admin_users', role='editor') }}" class="tab {% if role_filter == 'editor' %}active{% endif %}">Editors</a>
     <a href="{{ url_for('admin_users', role='user') }}" class="tab {% if role_filter == 'user' %}active{% endif %}">Users</a>
@@ -96,8 +96,8 @@
                         <button class="btn btn-sm">Set PW</button>
                     </form>
                     <!-- Change role -->
-                    {% if u.role == 'superadmin' %}
-                    <p style="opacity:.7;font-size:.9rem;align-self:center">⚠ Superadmin status can only be changed by the account owner.</p>
+                    {% if u.role == 'protected_admin' %}
+                    <p style="opacity:.7;font-size:.9rem;align-self:center">⚠ Protected admin status can only be changed by the account owner.</p>
                     {% else %}
                     <form method="POST" action="{{ url_for('admin_edit_user', user_id=u.id) }}" class="inline-form">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

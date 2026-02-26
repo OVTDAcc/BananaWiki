@@ -738,7 +738,7 @@ def test_admin_change_role_invalid_value(logged_in_admin, admin_user):
     import db
     uid = db.create_user("roleuser", generate_password_hash("pass123"), role="user")
     resp = logged_in_admin.post(f"/admin/users/{uid}/edit",
-                                data={"action": "change_role", "role": "superadmin"},
+                                data={"action": "change_role", "role": "protected_admin"},
                                 follow_redirects=True)
     assert resp.status_code == 200
     assert b"Invalid role" in resp.data
@@ -4073,43 +4073,43 @@ def test_reorder_categories_logs_action(logged_in_admin, admin_user, monkeypatch
 # Superadmin toggle tests
 # -----------------------------------------------------------------------
 
-def test_admin_can_enable_superadmin_status(logged_in_admin, admin_user):
-    """Admin can toggle their own role to superadmin via account settings."""
+def test_admin_can_enable_protected_admin_status(logged_in_admin, admin_user):
+    """Admin can toggle their own role to protected_admin via account settings."""
     import db
     resp = logged_in_admin.post(
         "/account",
-        data={"action": "toggle_superadmin", "password": "admin123"},
+        data={"action": "toggle_protected_admin", "password": "admin123"},
         follow_redirects=True,
     )
     assert resp.status_code == 200
-    assert b"Superadmin status enabled" in resp.data
+    assert b"Protected admin status enabled" in resp.data
     user = db.get_user_by_id(admin_user)
-    assert user["role"] == "superadmin"
+    assert user["role"] == "protected_admin"
 
 
-def test_superadmin_can_disable_superadmin_status(client, admin_user):
-    """Superadmin can revert to admin role via account settings."""
+def test_protected_admin_can_disable_status(client, admin_user):
+    """Protected admin can revert to admin role via account settings."""
     import db
-    # First promote to superadmin directly
-    db.update_user(admin_user, role="superadmin")
+    # First promote to protected_admin directly
+    db.update_user(admin_user, role="protected_admin")
     client.post("/login", data={"username": "admin", "password": "admin123"})
     resp = client.post(
         "/account",
-        data={"action": "toggle_superadmin", "password": "admin123"},
+        data={"action": "toggle_protected_admin", "password": "admin123"},
         follow_redirects=True,
     )
     assert resp.status_code == 200
-    assert b"Superadmin status disabled" in resp.data
+    assert b"Protected admin status disabled" in resp.data
     user = db.get_user_by_id(admin_user)
     assert user["role"] == "admin"
 
 
-def test_toggle_superadmin_wrong_password_rejected(logged_in_admin, admin_user):
-    """Toggle superadmin with wrong password should fail."""
+def test_toggle_protected_admin_wrong_password_rejected(logged_in_admin, admin_user):
+    """Toggle protected admin with wrong password should fail."""
     import db
     resp = logged_in_admin.post(
         "/account",
-        data={"action": "toggle_superadmin", "password": "wrongpassword"},
+        data={"action": "toggle_protected_admin", "password": "wrongpassword"},
         follow_redirects=True,
     )
     assert resp.status_code == 200
@@ -4118,15 +4118,15 @@ def test_toggle_superadmin_wrong_password_rejected(logged_in_admin, admin_user):
     assert user["role"] == "admin"
 
 
-def test_non_admin_cannot_toggle_superadmin(client, admin_user):
-    """A regular user cannot use toggle_superadmin action."""
+def test_non_admin_cannot_toggle_protected_admin(client, admin_user):
+    """A regular user cannot use toggle_protected_admin action."""
     from werkzeug.security import generate_password_hash
     import db
     uid = db.create_user("regularuser", generate_password_hash("pass123"), role="user")
     client.post("/login", data={"username": "regularuser", "password": "pass123"})
     resp = client.post(
         "/account",
-        data={"action": "toggle_superadmin", "password": "pass123"},
+        data={"action": "toggle_protected_admin", "password": "pass123"},
         follow_redirects=True,
     )
     assert resp.status_code == 200
@@ -4135,21 +4135,21 @@ def test_non_admin_cannot_toggle_superadmin(client, admin_user):
     assert user["role"] == "user"
 
 
-def test_superadmin_has_admin_panel_access(client, admin_user):
-    """User with superadmin role should have access to admin panel."""
+def test_protected_admin_has_admin_panel_access(client, admin_user):
+    """User with protected_admin role should have access to admin panel."""
     import db
-    db.update_user(admin_user, role="superadmin")
+    db.update_user(admin_user, role="protected_admin")
     client.post("/login", data={"username": "admin", "password": "admin123"})
     resp = client.get("/admin/users")
     assert resp.status_code == 200
 
 
-def test_admin_cannot_change_superadmin_role_via_panel(client, admin_user):
-    """Admin cannot change a superadmin user's role from the admin panel."""
+def test_admin_cannot_change_protected_admin_role_via_panel(client, admin_user):
+    """Admin cannot change a protected_admin user's role from the admin panel."""
     from werkzeug.security import generate_password_hash
     import db
-    # Create a second admin and promote to superadmin
-    uid2 = db.create_user("admin2", generate_password_hash("pass456"), role="superadmin")
+    # Create a second admin and promote to protected_admin
+    uid2 = db.create_user("admin2", generate_password_hash("pass456"), role="protected_admin")
     client.post("/login", data={"username": "admin", "password": "admin123"})
     resp = client.post(
         f"/admin/users/{uid2}/edit",
@@ -4157,25 +4157,25 @@ def test_admin_cannot_change_superadmin_role_via_panel(client, admin_user):
         follow_redirects=True,
     )
     assert resp.status_code == 200
-    assert b"Superadmin status can only be changed by the account owner" in resp.data
+    assert b"Protected admin status can only be changed by the account owner" in resp.data
     user = db.get_user_by_id(uid2)
-    assert user["role"] == "superadmin"
+    assert user["role"] == "protected_admin"
 
 
-def test_superadmin_counted_as_admin_in_count(isolated_db):
-    """count_admins() should include users with role='superadmin'."""
+def test_protected_admin_counted_as_admin_in_count(isolated_db):
+    """count_admins() should include users with role='protected_admin'."""
     from werkzeug.security import generate_password_hash
     import db
     db.update_site_settings(setup_done=1)
     db.create_user("adm1", generate_password_hash("pass"), role="admin")
-    db.create_user("sadm1", generate_password_hash("pass"), role="superadmin")
+    db.create_user("padm1", generate_password_hash("pass"), role="protected_admin")
     assert db.count_admins() == 2
 
 
-def test_superadmin_can_change_own_username(client, admin_user):
-    """Superadmin should be able to change their own username."""
+def test_protected_admin_can_change_own_username(client, admin_user):
+    """Protected admin should be able to change their own username."""
     import db
-    db.update_user(admin_user, role="superadmin")
+    db.update_user(admin_user, role="protected_admin")
     client.post("/login", data={"username": "admin", "password": "admin123"})
     resp = client.post(
         "/account",
@@ -4188,11 +4188,11 @@ def test_superadmin_can_change_own_username(client, admin_user):
     assert user["username"] == "newname"
 
 
-def test_superadmin_can_change_own_password(client, admin_user):
-    """Superadmin should be able to change their own password."""
+def test_protected_admin_can_change_own_password(client, admin_user):
+    """Protected admin should be able to change their own password."""
     from werkzeug.security import check_password_hash
     import db
-    db.update_user(admin_user, role="superadmin")
+    db.update_user(admin_user, role="protected_admin")
     client.post("/login", data={"username": "admin", "password": "admin123"})
     resp = client.post(
         "/account",
@@ -4208,3 +4208,102 @@ def test_superadmin_can_change_own_password(client, admin_user):
     assert b"Password updated" in resp.data
     user = db.get_user_by_id(admin_user)
     assert check_password_hash(user["password"], "newpass1")
+
+
+# -----------------------------------------------------------------------
+# Edge cases: protected admin role
+# -----------------------------------------------------------------------
+
+def test_editor_cannot_toggle_protected_admin(client, admin_user):
+    """An editor cannot use the toggle_protected_admin action."""
+    from werkzeug.security import generate_password_hash
+    import db
+    uid = db.create_user("editoruser", generate_password_hash("ed123"), role="editor")
+    client.post("/login", data={"username": "editoruser", "password": "ed123"})
+    resp = client.post(
+        "/account",
+        data={"action": "toggle_protected_admin", "password": "ed123"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"Only admins" in resp.data
+    user = db.get_user_by_id(uid)
+    assert user["role"] == "editor"
+
+
+def test_admin_panel_cannot_directly_set_protected_admin_role(client, admin_user):
+    """Attempting to set role='protected_admin' via the admin panel is rejected as invalid."""
+    from werkzeug.security import generate_password_hash
+    import db
+    uid = db.create_user("targetuser", generate_password_hash("pass"), role="user")
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    resp = client.post(
+        f"/admin/users/{uid}/edit",
+        data={"action": "change_role", "role": "protected_admin"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"Invalid role" in resp.data
+    user = db.get_user_by_id(uid)
+    assert user["role"] == "user"
+
+
+def test_protected_admin_can_still_suspend_another_user(client, admin_user):
+    """Protected admin retains ability to suspend other users via the admin panel."""
+    from werkzeug.security import generate_password_hash
+    import db
+    uid2 = db.create_user("normaluser", generate_password_hash("pass"), role="user")
+    db.update_user(admin_user, role="protected_admin")
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    resp = client.post(
+        f"/admin/users/{uid2}/edit",
+        data={"action": "suspend"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"User suspended" in resp.data
+    user = db.get_user_by_id(uid2)
+    assert user["suspended"] == 1
+
+
+def test_protected_admin_double_toggle(client, admin_user):
+    """Protected admin can enable and then disable protection repeatedly."""
+    import db
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    # Enable
+    resp = client.post(
+        "/account",
+        data={"action": "toggle_protected_admin", "password": "admin123"},
+        follow_redirects=True,
+    )
+    assert db.get_user_by_id(admin_user)["role"] == "protected_admin"
+    # Disable
+    resp = client.post(
+        "/account",
+        data={"action": "toggle_protected_admin", "password": "admin123"},
+        follow_redirects=True,
+    )
+    assert db.get_user_by_id(admin_user)["role"] == "admin"
+    # Enable again
+    resp = client.post(
+        "/account",
+        data={"action": "toggle_protected_admin", "password": "admin123"},
+        follow_redirects=True,
+    )
+    assert db.get_user_by_id(admin_user)["role"] == "protected_admin"
+
+
+def test_cannot_delete_last_protected_admin_via_account_settings(client, admin_user):
+    """Cannot delete account via settings when the user is the sole admin (protected_admin)."""
+    import db
+    db.update_user(admin_user, role="protected_admin")
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    # Only admin_user exists as an admin — self-delete via account settings should be blocked
+    resp = client.post(
+        "/account",
+        data={"action": "delete_account", "password": "admin123"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"Cannot delete the last admin account" in resp.data
+    assert db.get_user_by_id(admin_user) is not None
