@@ -72,8 +72,8 @@ This document explains how BananaWiki is structured and how the main pieces fit 
 | Decorator | Requirement |
 |---|---|
 | `@login_required` | User must be logged in and not suspended. |
-| `@editor_required` | Role must be `editor` or `admin`. |
-| `@admin_required` | Role must be `admin`. |
+| `@editor_required` | Role must be `editor`, `admin`, or `protected_admin`. |
+| `@admin_required` | Role must be `admin` or `protected_admin`. |
 
 ### Draft system
 

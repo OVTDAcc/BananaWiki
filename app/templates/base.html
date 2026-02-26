@@ -51,7 +51,7 @@
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-header">
                 <span>Explorer</span>
-                {% if current_user and current_user.role in ('editor', 'admin') %}
+                {% if current_user and current_user.role in ('editor', 'admin', 'protected_admin') %}
                 <div class="sidebar-actions">
                     <button class="btn-icon" onclick="document.getElementById('createCatModal').style.display='flex'" title="New Category">+ Folder</button>
                     <a href="{{ url_for('create_page') }}" class="btn-icon" title="New Page">+ Page</a>
@@ -69,7 +69,7 @@
                     {% for p in uncategorized %}
                     <div class="nav-item-row" data-page-id="{{ p.id }}">
                         <a href="{{ url_for('view_page', slug=p.slug) }}" class="nav-item {% if page and page.id == p.id %}active{% endif %}">{{ p.title }}</a>
-                        {% if current_user and current_user.role in ('editor', 'admin') %}
+                        {% if current_user and current_user.role in ('editor', 'admin', 'protected_admin') %}
                         <span class="page-order-btns">
                             <button class="btn-icon-tiny reorder-btn" data-dir="up" data-type="page" data-id="{{ p.id }}" data-cat="" title="Move page up" aria-label="Move page up">▲</button>
                             <button class="btn-icon-tiny reorder-btn" data-dir="down" data-type="page" data-id="{{ p.id }}" data-cat="" title="Move page down" aria-label="Move page down">▼</button>
@@ -101,7 +101,7 @@
         </main>
     </div>
 
-    {% if current_user and current_user.role in ('editor', 'admin') %}
+    {% if current_user and current_user.role in ('editor', 'admin', 'protected_admin') %}
     <!-- Create Category Modal -->
     <div class="modal" id="createCatModal" style="display:none;">
         <div class="modal-content">

@@ -3,7 +3,7 @@
 {% block content %}
 <div class="page-header">
     <h1>{{ page.title }}</h1>
-    {% if current_user and current_user.role in ('editor', 'admin') %}
+    {% if current_user and current_user.role in ('editor', 'admin', 'protected_admin') %}
         <button class="btn-icon" onclick="document.getElementById('titleModal').style.display='flex'" title="Edit title">Edit title</button>
         {% if not page.is_home %}
         <a href="{{ url_for('edit_page', slug=page.slug) }}" class="btn btn-sm">Edit</a>
@@ -33,7 +33,7 @@
 </div>
 {% endif %}
 
-{% if current_user and current_user.role in ('editor', 'admin') %}
+{% if current_user and current_user.role in ('editor', 'admin', 'protected_admin') %}
 <!-- Title edit modal -->
 <div class="modal" id="titleModal" style="display:none">
     <div class="modal-content">
