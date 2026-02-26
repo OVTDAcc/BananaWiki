@@ -1494,6 +1494,9 @@ def admin_edit_user(user_id):
         return redirect(url_for("admin_users"))
 
     if action == "change_username":
+        if target["role"] == "protected_admin" and user_id != current_user["id"]:
+            flash("Protected admin accounts can only be edited by their owner.", "error")
+            return redirect(url_for("admin_users"))
         new_name = request.form.get("username", "").strip()
         if not new_name or len(new_name) < 3:
             flash("Username must be at least 3 characters.", "error")
@@ -1519,6 +1522,9 @@ def admin_edit_user(user_id):
                     flash("Username updated.", "success")
 
     elif action == "change_password":
+        if target["role"] == "protected_admin" and user_id != current_user["id"]:
+            flash("Protected admin accounts can only be edited by their owner.", "error")
+            return redirect(url_for("admin_users"))
         new_pw = request.form.get("password", "")
         confirm_pw = request.form.get("confirm_password", "")
         if len(new_pw) < 6:
@@ -1552,6 +1558,8 @@ def admin_edit_user(user_id):
     elif action == "suspend":
         if user_id == current_user["id"]:
             flash("Cannot suspend your own account.", "error")
+        elif target["role"] == "protected_admin":
+            flash("Protected admin accounts cannot be suspended by other admins.", "error")
         elif target["role"] in ("admin", "protected_admin") and db.count_admins() <= 1:
             flash("Cannot suspend the last admin.", "error")
         else:
@@ -1571,6 +1579,8 @@ def admin_edit_user(user_id):
     elif action == "delete":
         if user_id == current_user["id"]:
             flash("Cannot delete your own account from here. Use account settings instead.", "error")
+        elif target["role"] == "protected_admin":
+            flash("Protected admin accounts cannot be deleted by other admins.", "error")
         elif target["role"] in ("admin", "protected_admin") and db.count_admins() <= 1:
             flash("Cannot delete the last admin.", "error")
         else:

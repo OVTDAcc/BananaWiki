@@ -4307,3 +4307,120 @@ def test_cannot_delete_last_protected_admin_via_account_settings(client, admin_u
     assert resp.status_code == 200
     assert b"Cannot delete the last admin account" in resp.data
     assert db.get_user_by_id(admin_user) is not None
+
+
+# -----------------------------------------------------------------------
+# Edge cases: full protection scope (suspend / delete / rename / password)
+# -----------------------------------------------------------------------
+
+def test_admin_cannot_suspend_protected_admin(client, admin_user):
+    """An admin cannot suspend a protected_admin account."""
+    from werkzeug.security import generate_password_hash
+    import db
+    uid2 = db.create_user("padmin2", generate_password_hash("pass2"), role="protected_admin")
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    resp = client.post(
+        f"/admin/users/{uid2}/edit",
+        data={"action": "suspend"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"Protected admin accounts cannot be suspended" in resp.data
+    assert db.get_user_by_id(uid2)["suspended"] == 0
+
+
+def test_admin_cannot_delete_protected_admin(client, admin_user):
+    """An admin cannot delete a protected_admin account via the admin panel."""
+    from werkzeug.security import generate_password_hash
+    import db
+    uid2 = db.create_user("padmin2", generate_password_hash("pass2"), role="protected_admin")
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    resp = client.post(
+        f"/admin/users/{uid2}/edit",
+        data={"action": "delete"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"Protected admin accounts cannot be deleted" in resp.data
+    assert db.get_user_by_id(uid2) is not None
+
+
+def test_admin_cannot_rename_protected_admin(client, admin_user):
+    """An admin cannot rename a protected_admin account via the admin panel."""
+    from werkzeug.security import generate_password_hash
+    import db
+    uid2 = db.create_user("padmin2", generate_password_hash("pass2"), role="protected_admin")
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    resp = client.post(
+        f"/admin/users/{uid2}/edit",
+        data={"action": "change_username", "username": "hacked"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"Protected admin accounts can only be edited by their owner" in resp.data
+    assert db.get_user_by_id(uid2)["username"] == "padmin2"
+
+
+def test_admin_cannot_change_password_of_protected_admin(client, admin_user):
+    """An admin cannot change a protected_admin's password via the admin panel."""
+    from werkzeug.security import generate_password_hash, check_password_hash
+    import db
+    uid2 = db.create_user("padmin2", generate_password_hash("original"), role="protected_admin")
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    resp = client.post(
+        f"/admin/users/{uid2}/edit",
+        data={"action": "change_password", "password": "newpass1", "confirm_password": "newpass1"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"Protected admin accounts can only be edited by their owner" in resp.data
+    assert check_password_hash(db.get_user_by_id(uid2)["password"], "original")
+
+
+def test_protected_admin_cannot_suspend_another_protected_admin(client, admin_user):
+    """A protected_admin cannot suspend another protected_admin."""
+    from werkzeug.security import generate_password_hash
+    import db
+    uid2 = db.create_user("padmin2", generate_password_hash("pass2"), role="protected_admin")
+    db.update_user(admin_user, role="protected_admin")
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    resp = client.post(
+        f"/admin/users/{uid2}/edit",
+        data={"action": "suspend"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"Protected admin accounts cannot be suspended" in resp.data
+    assert db.get_user_by_id(uid2)["suspended"] == 0
+
+
+def test_protected_admin_cannot_delete_another_protected_admin(client, admin_user):
+    """A protected_admin cannot delete another protected_admin."""
+    from werkzeug.security import generate_password_hash
+    import db
+    uid2 = db.create_user("padmin2", generate_password_hash("pass2"), role="protected_admin")
+    db.update_user(admin_user, role="protected_admin")
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    resp = client.post(
+        f"/admin/users/{uid2}/edit",
+        data={"action": "delete"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"Protected admin accounts cannot be deleted" in resp.data
+    assert db.get_user_by_id(uid2) is not None
+
+
+def test_protected_admin_can_edit_own_account_in_panel(client, admin_user):
+    """A protected_admin can still rename/change-password their own account via the admin panel."""
+    import db
+    db.update_user(admin_user, role="protected_admin")
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    resp = client.post(
+        f"/admin/users/{admin_user}/edit",
+        data={"action": "change_username", "username": "adminrenamed"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"Username updated" in resp.data
+    assert db.get_user_by_id(admin_user)["username"] == "adminrenamed"

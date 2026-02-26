@@ -78,6 +78,8 @@
             <td colspan="7" style="padding:.8rem">
                 {% if u.is_superuser %}
                 <p style="opacity:.7;font-size:.9rem">⚠ This is a protected superuser account. It cannot be modified from here.</p>
+                {% elif u.role == 'protected_admin' and u.id != current_user.id %}
+                <p style="opacity:.7;font-size:.9rem">⚠ This is a protected admin account. It can only be modified by its owner.</p>
                 {% else %}
                 <div style="display:flex;gap:1rem;flex-wrap:wrap">
                     <!-- Change username -->
@@ -96,9 +98,7 @@
                         <button class="btn btn-sm">Set PW</button>
                     </form>
                     <!-- Change role -->
-                    {% if u.role == 'protected_admin' %}
-                    <p style="opacity:.7;font-size:.9rem;align-self:center">⚠ Protected admin status can only be changed by the account owner.</p>
-                    {% else %}
+                    {% if u.role != 'protected_admin' %}
                     <form method="POST" action="{{ url_for('admin_edit_user', user_id=u.id) }}" class="inline-form">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="action" value="change_role">
