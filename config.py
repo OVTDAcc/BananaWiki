@@ -118,9 +118,10 @@ LOG_FILE = os.path.join(BASE_DIR, "logs", "bananawiki.log")
 # =============================================================================
 # Page History
 # =============================================================================
-# Page history is always active. All page edits, title changes, and reverts are
-# logged and can be viewed. Rolling back a page creates a new history entry;
-# nothing is ever deleted from page history.
+# Enable or disable the page history viewer. When True (the default), every
+# edit, title change, and revert is recorded and can be viewed or reverted.
+# Reverting creates a new history entry — nothing is ever deleted from history.
+# Set to False to hide all history routes (/history, /revert, etc.) from users.
 PAGE_HISTORY_ENABLED = True
 
 # =============================================================================

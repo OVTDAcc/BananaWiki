@@ -111,7 +111,7 @@ An admin can transfer all history entries on a given page from one user to anoth
 > `app.py` → `bulk_transfer_attribution`, `db.py` → `bulk_transfer_history_attribution()`
 
 ### History feature flag
-Page history can be globally disabled with `PAGE_HISTORY_ENABLED = False` in `config.py`. All history routes return 404 when the flag is off.
+Page history can be globally disabled by setting `PAGE_HISTORY_ENABLED = False` in `config.py`. When disabled, all history routes (`/history`, `/revert`, `/history/<id>/transfer`, etc.) return 404 and the "View history" link is hidden in the UI. The default is `True` (history always on).
 
 > `config.py` → `PAGE_HISTORY_ENABLED`, `app.py` (guards on every history route)
 

@@ -38,7 +38,7 @@ This document explains how BananaWiki is structured and how the main pieces fit 
 
 | File | Purpose |
 |---|---|
-| `wsgi.py` | WSGI entry point. Imports `app` from `app.py`, calls `db.init_db()`, and hands the app to Gunicorn. |
+| `wsgi.py` | WSGI entry point. Imports `app` from `app.py` (which calls `db.init_db()` at module level) and hands the app to Gunicorn. |
 | `app.py` | The Flask application — creates the `app` object, registers all routes, and contains all middleware. |
 | `gunicorn.conf.py` | Reads `HOST`, `PORT`, and `PROXY_MODE` from `config.py` and sets Gunicorn's bind address and worker count. |
 
@@ -55,9 +55,9 @@ This document explains how BananaWiki is structured and how the main pieces fit 
 5. **Helpers** — `render_markdown()`, `slugify()`, `allowed_file()`, `time_ago()`, `format_datetime()`, and validation utilities used across routes.
 6. **Decorators** — `@login_required`, `@editor_required`, `@admin_required` wrap route functions to enforce access control.
 7. **Context processors** — `inject_globals()` runs before every template render and injects `current_user`, `settings`, `active_announcements`, `all_categories`, and the `time_ago`/`format_datetime` helpers.
-8. **Request hooks** — `before_request_hook` redirects to `/setup` until setup is complete and applies the global rate limit. `set_security_headers` adds security headers to every response.
+8. **Request hooks** — `before_request_hook` redirects to `/setup` until setup is complete, enforces lockdown mode (kicking out non-admin users), and applies the global rate limit. `set_security_headers` adds security headers to every response.
 9. **Routes** — grouped by area:
-   - `/setup`, `/login`, `/signup`, `/logout` — authentication
+   - `/setup`, `/login`, `/signup`, `/logout`, `/lockdown` — authentication and lockdown
    - `/account` — account settings (username, password, delete account)
    - `/`, `/page/<slug>`, `/page/<slug>/history`, etc. — wiki page viewing and editing
    - `/create-page`, `/page/<slug>/delete`, `/page/<slug>/move` — page management
