@@ -4067,3 +4067,144 @@ def test_reorder_categories_logs_action(logged_in_admin, admin_user, monkeypatch
     assert resp.status_code == 200
     assert resp.get_json()["ok"] is True
     assert "reorder_categories" in logged_calls
+
+
+# -----------------------------------------------------------------------
+# Superadmin toggle tests
+# -----------------------------------------------------------------------
+
+def test_admin_can_enable_superadmin_status(logged_in_admin, admin_user):
+    """Admin can toggle their own role to superadmin via account settings."""
+    import db
+    resp = logged_in_admin.post(
+        "/account",
+        data={"action": "toggle_superadmin", "password": "admin123"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"Superadmin status enabled" in resp.data
+    user = db.get_user_by_id(admin_user)
+    assert user["role"] == "superadmin"
+
+
+def test_superadmin_can_disable_superadmin_status(client, admin_user):
+    """Superadmin can revert to admin role via account settings."""
+    import db
+    # First promote to superadmin directly
+    db.update_user(admin_user, role="superadmin")
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    resp = client.post(
+        "/account",
+        data={"action": "toggle_superadmin", "password": "admin123"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"Superadmin status disabled" in resp.data
+    user = db.get_user_by_id(admin_user)
+    assert user["role"] == "admin"
+
+
+def test_toggle_superadmin_wrong_password_rejected(logged_in_admin, admin_user):
+    """Toggle superadmin with wrong password should fail."""
+    import db
+    resp = logged_in_admin.post(
+        "/account",
+        data={"action": "toggle_superadmin", "password": "wrongpassword"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"Incorrect password" in resp.data
+    user = db.get_user_by_id(admin_user)
+    assert user["role"] == "admin"
+
+
+def test_non_admin_cannot_toggle_superadmin(client, admin_user):
+    """A regular user cannot use toggle_superadmin action."""
+    from werkzeug.security import generate_password_hash
+    import db
+    uid = db.create_user("regularuser", generate_password_hash("pass123"), role="user")
+    client.post("/login", data={"username": "regularuser", "password": "pass123"})
+    resp = client.post(
+        "/account",
+        data={"action": "toggle_superadmin", "password": "pass123"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"Only admins" in resp.data
+    user = db.get_user_by_id(uid)
+    assert user["role"] == "user"
+
+
+def test_superadmin_has_admin_panel_access(client, admin_user):
+    """User with superadmin role should have access to admin panel."""
+    import db
+    db.update_user(admin_user, role="superadmin")
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    resp = client.get("/admin/users")
+    assert resp.status_code == 200
+
+
+def test_admin_cannot_change_superadmin_role_via_panel(client, admin_user):
+    """Admin cannot change a superadmin user's role from the admin panel."""
+    from werkzeug.security import generate_password_hash
+    import db
+    # Create a second admin and promote to superadmin
+    uid2 = db.create_user("admin2", generate_password_hash("pass456"), role="superadmin")
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    resp = client.post(
+        f"/admin/users/{uid2}/edit",
+        data={"action": "change_role", "role": "user"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"Superadmin status can only be changed by the account owner" in resp.data
+    user = db.get_user_by_id(uid2)
+    assert user["role"] == "superadmin"
+
+
+def test_superadmin_counted_as_admin_in_count(isolated_db):
+    """count_admins() should include users with role='superadmin'."""
+    from werkzeug.security import generate_password_hash
+    import db
+    db.update_site_settings(setup_done=1)
+    db.create_user("adm1", generate_password_hash("pass"), role="admin")
+    db.create_user("sadm1", generate_password_hash("pass"), role="superadmin")
+    assert db.count_admins() == 2
+
+
+def test_superadmin_can_change_own_username(client, admin_user):
+    """Superadmin should be able to change their own username."""
+    import db
+    db.update_user(admin_user, role="superadmin")
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    resp = client.post(
+        "/account",
+        data={"action": "change_username", "new_username": "newname", "password": "admin123"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"Username updated" in resp.data
+    user = db.get_user_by_id(admin_user)
+    assert user["username"] == "newname"
+
+
+def test_superadmin_can_change_own_password(client, admin_user):
+    """Superadmin should be able to change their own password."""
+    from werkzeug.security import check_password_hash
+    import db
+    db.update_user(admin_user, role="superadmin")
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    resp = client.post(
+        "/account",
+        data={
+            "action": "change_password",
+            "current_password": "admin123",
+            "new_password": "newpass1",
+            "confirm_password": "newpass1",
+        },
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"Password updated" in resp.data
+    user = db.get_user_by_id(admin_user)
+    assert check_password_hash(user["password"], "newpass1")
