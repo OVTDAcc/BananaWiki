@@ -10,6 +10,7 @@ This document catalogues every feature in BananaWiki, ordered from the most visi
 - [Drafts and collaboration](#drafts-and-collaboration)
 - [Image uploads](#image-uploads)
 - [User accounts and roles](#user-accounts-and-roles)
+- [Protected admin mode](#protected-admin-mode)
 - [Invite codes](#invite-codes)
 - [Announcements](#announcements)
 - [Admin panel](#admin-panel)
@@ -181,12 +182,13 @@ The maximum upload size is 16 MB by default, enforced both by Flask's `MAX_CONTE
 
 ## User accounts and roles
 
-### Three-tier role system
+### Four-tier role system
 | Role | Permissions |
 |---|---|
 | **user** | View pages |
 | **editor** | View, create, edit, and delete pages; manage categories; revert history; upload images |
 | **admin** | Everything editors can do plus: manage users, generate invite codes, configure settings, post announcements |
+| **protected_admin** | Same as admin, but the account is shielded from modifications by other admins (see [Protected admin mode](#protected-admin-mode)) |
 
 > `app.py` → `login_required`, `editor_required`, `admin_required`
 
@@ -239,6 +241,21 @@ Sessions are marked as permanent with a 7-day lifetime. Users stay logged in acr
 `session.clear()` is called before setting `user_id` on a successful login, ensuring the old pre-login session is destroyed.
 
 > `app.py` → `login`
+
+---
+
+## Protected admin mode
+
+### Self-toggleable account hardening
+Any admin can opt into `protected_admin` mode from their account settings page. While this mode is active the account behaves exactly like a regular admin but gains the following extra protections:
+
+- No other admin can change its username or password.
+- No other admin can change its role, suspend it, or delete it.
+- Only the account owner can perform any of those actions on the account.
+
+The toggle requires the current password as confirmation and can be turned on or off at will by the account owner. Superuser accounts (set at the DB level) are a separate, stronger protection and cannot be toggled from the UI.
+
+> `app.py` → `account_settings` (`toggle_protected_admin` action), `admin_edit_user` (guards on `protected_admin` target), `db.py` → `users.role` column (`'protected_admin'` value)
 
 ---
 
@@ -376,14 +393,19 @@ When `SYNC = True`, any significant change (page edit, user action, settings cha
 > `sync.py` → `notify_change()`, background thread with debounce logic, `config.py` → `SYNC`
 
 ### Zip archive contents
-By default the archive contains only the uploads folder. Setting `SYNC_INCLUDE_SENSITIVE = True` also includes the database, secret key, `config.py`, and log files.
+Every backup zip always contains a `backup_manifest.json` file that records the timestamp, the list of changes that triggered this backup, and any files that were excluded (with size and reason). Setting `SYNC_INCLUDE_SENSITIVE = True` also includes the database, secret key, `config.py`, and log files in the zip. Uploaded images are never bundled in the zip — they are sent as individual Telegram messages (see below).
 
-> `sync.py`, `config.py` → `SYNC_INCLUDE_SENSITIVE`
+> `sync.py` → `_create_backup()`, `config.py` → `SYNC_INCLUDE_SENSITIVE`
 
 ### Individual image file sync
 Uploaded images are sent as separate Telegram messages (not bundled in the zip) so they can be retrieved individually. Their Telegram message IDs are saved in `sync_upload_msgs.json` so they can be deleted from Telegram when the corresponding file is removed locally.
 
 > `sync.py` → `notify_file_upload()`, `notify_file_deleted()`, `sync_upload_msgs.json`
+
+### Retry with exponential backoff
+If a Telegram send fails, the sync module makes up to 3 total attempts, waiting 5 s before the second attempt and 10 s before the third. A failure after all attempts is logged but does not crash the application. Backups are also rate-limited to at most one send per 5 minutes to avoid flooding the Telegram API.
+
+> `sync.py` → `MAX_RETRIES`, `RETRY_BASE_DELAY`, `MIN_BACKUP_INTERVAL`, `_execute_backup()`
 
 ---
 
