@@ -2,7 +2,7 @@
     <div class="nav-section-header">
         <button class="cat-toggle" onclick="this.closest('.nav-section').classList.toggle('collapsed')" title="Toggle category" aria-label="Toggle category">▾</button>
         <span class="nav-section-title">{{ cat.name }}</span>
-        {% if current_user and current_user.role in ('editor', 'admin') %}
+        {% if current_user and current_user.role in ('editor', 'admin', 'protected_admin') %}
         <div class="cat-actions">
             <button class="btn-icon-tiny reorder-btn" data-dir="up" data-type="category" data-id="{{ cat.id }}" title="Move category up" aria-label="Move category up">▲</button>
             <button class="btn-icon-tiny reorder-btn" data-dir="down" data-type="category" data-id="{{ cat.id }}" title="Move category down" aria-label="Move category down">▼</button>
@@ -62,7 +62,7 @@
         {% for p in cat.pages %}
         <div class="nav-item-row" data-page-id="{{ p.id }}">
             <a href="{{ url_for('view_page', slug=p.slug) }}" class="nav-item {% if page and page.id == p.id %}active{% endif %}">{{ p.title }}</a>
-            {% if current_user and current_user.role in ('editor', 'admin') %}
+            {% if current_user and current_user.role in ('editor', 'admin', 'protected_admin') %}
             <span class="page-order-btns">
                 <button class="btn-icon-tiny reorder-btn" data-dir="up" data-type="page" data-id="{{ p.id }}" data-cat="{{ cat.id }}" title="Move page up" aria-label="Move page up">▲</button>
                 <button class="btn-icon-tiny reorder-btn" data-dir="down" data-type="page" data-id="{{ p.id }}" data-cat="{{ cat.id }}" title="Move page down" aria-label="Move page down">▼</button>

@@ -90,7 +90,7 @@ When committing an edit the editor can type a short description of what changed.
 
 > `app.py` → `edit_page` (reads `edit_message` from the form)
 
-### Diff / snapshot viewer
+### Snapshot viewer
 Any history entry can be opened to see the full rendered content at that point in time.
 
 > `app.py` → `view_history_entry`, `app/templates/wiki/history_entry.html`

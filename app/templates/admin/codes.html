@@ -8,7 +8,7 @@
     <a href="{{ url_for('admin_codes_expired') }}" class="tab">Expired / Used</a>
 </div>
 
-{% if current_user.role == 'admin' %}
+{% if current_user.role in ('admin', 'protected_admin') %}
 <form method="POST" action="{{ url_for('admin_generate_code') }}" style="margin-bottom:1rem">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <button type="submit" class="btn">+ Generate Invite Code</button>

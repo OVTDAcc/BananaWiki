@@ -41,7 +41,7 @@ All advertised features are implemented and working:
 
 - Markdown editing with live split-pane preview
 - Hierarchical categories with collapsible sidebar
-- Full page revision history with diff view and one-click revert
+- Full page revision history with snapshot viewer and one-click revert
 - Draft autosave with conflict detection
 - Image upload with drag-and-drop
 - Role-based access (user / editor / admin / protected_admin)

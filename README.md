@@ -88,8 +88,8 @@ This creates the first admin account and marks setup complete. All subsequent us
 | Role | What they can do |
 |---|---|
 | **User** | View pages |
-| **Editor** | View, create, and edit pages; manage categories; revert history |
-| **Admin** | Everything editors can do, plus: manage users, generate invite codes, configure settings, post announcements, delete pages |
+| **Editor** | View, create, edit, and delete pages; manage categories; revert history; upload images |
+| **Admin** | Everything editors can do, plus: manage users, generate invite codes, configure settings, and post announcements |
 | **Protected Admin** | Same as admin, but the account is shielded from modifications by other admins |
 
 New users signing up with an invite code receive the **user** role by default. Admins can change roles from **Admin Operations → Manage Users**. The **protected_admin** role can only be toggled by the account owner from their account settings.
