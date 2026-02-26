@@ -105,15 +105,12 @@ def _check_login_rate_limit():
 def _record_login_attempt():
     """Record a failed login attempt for the current IP."""
     ip = request.remote_addr or "unknown"
-    _LOGIN_ATTEMPTS.setdefault(ip, [])
-    _LOGIN_ATTEMPTS[ip].append(datetime.now(timezone.utc).timestamp())
     db.record_login_attempt(ip)
 
 
 def _clear_login_attempts():
     """Clear failed login attempts for the current IP (on successful login)."""
     ip = request.remote_addr or "unknown"
-    _LOGIN_ATTEMPTS.pop(ip, None)
     db.clear_login_attempts(ip)
 
 
@@ -1978,6 +1975,9 @@ def view_announcement(ann_id):
     return render_template("wiki/announcement.html", ann=ann,
                            content_html=content_html,
                            categories=categories, uncategorized=uncategorized)
+
+
+# ---------------------------------------------------------------------------
 #  Error handlers
 # ---------------------------------------------------------------------------
 @app.errorhandler(404)
