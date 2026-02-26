@@ -259,7 +259,7 @@ def admin_required(f):
     @functools.wraps(f)
     def wrapper(*args, **kwargs):
         user = get_current_user()
-        if not user or user["role"] != "admin":
+        if not user or user["role"] not in ("admin", "protected_admin"):
             flash("Admin access required.", "error")
             return redirect(url_for("home"))
         return f(*args, **kwargs)
@@ -378,7 +378,7 @@ def before_request_hook():
         "lockdown", "login", "logout", "static", "view_announcement"
     ):
         user = get_current_user()
-        if not user or user["role"] != "admin":
+        if not user or user["role"] not in ("admin", "protected_admin"):
             if user:
                 session.clear()
             if request.path.startswith("/api/"):
@@ -661,7 +661,7 @@ def account_settings():
         if not check_password_hash(user["password"], password):
             flash("Incorrect password.", "error")
             return redirect(url_for("account_settings"))
-        if user["role"] == "admin" and db.count_admins() <= 1:
+        if user["role"] in ("admin", "protected_admin") and db.count_admins() <= 1:
             flash("Cannot delete the last admin account.", "error")
             return redirect(url_for("account_settings"))
         log_action("delete_account", request, user=user)
@@ -670,6 +670,26 @@ def account_settings():
         session.clear()
         flash("Your account has been deleted.", "info")
         return redirect(url_for("login"))
+
+    if action == "toggle_protected_admin":
+        if user["role"] not in ("admin", "protected_admin"):
+            flash("Only admins can toggle protected admin status.", "error")
+            return redirect(url_for("account_settings"))
+        password = request.form.get("password", "")
+        if not check_password_hash(user["password"], password):
+            flash("Incorrect password.", "error")
+            return redirect(url_for("account_settings"))
+        if user["role"] == "admin":
+            db.update_user(user["id"], role="protected_admin")
+            log_action("enable_protected_admin", request, user=user)
+            notify_change("user_enable_protected_admin", f"User '{user['username']}' enabled protected admin status")
+            flash("Protected admin status enabled.", "success")
+        else:
+            db.update_user(user["id"], role="admin")
+            log_action("disable_protected_admin", request, user=user)
+            notify_change("user_disable_protected_admin", f"User '{user['username']}' disabled protected admin status")
+            flash("Protected admin status disabled.", "success")
+        return redirect(url_for("account_settings"))
 
     categories, uncategorized = db.get_category_tree()
     return render_template("account/settings.html", user=user,
@@ -749,7 +769,7 @@ def page_history(slug):
         abort(404)
     history = db.get_page_history(page["id"])
     current_user = get_current_user()
-    all_users = db.list_users() if current_user and current_user["role"] == "admin" else []
+    all_users = db.list_users() if current_user and current_user["role"] in ("admin", "protected_admin") else []
     categories, uncategorized = db.get_category_tree()
     return render_template(
         "wiki/history.html",
@@ -1474,6 +1494,9 @@ def admin_edit_user(user_id):
         return redirect(url_for("admin_users"))
 
     if action == "change_username":
+        if target["role"] == "protected_admin" and user_id != current_user["id"]:
+            flash("Protected admin accounts can only be edited by their owner.", "error")
+            return redirect(url_for("admin_users"))
         new_name = request.form.get("username", "").strip()
         if not new_name or len(new_name) < 3:
             flash("Username must be at least 3 characters.", "error")
@@ -1499,6 +1522,9 @@ def admin_edit_user(user_id):
                     flash("Username updated.", "success")
 
     elif action == "change_password":
+        if target["role"] == "protected_admin" and user_id != current_user["id"]:
+            flash("Protected admin accounts can only be edited by their owner.", "error")
+            return redirect(url_for("admin_users"))
         new_pw = request.form.get("password", "")
         confirm_pw = request.form.get("confirm_password", "")
         if len(new_pw) < 6:
@@ -1516,9 +1542,11 @@ def admin_edit_user(user_id):
         new_role = request.form.get("role", "")
         if new_role not in ("user", "editor", "admin"):
             flash("Invalid role.", "error")
+        elif target["role"] == "protected_admin":
+            flash("Protected admin status can only be changed by the account owner.", "error")
         elif user_id == current_user["id"] and new_role != current_user["role"]:
             flash("Cannot change your own role.", "error")
-        elif target["role"] == "admin" and new_role != "admin" and db.count_admins() <= 1:
+        elif target["role"] in ("admin", "protected_admin") and new_role not in ("admin", "protected_admin") and db.count_admins() <= 1:
             flash("Cannot demote the last admin.", "error")
         else:
             db.update_user(user_id, role=new_role)
@@ -1530,7 +1558,9 @@ def admin_edit_user(user_id):
     elif action == "suspend":
         if user_id == current_user["id"]:
             flash("Cannot suspend your own account.", "error")
-        elif target["role"] == "admin" and db.count_admins() <= 1:
+        elif target["role"] == "protected_admin":
+            flash("Protected admin accounts cannot be suspended by other admins.", "error")
+        elif target["role"] in ("admin", "protected_admin") and db.count_admins() <= 1:
             flash("Cannot suspend the last admin.", "error")
         else:
             db.update_user(user_id, suspended=1)
@@ -1549,7 +1579,9 @@ def admin_edit_user(user_id):
     elif action == "delete":
         if user_id == current_user["id"]:
             flash("Cannot delete your own account from here. Use account settings instead.", "error")
-        elif target["role"] == "admin" and db.count_admins() <= 1:
+        elif target["role"] == "protected_admin":
+            flash("Protected admin accounts cannot be deleted by other admins.", "error")
+        elif target["role"] in ("admin", "protected_admin") and db.count_admins() <= 1:
             flash("Cannot delete the last admin.", "error")
         else:
             db.delete_user(user_id)

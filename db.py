@@ -36,7 +36,7 @@ def init_db():
         username    TEXT    NOT NULL UNIQUE COLLATE NOCASE,
         password    TEXT    NOT NULL,
         role        TEXT    NOT NULL DEFAULT 'user'
-                            CHECK(role IN ('user','editor','admin')),
+                            CHECK(role IN ('user','editor','admin','protected_admin')),
         suspended   INTEGER NOT NULL DEFAULT 0,
         invite_code TEXT,
         created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
@@ -173,6 +173,13 @@ def init_db():
     if user_id_type and 'INT' in user_id_type.upper():
         _migrate_user_id_to_text(conn, cur)
 
+    # Migrate role CHECK constraint to include 'protected_admin' if not already present
+    schema_row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='users'"
+    ).fetchone()
+    if schema_row and "protected_admin" not in schema_row[0]:
+        _migrate_role_add_protected_admin(conn, cur)
+
     # Ensure home page exists
     home = cur.execute("SELECT id FROM pages WHERE is_home=1").fetchone()
     if not home:
@@ -183,6 +190,45 @@ def init_db():
 
     conn.commit()
     conn.close()
+
+
+def _migrate_role_add_protected_admin(conn, cur):
+    """Expand the role CHECK constraint to include 'protected_admin'.
+
+    SQLite does not support ALTER TABLE … ALTER COLUMN, so we recreate the
+    users table with an updated constraint while preserving all data.
+    Also renames any existing 'superadmin' values to 'protected_admin'.
+    """
+    conn.execute("PRAGMA foreign_keys=OFF")
+    cols = [r[1] for r in cur.execute("PRAGMA table_info(users)").fetchall()]
+    col_list = ", ".join(cols)
+    cur.execute(f"""
+        CREATE TABLE users_migrate_protected_admin AS
+        SELECT {col_list} FROM users
+    """)
+    cur.execute("DROP TABLE users")
+    cur.execute(f"""
+        CREATE TABLE users (
+            id              TEXT    PRIMARY KEY,
+            username        TEXT    NOT NULL UNIQUE COLLATE NOCASE,
+            password        TEXT    NOT NULL,
+            role            TEXT    NOT NULL DEFAULT 'user'
+                                    CHECK(role IN ('user','editor','admin','protected_admin')),
+            suspended       INTEGER NOT NULL DEFAULT 0,
+            invite_code     TEXT,
+            created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
+            last_login_at   TEXT,
+            easter_egg_found INTEGER NOT NULL DEFAULT 0,
+            is_superuser    INTEGER NOT NULL DEFAULT 0
+        )
+    """)
+    cur.execute(
+        f"INSERT INTO users SELECT {col_list} FROM users_migrate_protected_admin"
+    )
+    # Rename any pre-existing 'superadmin' rows to 'protected_admin'
+    cur.execute("UPDATE users SET role='protected_admin' WHERE role='superadmin'")
+    cur.execute("DROP TABLE users_migrate_protected_admin")
+    conn.execute("PRAGMA foreign_keys=ON")
 
 
 def _migrate_user_id_to_text(conn, cur):
@@ -200,7 +246,7 @@ def _migrate_user_id_to_text(conn, cur):
             username        TEXT    NOT NULL UNIQUE COLLATE NOCASE,
             password        TEXT    NOT NULL,
             role            TEXT    NOT NULL DEFAULT 'user'
-                                    CHECK(role IN ('user','editor','admin')),
+                                    CHECK(role IN ('user','editor','admin','protected_admin')),
             suspended       INTEGER NOT NULL DEFAULT 0,
             invite_code     TEXT,
             created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
@@ -493,7 +539,9 @@ def list_users(role_filter=None, status_filter=None):
 
 def count_admins():
     conn = get_db()
-    cnt = conn.execute("SELECT COUNT(*) FROM users WHERE role='admin' AND suspended=0").fetchone()[0]
+    cnt = conn.execute(
+        "SELECT COUNT(*) FROM users WHERE role IN ('admin', 'protected_admin') AND suspended=0"
+    ).fetchone()[0]
     conn.close()
     return cnt
 

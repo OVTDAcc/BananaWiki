@@ -5,6 +5,7 @@
 
 <div class="tabs">
     <a href="{{ url_for('admin_users') }}" class="tab {% if not role_filter and not status_filter %}active{% endif %}">All</a>
+    <a href="{{ url_for('admin_users', role='protected_admin') }}" class="tab {% if role_filter == 'protected_admin' %}active{% endif %}">Protected</a>
     <a href="{{ url_for('admin_users', role='admin') }}" class="tab {% if role_filter == 'admin' %}active{% endif %}">Admins</a>
     <a href="{{ url_for('admin_users', role='editor') }}" class="tab {% if role_filter == 'editor' %}active{% endif %}">Editors</a>
     <a href="{{ url_for('admin_users', role='user') }}" class="tab {% if role_filter == 'user' %}active{% endif %}">Users</a>
@@ -77,6 +78,8 @@
             <td colspan="7" style="padding:.8rem">
                 {% if u.is_superuser %}
                 <p style="opacity:.7;font-size:.9rem">⚠ This is a protected superuser account. It cannot be modified from here.</p>
+                {% elif u.role == 'protected_admin' and u.id != current_user.id %}
+                <p style="opacity:.7;font-size:.9rem">⚠ This is a protected admin account. It can only be modified by its owner.</p>
                 {% else %}
                 <div style="display:flex;gap:1rem;flex-wrap:wrap">
                     <!-- Change username -->
@@ -95,6 +98,7 @@
                         <button class="btn btn-sm">Set PW</button>
                     </form>
                     <!-- Change role -->
+                    {% if u.role != 'protected_admin' %}
                     <form method="POST" action="{{ url_for('admin_edit_user', user_id=u.id) }}" class="inline-form">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="action" value="change_role">
@@ -105,6 +109,7 @@
                         </select>
                         <button class="btn btn-sm">Set Role</button>
                     </form>
+                    {% endif %}
                     <!-- Suspend / Unsuspend -->
                     {% if u.suspended %}
                     <form method="POST" action="{{ url_for('admin_edit_user', user_id=u.id) }}">
