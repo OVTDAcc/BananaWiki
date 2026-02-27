@@ -146,7 +146,8 @@ BananaWiki/
 │       │               # 403.html, 404.html, 429.html, 500.html
 │       ├── account/    # settings.html
 │       └── admin/      # users.html, codes.html, codes_expired.html,
-│                       # settings.html, announcements.html, audit.html
+│                       # settings.html, announcements.html, audit.html,
+│                       # editor_access.html, migration.html
 ├── docs/               # Detailed documentation
 ├── instance/           # Database and secret key — created at runtime (gitignored)
 ├── logs/               # Application logs — created at runtime (gitignored)

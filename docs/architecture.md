@@ -213,9 +213,11 @@ For a typical page view (`GET /page/<slug>`):
 | `pages` | Wiki pages: title, slug, content, category, home flag, last editor |
 | `page_history` | Every committed version of every page; never deleted |
 | `drafts` | One in-progress draft per (page, user) pair |
-| `site_settings` | Single-row table (id=1): site name, color palette, timezone, favicon, setup flag |
+| `site_settings` | Single-row table (id=1): site name, color palette, timezone, favicon, lockdown mode and message, setup flag |
 | `login_attempts` | Failed login records used for per-IP rate limiting across workers |
 | `announcements` | Site-wide banner content, color, visibility, expiry, active flag |
 | `username_history` | Every username change (old name, new name, timestamp) per user |
+| `editor_category_access` | Per-editor restricted-access flag (one row per editor with category restrictions enabled) |
+| `editor_allowed_categories` | Category IDs an editor with restrictions is permitted to access |
 
 All timestamps are stored as UTC ISO-8601 strings (`datetime.now(timezone.utc).isoformat()`). The `format_datetime()` helper converts them to the site's configured timezone for display.
