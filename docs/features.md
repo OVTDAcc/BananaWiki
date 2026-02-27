@@ -731,8 +731,8 @@ Six text size steps (×0.85 → ×1.35) scale wiki page content, the Markdown ed
 
 > `app/static/css/style.css` → `.wiki-content`, `.preview-content`, `.editor-area` font-size rules, `app/static/js/main.js` → `applyA11yPrefs()`
 
-### High-contrast modes (5 levels)
-Five contrast levels are available. Lower levels apply CSS `filter: contrast()` to the whole page. The two highest levels also override the `--bg` and `--text` CSS variables to near-black and near-white, producing a stark black-and-white reading mode.
+### High-contrast modes (6 levels)
+Six contrast options are available: 0 (off / default) through 5. Levels 1–3 progressively apply CSS `filter: contrast()` to the whole page. Levels 4 and 5 additionally override the `--bg` and `--text` CSS variables to near-black and near-white, producing a stark black-and-white reading mode.
 
 > `app/static/css/style.css` → `.a11y-contrast-1` … `.a11y-contrast-5`, `app/static/js/main.js` → `applyA11yPrefs()`
 
