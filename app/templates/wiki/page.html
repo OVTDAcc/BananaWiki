@@ -88,7 +88,7 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="form-group">
                 <label>Difficulty Tag</label>
-                <select name="difficulty_tag" class="input" id="tagModalSelect" onchange="toggleCustomTag(this,'tagModal')">
+                <select name="difficulty_tag" class="input" id="tagModalSelect" onchange="toggleCustomTag(this,'tagModalCustom')">
                     <option value="" {% if not page.difficulty_tag %}selected{% endif %}>None</option>
                     <option value="beginner" {% if page.difficulty_tag == 'beginner' %}selected{% endif %}>Beginner</option>
                     <option value="easy" {% if page.difficulty_tag == 'easy' %}selected{% endif %}>Easy</option>

@@ -4845,3 +4845,14 @@ def test_custom_tag_badge_rendered(logged_in_admin):
     assert resp.status_code == 200
     assert b"VIP" in resp.data
     assert b"#ab12cd" in resp.data
+
+
+def test_tag_modal_select_toggles_correct_element(logged_in_admin):
+    """The tag modal select onchange targets tagModalCustom, not tagModal."""
+    import db
+    home = db.get_home_page()
+    resp = logged_in_admin.get(f"/page/{home['slug']}")
+    assert resp.status_code == 200
+    # The select's onchange should reference 'tagModalCustom' (the custom fields div)
+    # not 'tagModal' (the modal container itself)
+    assert b"toggleCustomTag(this,'tagModalCustom')" in resp.data
