@@ -6,10 +6,10 @@ a{color:var(--accent);text-decoration:none}
 a:hover{text-decoration:underline}
 
 /* Topbar */
-.topbar{display:flex;justify-content:space-between;align-items:center;padding:.6rem 1.2rem;background:var(--secondary);border-bottom:1px solid rgba(255,255,255,.06);position:sticky;top:0;z-index:100;flex-shrink:0;will-change:transform}
-.topbar-left{display:flex;align-items:center;gap:.6rem}
-.topbar-left .logo{font-size:1.1rem;font-weight:600;color:var(--text);text-decoration:none;letter-spacing:.3px}
-.topbar-right{display:flex;align-items:center;gap:.6rem}
+.topbar{display:flex;justify-content:space-between;align-items:center;padding:.6rem 1.2rem;background:var(--secondary);border-bottom:1px solid rgba(255,255,255,.06);position:sticky;top:0;z-index:100;flex-shrink:0;will-change:transform;overflow:hidden}
+.topbar-left{display:flex;align-items:center;gap:.6rem;min-width:0;flex-shrink:1}
+.topbar-left .logo{font-size:1.1rem;font-weight:600;color:var(--text);text-decoration:none;letter-spacing:.3px;white-space:nowrap}
+.topbar-right{display:flex;align-items:center;gap:.6rem;flex-shrink:0}
 .user-info{font-size:.85rem;opacity:.55}
 /* Animated page title in topbar */
 .topbar-page-title{font-size:.95rem;font-weight:600;opacity:0;transform:translateY(8px);transition:opacity .25s,transform .25s;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;pointer-events:none;padding-left:.6rem;border-left:1px solid rgba(255,255,255,.12);margin-left:.4rem}
@@ -219,20 +219,24 @@ select.input{appearance:auto}
     .sidebar-resize-handle{display:none}
     /* Allow body to scroll on mobile so pull-to-refresh (swipe down) works */
     body{height:auto;min-height:100vh;overflow-y:auto;overflow-x:hidden}
-    .layout{overflow:visible;min-height:0}
-    .content{height:auto;overflow-y:visible;padding:1rem}
+    .layout{overflow-x:hidden;overflow-y:visible;min-height:0}
+    .content{height:auto;overflow-y:visible;overflow-x:hidden;padding:1rem;max-width:100%}
     .editor-container{flex-direction:column}
     .editor-divider{width:100%;height:1px}
     .topbar-right .user-info{display:none}
     /* Tighten topbar-right gap so buttons don't overflow */
-    .topbar-right{gap:.3rem;flex-shrink:1;min-width:0}
+    .topbar-right{gap:.3rem;flex-shrink:1;min-width:0;overflow:hidden}
     .page-header{flex-wrap:wrap;gap:.4rem}
     .page-header h1{width:100%;font-size:1.4rem}
+    /* Cap a11y panel width to the viewport on narrow screens */
+    .a11y-panel{width:min(300px,100vw)}
 }
 /* Narrow phones: hide Accessibility label text, show icon only */
 @media(max-width:520px){
     .a11y-btn-label{display:none}
     .btn-sm{padding:.2rem .45rem;font-size:.78rem}
+    /* On very narrow phones let the a11y panel fill the screen */
+    .a11y-panel{width:100vw}
 }
 
 /* Drop zone */
