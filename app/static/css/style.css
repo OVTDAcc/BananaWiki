@@ -175,6 +175,17 @@ select.input{appearance:auto}
 .badge-editor{background:rgba(110,138,202,.15);color:#6e8aca}
 .badge-user{background:rgba(100,180,100,.15);color:#7cc07c}
 .badge-suspended{background:rgba(210,170,90,.15);color:#d2aa5a}
+.difficulty-tag{display:inline-block;padding:.18rem .65rem;border-radius:4px;font-size:.75rem;font-weight:600;letter-spacing:.3px;text-transform:uppercase}
+.difficulty-tag-beginner{background:rgba(110,138,202,.18);color:#6e8aca}
+.difficulty-tag-easy{background:rgba(100,180,100,.18);color:#7cc07c}
+.difficulty-tag-intermediate{background:rgba(210,170,90,.18);color:#d2aa5a}
+.difficulty-tag-expert{background:rgba(196,92,106,.18);color:#c45c6a}
+.difficulty-tag-extra{background:rgba(150,100,200,.18);color:#a06cc0}
+.custom-tag-fields{padding:.6rem .8rem;border:1px solid rgba(255,255,255,.08);border-radius:6px;margin-top:.4rem;background:rgba(255,255,255,.03)}
+.color-preset-grid{display:flex;flex-wrap:wrap;gap:.35rem;margin-bottom:.25rem}
+.color-swatch{width:1.5rem;height:1.5rem;border:2px solid transparent;border-radius:4px;cursor:pointer;padding:0;transition:transform .1s,border-color .1s}
+.color-swatch:hover{transform:scale(1.2);border-color:rgba(255,255,255,.5)}
+.color-hex-picker{width:2.2rem;height:2.2rem;padding:0;border:1px solid rgba(255,255,255,.15);border-radius:4px;cursor:pointer;background:none}
 
 /* Auth pages */
 .auth-container{display:flex;align-items:center;justify-content:center;min-height:100vh;background:var(--bg);overflow-y:auto}

@@ -8,11 +8,11 @@ This is a full code-level review covering all routes, security layers, tests, de
 
 ## Test suite
 
-All **487 tests pass** with zero failures across six test files:
+All **499 tests pass** with zero failures across six test files:
 
 | File | Tests | What it covers |
 |---|---|---|
-| `test_fixes.py` | 337 | Regression cases, bug fixes, editor category access, link embedding |
+| `test_fixes.py` | 349 | Regression cases, bug fixes, editor category access, link embedding, difficulty tag + custom tag |
 | `test_production.py` | 71 | Core page/user/admin workflows, user data export |
 | `test_sync.py` | 36 | Telegram backup/sync logic |
 | `test_migration.py` | 19 | Site export/import: all three conflict modes, HTTP routes, error paths |
@@ -60,6 +60,7 @@ All features are code-complete, passing tests, and accessible in the UI:
 - Draft autosave with conflict warning when two editors open the same page simultaneously
 - Image uploads with Pillow validation; orphaned images cleaned up after each commit or draft deletion
 - **Page attachments** — editors can upload files (up to 5 MB each) to any page; readers see per-file download buttons below the page content; a "Download All as ZIP" button appears when there are two or more attachments; editors can delete attachments from the edit view
+- **Difficulty tag** — editors can tag any page with an optional difficulty level (`Beginner` / `Easy` / `Intermediate` / `Expert` / `Extra`, or none); rendered as a colored badge next to the page title; settable from a modal on the page view or from the edit form; also supports a **Custom** option where the editor types a label and picks any color via a hex input or one of 16 color presets
 
 **Organisation**
 - Hierarchical categories with collapsible sidebar and unlimited nesting depth

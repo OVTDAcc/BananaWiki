@@ -48,6 +48,11 @@ The page title can be changed without opening the full Markdown editor — a ded
 
 > `app.py` → `edit_page_title`
 
+### Difficulty tag
+Editors can tag any page with an optional difficulty level displayed as a colored badge next to the title. Available predefined values: `Beginner` (blue), `Easy` (green), `Intermediate` (yellow), `Expert` (red), `Extra` (purple). A **Custom** option lets the editor type any label and choose any color via a hex input or one of 16 color presets. Setting it to `None` hides the badge entirely. The tag can be set from a modal on the page view or from the edit form's dropdown.
+
+> `app.py` → `update_page_tag`, `edit_page` (reads `difficulty_tag`, `tag_custom_label`, `tag_custom_color`), `db.py` → `update_page_tag()`, `VALID_DIFFICULTY_TAGS`, `app/templates/wiki/page.html` (badge + tagModal with color picker), `app/templates/wiki/edit.html` (dropdown + color picker), `app/static/css/style.css` (`.difficulty-tag-*` classes, `.color-swatch`, `.color-preset-grid`)
+
 ### URL slug auto-generation
 When a new page is created, its URL slug is derived from the title: lowercased, stripped of special characters, and spaces turned into hyphens. If the resulting slug is already taken, a numeric suffix (`-1`, `-2`, …) is appended until a unique slug is found.
 

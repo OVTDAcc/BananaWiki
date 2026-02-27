@@ -210,7 +210,7 @@ For a typical page view (`GET /page/<slug>`):
 | `users` | User accounts: username, hashed password, role, suspended flag, last login, accessibility preferences (JSON) |
 | `invite_codes` | Single-use time-limited signup tokens |
 | `categories` | Hierarchical category tree; `parent_id` is self-referencing |
-| `pages` | Wiki pages: title, slug, content, category, home flag, last editor |
+| `pages` | Wiki pages: title, slug, content, category, home flag, last editor, `difficulty_tag` (predefined level or `'custom'`), `tag_custom_label`, `tag_custom_color` (used when `difficulty_tag='custom'`) |
 | `page_history` | Every committed version of every page; never deleted |
 | `drafts` | One in-progress draft per (page, user) pair |
 | `site_settings` | Single-row table (id=1): site name, color palette, timezone, favicon, lockdown mode and message, setup flag |
@@ -219,5 +219,6 @@ For a typical page view (`GET /page/<slug>`):
 | `username_history` | Every username change (old name, new name, timestamp) per user |
 | `editor_category_access` | Per-editor restricted-access flag (one row per editor with category restrictions enabled) |
 | `editor_allowed_categories` | Category IDs an editor with restrictions is permitted to access |
+| `page_attachments` | Files attached to a page: stored filename (UUID), original name, size, uploader, upload time |
 
 All timestamps are stored as UTC ISO-8601 strings (`datetime.now(timezone.utc).isoformat()`). The `format_datetime()` helper converts them to the site's configured timezone for display.

@@ -3,8 +3,14 @@
 {% block content %}
 <div class="page-header">
     <h1>{{ page.title }}</h1>
+    {% if page.difficulty_tag == 'custom' and page.tag_custom_label %}
+    <span class="difficulty-tag" style="color:{{ page.tag_custom_color }};background:{{ page.tag_custom_color }}26">{{ page.tag_custom_label }}</span>
+    {% elif page.difficulty_tag %}
+    <span class="difficulty-tag difficulty-tag-{{ page.difficulty_tag }}">{{ page.difficulty_tag|capitalize }}</span>
+    {% endif %}
     {% if current_user and current_user.role in ('editor', 'admin', 'protected_admin') %}
         <button class="btn-icon" onclick="document.getElementById('titleModal').style.display='flex'" title="Edit title">Edit title</button>
+        <button class="btn-icon" onclick="document.getElementById('tagModal').style.display='flex'" title="Set tag">Tag</button>
         {% if not page.is_home %}
         <a href="{{ url_for('edit_page', slug=page.slug) }}" class="btn btn-sm">Edit</a>
         <button class="btn btn-sm btn-outline" onclick="document.getElementById('moveModal').style.display='flex'">Move</button>
@@ -74,6 +80,46 @@
         </form>
     </div>
 </div>
+<!-- Tag edit modal -->
+<div class="modal" id="tagModal" style="display:none">
+    <div class="modal-content">
+        <h3>Set Difficulty Tag</h3>
+        <form method="POST" action="{{ url_for('update_page_tag', slug=page.slug) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="form-group">
+                <label>Difficulty Tag</label>
+                <select name="difficulty_tag" class="input" id="tagModalSelect" onchange="toggleCustomTag(this,'tagModal')">
+                    <option value="" {% if not page.difficulty_tag %}selected{% endif %}>None</option>
+                    <option value="beginner" {% if page.difficulty_tag == 'beginner' %}selected{% endif %}>Beginner</option>
+                    <option value="easy" {% if page.difficulty_tag == 'easy' %}selected{% endif %}>Easy</option>
+                    <option value="intermediate" {% if page.difficulty_tag == 'intermediate' %}selected{% endif %}>Intermediate</option>
+                    <option value="expert" {% if page.difficulty_tag == 'expert' %}selected{% endif %}>Expert</option>
+                    <option value="extra" {% if page.difficulty_tag == 'extra' %}selected{% endif %}>Extra</option>
+                    <option value="custom" {% if page.difficulty_tag == 'custom' %}selected{% endif %}>Custom…</option>
+                </select>
+            </div>
+            <div class="custom-tag-fields" id="tagModalCustom" style="display:{% if page.difficulty_tag == 'custom' %}block{% else %}none{% endif %}">
+                <div class="form-group">
+                    <label>Label</label>
+                    <input type="text" name="tag_custom_label" id="tagModalLabel" class="input" maxlength="50" placeholder="e.g. Advanced" value="{{ page.tag_custom_label or '' }}" oninput="updateTagPreview('tagModalPreview', document.getElementById('tagModalColorHex').value, 'tagModalLabel')">
+                </div>
+                <div class="form-group">
+                    <label>Color</label>
+                    <div class="color-preset-grid" id="tagModalPresets"></div>
+                    <div style="display:flex;align-items:center;gap:.5rem;margin-top:.4rem">
+                        <input type="color" class="color-hex-picker" id="tagModalColorPicker" value="{{ page.tag_custom_color or '#4a90d9' }}" oninput="syncColorInput(this,'tagModalColorHex','tagModalPreview','tagModalLabel')">
+                        <input type="text" name="tag_custom_color" class="input" id="tagModalColorHex" maxlength="7" placeholder="#4a90d9" value="{{ page.tag_custom_color or '#4a90d9' }}" style="width:7rem;font-family:monospace" oninput="syncColorPicker(this,'tagModalColorPicker','tagModalPreview','tagModalLabel')">
+                        <span class="difficulty-tag" id="tagModalPreview" style="color:{{ page.tag_custom_color or '#4a90d9' }};background:{{ page.tag_custom_color or '#4a90d9' }}26">Preview</span>
+                    </div>
+                </div>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn">Save</button>
+                <button type="button" class="btn btn-outline" onclick="this.closest('.modal').style.display='none'">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
 {% if not page.is_home %}
 <!-- Move page modal -->
 <div class="modal" id="moveModal" style="display:none">
@@ -125,6 +171,62 @@ function deleteAttachment(id, btn) {
         }
     });
 }
+
+// ----- Custom tag color picker -----
+var COLOR_PRESETS = [
+    '#4a90d9','#5cb85c','#f0ad4e','#d9534f','#9b59b6',
+    '#e67e22','#1abc9c','#e91e63','#2c3e50','#795548',
+    '#00bcd4','#8bc34a','#ff5722','#3f51b5','#9e9e9e','#673ab7'
+];
+
+function buildPresets(gridId, pickerId, hexId, previewId, labelId) {
+    var grid = document.getElementById(gridId);
+    if (!grid) return;
+    COLOR_PRESETS.forEach(function(c) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'color-swatch';
+        btn.style.background = c;
+        btn.title = c;
+        btn.onclick = function() {
+            document.getElementById(hexId).value = c;
+            document.getElementById(pickerId).value = c;
+            updateTagPreview(previewId, c, labelId);
+        };
+        grid.appendChild(btn);
+    });
+}
+
+function syncColorInput(picker, hexId, previewId, labelId) {
+    document.getElementById(hexId).value = picker.value;
+    updateTagPreview(previewId, picker.value, labelId);
+}
+
+function syncColorPicker(hex, pickerId, previewId, labelId) {
+    var v = hex.value.trim();
+    if (/^#[0-9a-fA-F]{6}$/.test(v)) {
+        document.getElementById(pickerId).value = v;
+        updateTagPreview(previewId, v, labelId);
+    }
+}
+
+function updateTagPreview(previewId, color, labelId) {
+    var p = document.getElementById(previewId);
+    if (!p) return;
+    p.style.color = color;
+    p.style.background = color + '26';
+    var lbl = document.getElementById(labelId);
+    p.textContent = lbl ? (lbl.value || 'Preview') : 'Preview';
+}
+
+function toggleCustomTag(sel, customId) {
+    var custom = document.getElementById(customId);
+    if (custom) custom.style.display = sel.value === 'custom' ? 'block' : 'none';
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    buildPresets('tagModalPresets','tagModalColorPicker','tagModalColorHex','tagModalPreview','tagModalLabel');
+});
 </script>
 {% endif %}
 {% endblock %}
