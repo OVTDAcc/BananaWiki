@@ -1,23 +1,26 @@
 /* BananaWiki – Dark Professional Theme */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{font-size:16px}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,Ubuntu,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;line-height:1.6}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,Ubuntu,sans-serif;background:var(--bg);color:var(--text);height:100vh;overflow:hidden;display:flex;flex-direction:column;line-height:1.6}
 a{color:var(--accent);text-decoration:none}
 a:hover{text-decoration:underline}
 
 /* Topbar */
-.topbar{display:flex;justify-content:space-between;align-items:center;padding:.6rem 1.2rem;background:var(--secondary);border-bottom:1px solid rgba(255,255,255,.06);position:sticky;top:0;z-index:100}
+.topbar{display:flex;justify-content:space-between;align-items:center;padding:.6rem 1.2rem;background:var(--secondary);border-bottom:1px solid rgba(255,255,255,.06);position:sticky;top:0;z-index:100;flex-shrink:0}
 .topbar-left{display:flex;align-items:center;gap:.6rem}
 .topbar-left .logo{font-size:1.1rem;font-weight:600;color:var(--text);text-decoration:none;letter-spacing:.3px}
 .topbar-right{display:flex;align-items:center;gap:.6rem}
 .user-info{font-size:.85rem;opacity:.55}
+/* Animated page title in topbar */
+.topbar-page-title{font-size:.95rem;font-weight:600;opacity:0;transform:translateY(8px);transition:opacity .25s,transform .25s;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;pointer-events:none;flex:1;text-align:center;padding:0 .5rem}
+.topbar-page-title.visible{opacity:1;transform:translateY(0)}
 
 /* Sidebar toggle (hamburger) */
 .sidebar-toggle{display:none;background:none;border:none;cursor:pointer;padding:.3rem;flex-direction:column;gap:4px;justify-content:center}
 .sidebar-toggle span{display:block;width:20px;height:2px;background:var(--text);border-radius:1px;transition:all .2s}
 
 /* Layout */
-.layout{display:flex;min-height:calc(100vh - 45px)}
+.layout{display:flex;flex:1;overflow:hidden;min-height:0}
 
 /* Sidebar */
 .sidebar{width:250px;min-width:180px;max-width:500px;background:var(--sidebar);border-right:1px solid rgba(255,255,255,.06);overflow-y:auto;padding:.5rem 0;flex-shrink:0;transition:width 0s}
@@ -58,7 +61,7 @@ a:hover{text-decoration:underline}
 .sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:49}
 
 /* Content */
-.content{flex:1;padding:1.5rem 2.5rem;max-width:900px;overflow-y:auto}
+.content{flex:1;padding:1.5rem 2.5rem;max-width:900px;overflow-y:auto;height:100%}
 
 /* Buttons */
 .btn{display:inline-block;padding:.4rem .9rem;border-radius:4px;font-size:.84rem;border:none;cursor:pointer;background:var(--primary);color:#0d0d14;font-weight:600;transition:opacity .15s}
@@ -174,7 +177,7 @@ select.input{appearance:auto}
 .badge-suspended{background:rgba(210,170,90,.15);color:#d2aa5a}
 
 /* Auth pages */
-.auth-container{display:flex;align-items:center;justify-content:center;min-height:100vh;background:var(--bg)}
+.auth-container{display:flex;align-items:center;justify-content:center;min-height:100vh;background:var(--bg);overflow-y:auto}
 .auth-box{background:var(--secondary);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:2rem;width:360px;max-width:90%}
 .auth-box h1{text-align:center;color:var(--text);margin-bottom:.3rem;font-size:1.4rem;font-weight:600}
 .auth-box .subtitle{text-align:center;font-size:.82rem;opacity:.45;margin-bottom:1.2rem}
