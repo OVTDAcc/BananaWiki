@@ -195,6 +195,7 @@ select.input{appearance:auto}
 .difficulty-tag-intermediate{background:rgba(210,170,90,.18);color:#d2aa5a}
 .difficulty-tag-expert{background:rgba(196,92,106,.18);color:#c45c6a}
 .difficulty-tag-extra{background:rgba(150,100,200,.18);color:#a06cc0}
+.revert-badge{display:inline-block;padding:.1rem .45rem;border-radius:3px;font-size:.72rem;font-weight:600;letter-spacing:.3px;background:rgba(210,170,90,.18);color:#d2aa5a;vertical-align:middle}
 .custom-tag-fields{padding:.6rem .8rem;border:1px solid rgba(255,255,255,.08);border-radius:6px;margin-top:.4rem;background:rgba(255,255,255,.03)}
 .color-preset-grid{display:flex;flex-wrap:wrap;gap:.35rem;margin-bottom:.25rem}
 .color-swatch{width:1.5rem;height:1.5rem;border:2px solid transparent;border-radius:4px;cursor:pointer;padding:0;transition:transform .1s,border-color .1s}

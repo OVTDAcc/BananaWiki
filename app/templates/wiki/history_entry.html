@@ -4,6 +4,7 @@
 <h1>{{ entry.title }}</h1>
 <p style="margin-bottom:1rem;font-size:.85rem;opacity:.7">
     Saved by <strong>{{ entry.username }}</strong> <span title="{{ format_datetime(entry.created_at) }}">{{ time_ago(entry.created_at) }}</span>
+    {% if entry.is_revert %}<span class="revert-badge">↩ Revert</span>{% endif %}
     · <a href="{{ url_for('page_history', slug=page.slug) }}">← Back to history</a>
 </p>
 {% if current_user and current_user.role in ('editor', 'admin', 'protected_admin') %}

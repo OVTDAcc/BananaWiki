@@ -1012,7 +1012,7 @@ def revert_page(slug, entry_id):
         abort(404)
     user = get_current_user()
     db.update_page(page["id"], entry["title"], entry["content"], user["id"],
-                   f"Reverted to version from {entry['created_at']}")
+                   f"Reverted to version from {entry['created_at']}", is_revert=True)
     log_action("revert_page", request, user=user, page=slug, entry_id=entry_id)
     notify_change("page_revert", f"Page '{slug}' reverted")
     flash("Page reverted.", "success")
