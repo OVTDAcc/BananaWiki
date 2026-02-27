@@ -63,7 +63,7 @@ This document explains how BananaWiki is structured and how the main pieces fit 
    - `/create-page`, `/page/<slug>/delete`, `/page/<slug>/move` — page management
    - `/category/*` — category CRUD and reordering
    - `/api/preview`, `/api/draft/*`, `/api/upload`, `/api/upload/delete`, `/api/accessibility`, `/api/accessibility/reset`, `/api/easter-egg/trigger` — internal JSON API
-   - `/admin/users`, `/admin/users/<id>/export`, `/admin/codes`, `/admin/settings`, `/admin/announcements` — admin panel
+   - `/admin/users`, `/admin/users/<id>/export`, `/admin/users/<id>/audit`, `/admin/users/<id>/editor-access`, `/admin/codes`, `/admin/settings`, `/admin/announcements`, `/admin/migration` — admin panel
    - `/announcements/<id>` — public full-content announcement page
    - `/easter-egg` — easter egg page
 
@@ -145,7 +145,7 @@ Templates live in `app/templates/` and use Jinja2.
 | `auth/` | `login.html`, `signup.html`, `setup.html`, `lockdown.html` |
 | `wiki/` | `page.html`, `edit.html`, `create_page.html`, `history.html`, `history_entry.html`, `announcement.html`, `easter_egg.html`, `403.html`, `404.html`, `429.html`, `500.html` |
 | `account/settings.html` | Account settings page |
-| `admin/` | `users.html`, `codes.html`, `codes_expired.html`, `settings.html`, `announcements.html`, `audit.html` |
+| `admin/` | `users.html`, `codes.html`, `codes_expired.html`, `settings.html`, `announcements.html`, `audit.html`, `editor_access.html`, `migration.html` |
 
 Template variables injected on every request (via `inject_globals`):
 
