@@ -57,7 +57,7 @@
                 <button type="button" onclick="insertLine('- ')" title="Bullet list">•&nbsp;List</button>
                 <button type="button" onclick="insertLine('1. ')" title="Numbered list">1.&nbsp;List</button>
                 <button type="button" onclick="insertFormat('\n```\n','\n```\n')" title="Code block">&lt;/&gt;</button>
-                <button type="button" onclick="insertFormat('[','](url)')" title="Link">Link</button>
+                <button type="button" onclick="insertLink()" title="Link">Link</button>
                 <button type="button" onclick="insertLine('> ')" title="Blockquote">Quote</button>
                 <button type="button" onclick="insertLine('---')" title="Horizontal rule">─</button>
                 <span class="sep"></span>
@@ -87,6 +87,27 @@
         <button type="button" class="btn btn-outline" onclick="discardDraftAndClose({{ page.id }}, '{% if page.is_home %}{{ url_for('home') }}{% else %}{{ url_for('view_page', slug=page.slug) }}{% endif %}')">Discard Draft</button>
     </div>
 </form>
+<!-- Link insert modal -->
+<div class="modal" id="link-modal" style="display:none">
+    <div class="modal-content">
+        <h3>Insert Link</h3>
+        <div class="form-group" id="link-text-group">
+            <label>Link Text</label>
+            <input type="text" id="link-text-input" class="input" placeholder="Descriptive text">
+        </div>
+        <div class="form-group">
+            <label>URL</label>
+            <input type="text" id="link-url-input" class="input" placeholder="https://example.com">
+        </div>
+        <div class="form-group">
+            <label><input type="checkbox" id="link-newtab" checked> Open in new tab</label>
+        </div>
+        <div class="form-actions">
+            <button type="button" class="btn" id="link-insert-btn">Insert</button>
+            <button type="button" class="btn btn-outline" id="link-cancel-btn">Cancel</button>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -154,5 +175,83 @@
         ta.focus();
         ta.dispatchEvent(new Event('input'));
     }
+
+    // Link dialog
+    var _linkInsertStart = 0, _linkInsertEnd = 0, _linkHasSelection = false;
+
+    function escapeHtml(str) {
+        return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                  .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function insertLink() {
+        var ta = document.getElementById('edit-content');
+        var start = ta.selectionStart, end = ta.selectionEnd;
+        var selectedText = ta.value.substring(start, end);
+        _linkInsertStart = start;
+        _linkInsertEnd = end;
+        _linkHasSelection = selectedText.length > 0;
+
+        var textGroup = document.getElementById('link-text-group');
+        var textInput = document.getElementById('link-text-input');
+        var urlInput = document.getElementById('link-url-input');
+        document.getElementById('link-newtab').checked = true;
+
+        if (_linkHasSelection) {
+            textInput.value = selectedText;
+            textGroup.style.display = 'none';
+        } else {
+            textInput.value = '';
+            textGroup.style.display = '';
+        }
+        urlInput.value = '';
+
+        document.getElementById('link-modal').style.display = 'flex';
+        (_linkHasSelection ? urlInput : textInput).focus();
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        function closeLinkModal() {
+            document.getElementById('link-modal').style.display = 'none';
+        }
+
+        function confirmLinkInsert() {
+            var ta = document.getElementById('edit-content');
+            var textInput = document.getElementById('link-text-input');
+            var urlInput = document.getElementById('link-url-input');
+            var newTab = document.getElementById('link-newtab').checked;
+
+            var displayText = (_linkHasSelection
+                ? ta.value.substring(_linkInsertStart, _linkInsertEnd)
+                : textInput.value) || 'link';
+            var url = urlInput.value.trim() || 'url';
+
+            var linkStr = newTab
+                ? '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(displayText) + '</a>'
+                : '[' + displayText + '](' + url + ')';
+
+            ta.value = ta.value.substring(0, _linkInsertStart) + linkStr + ta.value.substring(_linkInsertEnd);
+            ta.selectionStart = ta.selectionEnd = _linkInsertStart + linkStr.length;
+            ta.focus();
+            ta.dispatchEvent(new Event('input'));
+
+            closeLinkModal();
+        }
+
+        document.getElementById('link-cancel-btn').addEventListener('click', closeLinkModal);
+
+        document.getElementById('link-modal').addEventListener('click', function(e) {
+            if (e.target === this) closeLinkModal();
+        });
+
+        document.getElementById('link-insert-btn').addEventListener('click', confirmLinkInsert);
+
+        [document.getElementById('link-url-input'), document.getElementById('link-text-input')].forEach(function(el) {
+            el.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') confirmLinkInsert();
+                if (e.key === 'Escape') closeLinkModal();
+            });
+        });
+    });
 </script>
 {% endblock %}
