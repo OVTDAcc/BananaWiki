@@ -334,3 +334,13 @@ select.input{appearance:auto}
 .editor-divider{width:5px;background:rgba(255,255,255,.06);cursor:col-resize;flex-shrink:0;transition:background .15s;position:relative;z-index:5}
 .editor-divider:hover,.editor-divider.resizing{background:var(--primary);opacity:.7}
 @media(max-width:768px){.editor-divider{width:100%;height:5px;cursor:row-resize}}
+
+/* Attachments section */
+.attachments-section{margin-top:1.5rem;padding:1rem;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:6px}
+.attachments-header{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;margin-bottom:.5rem}
+.attachments-title{font-weight:600;font-size:.9rem;color:var(--text)}
+.attachments-hint{font-size:.78rem;color:rgba(255,255,255,.4);margin:.25rem 0 .75rem}
+.attachments-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.4rem}
+.attachment-item{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;padding:.4rem .5rem;background:rgba(255,255,255,.03);border-radius:4px}
+.attachment-name{flex:1;font-size:.85rem;word-break:break-all}
+.attachment-meta{font-size:.78rem;color:rgba(255,255,255,.4);white-space:nowrap}

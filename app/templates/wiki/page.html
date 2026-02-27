@@ -33,6 +33,29 @@
 </div>
 {% endif %}
 
+{% if attachments %}
+<div class="attachments-section">
+    <div class="attachments-header">
+        <span class="attachments-title">📎 Attachments ({{ attachments|length }})</span>
+        {% if attachments|length > 1 %}
+        <a href="{{ url_for('download_all_attachments', slug=page.slug) }}" class="btn btn-sm btn-outline">⬇ Download All (.zip)</a>
+        {% endif %}
+    </div>
+    <ul class="attachments-list">
+        {% for att in attachments %}
+        <li class="attachment-item">
+            <span class="attachment-name">{{ att.original_name }}</span>
+            <span class="attachment-meta">{{ (att.file_size / 1024)|round(1) }} KB</span>
+            <a href="{{ url_for('download_attachment', slug=page.slug, attachment_id=att.id) }}" class="btn btn-sm btn-outline">⬇ Download</a>
+            {% if current_user and current_user.role in ('editor', 'admin', 'protected_admin') %}
+            <button class="btn btn-sm btn-danger-outline" onclick="deleteAttachment({{ att.id }}, this)">Delete</button>
+            {% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
 {% if current_user and current_user.role in ('editor', 'admin', 'protected_admin') %}
 <!-- Title edit modal -->
 <div class="modal" id="titleModal" style="display:none">
@@ -75,5 +98,33 @@
     </div>
 </div>
 {% endif %}
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if current_user and current_user.role in ('editor', 'admin', 'protected_admin') %}
+<script>
+function deleteAttachment(id, btn) {
+    if (!confirm('Delete this attachment?')) return;
+    fetch('/api/attachments/' + id, {
+        method: 'DELETE',
+        headers: { 'X-CSRFToken': getCsrfToken() }
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+        if (d.ok) {
+            var li = btn.closest('li');
+            if (li) li.remove();
+            var list = document.querySelector('.attachments-list');
+            if (list && !list.querySelector('li')) {
+                var section = document.querySelector('.attachments-section');
+                if (section) section.remove();
+            }
+        } else {
+            alert(d.error || 'Failed to delete attachment.');
+        }
+    });
+}
+</script>
 {% endif %}
 {% endblock %}

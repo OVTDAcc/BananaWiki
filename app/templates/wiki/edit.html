@@ -87,6 +87,29 @@
         <button type="button" class="btn btn-outline" onclick="discardDraftAndClose({{ page.id }}, '{% if page.is_home %}{{ url_for('home') }}{% else %}{{ url_for('view_page', slug=page.slug) }}{% endif %}')">Discard Draft</button>
     </div>
 </form>
+
+<!-- Attachments section -->
+<div class="attachments-section" style="margin-top:2rem">
+    <div class="attachments-header">
+        <span class="attachments-title">📎 Attachments</span>
+        <label class="btn btn-sm btn-outline" style="cursor:pointer">
+            ＋ Add File
+            <input type="file" id="attachment-file-input" style="display:none" multiple>
+        </label>
+    </div>
+    <p class="attachments-hint">Supported file types: PDF, Word, Excel, images, archives and more. Max 5 MB per file.</p>
+    <ul class="attachments-list" id="attachments-list">
+        {% for att in attachments %}
+        <li class="attachment-item" data-id="{{ att.id }}">
+            <span class="attachment-name">{{ att.original_name }}</span>
+            <span class="attachment-meta">{{ (att.file_size / 1024)|round(1) }} KB</span>
+            <a href="{{ url_for('download_attachment', slug=page.slug, attachment_id=att.id) }}" class="btn btn-sm btn-outline">⬇ Download</a>
+            <button class="btn btn-sm btn-danger-outline" onclick="deleteAttachmentEdit({{ att.id }}, this)">Delete</button>
+        </li>
+        {% endfor %}
+    </ul>
+    <div id="attachment-upload-status"></div>
+</div>
 <!-- Link insert modal -->
 <div class="modal" id="link-modal" style="display:none">
     <div class="modal-content">
@@ -253,5 +276,65 @@
             });
         });
     });
+
+    // Attachment upload
+    document.getElementById('attachment-file-input').addEventListener('change', function() {
+        var files = Array.from(this.files);
+        this.value = '';
+        files.forEach(function(file) { uploadAttachment(file); });
+    });
+
+    function uploadAttachment(file) {
+        var status = document.getElementById('attachment-upload-status');
+        var MAX = 5 * 1024 * 1024;
+        if (file.size > MAX) {
+            status.textContent = file.name + ' exceeds the 5 MB limit.';
+            return;
+        }
+        var fd = new FormData();
+        fd.append('file', file);
+        status.textContent = 'Uploading ' + file.name + '…';
+        fetch('/api/page/{{ page.id }}/attachments', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCsrfToken() },
+            body: fd
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (d.error) {
+                status.textContent = 'Error: ' + d.error;
+                return;
+            }
+            status.textContent = '';
+            var li = document.createElement('li');
+            li.className = 'attachment-item';
+            li.dataset.id = d.id;
+            var kb = (d.size / 1024).toFixed(1);
+            li.innerHTML =
+                '<span class="attachment-name">' + escapeHtml(d.name) + '</span>' +
+                '<span class="attachment-meta">' + kb + ' KB</span>' +
+                '<a href="/page/{{ page.slug }}/attachments/' + d.id + '/download" class="btn btn-sm btn-outline">⬇ Download</a>' +
+                '<button class="btn btn-sm btn-danger-outline" onclick="deleteAttachmentEdit(' + d.id + ', this)">Delete</button>';
+            document.getElementById('attachments-list').appendChild(li);
+        })
+        .catch(function() { status.textContent = 'Upload failed.'; });
+    }
+
+    function deleteAttachmentEdit(id, btn) {
+        if (!confirm('Delete this attachment?')) return;
+        fetch('/api/attachments/' + id, {
+            method: 'DELETE',
+            headers: { 'X-CSRFToken': getCsrfToken() }
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (d.ok) {
+                var li = btn.closest('li');
+                if (li) li.remove();
+            } else {
+                alert(d.error || 'Failed to delete.');
+            }
+        });
+    }
 </script>
 {% endblock %}
