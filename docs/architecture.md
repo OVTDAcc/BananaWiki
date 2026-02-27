@@ -62,7 +62,7 @@ This document explains how BananaWiki is structured and how the main pieces fit 
    - `/`, `/page/<slug>`, `/page/<slug>/history`, etc. — wiki page viewing and editing
    - `/create-page`, `/page/<slug>/delete`, `/page/<slug>/move` — page management
    - `/category/*` — category CRUD and reordering
-   - `/api/preview`, `/api/draft/*`, `/api/upload`, `/api/upload/delete`, `/api/easter-egg/trigger` — internal JSON API
+   - `/api/preview`, `/api/draft/*`, `/api/upload`, `/api/upload/delete`, `/api/accessibility`, `/api/accessibility/reset`, `/api/easter-egg/trigger` — internal JSON API
    - `/admin/users`, `/admin/codes`, `/admin/settings`, `/admin/announcements` — admin panel
    - `/announcements/<id>` — public full-content announcement page
    - `/easter-egg` — easter egg page
@@ -158,6 +158,7 @@ Template variables injected on every request (via `inject_globals`):
 | `time_ago` | Helper function: converts a UTC ISO timestamp to a relative string like "3 hours ago" |
 | `format_datetime` | Helper function: converts a UTC ISO timestamp to a formatted local time string |
 | `page_history_enabled` | Boolean from `config.PAGE_HISTORY_ENABLED` |
+| `user_accessibility` | Dict of the logged-in user's accessibility preferences (font scale, contrast, sidebar width, custom colors), or `{}` for unauthenticated requests |
 
 ---
 
@@ -165,8 +166,8 @@ Template variables injected on every request (via `inject_globals`):
 
 | Path | Contents |
 |---|---|
-| `app/static/css/style.css` | All styles — layout, sidebar, editor, theme variables, responsive rules |
-| `app/static/js/main.js` | All client-side JS — sidebar toggle, drag-to-resize, Markdown toolbar, draft autosave, announcement navigation, Konami code easter egg |
+| `app/static/css/style.css` | All styles — layout, sidebar, editor, theme variables, responsive rules, accessibility panel and contrast modes |
+| `app/static/js/main.js` | All client-side JS — sidebar toggle, drag-to-resize, Markdown toolbar, draft autosave, announcement navigation, accessibility panel (`initAccessibility`, `initEditorResize`), Konami code easter egg |
 | `app/static/uploads/` | User-uploaded images (runtime, gitignored) |
 | `app/static/favicons/` | Preset and custom favicon files |
 
@@ -206,7 +207,7 @@ For a typical page view (`GET /page/<slug>`):
 
 | Table | Purpose |
 |---|---|
-| `users` | User accounts: username, hashed password, role, suspended flag, last login |
+| `users` | User accounts: username, hashed password, role, suspended flag, last login, accessibility preferences (JSON) |
 | `invite_codes` | Single-use time-limited signup tokens |
 | `categories` | Hierarchical category tree; `parent_id` is self-referencing |
 | `pages` | Wiki pages: title, slug, content, category, home flag, last editor |

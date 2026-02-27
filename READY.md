@@ -26,12 +26,13 @@ Every layer that handles user input or data mutation is protected:
 |---|---|
 | **Authentication** | Flask-Login sessions; all protected routes use `@login_required` |
 | **Authorization** | Four-tier role system (user / editor / admin / protected_admin); `@editor_required` and `@admin_required` decorators enforced on every relevant route |
-| **Rate limiting** | Custom `@rate_limit` decorator applied to every write/mutation route (10–30 requests per 60 s depending on sensitivity) |
+| **Rate limiting** | Custom `@rate_limit` decorator applied to every write/mutation route (10–60 requests per 60 s depending on sensitivity) |
 | **Input sanitization** | Markdown rendered through Bleach with an explicit tag + attribute allowlist — no raw HTML reaches the browser |
 | **File uploads** | Extension whitelist (`png`, `jpg`, `jpeg`, `gif`, `webp`); SVG intentionally excluded to prevent XSS via embedded scripts |
 | **CSRF** | Flask-WTF CSRF protection active on all HTML forms |
 | **Secret key** | Auto-generated on first run, persisted to `instance/.secret_key` (mode 0600), overridable via `SECRET_KEY` environment variable |
 | **Audit log** | Every route that mutates permanent data calls `log_action()`; upload routes additionally call `notify_file_upload` / `notify_file_deleted` |
+| **Accessibility API** | Color values validated with a strict regex; font scale and contrast are matched against explicit whitelists; sidebar width clamped to 180–500 px |
 
 ---
 
@@ -39,7 +40,7 @@ Every layer that handles user input or data mutation is protected:
 
 All advertised features are implemented and working:
 
-- Markdown editing with live split-pane preview
+- Markdown editing with live split-pane preview (divider is drag-resizable)
 - Hierarchical categories with collapsible sidebar
 - Full page revision history with snapshot viewer and one-click revert
 - Draft autosave with conflict detection
@@ -48,6 +49,7 @@ All advertised features are implemented and working:
 - Time-limited invite codes
 - Announcement banners with colour themes, expiry, and Markdown
 - Appearance customisation (site name, full colour palette)
+- **Per-user accessibility preferences** — text size, high-contrast (5 levels), custom colours, sidebar width; auto-saved and applied on every page load
 - Optional Telegram backup sync
 - Lockdown mode, page-history toggle, and other admin controls
 - Mobile-responsive layout

@@ -15,6 +15,7 @@ This document catalogues every feature in BananaWiki, ordered from the most visi
 - [Announcements](#announcements)
 - [Admin panel](#admin-panel)
 - [Appearance customization](#appearance-customization)
+- [Accessibility preferences](#accessibility-preferences)
 - [Telegram backup sync](#telegram-backup-sync)
 - [Security](#security)
 - [Rate limiting](#rate-limiting)
@@ -488,8 +489,9 @@ Sensitive routes carry tighter `@rate_limit` decorators on top of the global lim
 - `delete_category_route` — 10 per 60 s
 - `api_preview`, `api_save_draft`, `api_delete_draft`, `api_transfer_draft` — 30 per 60 s
 - `upload_image`, `delete_upload` — 10 per 60 s
-- `easter_egg_trigger` — 10 per 60 s
+- `easter_egg_trigger`, `api_reset_accessibility` — 10 per 60 s
 - `api_reorder_pages`, `api_reorder_categories` — 60 per 60 s
+- `api_save_accessibility` — 60 per 60 s
 
 > `app.py` → `rate_limit()` decorator, individual route decorators
 
@@ -569,6 +571,45 @@ All database connections are opened with `PRAGMA journal_mode=WAL` and `PRAGMA f
 `init_db()` ensures a home page row (`is_home=1`) always exists. The home page cannot be deleted through the UI.
 
 > `db.py` → home page `INSERT OR IGNORE`, `app.py` → `delete_page_route` (home guard)
+
+---
+
+## Accessibility preferences
+
+### Per-user accessibility panel
+A persistent "Access" button in the topbar opens a right-side drawer panel available on every page including the editor. Settings are saved automatically to the user's account (debounced 600 ms) and applied server-side on the next page load to prevent any visible flash or reflow.
+
+> `app/templates/base.html` (panel markup), `app/static/js/main.js` → `initAccessibility()`, `app.py` → `api_get_accessibility`, `api_save_accessibility`, `app/static/css/style.css`
+
+### Text size scaling
+Six text size steps (×0.85 → ×1.35) scale wiki page content, the Markdown editor, and the live preview panel uniformly via the `--a11y-font-scale` CSS custom property.
+
+> `app/static/css/style.css` → `.wiki-content`, `.preview-content`, `.editor-area` font-size rules, `app/static/js/main.js` → `applyA11yPrefs()`
+
+### High-contrast modes (5 levels)
+Five contrast levels are available. Lower levels apply CSS `filter: contrast()` to the whole page. The two highest levels also override the `--bg` and `--text` CSS variables to near-black and near-white, producing a stark black-and-white reading mode.
+
+> `app/static/css/style.css` → `.a11y-contrast-1` … `.a11y-contrast-5`, `app/static/js/main.js` → `applyA11yPrefs()`
+
+### Custom color overrides
+Users can override the four main CSS color variables — background (`--bg`), text (`--text`), primary accent (`--primary`), and link accent (`--accent`) — with any hex color. Each field has an individual reset button to revert to the site default. Color values are validated server-side with a regex before being stored.
+
+> `app.py` → `api_save_accessibility` (`_clean_color()` validation), `app/static/js/main.js` → `initAccessibility()` color input handlers
+
+### Sidebar width persistence
+When an editor drags the sidebar resize handle, the new width is saved as an accessibility preference and restored on the next visit. The persisted width overrides the CSS default (250 px).
+
+> `app/static/js/main.js` → sidebar resize `mouseup` handler calling `saveA11ySetting('sidebar_width', w)`
+
+### Reset to default
+The "Reset All to Default" button inside the panel and the equivalent button on the Account Settings page both call `POST /api/accessibility/reset`, which writes the default values back to the database and immediately applies them in the UI without a page reload.
+
+> `app.py` → `api_reset_accessibility`, `app/templates/account/settings.html`
+
+### Resizable editor split panes
+In the Markdown editor, the divider between the edit textarea and the live preview panel is now a draggable resize handle. Either pane can be expanded from 15 % to 85 % of the container width.
+
+> `app/static/js/main.js` → `initEditorResize()`, `app/templates/wiki/edit.html`
 
 ---
 
