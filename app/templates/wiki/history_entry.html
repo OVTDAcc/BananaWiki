@@ -18,8 +18,9 @@
 <div style="margin-bottom:1rem;display:flex;gap:.6rem;align-items:center">
     <button class="btn btn-sm btn-outline" id="toggle-diff-btn">Show diff</button>
 </div>
-<div id="diff-view" style="display:none;margin-bottom:1.5rem;padding:1rem;border:1px solid #dee2e6;border-radius:.4rem;font-family:monospace;white-space:pre-wrap;line-height:1.6;font-size:.85rem">
-    {{ diff_html|safe }}
+<div id="diff-view" style="display:none;margin-bottom:1.5rem;border:1px solid rgba(255,255,255,.1);border-radius:.4rem;overflow-x:auto;font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;font-size:.84rem;line-height:1.7">
+    <div style="padding:.35rem .5rem;font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;opacity:.45;border-bottom:1px solid rgba(255,255,255,.06)">Changes from previous version</div>
+    <div style="padding:.4rem 0">{{ diff_html|safe }}</div>
 </div>
 {% endif %}
 <div class="wiki-content" id="rendered-view">

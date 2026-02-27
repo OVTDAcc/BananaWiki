@@ -192,40 +192,49 @@ def compute_char_diff(old_text, new_text):
 
 
 def compute_diff_html(old_text, new_text):
-    """Return an HTML string with inline word-level diff highlighting."""
+    """Return an HTML string with line-level git-style diff highlighting."""
     from markupsafe import Markup, escape
 
-    old_words = re.split(r"(\s+)", old_text or "")
-    new_words = re.split(r"(\s+)", new_text or "")
+    old_lines = (old_text or "").splitlines()
+    new_lines = (new_text or "").splitlines()
 
-    matcher = difflib.SequenceMatcher(None, old_words, new_words, autojunk=False)
+    matcher = difflib.SequenceMatcher(None, old_lines, new_lines, autojunk=False)
     parts = []
     for tag, i1, i2, j1, j2 in matcher.get_opcodes():
         if tag == "equal":
-            parts.append(str(escape("".join(old_words[i1:i2]))))
-        elif tag == "insert":
-            parts.append(
-                '<span style="background:#d4edda;color:#155724">'
-                + str(escape("".join(new_words[j1:j2])))
-                + "</span>"
-            )
+            for line in old_lines[i1:i2]:
+                parts.append(
+                    '<span style="display:block;padding:1px .5rem"> '
+                    + str(escape(line))
+                    + "</span>"
+                )
         elif tag == "delete":
-            parts.append(
-                '<span style="background:#f8d7da;color:#721c24;text-decoration:line-through">'
-                + str(escape("".join(old_words[i1:i2])))
-                + "</span>"
-            )
+            for line in old_lines[i1:i2]:
+                parts.append(
+                    '<span style="display:block;background:rgba(255,107,107,.13);color:#ff8585;padding:1px .5rem">- '
+                    + str(escape(line))
+                    + "</span>"
+                )
+        elif tag == "insert":
+            for line in new_lines[j1:j2]:
+                parts.append(
+                    '<span style="display:block;background:rgba(63,185,80,.13);color:#7ee787;padding:1px .5rem">+ '
+                    + str(escape(line))
+                    + "</span>"
+                )
         elif tag == "replace":
-            parts.append(
-                '<span style="background:#f8d7da;color:#721c24;text-decoration:line-through">'
-                + str(escape("".join(old_words[i1:i2])))
-                + "</span>"
-            )
-            parts.append(
-                '<span style="background:#d4edda;color:#155724">'
-                + str(escape("".join(new_words[j1:j2])))
-                + "</span>"
-            )
+            for line in old_lines[i1:i2]:
+                parts.append(
+                    '<span style="display:block;background:rgba(255,107,107,.13);color:#ff8585;padding:1px .5rem">- '
+                    + str(escape(line))
+                    + "</span>"
+                )
+            for line in new_lines[j1:j2]:
+                parts.append(
+                    '<span style="display:block;background:rgba(63,185,80,.13);color:#7ee787;padding:1px .5rem">+ '
+                    + str(escape(line))
+                    + "</span>"
+                )
     return Markup("".join(parts))
 
 
