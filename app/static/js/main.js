@@ -18,8 +18,34 @@ function initFlashMessages() {
     });
 }
 
+// Page title scroll animation – shows page title in topbar when scrolling
+function initPageTitleScroll() {
+    var contentEl = document.querySelector('.content');
+    var pageH1 = document.querySelector('.page-header h1');
+    var topbarTitle = document.getElementById('topbar-page-title');
+    if (!contentEl || !pageH1 || !topbarTitle) return;
+    topbarTitle.textContent = pageH1.textContent;
+    var topbarThreshold = 50; // approx topbar height in px
+    var ticking = false;
+    contentEl.addEventListener('scroll', function() {
+        if (!ticking) {
+            requestAnimationFrame(function() {
+                var rect = pageH1.getBoundingClientRect();
+                if (rect.bottom < topbarThreshold) {
+                    topbarTitle.classList.add('visible');
+                } else {
+                    topbarTitle.classList.remove('visible');
+                }
+                ticking = false;
+            });
+            ticking = true;
+        }
+    });
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     initFlashMessages();
+    initPageTitleScroll();
 
     // Sidebar toggle for mobile
     var toggleBtn = document.getElementById('sidebar-toggle');

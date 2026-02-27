@@ -33,6 +33,7 @@
             </button>
             {% endif %}
             <a href="{{ url_for('home') }}" class="logo">{{ settings.site_name }}</a>
+            <span id="topbar-page-title" class="topbar-page-title" aria-hidden="true"></span>
         </div>
         <div class="topbar-right">
             {% if current_user %}
