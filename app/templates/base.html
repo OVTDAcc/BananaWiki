@@ -52,7 +52,14 @@
         </div>
         <div class="topbar-right">
             {% if current_user %}
-                <span class="user-info">{{ current_user.username }} ({{ current_user.role }})</span>
+                <a href="{{ url_for('user_profile', username=current_user.username) }}" class="topbar-avatar-link" title="View your profile">
+                    {% if current_user_profile and current_user_profile.avatar_filename %}
+                    <img src="{{ url_for('static', filename='uploads/' + current_user_profile.avatar_filename) }}" alt="{{ current_user.username }}" class="topbar-avatar-img">
+                    {% else %}
+                    <span class="topbar-avatar-placeholder">{{ current_user.username[0].upper() }}</span>
+                    {% endif %}
+                </a>
+                <span class="user-info">{{ current_user.username }}</span>
                 <button class="btn btn-sm btn-outline a11y-toggle" id="a11y-toggle-btn" aria-label="Accessibility options" title="Accessibility options">&#9855; <span class="a11y-btn-label">Accessibility</span></button>
                 <a href="{{ url_for('account_settings') }}" class="btn btn-sm">Account</a>
                 <form method="POST" action="{{ url_for('logout') }}" style="display:inline">

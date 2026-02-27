@@ -286,6 +286,15 @@ def allowed_attachment(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in config.ATTACHMENT_ALLOWED_EXTENSIONS
 
 
+# Human-readable display labels for user roles.
+ROLE_LABELS = {
+    "user": "Member",
+    "editor": "Editor",
+    "admin": "Administrator",
+    "protected_admin": "Administrator",
+}
+
+
 def _is_valid_hex_color(value):
     """Return True if value is a valid 7-char hex color like #aabbcc."""
     return bool(re.fullmatch(r"#[0-9a-fA-F]{6}", value))
@@ -451,6 +460,7 @@ def inject_globals():
     active_announcements = db.get_active_announcements(bool(user))
     user_accessibility = db.get_user_accessibility(user["id"]) if user else {}
     sidebar_people = db.list_published_profiles()[:19] if user else []
+    current_user_profile = db.get_user_profile(user["id"]) if user else None
     return {
         "current_user": user,
         "settings": settings,
@@ -461,6 +471,7 @@ def inject_globals():
         "active_announcements": active_announcements,
         "user_accessibility": user_accessibility,
         "sidebar_people": sidebar_people,
+        "current_user_profile": current_user_profile,
     }
 
 
@@ -1003,6 +1014,7 @@ def user_profile(username):
         contribution_list=contribution_list,
         is_own=is_own,
         is_admin=is_admin,
+        role_labels=ROLE_LABELS,
         categories=categories,
         uncategorized=uncategorized,
     )

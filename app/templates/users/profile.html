@@ -19,7 +19,16 @@
             <p class="user-profile-bio">{{ profile.bio }}</p>
             {% endif %}
             <div class="user-profile-badges">
-                <span class="badge badge-{{ target.role }}">{{ target.role }}</span>
+                <span class="badge badge-{{ target.role }}" title="{{ target.role }}">{{ role_labels.get(target.role, target.role) }}</span>
+                {% if target.role in ('admin', 'protected_admin') %}
+                <span class="badge badge-admin" title="Has admin access">Wiki Admin</span>
+                {% endif %}
+                {% if target.role == 'protected_admin' %}
+                <span class="badge badge-protected_admin" title="Protected admin — account hardened against modification">Protected</span>
+                {% endif %}
+                {% if target.suspended %}
+                <span class="badge badge-suspended">Suspended</span>
+                {% endif %}
                 {% if profile and profile.page_disabled_by_admin %}
                 <span class="badge badge-suspended">Profile disabled by admin</span>
                 {% endif %}
