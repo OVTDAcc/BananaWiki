@@ -1117,6 +1117,13 @@ def edit_page(slug):
 
         db.update_page(page["id"], title, content, user["id"], edit_message)
 
+        # Update difficulty tag if provided
+        tag = request.form.get("difficulty_tag", "").strip().lower()
+        if tag in db.VALID_DIFFICULTY_TAGS:
+            db.update_page_tag(page["id"], tag)
+        elif tag:
+            flash("Invalid difficulty tag submitted.", "error")
+
         # Clean up all drafts for this page (committer + contributors)
         db.delete_draft(page["id"], user["id"])
         for d in all_drafts:
@@ -1281,6 +1288,35 @@ def move_page(slug):
     log_action("move_page", request, user=user, page=slug, category_id=cat_id)
     notify_change("page_move", f"Page '{slug}' moved")
     flash("Page moved.", "success")
+    return redirect(url_for("view_page", slug=slug))
+
+
+@app.route("/page/<slug>/tag", methods=["POST"])
+@login_required
+@editor_required
+@rate_limit(20, 60)
+def update_page_tag(slug):
+    page = db.get_page_by_slug(slug)
+    if not page:
+        abort(404)
+    user = get_current_user()
+    if not editor_has_category_access(user, page["category_id"]):
+        flash("You do not have permission to edit pages in this category.", "error")
+        if page["is_home"]:
+            return redirect(url_for("home"))
+        return redirect(url_for("view_page", slug=slug))
+    tag = request.form.get("difficulty_tag", "").strip().lower()
+    if tag not in db.VALID_DIFFICULTY_TAGS:
+        flash("Invalid difficulty tag.", "error")
+        if page["is_home"]:
+            return redirect(url_for("home"))
+        return redirect(url_for("view_page", slug=slug))
+    db.update_page_tag(page["id"], tag)
+    log_action("update_page_tag", request, user=user, page=slug, tag=tag)
+    notify_change("page_tag", f"Page '{slug}' tag updated to '{tag}'")
+    flash("Tag updated.", "success")
+    if page["is_home"]:
+        return redirect(url_for("home"))
     return redirect(url_for("view_page", slug=slug))
 
 

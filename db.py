@@ -191,6 +191,11 @@ def init_db():
     if "accessibility" not in cols:
         cur.execute("ALTER TABLE users ADD COLUMN accessibility TEXT")
 
+    # Add difficulty_tag column to pages if missing
+    page_cols = [r[1] for r in cur.execute("PRAGMA table_info(pages)").fetchall()]
+    if "difficulty_tag" not in page_cols:
+        cur.execute("ALTER TABLE pages ADD COLUMN difficulty_tag TEXT NOT NULL DEFAULT ''")
+
     # Migrate users.id from INTEGER to TEXT if needed
     user_id_type = next(
         (r[2] for r in cur.execute("PRAGMA table_info(users)").fetchall() if r[1] == 'id'),
@@ -993,6 +998,18 @@ def update_page_title(page_id, title, user_id):
 def update_page_category(page_id, category_id):
     conn = get_db()
     conn.execute("UPDATE pages SET category_id=? WHERE id=?", (category_id, page_id))
+    conn.commit()
+    conn.close()
+
+
+VALID_DIFFICULTY_TAGS = ("", "beginner", "easy", "intermediate", "expert", "extra")
+
+
+def update_page_tag(page_id, difficulty_tag):
+    if difficulty_tag not in VALID_DIFFICULTY_TAGS:
+        raise ValueError(f"Invalid difficulty tag: {difficulty_tag!r}")
+    conn = get_db()
+    conn.execute("UPDATE pages SET difficulty_tag=? WHERE id=?", (difficulty_tag, page_id))
     conn.commit()
     conn.close()
 

@@ -3,8 +3,12 @@
 {% block content %}
 <div class="page-header">
     <h1>{{ page.title }}</h1>
+    {% if page.difficulty_tag %}
+    <span class="difficulty-tag difficulty-tag-{{ page.difficulty_tag }}">{{ page.difficulty_tag|capitalize }}</span>
+    {% endif %}
     {% if current_user and current_user.role in ('editor', 'admin', 'protected_admin') %}
         <button class="btn-icon" onclick="document.getElementById('titleModal').style.display='flex'" title="Edit title">Edit title</button>
+        <button class="btn-icon" onclick="document.getElementById('tagModal').style.display='flex'" title="Set tag">Tag</button>
         {% if not page.is_home %}
         <a href="{{ url_for('edit_page', slug=page.slug) }}" class="btn btn-sm">Edit</a>
         <button class="btn btn-sm btn-outline" onclick="document.getElementById('moveModal').style.display='flex'">Move</button>
@@ -66,6 +70,30 @@
             <div class="form-group">
                 <label>Page Title</label>
                 <input type="text" name="title" value="{{ page.title }}" class="input" required>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn">Save</button>
+                <button type="button" class="btn btn-outline" onclick="this.closest('.modal').style.display='none'">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+<!-- Tag edit modal -->
+<div class="modal" id="tagModal" style="display:none">
+    <div class="modal-content">
+        <h3>Set Difficulty Tag</h3>
+        <form method="POST" action="{{ url_for('update_page_tag', slug=page.slug) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="form-group">
+                <label>Difficulty Tag</label>
+                <select name="difficulty_tag" class="input">
+                    <option value="" {% if not page.difficulty_tag %}selected{% endif %}>None</option>
+                    <option value="beginner" {% if page.difficulty_tag == 'beginner' %}selected{% endif %}>Beginner</option>
+                    <option value="easy" {% if page.difficulty_tag == 'easy' %}selected{% endif %}>Easy</option>
+                    <option value="intermediate" {% if page.difficulty_tag == 'intermediate' %}selected{% endif %}>Intermediate</option>
+                    <option value="expert" {% if page.difficulty_tag == 'expert' %}selected{% endif %}>Expert</option>
+                    <option value="extra" {% if page.difficulty_tag == 'extra' %}selected{% endif %}>Extra</option>
+                </select>
             </div>
             <div class="form-actions">
                 <button type="submit" class="btn">Save</button>

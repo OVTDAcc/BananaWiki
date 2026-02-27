@@ -4691,3 +4691,92 @@ def test_restricted_editor_cannot_edit_category(client, editor_user):
     assert resp.status_code == 200
     assert b"do not have permission" in resp.data
     assert db.get_category(cat_a)["name"] == "Rename Me"
+
+
+# -----------------------------------------------------------------------
+# Tag feature: difficulty tag can be set, displayed, and validated
+# -----------------------------------------------------------------------
+def test_update_page_tag_valid(logged_in_admin):
+    """Editor can set a valid difficulty tag on a page."""
+    import db
+    home = db.get_home_page()
+    slug = home["slug"]
+    resp = logged_in_admin.post(f"/page/{slug}/tag",
+                                data={"difficulty_tag": "beginner"},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"Tag updated" in resp.data
+    updated = db.get_home_page()
+    assert updated["difficulty_tag"] == "beginner"
+
+
+def test_update_page_tag_none(logged_in_admin):
+    """Editor can clear the difficulty tag (set to empty string)."""
+    import db
+    home = db.get_home_page()
+    db.update_page_tag(home["id"], "expert")
+    slug = home["slug"]
+    resp = logged_in_admin.post(f"/page/{slug}/tag",
+                                data={"difficulty_tag": ""},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    updated = db.get_home_page()
+    assert updated["difficulty_tag"] == ""
+
+
+def test_update_page_tag_invalid_rejected(logged_in_admin):
+    """Invalid tag values are rejected."""
+    import db
+    home = db.get_home_page()
+    slug = home["slug"]
+    resp = logged_in_admin.post(f"/page/{slug}/tag",
+                                data={"difficulty_tag": "impossible"},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"Invalid difficulty tag" in resp.data
+    # Tag should remain unchanged
+    updated = db.get_home_page()
+    assert updated["difficulty_tag"] == ""
+
+
+def test_page_view_shows_tag_badge(logged_in_admin):
+    """Page view renders difficulty tag badge when tag is set."""
+    import db
+    db.create_page("Tagged Page", "tagged-page", "content", user_id=None)
+    page = db.get_page_by_slug("tagged-page")
+    db.update_page_tag(page["id"], "intermediate")
+    resp = logged_in_admin.get("/page/tagged-page")
+    assert resp.status_code == 200
+    assert b"difficulty-tag-intermediate" in resp.data
+    assert b"Intermediate" in resp.data
+
+
+def test_page_view_no_badge_when_no_tag(logged_in_admin):
+    """Page view does not render difficulty tag badge when tag is empty."""
+    import db
+    db.create_page("No Tag Page", "no-tag-page", "content", user_id=None)
+    resp = logged_in_admin.get("/page/no-tag-page")
+    assert resp.status_code == 200
+    assert b"difficulty-tag-" not in resp.data
+
+
+def test_edit_page_updates_tag(logged_in_admin):
+    """Submitting the edit form with a difficulty_tag updates the tag."""
+    import db
+    db.create_page("Editable Tag Page", "editable-tag-page", "hello", user_id=None)
+    resp = logged_in_admin.post("/page/editable-tag-page/edit",
+                                data={"title": "Editable Tag Page",
+                                      "content": "hello",
+                                      "difficulty_tag": "expert"},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    page = db.get_page_by_slug("editable-tag-page")
+    assert page["difficulty_tag"] == "expert"
+
+
+def test_valid_difficulty_tags_constant():
+    """VALID_DIFFICULTY_TAGS includes all expected values."""
+    import db
+    assert "" in db.VALID_DIFFICULTY_TAGS
+    for tag in ("beginner", "easy", "intermediate", "expert", "extra"):
+        assert tag in db.VALID_DIFFICULTY_TAGS
