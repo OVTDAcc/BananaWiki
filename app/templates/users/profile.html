@@ -235,14 +235,13 @@
         var label = '';
         for (var di = 0; di < 7; di++) {
             var cell = weeks[w][di];
-            var dt = new Date(cell.date + 'T12:00:00');
-            if (dt.getFullYear() === year) {
-                var m = dt.getMonth();
-                if (!seenMonths[m]) {
-                    seenMonths[m] = true;
-                    label = monthNames[m];
-                    break;
-                }
+            var parts = cell.date.split('-');
+            var cellYear = parseInt(parts[0], 10);
+            var cellMonth = parseInt(parts[1], 10) - 1; // 0-indexed
+            if (cellYear === year && !seenMonths[cellMonth]) {
+                seenMonths[cellMonth] = true;
+                label = monthNames[cellMonth];
+                break;
             }
         }
         monthLabels.push(label);
