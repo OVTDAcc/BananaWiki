@@ -445,6 +445,7 @@ select.input{appearance:auto}
 .contrib-3{background:#26a641}
 .contrib-4{background:#39d353}
 .contrib-future{background:transparent}
+.contrib-outside{background:transparent;cursor:default}
 .contribution-legend{display:flex;align-items:center;gap:4px;justify-content:flex-end;margin-top:.8rem;font-size:.75rem;opacity:.6}
 .contrib-legend-label{margin:0 2px}
 

@@ -1012,7 +1012,7 @@ def user_profile(username):
     if not (is_admin or is_own):
         if not profile or not profile["page_published"] or profile["page_disabled_by_admin"]:
             abort(404)
-    contributions = db.get_contributions_by_day(target["id"])
+    contrib_year, contributions = db.get_contributions_by_day(target["id"])
     contribution_list = db.get_user_contributions(target["id"])
     categories, uncategorized = db.get_category_tree()
     return render_template(
@@ -1020,6 +1020,7 @@ def user_profile(username):
         target=target,
         profile=profile,
         contributions=contributions,
+        contrib_year=contrib_year,
         contribution_list=contribution_list,
         is_own=is_own,
         is_admin=is_admin,
