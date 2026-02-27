@@ -52,7 +52,14 @@
         </div>
         <div class="topbar-right">
             {% if current_user %}
-                <span class="user-info">{{ current_user.username }} ({{ current_user.role }})</span>
+                <a href="{{ url_for('user_profile', username=current_user.username) }}" class="topbar-avatar-link" title="View your profile">
+                    {% if current_user_profile and current_user_profile.avatar_filename %}
+                    <img src="{{ url_for('static', filename='uploads/' + current_user_profile.avatar_filename) }}" alt="{{ current_user.username }}" class="topbar-avatar-img">
+                    {% else %}
+                    <span class="topbar-avatar-placeholder">{{ current_user.username[0].upper() }}</span>
+                    {% endif %}
+                </a>
+                <span class="user-info">{{ current_user.username }}</span>
                 <button class="btn btn-sm btn-outline a11y-toggle" id="a11y-toggle-btn" aria-label="Accessibility options" title="Accessibility options">&#9855; <span class="a11y-btn-label">Accessibility</span></button>
                 <a href="{{ url_for('account_settings') }}" class="btn btn-sm">Account</a>
                 <form method="POST" action="{{ url_for('logout') }}" style="display:inline">
@@ -97,6 +104,28 @@
                 </div>
                 {% endif %}
             </nav>
+            {% if sidebar_people %}
+            <div class="sidebar-people">
+                <div class="sidebar-people-header">
+                    <span>People</span>
+                    <a href="{{ url_for('users_list') }}" class="sidebar-people-more">More</a>
+                </div>
+                <div class="sidebar-people-grid">
+                    {% for p in sidebar_people[:19] %}
+                    <a href="{{ url_for('user_profile', username=p.username) }}" class="sidebar-person" title="{{ p.username }}">
+                        {% if p.avatar_filename %}
+                        <img src="{{ url_for('static', filename='uploads/' + p.avatar_filename) }}" alt="{{ p.username }}" class="sidebar-person-img">
+                        {% else %}
+                        <span class="sidebar-person-placeholder">{{ p.username[0].upper() }}</span>
+                        {% endif %}
+                    </a>
+                    {% endfor %}
+                    {% if sidebar_people | length >= 19 %}
+                    <a href="{{ url_for('users_list') }}" class="sidebar-person sidebar-person-more" title="More members">+</a>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
         </aside>
         <div class="sidebar-resize-handle" id="sidebar-resize-handle"></div>
         <div class="sidebar-overlay" id="sidebar-overlay"></div>

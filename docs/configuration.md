@@ -44,6 +44,14 @@ All configuration lives in `config.py` at the root of the project. Edit it direc
 | `MAX_CONTENT_LENGTH` | `16 * 1024 * 1024` | Maximum request body size (16 MB). Applies to image uploads. |
 | `ALLOWED_EXTENSIONS` | `{"png", "jpg", "jpeg", "gif", "webp"}` | Permitted image file types. SVG is intentionally excluded due to XSS risk. |
 
+## Page Attachments
+
+| Setting | Default | Description |
+|---|---|---|
+| `ATTACHMENT_FOLDER` | `instance/attachments` | Directory where page file attachments are stored. Outside `static/` so files cannot be accessed directly by URL. |
+| `MAX_ATTACHMENT_SIZE` | `5 * 1024 * 1024` | Maximum size per attachment (5 MB). |
+| `ATTACHMENT_ALLOWED_EXTENSIONS` | *(see config.py)* | Permitted attachment file types: documents, archives, images, audio/video, and source code files. |
+
 ## Logging
 
 | Setting | Default | Description |

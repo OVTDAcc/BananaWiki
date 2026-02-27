@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}People – {{ settings.site_name }}{% endblock %}
+{% block content %}
+<div class="users-list-page">
+    <h1>People</h1>
+    <div class="users-search-row">
+        <form method="GET" action="{{ url_for('users_list') }}" class="users-search-form">
+            <input type="text" name="q" value="{{ query }}" placeholder="Find a member…" class="input users-search-input" autocomplete="off">
+        </form>
+    </div>
+
+    {% if users %}
+    <div class="users-list">
+        {% for u in users %}
+        <a href="{{ url_for('user_profile', username=u.username) }}" class="user-list-item">
+            <div class="user-list-avatar">
+                {% if u.avatar_filename %}
+                <img src="{{ url_for('static', filename='uploads/' + u.avatar_filename) }}" alt="{{ u.username }}" class="avatar-img">
+                {% else %}
+                <span class="avatar-placeholder">{{ u.username[0].upper() }}</span>
+                {% endif %}
+            </div>
+            <div class="user-list-info">
+                <span class="user-list-name">{{ u.real_name if u.real_name else u.username }}</span>
+                <span class="user-list-username">{{ u.username }}</span>
+                {% if current_user.role in ('admin', 'protected_admin') %}
+                    {% if u.suspended %}<span class="badge badge-suspended" title="Suspended">Suspended</span>{% endif %}
+                    {% if u.page_disabled_by_admin %}<span class="badge badge-suspended" title="Profile disabled">Disabled</span>{% endif %}
+                    {% if not u.page_published and not u.page_disabled_by_admin %}<span class="badge" title="Profile not published" style="opacity:.5">Private</span>{% endif %}
+                {% endif %}
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="users-empty">No members found{% if query %} for "<em>{{ query }}</em>"{% endif %}.</p>
+    {% endif %}
+</div>
+{% endblock %}

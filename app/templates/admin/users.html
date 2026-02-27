@@ -134,6 +134,8 @@
                         <input type="hidden" name="action" value="delete">
                         <button class="btn btn-sm btn-danger">Delete</button>
                     </form>
+                    <!-- Profile -->
+                    <a href="{{ url_for('user_profile', username=u.username) }}" class="btn btn-sm btn-outline">Profile</a>
                 </div>
                 {% endif %}
             </td>

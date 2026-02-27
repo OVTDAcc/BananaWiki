@@ -33,6 +33,10 @@ A lightweight, self-hosted wiki built with Flask and SQLite. Clean, fast, and ea
 <td><strong>Account settings &amp; admin shortcuts</strong><br><img src="https://github.com/user-attachments/assets/05afee31-38cb-47b3-8c01-45f89052207e" alt="Account settings"></td>
 </tr>
 <tr>
+<td><strong>People sidebar widget &amp; member directory</strong><br><img src="https://github.com/user-attachments/assets/377a09a3-0515-4dbb-8d8a-9632940ce45b" alt="People sidebar"></td>
+<td><strong>User profile with contribution heatmap</strong><br><img src="https://github.com/user-attachments/assets/e6e11b2e-dc9b-4a36-ba80-1014c7838bcf" alt="User profile"></td>
+</tr>
+<tr>
 <td colspan="2"><strong>Announcement banner — orange (1/2) and red (2/2) variants with navigation</strong><br><img src="https://github.com/user-attachments/assets/1be5bb61-7ae5-48aa-9bbd-47c513b581d0" alt="Announcement banner"></td>
 </tr>
 </table>
@@ -44,11 +48,18 @@ A lightweight, self-hosted wiki built with Flask and SQLite. Clean, fast, and ea
 - **Split-Pane Editor** — Live rendered preview updates while you type; formatting toolbar for quick Markdown shortcuts; image drop zone with positioning modal (inline / float left / float right / center) and optional width; editor/preview divider is drag-resizable
 - **Page History** — Every save creates a versioned snapshot; view any past state, read edit summaries, and revert with one click — nothing is ever deleted from history
 - **Draft Autosave** — Browser saves a draft every few seconds; restores automatically on re-open; shows a conflict warning when two editors are working on the same page simultaneously
-- **Difficulty Tags** — Editors can tag pages with an optional difficulty level (`Beginner`, `Easy`, `Intermediate`, `Expert`, `Extra`); shown as a colored badge next to the page title
+- **Difficulty Tags** — Editors can tag pages with an optional difficulty level (`Beginner`, `Easy`, `Intermediate`, `Expert`, `Extra`) or a fully custom label and color; shown as a colored badge next to the page title
+- **Page Attachments** — Editors can upload arbitrary files (PDFs, archives, etc.) directly to a page; attachments are served through an authenticated route, not exposed as static files
 
 **Organisation**
 - **Hierarchical Categories** — Unlimited nesting depth; collapsible tree in the sidebar; drag-to-reorder pages and categories
 - **Image Uploads & Positioning** — Drag-and-drop or file picker; after upload an options modal lets editors set alt text, position (inline / float left / float right / center), and optional pixel width; Pillow-validated; UUID filenames; orphaned images cleaned up automatically after each commit or draft deletion
+
+**People**
+- **User Profiles** — Users can create a public profile page with a real name, bio, and avatar (max 1 MB); profiles can be published, hidden, or deleted at any time; contribution history is always preserved internally
+- **Contribution Heatmap** — Each profile shows a GitHub-style yearly heatmap of wiki edits
+- **People Directory** — A searchable member list at `/users` shows all published profiles; a sidebar widget shows the most active members at a glance
+- **Admin Profile Moderation** — Admins can edit any user's profile data, remove avatars, and disable or delete profile pages
 
 **Accounts & Access**
 - **Four-Tier Role System** — `user` (read-only) → `editor` → `admin` → `protected_admin`, each with clearly defined permissions
@@ -81,7 +92,7 @@ A lightweight, self-hosted wiki built with Flask and SQLite. Clean, fast, and ea
 **Requirements:** Python 3.9+
 
 ```bash
-git clone https://github.com/overdeckat/BananaWiki.git
+git clone https://github.com/ovtdadt/BananaWiki.git
 cd BananaWiki
 python -m venv venv
 source venv/bin/activate        # Windows: venv\Scripts\activate
@@ -112,8 +123,8 @@ This creates the first admin account and marks setup complete. All subsequent us
 | Role | What they can do |
 |---|---|
 | **user** | View pages |
-| **editor** | View, create, edit, and delete pages; manage categories; revert history; upload images |
-| **admin** | Everything editors can do, plus: manage users, generate invite codes, configure settings, and post announcements |
+| **editor** | View, create, edit, and delete pages; manage categories; revert history; upload images and attachments |
+| **admin** | Everything editors can do, plus: manage users, generate invite codes, configure settings, post announcements, moderate profiles |
 | **protected_admin** | Same as admin, but the account is shielded from modifications by other admins |
 
 New users who sign up with an invite code receive the **user** role by default. Admins can change roles from **Admin → Manage Users**. The **protected_admin** role can only be toggled by the account owner from their own account settings page — no other admin can grant or remove it.
@@ -137,7 +148,7 @@ BananaWiki/
 │   │   ├── css/        # Stylesheets
 │   │   ├── js/         # Client-side JavaScript (editor, sidebar, drafts, easter egg)
 │   │   ├── favicons/   # Preset and custom favicon images
-│   │   └── uploads/    # User-uploaded images (runtime, gitignored)
+│   │   └── uploads/    # User-uploaded images and avatars (runtime, gitignored)
 │   └── templates/
 │       ├── base.html                  # Base layout with sidebar and announcement bar
 │       ├── _announcements_bar.html    # Announcement banner partial
@@ -146,11 +157,12 @@ BananaWiki/
 │       │               # history_entry.html, announcement.html, easter_egg.html,
 │       │               # 403.html, 404.html, 429.html, 500.html
 │       ├── account/    # settings.html
+│       ├── users/      # list.html (People directory), profile.html (user profile)
 │       └── admin/      # users.html, codes.html, codes_expired.html,
 │                       # settings.html, announcements.html, audit.html,
 │                       # editor_access.html, migration.html
 ├── docs/               # Detailed documentation
-├── instance/           # Database and secret key — created at runtime (gitignored)
+├── instance/           # Database, attachments, and secret key — created at runtime (gitignored)
 ├── logs/               # Application logs — created at runtime (gitignored)
 └── tests/              # Test suite (499 tests across 6 files)
 ```

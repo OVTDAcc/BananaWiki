@@ -2,7 +2,7 @@
 
 **Yes — the project is ready for deployment and actual admin usage.**
 
-This is a full code-level review of every route, security layer, database function, test, and deployment file as of commit 6741131.
+This is a full code-level review of every route, security layer, database function, test, and deployment file as of commit c29b937.
 
 ---
 
@@ -36,6 +36,7 @@ python -m pytest tests/
 | **Rate limiting** | Per-route `@rate_limit` on all write endpoints; login limiting is DB-backed and cross-worker safe; global in-memory limit at 300 req/60 s |
 | **Input sanitization** | Markdown → Bleach with an explicit tag + attribute allowlist |
 | **Image uploads** | Extension whitelist (no SVG); Pillow validates actual content; path traversal blocked |
+| **Avatar uploads** | Same pipeline as image uploads; additionally enforced to 1 MB max; stored in `uploads/avatars/` subdirectory |
 | **File attachments** | Stored outside `static/`; extension whitelist; 5 MB limit; auth required to download; category-access enforced |
 | **Security headers** | `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Content-Security-Policy` on every response |
 | **Secret key** | Auto-generated on first run, stored at `instance/.secret_key` (mode 0600); overridable via `SECRET_KEY` env var |
@@ -60,6 +61,12 @@ python -m pytest tests/
 - Hierarchical categories, unlimited depth, collapsible sidebar
 - Up/down reorder for pages and categories via in-site confirmation dialogs (no browser `confirm()` popups)
 - Page movement between categories; circular-reference moves blocked
+
+**People**
+- User profile pages (`/users/<username>`) with avatar, bio, real name, role badge, and GitHub-style contribution heatmap
+- People directory (`/users`) with search; sidebar widget shows the most active members
+- Profile self-management: publish, hide, delete; contribution history preserved regardless
+- Admin profile moderation: edit data, remove avatar, disable/re-enable/delete profile pages
 
 **Accounts & Access**
 - Four-tier roles: `user` → `editor` → `admin` → `protected_admin`
