@@ -825,3 +825,118 @@ def test_count_admins_with_multiple(admin_user):
     from werkzeug.security import generate_password_hash
     db.create_user("admin2", generate_password_hash("pw"), role="admin")
     assert db.count_admins() == 2
+
+
+# ---------------------------------------------------------------------------
+# User data export
+# ---------------------------------------------------------------------------
+
+def test_export_own_data_returns_zip(client, admin_user):
+    """GET /account/export returns a ZIP file for the logged-in user."""
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    resp = client.get("/account/export")
+    assert resp.status_code == 200
+    assert resp.content_type == "application/zip"
+    assert b"PK" == resp.data[:2]  # ZIP magic bytes
+
+
+def test_export_own_data_zip_contains_expected_files(client, admin_user):
+    """The exported ZIP for own data contains all expected JSON files."""
+    import io
+    import zipfile
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    resp = client.get("/account/export")
+    assert resp.status_code == 200
+    buf = io.BytesIO(resp.data)
+    with zipfile.ZipFile(buf) as zf:
+        names = zf.namelist()
+    assert "account.json" in names
+    assert "contributions.json" in names
+    assert "drafts.json" in names
+    assert "username_history.json" in names
+    assert "accessibility.json" in names
+
+
+def test_export_own_data_account_json_no_password(client, admin_user):
+    """The account.json in the export must not contain the password hash."""
+    import io
+    import json as json_mod
+    import zipfile
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    resp = client.get("/account/export")
+    assert resp.status_code == 200
+    buf = io.BytesIO(resp.data)
+    with zipfile.ZipFile(buf) as zf:
+        account = json_mod.loads(zf.read("account.json"))
+    assert "password" not in account
+    assert account["username"] == "admin"
+
+
+def test_export_own_data_requires_login(client, admin_user):
+    """GET /account/export redirects unauthenticated users to login."""
+    resp = client.get("/account/export")
+    assert resp.status_code == 302
+    assert "/login" in resp.headers["Location"]
+
+
+def test_admin_export_user_data(logged_in_admin, admin_user):
+    """Admin can download any user's data as a ZIP."""
+    import db
+    from werkzeug.security import generate_password_hash
+    uid = db.create_user("targetuser", generate_password_hash("pw"), role="user")
+    resp = logged_in_admin.get(f"/admin/users/{uid}/export")
+    assert resp.status_code == 200
+    assert resp.content_type == "application/zip"
+    assert b"PK" == resp.data[:2]
+
+
+def test_admin_export_user_data_contains_account_json(logged_in_admin, admin_user):
+    """Admin export ZIP contains account.json with the correct username."""
+    import io
+    import json as json_mod
+    import zipfile
+    import db
+    from werkzeug.security import generate_password_hash
+    uid = db.create_user("exportme", generate_password_hash("pw"), role="editor")
+    resp = logged_in_admin.get(f"/admin/users/{uid}/export")
+    assert resp.status_code == 200
+    buf = io.BytesIO(resp.data)
+    with zipfile.ZipFile(buf) as zf:
+        account = json_mod.loads(zf.read("account.json"))
+    assert account["username"] == "exportme"
+    assert "password" not in account
+
+
+def test_admin_export_nonexistent_user_returns_404(logged_in_admin):
+    """Admin export for a non-existent user_id returns 404."""
+    resp = logged_in_admin.get("/admin/users/nonexistent_id/export")
+    assert resp.status_code == 404
+
+
+def test_admin_export_requires_admin(client, admin_user):
+    """Non-admin users cannot access the admin export route."""
+    import db
+    from werkzeug.security import generate_password_hash
+    uid = db.create_user("regularuser", generate_password_hash("pw"), role="user")
+    client.post("/login", data={"username": "regularuser", "password": "pw"})
+    resp = client.get(f"/admin/users/{uid}/export")
+    assert resp.status_code in (302, 403)
+
+
+def test_export_includes_contributions(client, admin_user):
+    """The contributions.json in the export contains page edits by the user."""
+    import io
+    import json as json_mod
+    import zipfile
+    import db
+    # Create a page and have admin edit it (which creates a history entry)
+    page_id = db.create_page("Export Test Page", "export-test", "v1", None, admin_user)
+    db.update_page(page_id, "Export Test Page", "v2 content", admin_user, "update")
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    resp = client.get("/account/export")
+    assert resp.status_code == 200
+    buf = io.BytesIO(resp.data)
+    with zipfile.ZipFile(buf) as zf:
+        contributions = json_mod.loads(zf.read("contributions.json"))
+    assert len(contributions) >= 1
+    assert any(c["page_title"] == "Export Test Page" for c in contributions)

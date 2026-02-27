@@ -1165,6 +1165,22 @@ def delete_announcement(ann_id):
     conn.close()
 
 
+def get_user_contributions(user_id):
+    """Return all page history entries edited by a user, with page info."""
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT ph.id, ph.page_id, COALESCE(p.title, '[deleted page]') AS page_title, "
+        "COALESCE(p.slug, '') AS page_slug, "
+        "ph.title AS edit_title, ph.content, ph.edit_message, ph.created_at "
+        "FROM page_history ph "
+        "LEFT JOIN pages p ON ph.page_id = p.id "
+        "WHERE ph.edited_by=? ORDER BY ph.created_at DESC",
+        (user_id,),
+    ).fetchall()
+    conn.close()
+    return rows
+
+
 def get_active_announcements(is_logged_in):
     """Return active, non-expired announcements matching the user's login state."""
     conn = get_db()
