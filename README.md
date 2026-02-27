@@ -44,6 +44,7 @@ A lightweight, self-hosted wiki built with Flask and SQLite. Clean, fast, and ea
 - **Split-Pane Editor** — Live rendered preview updates while you type; formatting toolbar for quick Markdown shortcuts; image drop zone; editor/preview divider is drag-resizable
 - **Page History** — Every save creates a versioned snapshot; view any past state, read edit summaries, and revert with one click — nothing is ever deleted from history
 - **Draft Autosave** — Browser saves a draft every few seconds; restores automatically on re-open; shows a conflict warning when two editors are working on the same page simultaneously
+- **Difficulty Tags** — Editors can tag pages with an optional difficulty level (`Beginner`, `Easy`, `Intermediate`, `Expert`, `Extra`); shown as a colored badge next to the page title
 
 **Organisation**
 - **Hierarchical Categories** — Unlimited nesting depth; collapsible tree in the sidebar; drag-to-reorder pages and categories
@@ -151,7 +152,7 @@ BananaWiki/
 ├── docs/               # Detailed documentation
 ├── instance/           # Database and secret key — created at runtime (gitignored)
 ├── logs/               # Application logs — created at runtime (gitignored)
-└── tests/              # Test suite (487 tests across 6 files)
+└── tests/              # Test suite (494 tests across 6 files)
 ```
 
 ## Running Tests
