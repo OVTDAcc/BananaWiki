@@ -73,6 +73,9 @@
                 <button class="btn btn-sm btn-outline" onclick="document.getElementById('editUser{{ u.id }}').style.display=document.getElementById('editUser{{ u.id }}').style.display==='none'?'table-row':'none'">Edit</button>
                 <a href="{{ url_for('admin_user_audit', user_id=u.id) }}" class="btn btn-sm btn-outline" title="View audit trail">📋</a>
                 <a href="{{ url_for('admin_export_user_data', user_id=u.id) }}" class="btn btn-sm btn-outline" title="Export user data">⬇</a>
+                {% if u.role == 'editor' %}
+                <a href="{{ url_for('admin_editor_access', user_id=u.id) }}" class="btn btn-sm btn-outline" title="Customize category access">🔒 Access</a>
+                {% endif %}
             </td>
         </tr>
         <tr id="editUser{{ u.id }}" style="display:none;background:rgba(255,255,255,.02)">

@@ -350,6 +350,24 @@ def admin_required(f):
     return wrapper
 
 
+def editor_has_category_access(user, category_id):
+    """Return True if *user* may edit content in the given *category_id*.
+
+    Admins always have access.  Editors with unrestricted access also always
+    have access.  Restricted editors only have access to their explicitly
+    allowed categories; uncategorised pages (category_id=None) are not
+    accessible to restricted editors.
+    """
+    if user["role"] in ("admin", "protected_admin"):
+        return True
+    access = db.get_editor_access(user["id"])
+    if not access["restricted"]:
+        return True
+    if category_id is None:
+        return False
+    return int(category_id) in access["allowed_category_ids"]
+
+
 def get_site_timezone():
     """Return the zoneinfo timezone configured in site settings (defaults to UTC)."""
     settings = db.get_site_settings()
@@ -1054,6 +1072,9 @@ def edit_page(slug):
     if not page:
         abort(404)
     user = get_current_user()
+    if not editor_has_category_access(user, page["category_id"]):
+        flash("You do not have permission to edit pages in this category.", "error")
+        return redirect(url_for("view_page", slug=slug))
     categories, uncategorized = db.get_category_tree()
 
     # Check for existing drafts from other users
@@ -1117,6 +1138,11 @@ def edit_page_title(slug):
     if not page:
         abort(404)
     user = get_current_user()
+    if not editor_has_category_access(user, page["category_id"]):
+        flash("You do not have permission to edit pages in this category.", "error")
+        if page["is_home"]:
+            return redirect(url_for("home"))
+        return redirect(url_for("view_page", slug=slug))
     new_title = request.form.get("title", "").strip()
     if not new_title:
         flash("Title is required.", "error")
@@ -1166,6 +1192,10 @@ def create_page():
             flash("Selected category does not exist.", "error")
             return render_template("wiki/create_page.html", categories=categories,
                                    uncategorized=uncategorized, form=form_data)
+        if not editor_has_category_access(user, cat_id):
+            flash("You do not have permission to create pages in this category.", "error")
+            return render_template("wiki/create_page.html", categories=categories,
+                                   uncategorized=uncategorized, form=form_data)
         slug = slugify(title)
         # ensure unique slug
         base_slug = slug
@@ -1196,6 +1226,9 @@ def delete_page_route(slug):
         flash("Cannot delete the home page.", "error")
         return redirect(url_for("view_page", slug=slug))
     user = get_current_user()
+    if not editor_has_category_access(user, page["category_id"]):
+        flash("You do not have permission to delete pages in this category.", "error")
+        return redirect(url_for("view_page", slug=slug))
     db.delete_page(page["id"])
     cleanup_unused_uploads()
     log_action("delete_page", request, user=user, page=slug)
@@ -1222,6 +1255,12 @@ def move_page(slug):
         flash("Selected category does not exist.", "error")
         return redirect(url_for("view_page", slug=slug))
     user = get_current_user()
+    if not editor_has_category_access(user, page["category_id"]):
+        flash("You do not have permission to move pages from this category.", "error")
+        return redirect(url_for("view_page", slug=slug))
+    if not editor_has_category_access(user, cat_id):
+        flash("You do not have permission to move pages into this category.", "error")
+        return redirect(url_for("view_page", slug=slug))
     db.update_page_category(page["id"], cat_id)
     log_action("move_page", request, user=user, page=slug, category_id=cat_id)
     notify_change("page_move", f"Page '{slug}' moved")
@@ -1234,6 +1273,11 @@ def move_page(slug):
 @editor_required
 @rate_limit(20, 60)
 def create_category():
+    user = get_current_user()
+    access = db.get_editor_access(user["id"])
+    if access["restricted"]:
+        flash("You do not have permission to create categories.", "error")
+        return redirect(_safe_referrer() or url_for("home"))
     name = request.form.get("name", "").strip()
     parent_id = request.form.get("parent_id")
     try:
@@ -1251,7 +1295,6 @@ def create_category():
         flash("Selected parent category does not exist.", "error")
         return redirect(_safe_referrer() or url_for("home"))
     db.create_category(name, parent_id)
-    user = get_current_user()
     log_action("create_category", request, user=user, category=name)
     notify_change("category_create", f"Category '{name}' created")
     flash("Category created.", "success")
@@ -1266,6 +1309,10 @@ def edit_category(cat_id):
     cat = db.get_category(cat_id)
     if not cat:
         abort(404)
+    user = get_current_user()
+    if db.get_editor_access(user["id"])["restricted"]:
+        flash("You do not have permission to edit categories.", "error")
+        return redirect(_safe_referrer() or url_for("home"))
     name = request.form.get("name", "").strip()
     if not name:
         flash("Category name is required.", "error")
@@ -1274,7 +1321,6 @@ def edit_category(cat_id):
         flash("Category name must be 100 characters or fewer.", "error")
         return redirect(_safe_referrer() or url_for("home"))
     db.update_category(cat_id, name)
-    user = get_current_user()
     log_action("edit_category", request, user=user, category_id=cat_id, new_name=name)
     notify_change("category_edit", f"Category {cat_id} renamed to '{name}'")
     flash("Category updated.", "success")
@@ -1289,6 +1335,10 @@ def move_category(cat_id):
     cat = db.get_category(cat_id)
     if not cat:
         abort(404)
+    user = get_current_user()
+    if db.get_editor_access(user["id"])["restricted"]:
+        flash("You do not have permission to move categories.", "error")
+        return redirect(_safe_referrer() or url_for("home"))
     parent_id = request.form.get("parent_id")
     try:
         parent_id = int(parent_id) if parent_id else None
@@ -1305,7 +1355,6 @@ def move_category(cat_id):
         flash("Cannot move a category into one of its own subcategories.", "error")
         return redirect(_safe_referrer() or url_for("home"))
     db.update_category_parent(cat_id, parent_id)
-    user = get_current_user()
     log_action("move_category", request, user=user, category_id=cat_id, new_parent=parent_id)
     notify_change("category_move", f"Category {cat_id} moved to parent {parent_id}")
     flash("Category moved.", "success")
@@ -1320,6 +1369,10 @@ def delete_category_route(cat_id):
     cat = db.get_category(cat_id)
     if not cat:
         abort(404)
+    user = get_current_user()
+    if db.get_editor_access(user["id"])["restricted"]:
+        flash("You do not have permission to delete categories.", "error")
+        return redirect(_safe_referrer() or url_for("home"))
     page_action = request.form.get("page_action", "uncategorize")
     target_cat = request.form.get("target_category_id")
     try:
@@ -1332,7 +1385,6 @@ def delete_category_route(cat_id):
                                   or not db.get_category(target_cat)):
         page_action = "uncategorize"
     db.delete_category(cat_id, page_action=page_action, target_category_id=target_cat)
-    user = get_current_user()
     log_action("delete_category", request, user=user, category_id=cat_id, page_action=page_action)
     notify_change("category_delete", f"Category {cat_id} deleted")
     flash("Category deleted.", "success")
@@ -1831,6 +1883,49 @@ def admin_edit_user(user_id):
             flash("User deleted.", "success")
 
     return redirect(url_for("admin_users"))
+
+
+@app.route("/admin/users/<string:user_id>/editor-access", methods=["GET", "POST"])
+@login_required
+@admin_required
+def admin_editor_access(user_id):
+    """Manage category-based access restrictions for an editor account."""
+    target = db.get_user_by_id(user_id)
+    if not target:
+        abort(404)
+    if target["role"] not in ("editor",):
+        flash("Category access can only be configured for editor accounts.", "error")
+        return redirect(url_for("admin_users"))
+
+    current_user = get_current_user()
+    all_categories = db.list_categories()
+
+    if request.method == "POST":
+        restricted = request.form.get("restricted") == "1"
+        selected_ids = [
+            int(v) for v in request.form.getlist("category_ids")
+            if v.isdigit()
+        ]
+        db.set_editor_access(user_id, restricted, selected_ids if restricted else [])
+        log_action(
+            "admin_set_editor_access", request, user=current_user,
+            target_user=target["username"],
+            restricted=restricted,
+            category_ids=selected_ids if restricted else [],
+        )
+        flash("Editor access settings updated.", "success")
+        return redirect(url_for("admin_editor_access", user_id=user_id))
+
+    access = db.get_editor_access(user_id)
+    categories, uncategorized = db.get_category_tree()
+    return render_template(
+        "admin/editor_access.html",
+        target=target,
+        access=access,
+        all_categories=all_categories,
+        categories=categories,
+        uncategorized=uncategorized,
+    )
 
 
 @app.route("/admin/users/create", methods=["POST"])

@@ -4467,3 +4467,227 @@ def test_protected_admin_can_login_during_lockdown(client, admin_user):
     )
     assert resp.status_code == 200
     assert b"lockdown" not in resp.data.lower() or b"Admin Login" not in resp.data
+
+
+# -----------------------------------------------------------------------
+# Editor Category-Based Access Tests
+# -----------------------------------------------------------------------
+@pytest.fixture
+def editor_user():
+    """Create an editor user."""
+    from werkzeug.security import generate_password_hash
+    import db
+    uid = db.create_user("editor1", generate_password_hash("editor123"), role="editor")
+    db.update_site_settings(setup_done=1)
+    return uid
+
+
+@pytest.fixture
+def logged_in_editor(client, editor_user):
+    """Return a client logged in as the editor."""
+    client.post("/login", data={"username": "editor1", "password": "editor123"})
+    return client
+
+
+def test_editor_unrestricted_can_edit_any_page(logged_in_editor):
+    """An unrestricted editor (default) can edit the home page."""
+    import db
+    home = db.get_home_page()
+    resp = logged_in_editor.post(
+        f"/page/{home['slug']}/edit",
+        data={"title": "Home", "content": "edited by editor", "edit_message": "test"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert db.get_home_page()["content"] == "edited by editor"
+
+
+def test_restricted_editor_cannot_edit_page_in_wrong_category(client, editor_user):
+    """A restricted editor cannot edit a page in a category they are not allowed."""
+    import db
+    cat_a = db.create_category("Category A")
+    cat_b = db.create_category("Category B")
+    page_b = db.create_page("Page B", "page-b", "content b", cat_b, editor_user)
+    # Restrict editor to only Category A
+    db.set_editor_access(editor_user, restricted=True, category_ids=[cat_a])
+    client.post("/login", data={"username": "editor1", "password": "editor123"})
+    resp = client.post(
+        "/page/page-b/edit",
+        data={"title": "Page B", "content": "changed", "edit_message": ""},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    # Should have flashed an error; content should be unchanged
+    assert b"do not have permission" in resp.data
+    assert db.get_page(page_b)["content"] == "content b"
+
+
+def test_restricted_editor_can_edit_page_in_allowed_category(client, editor_user):
+    """A restricted editor CAN edit a page in their allowed category."""
+    import db
+    cat_a = db.create_category("Category A")
+    page_a = db.create_page("Page A", "page-a", "original content", cat_a, editor_user)
+    db.set_editor_access(editor_user, restricted=True, category_ids=[cat_a])
+    client.post("/login", data={"username": "editor1", "password": "editor123"})
+    resp = client.post(
+        "/page/page-a/edit",
+        data={"title": "Page A", "content": "updated content", "edit_message": ""},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert db.get_page(page_a)["content"] == "updated content"
+
+
+def test_restricted_editor_cannot_edit_uncategorized_page(client, editor_user):
+    """A restricted editor cannot edit uncategorized pages."""
+    import db
+    cat_a = db.create_category("Category A")
+    page_u = db.create_page("Uncategorized", "uncat-page", "content", None, editor_user)
+    db.set_editor_access(editor_user, restricted=True, category_ids=[cat_a])
+    client.post("/login", data={"username": "editor1", "password": "editor123"})
+    resp = client.post(
+        "/page/uncat-page/edit",
+        data={"title": "Uncategorized", "content": "changed", "edit_message": ""},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"do not have permission" in resp.data
+    assert db.get_page(page_u)["content"] == "content"
+
+
+def test_restricted_editor_cannot_create_page_in_disallowed_category(client, editor_user):
+    """A restricted editor cannot create a page in a category they are not allowed."""
+    import db
+    cat_a = db.create_category("Category A")
+    cat_b = db.create_category("Category B")
+    db.set_editor_access(editor_user, restricted=True, category_ids=[cat_a])
+    client.post("/login", data={"username": "editor1", "password": "editor123"})
+    resp = client.post(
+        "/create-page",
+        data={"title": "New Page", "content": "hello", "category_id": str(cat_b)},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"do not have permission" in resp.data
+    assert db.get_page_by_slug("new-page") is None
+
+
+def test_restricted_editor_cannot_delete_page_in_disallowed_category(client, editor_user):
+    """A restricted editor cannot delete a page in a category they are not allowed."""
+    import db
+    cat_b = db.create_category("Category B")
+    page_b = db.create_page("Page B", "page-b-del", "content", cat_b, editor_user)
+    db.set_editor_access(editor_user, restricted=True, category_ids=[])
+    client.post("/login", data={"username": "editor1", "password": "editor123"})
+    resp = client.post("/page/page-b-del/delete", follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"do not have permission" in resp.data
+    assert db.get_page(page_b) is not None
+
+
+def test_restricted_editor_cannot_create_category(client, editor_user):
+    """A restricted editor cannot create new categories."""
+    import db
+    db.set_editor_access(editor_user, restricted=True, category_ids=[])
+    client.post("/login", data={"username": "editor1", "password": "editor123"})
+    resp = client.post(
+        "/category/create",
+        data={"name": "New Category"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"do not have permission" in resp.data
+
+
+def test_admin_can_access_editor_access_page(logged_in_admin, editor_user):
+    """An admin can view the editor access configuration page."""
+    resp = logged_in_admin.get(f"/admin/users/{editor_user}/editor-access")
+    assert resp.status_code == 200
+    assert b"editor1" in resp.data
+
+
+def test_admin_can_set_restricted_access(logged_in_admin, editor_user):
+    """An admin can set restricted access for an editor."""
+    import db
+    cat_a = db.create_category("Category A")
+    cat_b = db.create_category("Category B")
+    resp = logged_in_admin.post(
+        f"/admin/users/{editor_user}/editor-access",
+        data={"restricted": "1", "category_ids": [str(cat_a)]},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"updated" in resp.data
+    access = db.get_editor_access(editor_user)
+    assert access["restricted"] is True
+    assert cat_a in access["allowed_category_ids"]
+    assert cat_b not in access["allowed_category_ids"]
+
+
+def test_admin_can_set_unrestricted_access(logged_in_admin, editor_user):
+    """An admin can restore unrestricted access for an editor."""
+    import db
+    cat_a = db.create_category("Category A")
+    db.set_editor_access(editor_user, restricted=True, category_ids=[cat_a])
+    resp = logged_in_admin.post(
+        f"/admin/users/{editor_user}/editor-access",
+        data={"restricted": "0"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    access = db.get_editor_access(editor_user)
+    assert access["restricted"] is False
+
+
+def test_editor_access_page_not_for_admins(logged_in_admin, admin_user):
+    """The editor access page should reject non-editor users."""
+    resp = logged_in_admin.get(
+        f"/admin/users/{admin_user}/editor-access",
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"Category access can only be configured" in resp.data
+
+
+def test_get_editor_access_defaults_unrestricted():
+    """A new editor has unrestricted access by default."""
+    import db
+    uid = db.create_user("neweditor", "pw", role="editor")
+    access = db.get_editor_access(uid)
+    assert access["restricted"] is False
+    assert access["allowed_category_ids"] == []
+
+
+def test_deleted_category_removed_from_allowed_list(editor_user):
+    """When a category is deleted, it is removed from the editor's allowed list."""
+    import db
+    cat_a = db.create_category("Temp Cat")
+    db.set_editor_access(editor_user, restricted=True, category_ids=[cat_a])
+    access_before = db.get_editor_access(editor_user)
+    assert cat_a in access_before["allowed_category_ids"]
+    db.delete_category(cat_a)
+    access_after = db.get_editor_access(editor_user)
+    assert cat_a not in access_after["allowed_category_ids"]
+
+
+def test_users_page_shows_access_button_for_editors(logged_in_admin, editor_user):
+    """The admin users page shows the access button for editor accounts."""
+    resp = logged_in_admin.get("/admin/users")
+    assert resp.status_code == 200
+    assert b"Access" in resp.data
+
+
+def test_restricted_editor_cannot_edit_category(client, editor_user):
+    """A restricted editor cannot rename categories."""
+    import db
+    cat_a = db.create_category("Rename Me")
+    db.set_editor_access(editor_user, restricted=True, category_ids=[cat_a])
+    client.post("/login", data={"username": "editor1", "password": "editor123"})
+    resp = client.post(
+        f"/category/{cat_a}/edit",
+        data={"name": "Renamed"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"do not have permission" in resp.data
+    assert db.get_category(cat_a)["name"] == "Rename Me"
