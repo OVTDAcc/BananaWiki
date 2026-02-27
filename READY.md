@@ -84,7 +84,7 @@ All features are code-complete, passing tests, and accessible in the UI:
 - Flash messages with dismiss buttons on all forms
 
 **Accessibility**
-- Per-user preferences: text size (6 steps), high-contrast mode (5 levels), custom colours, sidebar width
+- Per-user preferences: text size (6 steps), high-contrast mode (6 levels Off/Slight/Low/Med/High/Max), line spacing (3 steps), letter spacing (3 steps), reduce-motion toggle, six custom color overrides (background, text, primary, secondary, accent, sidebar), and sidebar width
 - Settings saved to account and applied server-side with no visible flash
 - Reset to defaults from the panel or Account Settings
 

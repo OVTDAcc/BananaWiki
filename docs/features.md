@@ -608,7 +608,7 @@ All database connections are opened with `PRAGMA journal_mode=WAL` and `PRAGMA f
 ## Accessibility preferences
 
 ### Per-user accessibility panel
-A persistent "Access" button in the topbar opens a right-side drawer panel available on every page including the editor. Settings are saved automatically to the user's account (debounced 600 ms) and applied server-side on the next page load to prevent any visible flash or reflow.
+A persistent ♿ "Accessibility" button in the topbar opens a right-side drawer panel available on every page including the editor. Settings are saved automatically to the user's account (debounced 600 ms) and applied server-side on the next page load to prevent any visible flash or reflow.
 
 > `app/templates/base.html` (panel markup), `app/static/js/main.js` → `initAccessibility()`, `app.py` → `api_get_accessibility`, `api_save_accessibility`, `app/static/css/style.css`
 
@@ -623,9 +623,24 @@ Five contrast levels are available. Lower levels apply CSS `filter: contrast()` 
 > `app/static/css/style.css` → `.a11y-contrast-1` … `.a11y-contrast-5`, `app/static/js/main.js` → `applyA11yPrefs()`
 
 ### Custom color overrides
-Users can override the four main CSS color variables — background (`--bg`), text (`--text`), primary accent (`--primary`), and link accent (`--accent`) — with any hex color. Each field has an individual reset button to revert to the site default. Color values are validated server-side with a regex before being stored.
+Users can override all six CSS color variables — background (`--bg`), text (`--text`), primary (`--primary`), secondary (`--secondary`), accent (`--accent`), and sidebar (`--sidebar`) — with any hex color. Each field has an individual reset button to revert to the site default. Color values are validated server-side with a regex before being stored.
 
 > `app.py` → `api_save_accessibility` (`_clean_color()` validation), `app/static/js/main.js` → `initAccessibility()` color input handlers
+
+### Line spacing
+Three line-spacing steps (Default / Wide / Extra) apply the `--a11y-line-height` CSS variable to `.wiki-content`, helping readers with dyslexia or visual-processing differences.
+
+> `app/static/css/style.css` → `.wiki-content` line-height rule, `app/static/js/main.js` → `applyA11yPrefs()`
+
+### Letter spacing
+Three letter-spacing steps (Normal / Wide / Extra) apply the `--a11y-letter-spacing` CSS variable to `.wiki-content`, improving readability for some users.
+
+> `app/static/css/style.css` → `.wiki-content` letter-spacing rule, `app/static/js/main.js` → `applyA11yPrefs()`
+
+### Reduce Motion
+A toggle switch that adds the `.a11y-reduce-motion` class to `<body>`, which disables all CSS animations and transitions site-wide. Important for users with vestibular disorders or motion sensitivity.
+
+> `app/static/css/style.css` → `.a11y-reduce-motion *` rule, `app/static/js/main.js` → `applyA11yPrefs()`
 
 ### Sidebar width persistence
 When an editor drags the sidebar resize handle, the new width is saved as an accessibility preference and restored on the next visit. The persisted width overrides the CSS default (250 px).
