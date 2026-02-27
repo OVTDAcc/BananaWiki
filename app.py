@@ -1649,10 +1649,7 @@ def upload_attachment(page_id):
     f = request.files["file"]
     if not f.filename or not allowed_attachment(f.filename):
         return jsonify({"error": "File type not allowed"}), 400
-    # Read content to check size (respects MAX_ATTACHMENT_SIZE)
-    data = f.read(config.MAX_ATTACHMENT_SIZE + 1)
-    if len(data) > config.MAX_ATTACHMENT_SIZE:
-        return jsonify({"error": "File exceeds the 5 MB limit"}), 413
+    # Stream to a temp file while enforcing the size limit
     os.makedirs(config.ATTACHMENT_FOLDER, exist_ok=True)
     ext = f.filename.rsplit(".", 1)[1].lower()
     stored_name = f"{uuid.uuid4().hex}.{ext}"
@@ -1660,12 +1657,28 @@ def upload_attachment(page_id):
     filepath = os.path.abspath(os.path.join(attach_root, stored_name))
     if os.path.commonpath([attach_root, filepath]) != attach_root:
         return jsonify({"error": "Invalid upload path"}), 400
-    with open(filepath, "wb") as out:
-        out.write(data)
+    file_size = 0
+    chunk_size = 64 * 1024  # 64 KB
+    try:
+        with open(filepath, "wb") as out:
+            while True:
+                chunk = f.stream.read(chunk_size)
+                if not chunk:
+                    break
+                file_size += len(chunk)
+                if file_size > config.MAX_ATTACHMENT_SIZE:
+                    out.close()
+                    os.remove(filepath)
+                    return jsonify({"error": "File exceeds the 5 MB limit"}), 413
+                out.write(chunk)
+    except OSError:
+        if os.path.isfile(filepath):
+            os.remove(filepath)
+        return jsonify({"error": "Failed to save file"}), 500
     original_name = secure_filename(f.filename)
-    attachment_id = db.add_page_attachment(page_id, stored_name, original_name, len(data), user["id"])
+    attachment_id = db.add_page_attachment(page_id, stored_name, original_name, file_size, user["id"])
     log_action("upload_attachment", request, user=user, page=page["slug"], filename=original_name)
-    return jsonify({"id": attachment_id, "name": original_name, "size": len(data)})
+    return jsonify({"id": attachment_id, "name": original_name, "size": file_size})
 
 
 @app.route("/api/attachments/<int:attachment_id>", methods=["DELETE"])

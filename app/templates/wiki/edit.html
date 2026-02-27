@@ -278,6 +278,8 @@
     });
 
     // Attachment upload
+    var _attachDownloadBase = '{{ url_for("download_attachment", slug=page.slug, attachment_id=0) }}'.replace('/0/download', '/');
+
     document.getElementById('attachment-file-input').addEventListener('change', function() {
         var files = Array.from(this.files);
         this.value = '';
@@ -313,7 +315,7 @@
             li.innerHTML =
                 '<span class="attachment-name">' + escapeHtml(d.name) + '</span>' +
                 '<span class="attachment-meta">' + kb + ' KB</span>' +
-                '<a href="/page/{{ page.slug }}/attachments/' + d.id + '/download" class="btn btn-sm btn-outline">⬇ Download</a>' +
+                '<a href="' + _attachDownloadBase + d.id + '/download" class="btn btn-sm btn-outline">⬇ Download</a>' +
                 '<button class="btn btn-sm btn-danger-outline" onclick="deleteAttachmentEdit(' + d.id + ', this)">Delete</button>';
             document.getElementById('attachments-list').appendChild(li);
         })
