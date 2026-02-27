@@ -30,10 +30,14 @@
         {% if user_accessibility.custom_primary %}:root { --primary: {{ user_accessibility.custom_primary }}; }{% endif %}
         {% if user_accessibility.custom_accent %}:root { --accent: {{ user_accessibility.custom_accent }}; }{% endif %}
         :root { --a11y-font-scale: {{ user_accessibility.font_scale }}; }
+        {% set lh_map = ['1.8', '2.2', '2.6'] %}
+        :root { --a11y-line-height: {{ lh_map[user_accessibility.line_height | int] if user_accessibility.line_height | int < 3 else '1.8' }}; }
+        {% set ls_map = ['normal', '0.04em', '0.08em'] %}
+        :root { --a11y-letter-spacing: {{ ls_map[user_accessibility.letter_spacing | int] if user_accessibility.letter_spacing | int < 3 else 'normal' }}; }
     </style>
     {% endif %}
 </head>
-<body{% if current_user and user_accessibility and user_accessibility.contrast > 0 %} class="a11y-contrast-{{ user_accessibility.contrast }}"{% endif %}>
+<body{% if current_user and user_accessibility and (user_accessibility.contrast > 0 or user_accessibility.reduce_motion) %} class="{% if user_accessibility.contrast > 0 %}a11y-contrast-{{ user_accessibility.contrast }}{% endif %}{% if user_accessibility.reduce_motion %} a11y-reduce-motion{% endif %}"{% endif %}>
     <header class="topbar">
         <div class="topbar-left">
             {% if current_user %}
@@ -171,6 +175,29 @@
                     <button class="a11y-contrast-btn" data-contrast="4" title="High contrast (yellow on black)">High</button>
                     <button class="a11y-contrast-btn" data-contrast="5" title="Maximum contrast (yellow on black, grayscale)">Max</button>
                 </div>
+            </div>
+            <div class="a11y-section">
+                <label class="a11y-label">Line Spacing</label>
+                <div class="a11y-line-btns" role="group" aria-label="Line spacing">
+                    <button class="a11y-line-btn" data-line-height="0" title="Default line spacing">Default</button>
+                    <button class="a11y-line-btn" data-line-height="1" title="Comfortable line spacing">Wide</button>
+                    <button class="a11y-line-btn" data-line-height="2" title="Extra wide line spacing">Extra</button>
+                </div>
+            </div>
+            <div class="a11y-section">
+                <label class="a11y-label">Letter Spacing</label>
+                <div class="a11y-spacing-btns" role="group" aria-label="Letter spacing">
+                    <button class="a11y-spacing-btn" data-spacing="0" title="Default letter spacing">Normal</button>
+                    <button class="a11y-spacing-btn" data-spacing="1" title="Slightly wider letter spacing">Wide</button>
+                    <button class="a11y-spacing-btn" data-spacing="2" title="Extra wide letter spacing">Extra</button>
+                </div>
+            </div>
+            <div class="a11y-section a11y-toggle-row">
+                <label class="a11y-label" for="a11y-motion-toggle">Reduce Motion</label>
+                <label class="a11y-switch" title="Disable animations and transitions">
+                    <input type="checkbox" id="a11y-motion-toggle" aria-label="Reduce motion and animations">
+                    <span class="a11y-switch-slider"></span>
+                </label>
             </div>
             <div class="a11y-section">
                 <label class="a11y-label">Custom Colors</label>

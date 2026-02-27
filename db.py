@@ -507,6 +507,9 @@ _A11Y_DEFAULTS = {
     "custom_text": "",
     "custom_primary": "",
     "custom_accent": "",
+    "line_height": 0,
+    "letter_spacing": 0,
+    "reduce_motion": 0,
 }
 
 

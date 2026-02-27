@@ -1648,6 +1648,8 @@ def api_get_accessibility():
 
 _VALID_FONT_SCALES = {0.85, 0.9, 1.0, 1.1, 1.2, 1.35}
 _VALID_CONTRASTS = {0, 1, 2, 3, 4, 5}
+_VALID_LINE_HEIGHTS = {0, 1, 2}
+_VALID_LETTER_SPACINGS = {0, 1, 2}
 
 
 @app.route("/api/accessibility", methods=["POST"])
@@ -1702,6 +1704,31 @@ def api_save_accessibility():
         "custom_primary": _clean_color(data.get("custom_primary", current["custom_primary"])),
         "custom_accent": _clean_color(data.get("custom_accent", current["custom_accent"])),
     }
+
+    line_height = data.get("line_height", current.get("line_height", 0))
+    try:
+        line_height = int(line_height)
+    except (TypeError, ValueError):
+        line_height = 0
+    if line_height not in _VALID_LINE_HEIGHTS:
+        line_height = 0
+    prefs["line_height"] = line_height
+
+    letter_spacing = data.get("letter_spacing", current.get("letter_spacing", 0))
+    try:
+        letter_spacing = int(letter_spacing)
+    except (TypeError, ValueError):
+        letter_spacing = 0
+    if letter_spacing not in _VALID_LETTER_SPACINGS:
+        letter_spacing = 0
+    prefs["letter_spacing"] = letter_spacing
+
+    reduce_motion = data.get("reduce_motion", current.get("reduce_motion", 0))
+    try:
+        reduce_motion = 1 if reduce_motion else 0
+    except (TypeError, ValueError):
+        reduce_motion = 0
+    prefs["reduce_motion"] = reduce_motion
     db.save_user_accessibility(user["id"], prefs)
     return jsonify({"ok": True})
 
