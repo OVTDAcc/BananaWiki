@@ -191,10 +191,14 @@ def init_db():
     if "accessibility" not in cols:
         cur.execute("ALTER TABLE users ADD COLUMN accessibility TEXT")
 
-    # Add difficulty_tag column to pages if missing
+    # Add difficulty_tag / custom-tag columns to pages if missing
     page_cols = [r[1] for r in cur.execute("PRAGMA table_info(pages)").fetchall()]
     if "difficulty_tag" not in page_cols:
         cur.execute("ALTER TABLE pages ADD COLUMN difficulty_tag TEXT NOT NULL DEFAULT ''")
+    if "tag_custom_label" not in page_cols:
+        cur.execute("ALTER TABLE pages ADD COLUMN tag_custom_label TEXT NOT NULL DEFAULT ''")
+    if "tag_custom_color" not in page_cols:
+        cur.execute("ALTER TABLE pages ADD COLUMN tag_custom_color TEXT NOT NULL DEFAULT ''")
 
     # Migrate users.id from INTEGER to TEXT if needed
     user_id_type = next(
@@ -1002,14 +1006,21 @@ def update_page_category(page_id, category_id):
     conn.close()
 
 
-VALID_DIFFICULTY_TAGS = ("", "beginner", "easy", "intermediate", "expert", "extra")
+VALID_DIFFICULTY_TAGS = ("", "beginner", "easy", "intermediate", "expert", "extra", "custom")
 
 
-def update_page_tag(page_id, difficulty_tag):
+def update_page_tag(page_id, difficulty_tag, custom_label="", custom_color=""):
     if difficulty_tag not in VALID_DIFFICULTY_TAGS:
         raise ValueError(f"Invalid difficulty tag: {difficulty_tag!r}")
+    # Only persist custom fields when the custom tag type is chosen
+    if difficulty_tag != "custom":
+        custom_label = ""
+        custom_color = ""
     conn = get_db()
-    conn.execute("UPDATE pages SET difficulty_tag=? WHERE id=?", (difficulty_tag, page_id))
+    conn.execute(
+        "UPDATE pages SET difficulty_tag=?, tag_custom_label=?, tag_custom_color=? WHERE id=?",
+        (difficulty_tag, custom_label, custom_color, page_id),
+    )
     conn.commit()
     conn.close()
 

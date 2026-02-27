@@ -210,7 +210,7 @@ For a typical page view (`GET /page/<slug>`):
 | `users` | User accounts: username, hashed password, role, suspended flag, last login, accessibility preferences (JSON) |
 | `invite_codes` | Single-use time-limited signup tokens |
 | `categories` | Hierarchical category tree; `parent_id` is self-referencing |
-| `pages` | Wiki pages: title, slug, content, category, home flag, last editor, difficulty tag (`difficulty_tag` — one of `''`, `beginner`, `easy`, `intermediate`, `expert`, `extra`) |
+| `pages` | Wiki pages: title, slug, content, category, home flag, last editor, `difficulty_tag` (predefined level or `'custom'`), `tag_custom_label`, `tag_custom_color` (used when `difficulty_tag='custom'`) |
 | `page_history` | Every committed version of every page; never deleted |
 | `drafts` | One in-progress draft per (page, user) pair |
 | `site_settings` | Single-row table (id=1): site name, color palette, timezone, favicon, lockdown mode and message, setup flag |

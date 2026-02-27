@@ -1120,7 +1120,19 @@ def edit_page(slug):
         # Update difficulty tag if provided
         tag = request.form.get("difficulty_tag", "").strip().lower()
         if tag in db.VALID_DIFFICULTY_TAGS:
-            db.update_page_tag(page["id"], tag)
+            custom_label = ""
+            custom_color = ""
+            if tag == "custom":
+                custom_label = request.form.get("tag_custom_label", "").strip()[:50]
+                custom_color = request.form.get("tag_custom_color", "").strip()
+                if not custom_label:
+                    flash("Custom tag requires a label.", "error")
+                    tag = ""
+                elif not _is_valid_hex_color(custom_color):
+                    flash("Custom tag requires a valid hex color.", "error")
+                    tag = ""
+            if tag in db.VALID_DIFFICULTY_TAGS:
+                db.update_page_tag(page["id"], tag, custom_label, custom_color)
         elif tag:
             flash("Invalid difficulty tag submitted.", "error")
 
@@ -1311,7 +1323,22 @@ def update_page_tag(slug):
         if page["is_home"]:
             return redirect(url_for("home"))
         return redirect(url_for("view_page", slug=slug))
-    db.update_page_tag(page["id"], tag)
+    custom_label = ""
+    custom_color = ""
+    if tag == "custom":
+        custom_label = request.form.get("tag_custom_label", "").strip()[:50]
+        custom_color = request.form.get("tag_custom_color", "").strip()
+        if not custom_label:
+            flash("Custom tag requires a label.", "error")
+            if page["is_home"]:
+                return redirect(url_for("home"))
+            return redirect(url_for("view_page", slug=slug))
+        if not _is_valid_hex_color(custom_color):
+            flash("Custom tag requires a valid hex color.", "error")
+            if page["is_home"]:
+                return redirect(url_for("home"))
+            return redirect(url_for("view_page", slug=slug))
+    db.update_page_tag(page["id"], tag, custom_label, custom_color)
     log_action("update_page_tag", request, user=user, page=slug, tag=tag)
     notify_change("page_tag", f"Page '{slug}' tag updated to '{tag}'")
     flash("Tag updated.", "success")

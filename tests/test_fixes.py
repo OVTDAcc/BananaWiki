@@ -4778,5 +4778,70 @@ def test_valid_difficulty_tags_constant():
     """VALID_DIFFICULTY_TAGS includes all expected values."""
     import db
     assert "" in db.VALID_DIFFICULTY_TAGS
-    for tag in ("beginner", "easy", "intermediate", "expert", "extra"):
+    for tag in ("beginner", "easy", "intermediate", "expert", "extra", "custom"):
         assert tag in db.VALID_DIFFICULTY_TAGS
+
+
+def test_update_page_tag_custom_valid(logged_in_admin):
+    """Editor can set a custom difficulty tag with a label and hex color."""
+    import db
+    db.create_page("Custom Tag Page", "custom-tag-page", "content", user_id=None)
+    page = db.get_page_by_slug("custom-tag-page")
+    db.update_page_tag(page["id"], "custom", custom_label="Advanced", custom_color="#ff5733")
+    updated = db.get_page_by_slug("custom-tag-page")
+    assert updated["difficulty_tag"] == "custom"
+    assert updated["tag_custom_label"] == "Advanced"
+    assert updated["tag_custom_color"] == "#ff5733"
+
+
+def test_update_page_tag_custom_clears_fields_on_predefined(logged_in_admin):
+    """Setting a predefined tag clears custom label/color."""
+    import db
+    db.create_page("Clear Custom Page", "clear-custom-page", "content", user_id=None)
+    page = db.get_page_by_slug("clear-custom-page")
+    db.update_page_tag(page["id"], "custom", custom_label="Adv", custom_color="#aabbcc")
+    db.update_page_tag(page["id"], "beginner")
+    updated = db.get_page_by_slug("clear-custom-page")
+    assert updated["difficulty_tag"] == "beginner"
+    assert updated["tag_custom_label"] == ""
+    assert updated["tag_custom_color"] == ""
+
+
+def test_update_page_tag_custom_route_missing_label(logged_in_admin):
+    """Custom tag without a label is rejected via the /tag route."""
+    import db
+    home = db.get_home_page()
+    slug = home["slug"]
+    resp = logged_in_admin.post(f"/page/{slug}/tag",
+                                data={"difficulty_tag": "custom",
+                                      "tag_custom_label": "",
+                                      "tag_custom_color": "#aabbcc"},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"Custom tag requires a label" in resp.data
+
+
+def test_update_page_tag_custom_route_invalid_color(logged_in_admin):
+    """Custom tag with invalid hex color is rejected via the /tag route."""
+    import db
+    home = db.get_home_page()
+    slug = home["slug"]
+    resp = logged_in_admin.post(f"/page/{slug}/tag",
+                                data={"difficulty_tag": "custom",
+                                      "tag_custom_label": "Special",
+                                      "tag_custom_color": "notacolor"},
+                                follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"valid hex color" in resp.data
+
+
+def test_custom_tag_badge_rendered(logged_in_admin):
+    """Page view renders a custom tag badge using inline style when tag is 'custom'."""
+    import db
+    db.create_page("Custom Badge Page", "custom-badge-page", "content", user_id=None)
+    page = db.get_page_by_slug("custom-badge-page")
+    db.update_page_tag(page["id"], "custom", custom_label="VIP", custom_color="#ab12cd")
+    resp = logged_in_admin.get("/page/custom-badge-page")
+    assert resp.status_code == 200
+    assert b"VIP" in resp.data
+    assert b"#ab12cd" in resp.data
