@@ -8,9 +8,9 @@ Here is the evidence behind that conclusion.
 
 ## Test suite
 
-All **444 tests pass** with zero failures or errors across five test files:
+All **453 tests pass** with zero failures or errors across five test files:
 
-- `test_production.py` — core page/user/admin workflows
+- `test_production.py` — core page/user/admin workflows, including the new export feature
 - `test_rate_limiting.py` — every mutation route is covered
 - `test_fixes.py` — regression cases for previously reported bugs
 - `test_networking.py` — proxy, SSL, and host-binding logic
@@ -24,7 +24,7 @@ Every layer that handles user input or data mutation is protected:
 
 | Concern | What is in place |
 |---|---|
-| **Authentication** | Flask-Login sessions; all protected routes use `@login_required` |
+| **Authentication** | Session-based; all protected routes use `@login_required` |
 | **Authorization** | Four-tier role system (user / editor / admin / protected_admin); `@editor_required` and `@admin_required` decorators enforced on every relevant route |
 | **Rate limiting** | Custom `@rate_limit` decorator applied to every write/mutation route (10–60 requests per 60 s depending on sensitivity) |
 | **Input sanitization** | Markdown rendered through Bleach with an explicit tag + attribute allowlist — no raw HTML reaches the browser |
@@ -33,6 +33,7 @@ Every layer that handles user input or data mutation is protected:
 | **Secret key** | Auto-generated on first run, persisted to `instance/.secret_key` (mode 0600), overridable via `SECRET_KEY` environment variable |
 | **Audit log** | Every route that mutates permanent data calls `log_action()`; upload routes additionally call `notify_file_upload` / `notify_file_deleted` |
 | **Accessibility API** | Color values validated with a strict regex; font scale and contrast are matched against explicit whitelists; sidebar width clamped to 180–500 px |
+| **Data export** | Password hashes are explicitly excluded from all export ZIP files; export routes require authentication |
 
 ---
 
@@ -50,6 +51,7 @@ All advertised features are implemented and working:
 - Announcement banners with colour themes, expiry, and Markdown
 - Appearance customisation (site name, full colour palette)
 - **Per-user accessibility preferences** — text size, high-contrast (5 levels), custom colours, sidebar width; auto-saved and applied on every page load
+- **User data export** — users can download all their account data, contributions, drafts, username history, and accessibility preferences as a ZIP file from account settings; admins can export any user's data from the user management page
 - Optional Telegram backup sync
 - Lockdown mode, page-history toggle, and other admin controls
 - Mobile-responsive layout

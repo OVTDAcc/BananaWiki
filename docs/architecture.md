@@ -58,12 +58,12 @@ This document explains how BananaWiki is structured and how the main pieces fit 
 8. **Request hooks** — `before_request_hook` redirects to `/setup` until setup is complete, enforces lockdown mode (kicking out non-admin users), and applies the global rate limit. `set_security_headers` adds security headers to every response.
 9. **Routes** — grouped by area:
    - `/setup`, `/login`, `/signup`, `/logout`, `/lockdown` — authentication and lockdown
-   - `/account` — account settings (username, password, delete account)
+   - `/account`, `/account/export` — account settings and self-service data export
    - `/`, `/page/<slug>`, `/page/<slug>/history`, etc. — wiki page viewing and editing
    - `/create-page`, `/page/<slug>/delete`, `/page/<slug>/move` — page management
    - `/category/*` — category CRUD and reordering
    - `/api/preview`, `/api/draft/*`, `/api/upload`, `/api/upload/delete`, `/api/accessibility`, `/api/accessibility/reset`, `/api/easter-egg/trigger` — internal JSON API
-   - `/admin/users`, `/admin/codes`, `/admin/settings`, `/admin/announcements` — admin panel
+   - `/admin/users`, `/admin/users/<id>/export`, `/admin/codes`, `/admin/settings`, `/admin/announcements` — admin panel
    - `/announcements/<id>` — public full-content announcement page
    - `/easter-egg` — easter egg page
 

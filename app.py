@@ -3,11 +3,13 @@ BananaWiki – Main Flask application
 """
 
 import os
+import io
 import re
 import uuid
 import json
 import sqlite3
 import difflib
+import zipfile
 import functools
 import threading
 from collections import defaultdict
@@ -16,7 +18,7 @@ from urllib.parse import urlparse
 
 from flask import (
     Flask, render_template, request, redirect, url_for,
-    session, flash, jsonify, send_from_directory, abort,
+    session, flash, jsonify, send_from_directory, send_file, abort,
 )
 from flask_wtf.csrf import CSRFProtect
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -778,6 +780,60 @@ def account_settings():
     categories, uncategorized = db.get_category_tree()
     return render_template("account/settings.html", user=user,
                            categories=categories, uncategorized=uncategorized)
+
+
+def _build_user_export_zip(user):
+    """Build an in-memory ZIP file containing all exported data for a user.
+
+    ``user`` must be a valid user row (as returned by ``db.get_user_by_id``).
+    Returns a ``BytesIO`` object ready to be sent as a file download.
+    """
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        # Account info (exclude password hash)
+        account_data = {
+            "id": user["id"],
+            "username": user["username"],
+            "role": user["role"],
+            "suspended": bool(user["suspended"]),
+            "invite_code": user["invite_code"],
+            "created_at": user["created_at"],
+            "last_login_at": user["last_login_at"],
+            "easter_egg_found": bool(user["easter_egg_found"]),
+            "is_superuser": bool(user["is_superuser"]),
+        }
+        zf.writestr("account.json", json.dumps(account_data, indent=2))
+
+        # Username history
+        username_history = [dict(r) for r in db.get_username_history(user["id"])]
+        zf.writestr("username_history.json", json.dumps(username_history, indent=2))
+
+        # Contributions (page edits)
+        contributions = [dict(r) for r in db.get_user_contributions(user["id"])]
+        zf.writestr("contributions.json", json.dumps(contributions, indent=2))
+
+        # Drafts
+        drafts = [dict(r) for r in db.list_user_drafts(user["id"])]
+        zf.writestr("drafts.json", json.dumps(drafts, indent=2))
+
+        # Accessibility preferences
+        accessibility = db.get_user_accessibility(user["id"])
+        zf.writestr("accessibility.json", json.dumps(accessibility, indent=2))
+
+    buf.seek(0)
+    return buf
+
+
+@app.route("/account/export")
+@login_required
+def export_own_data():
+    """Allow a logged-in user to download all their own data as a ZIP file."""
+    user = get_current_user()
+    buf = _build_user_export_zip(user)
+    filename = f"userdata_{user['username']}.zip"
+    log_action("export_own_data", request, user=user)
+    return send_file(buf, mimetype="application/zip",
+                     as_attachment=True, download_name=filename)
 
 
 # ---------------------------------------------------------------------------
@@ -2011,6 +2067,23 @@ def _read_user_audit_log(username, max_entries=200):
         return entries[-max_entries:][::-1]
     except OSError:
         return []
+
+
+@app.route("/admin/users/<string:user_id>/export")
+@login_required
+@admin_required
+def admin_export_user_data(user_id):
+    """Allow an admin to download all data for any user as a ZIP file."""
+    target = db.get_user_by_id(user_id)
+    if not target:
+        abort(404)
+    buf = _build_user_export_zip(target)
+    current_user = get_current_user()
+    log_action("admin_export_user_data", request, user=current_user,
+               target_user=target["username"])
+    filename = f"userdata_{target['username']}.zip"
+    return send_file(buf, mimetype="application/zip",
+                     as_attachment=True, download_name=filename)
 
 
 # ---------------------------------------------------------------------------

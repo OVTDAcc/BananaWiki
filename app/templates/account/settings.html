@@ -111,6 +111,12 @@
     <p id="a11y-reset-status" style="font-size:.82rem;opacity:.7;margin-top:.4rem;display:none"></p>
 </div>
 
+<div class="settings-section">
+    <h3>Export My Data</h3>
+    <p style="font-size:.85rem;opacity:.7;margin-bottom:.8rem">Download all your account data, contributions, drafts and preferences as a ZIP file.</p>
+    <a href="{{ url_for('export_own_data') }}" class="btn btn-outline">⬇ Download My Data</a>
+</div>
+
 {% if not user.is_superuser %}
 <div class="settings-section" style="border-color:#f38ba8">
     <h3 style="color:#f38ba8">Delete Account</h3>
