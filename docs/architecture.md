@@ -163,6 +163,7 @@ Template variables injected on every request (via `inject_globals`):
 | `page_history_enabled` | Boolean from `config.PAGE_HISTORY_ENABLED` |
 | `user_accessibility` | Dict of the logged-in user's accessibility preferences (font scale, contrast, sidebar width, custom colors), or `{}` for unauthenticated requests |
 | `sidebar_people` | List of up to 19 users with published profiles (used for the sidebar People widget); empty list when no one is logged in |
+| `current_user_profile` | The logged-in user's `user_profiles` row (or `None` if they have no profile), used in the topbar and account settings to show avatar/profile status without an extra DB query |
 
 ---
 
