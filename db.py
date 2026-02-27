@@ -83,6 +83,7 @@ def init_db():
         content     TEXT    NOT NULL,
         edited_by   TEXT REFERENCES users(id) ON DELETE SET NULL,
         edit_message TEXT   NOT NULL DEFAULT '',
+        is_revert   INTEGER NOT NULL DEFAULT 0,
         created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
     );
 
@@ -199,6 +200,11 @@ def init_db():
         cur.execute("ALTER TABLE pages ADD COLUMN tag_custom_label TEXT NOT NULL DEFAULT ''")
     if "tag_custom_color" not in page_cols:
         cur.execute("ALTER TABLE pages ADD COLUMN tag_custom_color TEXT NOT NULL DEFAULT ''")
+
+    # Add is_revert column to page_history if missing
+    hist_cols = [r[1] for r in cur.execute("PRAGMA table_info(page_history)").fetchall()]
+    if "is_revert" not in hist_cols:
+        cur.execute("ALTER TABLE page_history ADD COLUMN is_revert INTEGER NOT NULL DEFAULT 0")
 
     # Migrate users.id from INTEGER to TEXT if needed
     user_id_type = next(
@@ -967,7 +973,7 @@ def get_home_page():
     return row
 
 
-def update_page(page_id, title, content, user_id, edit_message=""):
+def update_page(page_id, title, content, user_id, edit_message="", is_revert=False):
     conn = get_db()
     now = datetime.now(timezone.utc).isoformat()
     conn.execute(
@@ -975,9 +981,9 @@ def update_page(page_id, title, content, user_id, edit_message=""):
         (title, content, user_id, now, page_id),
     )
     conn.execute(
-        "INSERT INTO page_history (page_id, title, content, edited_by, edit_message) "
-        "VALUES (?, ?, ?, ?, ?)",
-        (page_id, title, content, user_id, edit_message),
+        "INSERT INTO page_history (page_id, title, content, edited_by, edit_message, is_revert) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (page_id, title, content, user_id, edit_message, 1 if is_revert else 0),
     )
     conn.commit()
     conn.close()

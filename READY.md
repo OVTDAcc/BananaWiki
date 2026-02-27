@@ -2,7 +2,7 @@
 
 **Yes — the project is ready for deployment and actual admin usage.**
 
-This is a full code-level review covering all routes, security layers, tests, deployment files, and documentation as of the current state of the repository.
+This is a full code-level review covering all routes, security layers, tests, deployment files, and documentation as of the current state of the repository (commit 910af43).
 
 ---
 
@@ -56,7 +56,7 @@ All features are code-complete, passing tests, and accessible in the UI:
 - Markdown editing with live split-pane preview (divider is drag-resizable)
 - Formatting toolbar with link dialog: prompts for link text, URL, and "open in new tab"; pre-fills selected text
 - Image drop zone in the editor with positioning modal (float left / right / center / inline)
-- Page revision history — every save is snapshotted; one-click revert
+- Page revision history — every save is snapshotted; one-click revert; history entries created by a revert are flagged with an ↩ Revert badge in the history table and entry detail view
 - Draft autosave with conflict warning when two editors open the same page simultaneously
 - Image uploads with Pillow validation; orphaned images cleaned up after each commit or draft deletion
 - **Image positioning** — after upload, a modal lets editors set alt text, position (inline / float left / float right / center, like Wikipedia), and optional pixel width; the generated markup passes through the existing Bleach allowlist unchanged
