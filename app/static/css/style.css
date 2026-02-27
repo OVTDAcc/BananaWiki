@@ -61,7 +61,7 @@ a:hover{text-decoration:underline}
 .sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:49}
 
 /* Content */
-.content{flex:1;padding:1.5rem 2.5rem;max-width:900px;overflow-y:auto;height:100%}
+.content{flex:1;padding:1.5rem 2.5rem;max-width:100%;overflow-y:auto;height:100%}
 
 /* Buttons */
 .btn{display:inline-block;padding:.4rem .9rem;border-radius:4px;font-size:.84rem;border:none;cursor:pointer;background:var(--primary);color:#0d0d14;font-weight:600;transition:opacity .15s}
