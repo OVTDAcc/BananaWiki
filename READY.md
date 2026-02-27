@@ -8,11 +8,11 @@ This is a full code-level review of every route, security layer, database functi
 
 ## Test results
 
-All **499 tests pass** with zero failures:
+All **500 tests pass** with zero failures:
 
 | File | Tests | Covers |
 |---|---|---|
-| `test_fixes.py` | 349 | Regression cases, editor category access, link embedding, difficulty/custom tags |
+| `test_fixes.py` | 350 | Regression cases, editor category access, link embedding, difficulty/custom tags |
 | `test_production.py` | 71 | Core page/user/admin workflows, user data export |
 | `test_sync.py` | 36 | Telegram backup/sync logic |
 | `test_migration.py` | 19 | Site export/import across all three conflict modes |
@@ -91,7 +91,7 @@ python -m pytest tests/
 
 ## One thing to know: `is_superuser`
 
-The database has an `is_superuser` column on the `users` table and the code checks it in several places (account settings, admin user edit). However, **there is no UI or script that can set this flag** — it defaults to 0 for every user and can only be set by directly editing the database with a SQL client. In practice this means the `is_superuser` guard is never triggered. It does not break anything; it is simply dormant code that has no effect unless you manually `UPDATE users SET is_superuser=1 WHERE ...` via SQLite. It is not a blocker.
+The database has an `is_superuser` column on the `users` table. When set, the platform displays a ★ Superuser badge on that user's account/admin pages and blocks all modifications to that account (username changes, password changes, deletion, admin edits). **There is no UI to set this flag** — it defaults to 0 and can only be activated by running `UPDATE users SET is_superuser=1 WHERE username='...'` directly in the SQLite database. It is an intentional break-glass protection mechanism for a designated owner account, not broken or dead code. It has no effect on normal operation. It is not a blocker.
 
 ---
 
