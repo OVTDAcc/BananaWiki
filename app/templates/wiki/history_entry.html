@@ -8,7 +8,7 @@
 </p>
 {% if current_user and current_user.role in ('editor', 'admin', 'protected_admin') %}
 <div style="margin-bottom:1rem">
-    <form method="POST" action="{{ url_for('revert_page', slug=page.slug, entry_id=entry.id) }}" style="display:inline" onsubmit="return confirm('Revert to this version?')">
+    <form method="POST" action="{{ url_for('revert_page', slug=page.slug, entry_id=entry.id) }}" style="display:inline" data-confirm="Revert to this version?">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button class="btn btn-sm">Revert to this version</button>
     </form>

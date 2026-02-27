@@ -122,14 +122,14 @@
                         <button class="btn btn-sm">Unsuspend</button>
                     </form>
                     {% else %}
-                    <form method="POST" action="{{ url_for('admin_edit_user', user_id=u.id) }}" onsubmit="return confirm('Suspend this user?')">
+                    <form method="POST" action="{{ url_for('admin_edit_user', user_id=u.id) }}" data-confirm="Suspend this user?">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="action" value="suspend">
                         <button class="btn btn-sm btn-outline">Suspend</button>
                     </form>
                     {% endif %}
                     <!-- Delete -->
-                    <form method="POST" action="{{ url_for('admin_edit_user', user_id=u.id) }}" onsubmit="return confirm('Delete this user permanently?')">
+                    <form method="POST" action="{{ url_for('admin_edit_user', user_id=u.id) }}" data-confirm="Delete this user permanently?">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="action" value="delete">
                         <button class="btn btn-sm btn-danger">Delete</button>

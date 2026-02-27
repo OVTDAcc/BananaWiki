@@ -61,7 +61,7 @@ All features are code-complete, passing tests, and accessible in the UI:
 
 **Organisation**
 - Hierarchical categories with collapsible sidebar and unlimited nesting depth
-- Up/down arrow reorder for pages and categories — with a confirmation dialog on every move (no way to skip)
+- Up/down arrow reorder for pages and categories — every move shows an in-site confirmation dialog (no browser popups)
 - Page movement between categories; circular-reference moves detected and blocked
 
 **Accounts & Access**
@@ -78,6 +78,10 @@ All features are code-complete, passing tests, and accessible in the UI:
 - Site timezone setting — all timestamps displayed in the configured timezone
 - Lockdown mode — instantly blocks all non-admin access with a configurable message
 - Telegram backup sync with debounce and per-file upload tracking (optional, off by default)
+
+**UI / UX**
+- All destructive or irreversible actions (delete page, delete user, revert history, discard draft, etc.) are guarded by an in-site modal confirmation dialog — no browser native `confirm()` popups
+- Flash messages with dismiss buttons on all forms
 
 **Accessibility**
 - Per-user preferences: text size (6 steps), high-contrast mode (5 levels), custom colours, sidebar width

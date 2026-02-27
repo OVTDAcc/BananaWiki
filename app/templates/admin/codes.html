@@ -34,7 +34,7 @@
             <td>{{ time_ago(c.created_at) }}</td>
             <td>{{ time_ago(c.expires_at) }}</td>
             <td>
-                <form method="POST" action="{{ url_for('admin_delete_code', code_id=c.id) }}" style="display:inline" onsubmit="return confirm('Delete this code?')">
+                <form method="POST" action="{{ url_for('admin_delete_code', code_id=c.id) }}" style="display:inline" data-confirm="Delete this code?">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button class="btn btn-sm btn-danger">Delete</button>
                 </form>

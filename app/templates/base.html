@@ -202,6 +202,17 @@
     <div class="a11y-overlay" id="a11y-overlay"></div>
     {% endif %}
 
+    <!-- Confirmation Dialog -->
+    <div class="modal" id="bw-confirm-modal" style="display:none" role="dialog" aria-modal="true">
+        <div class="modal-content">
+            <p id="bw-confirm-message" style="margin-bottom:1.2rem;line-height:1.5;white-space:pre-line"></p>
+            <div class="form-actions">
+                <button type="button" class="btn btn-danger" id="bw-confirm-ok">Confirm</button>
+                <button type="button" class="btn btn-outline" id="bw-confirm-cancel">Cancel</button>
+            </div>
+        </div>
+    </div>
+
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
     <script>
     // Auto-inject CSRF token into all forms that don't already have one

@@ -6,6 +6,61 @@ function getCsrfToken() {
     return meta ? meta.getAttribute('content') : '';
 }
 
+// In-site confirmation dialog
+var _bwConfirmCallback = null;
+
+function bwConfirm(message, callback) {
+    var modal = document.getElementById('bw-confirm-modal');
+    var msgEl = document.getElementById('bw-confirm-message');
+    if (!modal || !msgEl) {
+        if (callback && window.confirm(message)) callback();
+        return;
+    }
+    msgEl.textContent = message;
+    _bwConfirmCallback = callback || null;
+    modal.style.display = 'flex';
+    var okBtn = document.getElementById('bw-confirm-ok');
+    if (okBtn) okBtn.focus();
+}
+
+function initConfirmModal() {
+    var modal = document.getElementById('bw-confirm-modal');
+    if (!modal) return;
+    document.getElementById('bw-confirm-ok').addEventListener('click', function() {
+        modal.style.display = 'none';
+        var cb = _bwConfirmCallback;
+        _bwConfirmCallback = null;
+        if (cb) cb();
+    });
+    document.getElementById('bw-confirm-cancel').addEventListener('click', function() {
+        modal.style.display = 'none';
+        _bwConfirmCallback = null;
+    });
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            modal.style.display = 'none';
+            _bwConfirmCallback = null;
+        }
+    });
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && modal.style.display !== 'none') {
+            modal.style.display = 'none';
+            _bwConfirmCallback = null;
+        }
+    });
+    // Intercept submits on forms with data-confirm attribute
+    document.addEventListener('submit', function(e) {
+        var form = e.target;
+        var msg = form.getAttribute('data-confirm');
+        if (!msg) return;
+        e.preventDefault();
+        bwConfirm(msg, function() {
+            form.removeAttribute('data-confirm');
+            form.submit();
+        });
+    }, true);
+}
+
 // Flash message close buttons (no auto-dismiss)
 function initFlashMessages() {
     document.querySelectorAll('.flash').forEach(function(el) {
@@ -46,6 +101,7 @@ function initPageTitleScroll() {
 document.addEventListener('DOMContentLoaded', function() {
     initFlashMessages();
     initPageTitleScroll();
+    initConfirmModal();
 
     // Sidebar toggle for mobile
     var toggleBtn = document.getElementById('sidebar-toggle');
@@ -281,7 +337,7 @@ function initAutosave(pageId) {
 }
 
 function transferDraft(pageId, fromUserId) {
-    if (!confirm('Transfer this draft to your account? Your current draft will be replaced.')) return;
+    bwConfirm('Transfer this draft to your account? Your current draft will be replaced.', function() {
     fetch('/api/draft/transfer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
@@ -293,6 +349,7 @@ function transferDraft(pageId, fromUserId) {
         location.reload();
     }).catch(function() {
         alert('Failed to transfer draft.');
+    });
     });
 }
 
@@ -314,7 +371,7 @@ function deleteDraft(pageId) {
 }
 
 function discardDraftAndClose(pageId, redirectUrl) {
-    if (!confirm('Discard this draft? All unsaved changes will be lost.')) return;
+    bwConfirm('Discard this draft? All unsaved changes will be lost.', function() {
     if (window._bwStopAutosave) window._bwStopAutosave();
     fetch('/api/draft/delete', {
         method: 'POST',
@@ -327,6 +384,7 @@ function discardDraftAndClose(pageId, redirectUrl) {
         window.location.href = redirectUrl;
     }).catch(function() {
         alert('Failed to discard draft.');
+    });
     });
 }
 
@@ -361,7 +419,7 @@ function initDraftManager() {
 }
 
 function discardDraftFromSettings(pageId, btn) {
-    if (!confirm('Discard this draft? This cannot be undone.')) return;
+    bwConfirm('Discard this draft? This cannot be undone.', function() {
     btn.disabled = true;
     fetch('/api/draft/delete', {
         method: 'POST',
@@ -381,6 +439,7 @@ function discardDraftFromSettings(pageId, btn) {
     }).catch(function() {
         btn.disabled = false;
         alert('Failed to discard draft.');
+    });
     });
 }
 
@@ -494,7 +553,8 @@ function confirmCatDelete(form, pageCount, catName) {
             msg += '\n\n' + pageCount + ' page(s) will become uncategorized.';
         }
     }
-    return confirm(msg);
+    bwConfirm(msg, function() { form.submit(); });
+    return false;
 }
 
 
@@ -655,7 +715,7 @@ document.addEventListener('DOMContentLoaded', initAnnouncements);
             if (swapIdx < 0 || swapIdx >= siblings.length) return;
             var pageTitleEl = row.querySelector('.nav-item');
             var pageTitle = pageTitleEl ? pageTitleEl.textContent.trim() : 'this page';
-            if (!confirm('Are you sure you want to move "' + pageTitle + '" ' + dir + '?')) return;
+            bwConfirm('Are you sure you want to move "' + pageTitle + '" ' + dir + '?', function() {
             // Swap in DOM
             if (dir === 'up') {
                 row.parentNode.insertBefore(row, siblings[swapIdx]);
@@ -668,6 +728,7 @@ document.addEventListener('DOMContentLoaded', initAnnouncements);
                 return parseInt(r.dataset.pageId, 10);
             });
             postReorder('/api/reorder/pages', ids).catch(function() {});
+            });
 
         } else if (type === 'category') {
             var section = btn.closest('.nav-section');
@@ -678,7 +739,7 @@ document.addEventListener('DOMContentLoaded', initAnnouncements);
             if (swapIdx < 0 || swapIdx >= siblings.length) return;
             var catNameEl = section.querySelector('.nav-section-title');
             var catName = catNameEl ? catNameEl.textContent.trim() : 'this category';
-            if (!confirm('Are you sure you want to move "' + catName + '" ' + dir + '?')) return;
+            bwConfirm('Are you sure you want to move "' + catName + '" ' + dir + '?', function() {
             if (dir === 'up') {
                 section.parentNode.insertBefore(section, siblings[swapIdx]);
             } else {
@@ -688,6 +749,7 @@ document.addEventListener('DOMContentLoaded', initAnnouncements);
                 return parseInt(s.dataset.catId, 10);
             });
             postReorder('/api/reorder/categories', ids).catch(function() {});
+            });
         }
     });
 }());
@@ -865,7 +927,7 @@ function initAccessibility(prefs) {
     var resetBtn = document.getElementById('a11y-reset-btn');
     if (resetBtn) {
         resetBtn.addEventListener('click', function() {
-            if (!confirm('Reset all accessibility settings to default?')) return;
+            bwConfirm('Reset all accessibility settings to default?', function() {
             fetch('/api/accessibility/reset', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
@@ -881,6 +943,7 @@ function initAccessibility(prefs) {
                     if (a11yStyle) a11yStyle.remove();
                 }
             }).catch(function() {});
+            });
         });
     }
 
