@@ -64,6 +64,7 @@ A lightweight, self-hosted wiki built with Flask and SQLite. Clean, fast, and ea
 - **Announcement Banners** — Site-wide banners with five color themes, three text sizes, per-audience visibility, expiry dates, and Markdown support; multi-banner navigation in the UI
 - **Customizable Appearance** — Site name, six CSS color palette fields, favicon (eight preset colors or custom upload)
 - **Lockdown Mode** — Instantly blocks all non-admin access with a configurable message
+- **Site Migration** — Full site export/import as a ZIP file; three conflict modes: delete all, override, or keep existing data
 - **Telegram Sync** — Debounced automatic backups to a Telegram chat: DB, config, logs, and per-file image uploads; exponential-backoff retries
 
 **Security**
@@ -145,7 +146,8 @@ BananaWiki/
 │       │               # 403.html, 404.html, 429.html, 500.html
 │       ├── account/    # settings.html
 │       └── admin/      # users.html, codes.html, codes_expired.html,
-│                       # settings.html, announcements.html, audit.html
+│                       # settings.html, announcements.html, audit.html,
+│                       # editor_access.html, migration.html
 ├── docs/               # Detailed documentation
 ├── instance/           # Database and secret key — created at runtime (gitignored)
 ├── logs/               # Application logs — created at runtime (gitignored)

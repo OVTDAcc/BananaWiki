@@ -373,6 +373,19 @@ When lockdown mode is enabled from the admin settings page, all non-admin users 
 
 > `app.py` → `before_request_hook`, `lockdown`, `db.py` → `site_settings.lockdown_mode` / `lockdown_message`
 
+### Site migration (export / import)
+Admins can export the entire site — pages, categories, users, settings, announcements, invite codes, and full edit history — as a single ZIP containing a JSON file. The export can be imported onto a fresh or existing instance with three conflict-resolution modes:
+
+| Mode | Behaviour |
+|---|---|
+| `delete_all` | Wipe all existing data first, then restore from the file. Full replacement. |
+| `override` | Keep existing data; when an imported record has the same ID as an existing one, the file's version wins. |
+| `keep` | Keep existing data; when there is a conflict, the existing record is preserved unchanged. |
+
+The feature is accessible at **Admin → Site Migration** (`/admin/migration`). Export and import are both protected by CSRF tokens.
+
+> `app.py` → `admin_migration`, `admin_migration_export`, `admin_migration_import`, `db.py` → `export_site_data()`, `import_site_data()`, `app/templates/admin/migration.html`
+
 ---
 
 ## Appearance customization

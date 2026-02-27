@@ -63,7 +63,7 @@ This document explains how BananaWiki is structured and how the main pieces fit 
    - `/create-page`, `/page/<slug>/delete`, `/page/<slug>/move` — page management
    - `/category/*` — category CRUD and reordering
    - `/api/preview`, `/api/draft/*`, `/api/upload`, `/api/upload/delete`, `/api/accessibility`, `/api/accessibility/reset`, `/api/easter-egg/trigger` — internal JSON API
-   - `/admin/users`, `/admin/users/<id>/export`, `/admin/codes`, `/admin/settings`, `/admin/announcements` — admin panel
+   - `/admin/users`, `/admin/users/<id>/export`, `/admin/users/<id>/audit`, `/admin/users/<id>/editor-access`, `/admin/codes`, `/admin/settings`, `/admin/announcements`, `/admin/migration` — admin panel
    - `/announcements/<id>` — public full-content announcement page
    - `/easter-egg` — easter egg page
 
@@ -145,7 +145,7 @@ Templates live in `app/templates/` and use Jinja2.
 | `auth/` | `login.html`, `signup.html`, `setup.html`, `lockdown.html` |
 | `wiki/` | `page.html`, `edit.html`, `create_page.html`, `history.html`, `history_entry.html`, `announcement.html`, `easter_egg.html`, `403.html`, `404.html`, `429.html`, `500.html` |
 | `account/settings.html` | Account settings page |
-| `admin/` | `users.html`, `codes.html`, `codes_expired.html`, `settings.html`, `announcements.html`, `audit.html` |
+| `admin/` | `users.html`, `codes.html`, `codes_expired.html`, `settings.html`, `announcements.html`, `audit.html`, `editor_access.html`, `migration.html` |
 
 Template variables injected on every request (via `inject_globals`):
 
@@ -213,9 +213,11 @@ For a typical page view (`GET /page/<slug>`):
 | `pages` | Wiki pages: title, slug, content, category, home flag, last editor |
 | `page_history` | Every committed version of every page; never deleted |
 | `drafts` | One in-progress draft per (page, user) pair |
-| `site_settings` | Single-row table (id=1): site name, color palette, timezone, favicon, setup flag |
+| `site_settings` | Single-row table (id=1): site name, color palette, timezone, favicon, lockdown mode and message, setup flag |
 | `login_attempts` | Failed login records used for per-IP rate limiting across workers |
 | `announcements` | Site-wide banner content, color, visibility, expiry, active flag |
 | `username_history` | Every username change (old name, new name, timestamp) per user |
+| `editor_category_access` | Per-editor restricted-access flag (one row per editor with category restrictions enabled) |
+| `editor_allowed_categories` | Category IDs an editor with restrictions is permitted to access |
 
 All timestamps are stored as UTC ISO-8601 strings (`datetime.now(timezone.utc).isoformat()`). The `format_datetime()` helper converts them to the site's configured timezone for display.
