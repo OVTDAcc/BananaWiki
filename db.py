@@ -524,7 +524,6 @@ def save_user_accessibility(user_id, prefs):
     conn.close()
 
 
-
 def record_login_attempt(ip):
     conn = get_db()
     now = datetime.now(timezone.utc).isoformat()

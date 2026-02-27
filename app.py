@@ -1538,7 +1538,7 @@ def api_get_accessibility():
     return jsonify(db.get_user_accessibility(user["id"]))
 
 
-_VALID_FONT_SCALES = {0.8, 0.85, 0.9, 0.95, 1.0, 1.05, 1.1, 1.2, 1.35, 1.5}
+_VALID_FONT_SCALES = {0.85, 0.9, 1.0, 1.1, 1.2, 1.35}
 _VALID_CONTRASTS = {0, 1, 2, 3, 4, 5}
 
 
