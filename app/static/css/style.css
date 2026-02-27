@@ -262,3 +262,41 @@ select.input{appearance:auto}
 /* Easter egg – falling bananas */
 @keyframes banana-fall{0%{transform:translateY(-60px) rotate(0deg);opacity:1}100%{transform:translateY(110vh) rotate(360deg);opacity:.6}}
 .banana-drop{position:fixed;top:-60px;pointer-events:none;z-index:99999;animation:banana-fall linear forwards;user-select:none}
+
+/* ===== Accessibility panel ===== */
+:root{--a11y-font-scale:1}
+.wiki-content{font-size:calc(1rem * var(--a11y-font-scale))}
+.wiki-content h1{font-size:calc(1.8rem * var(--a11y-font-scale))}
+.wiki-content h2{font-size:calc(1.4rem * var(--a11y-font-scale))}
+.wiki-content h3{font-size:calc(1.15rem * var(--a11y-font-scale))}
+.preview-content{font-size:calc(1rem * var(--a11y-font-scale))}
+.editor-area{font-size:calc(0.88rem * var(--a11y-font-scale))}
+
+/* Accessibility side panel */
+.a11y-panel{position:fixed;top:0;right:0;bottom:0;width:280px;background:var(--secondary);border-left:1px solid rgba(255,255,255,.1);z-index:300;display:flex;flex-direction:column;box-shadow:-4px 0 20px rgba(0,0,0,.4)}
+.a11y-panel-header{display:flex;align-items:center;justify-content:space-between;padding:.7rem .9rem;border-bottom:1px solid rgba(255,255,255,.08);font-size:.9rem;font-weight:600;flex-shrink:0}
+.a11y-panel-body{flex:1;overflow-y:auto;padding:.8rem .9rem;display:flex;flex-direction:column;gap:.9rem}
+.a11y-section{display:flex;flex-direction:column;gap:.4rem}
+.a11y-label{font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;opacity:.6}
+.a11y-font-btns,.a11y-contrast-btns{display:flex;gap:.3rem;flex-wrap:wrap}
+.a11y-font-btn,.a11y-contrast-btn{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:var(--text);cursor:pointer;padding:.3rem .55rem;border-radius:4px;font-size:.85rem;transition:all .15s;flex:1;min-width:36px;text-align:center}
+.a11y-font-btn:hover,.a11y-contrast-btn:hover{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.2)}
+.a11y-font-btn.active,.a11y-contrast-btn.active{background:var(--primary);border-color:var(--primary);color:#0d0d14;font-weight:600}
+.a11y-color-row{display:flex;align-items:center;gap:.5rem;padding:.15rem 0}
+.a11y-color-label{flex:1;font-size:.82rem;opacity:.8}
+.a11y-color-input{width:36px;height:26px;border:none;background:none;cursor:pointer;padding:0;border-radius:3px}
+.a11y-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:299}
+.a11y-overlay.active{display:block}
+
+/* High contrast modes */
+.a11y-contrast-1{filter:contrast(1.15)}
+.a11y-contrast-2{filter:contrast(1.35)}
+.a11y-contrast-3 .wiki-content,.a11y-contrast-3 .preview-content{color:#fff}
+.a11y-contrast-3{filter:contrast(1.6)}
+.a11y-contrast-4{--bg:#000;--text:#fff;--primary:#ff0;--accent:#ff0;--secondary:#0a0a0a;--sidebar:#050505;filter:contrast(2)}
+.a11y-contrast-5{--bg:#000;--text:#fff;--primary:#ff0;--accent:#ff0;--secondary:#000;--sidebar:#000;filter:contrast(2.5) grayscale(0.2)}
+
+/* Editor pane resize handle */
+.editor-divider{width:5px;background:rgba(255,255,255,.06);cursor:col-resize;flex-shrink:0;transition:background .15s;position:relative;z-index:5}
+.editor-divider:hover,.editor-divider.resizing{background:var(--primary);opacity:.7}
+@media(max-width:768px){.editor-divider{width:100%;height:5px;cursor:row-resize}}

@@ -417,6 +417,7 @@ def inject_globals():
     settings = db.get_site_settings()
     user = get_current_user()
     active_announcements = db.get_active_announcements(bool(user))
+    user_accessibility = db.get_user_accessibility(user["id"]) if user else {}
     return {
         "current_user": user,
         "settings": settings,
@@ -425,6 +426,7 @@ def inject_globals():
         "page_history_enabled": config.PAGE_HISTORY_ENABLED,
         "all_categories": db.list_categories(),
         "active_announcements": active_announcements,
+        "user_accessibility": user_accessibility,
     }
 
 
@@ -1524,6 +1526,85 @@ def easter_egg_trigger():
     db.set_easter_egg_found(user["id"])
     log_action("easter_egg_triggered", request, user=user)
     return jsonify({"ok": True})
+
+
+# ---------------------------------------------------------------------------
+#  Accessibility / user preferences API
+# ---------------------------------------------------------------------------
+@app.route("/api/accessibility", methods=["GET"])
+@login_required
+def api_get_accessibility():
+    user = get_current_user()
+    return jsonify(db.get_user_accessibility(user["id"]))
+
+
+_VALID_FONT_SCALES = {0.85, 0.9, 1.0, 1.1, 1.2, 1.35}
+_VALID_CONTRASTS = {0, 1, 2, 3, 4, 5}
+
+
+@app.route("/api/accessibility", methods=["POST"])
+@login_required
+@rate_limit(60, 60)
+def api_save_accessibility():
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"error": "invalid request"}), 400
+    user = get_current_user()
+    current = db.get_user_accessibility(user["id"])
+
+    font_scale = data.get("font_scale", current["font_scale"])
+    try:
+        font_scale = float(font_scale)
+    except (TypeError, ValueError):
+        font_scale = 1.0
+    if font_scale not in _VALID_FONT_SCALES:
+        font_scale = min(_VALID_FONT_SCALES, key=lambda x: abs(x - font_scale))
+
+    contrast = data.get("contrast", current["contrast"])
+    try:
+        contrast = int(contrast)
+    except (TypeError, ValueError):
+        contrast = 0
+    if contrast not in _VALID_CONTRASTS:
+        contrast = 0
+
+    sidebar_width = data.get("sidebar_width", current["sidebar_width"])
+    try:
+        sidebar_width = int(sidebar_width)
+        sidebar_width = max(180, min(500, sidebar_width))
+    except (TypeError, ValueError):
+        sidebar_width = 250
+
+    def _clean_color(val):
+        val = str(val).strip()
+        if not val:
+            return ""
+        if re.match(r'^#[0-9a-fA-F]{3,8}$', val):
+            return val
+        if re.match(r'^rgb\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*\)$', val):
+            return val
+        return ""
+
+    prefs = {
+        "font_scale": font_scale,
+        "contrast": contrast,
+        "sidebar_width": sidebar_width,
+        "custom_bg": _clean_color(data.get("custom_bg", current["custom_bg"])),
+        "custom_text": _clean_color(data.get("custom_text", current["custom_text"])),
+        "custom_primary": _clean_color(data.get("custom_primary", current["custom_primary"])),
+        "custom_accent": _clean_color(data.get("custom_accent", current["custom_accent"])),
+    }
+    db.save_user_accessibility(user["id"], prefs)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/accessibility/reset", methods=["POST"])
+@login_required
+@rate_limit(10, 60)
+def api_reset_accessibility():
+    user = get_current_user()
+    db.save_user_accessibility(user["id"], dict(db._A11Y_DEFAULTS))
+    return jsonify({"ok": True, "defaults": db._A11Y_DEFAULTS})
 
 
 @app.route("/api/reorder/pages", methods=["POST"])
