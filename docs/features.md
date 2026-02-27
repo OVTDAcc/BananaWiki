@@ -243,6 +243,19 @@ Sessions are marked as permanent with a 7-day lifetime. Users stay logged in acr
 
 > `app.py` → `login`
 
+### User data export
+Any logged-in user can download all their own data as a ZIP file from the Account Settings page (`/account/export`). The ZIP contains:
+
+| File | Contents |
+|---|---|
+| `account.json` | Profile fields — id, username, role, created_at, last_login_at, suspended, easter_egg_found, is_superuser. Password hash is **not** included. |
+| `contributions.json` | All page history entries authored by the user, with page title, slug, edit message, and timestamp. |
+| `drafts.json` | Active unsaved drafts (page title, slug, draft content, last updated). |
+| `username_history.json` | Full log of every username change: old name, new name, and timestamp. |
+| `accessibility.json` | Saved accessibility preferences (font scale, contrast, sidebar width, custom colors). |
+
+> `app.py` → `export_own_data`, `_build_user_export_zip()`, `db.py` → `get_user_contributions()`
+
 ---
 
 ## Protected admin mode
@@ -349,6 +362,11 @@ Admins can create, edit, toggle active state, and delete announcements from a de
 Admins can view a filtered list of log file entries for a specific user (up to 200 most recent), along with their full username change history.
 
 > `app.py` → `admin_user_audit`, `_read_user_audit_log()`
+
+### Export any user's data
+Admins can download a ZIP archive of any user's data directly from the user management table (`/admin/users/<id>/export`). The ZIP has the same structure as the self-service export (account info, contributions, drafts, username history, accessibility preferences) but password hashes are always excluded.
+
+> `app.py` → `admin_export_user_data`, `_build_user_export_zip()`
 
 ### Lockdown mode
 When lockdown mode is enabled from the admin settings page, all non-admin users are immediately logged out and redirected to a lockdown page. API endpoints return JSON 403 errors instead of HTML redirects. A custom lockdown message (up to 1 000 characters) can be displayed on the lockdown page.
