@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Site Migration – {{ settings.site_name }}{% endblock %}
+{% block content %}
+<h1>Site Migration</h1>
+
+<div class="settings-section">
+    <h3>Export Site</h3>
+    <p style="opacity:.8;margin-bottom:.8rem">
+        Download a full backup of all site data (pages, categories, users, settings,
+        announcements, invite codes, and edit history) as a single ZIP file.
+        <strong>Passwords are included in the export</strong>—store it securely.
+    </p>
+    <form method="POST" action="{{ url_for('admin_migration_export') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn">Download Site Export</button>
+    </form>
+</div>
+
+<div class="settings-section">
+    <h3>Import Site</h3>
+    <p style="opacity:.8;margin-bottom:.8rem">
+        Restore site data from a previously exported ZIP file.
+        Choose how to handle conflicts between the imported data and any data that
+        already exists on this site.
+    </p>
+    <form method="POST" action="{{ url_for('admin_migration_import') }}"
+          enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="form-group">
+            <label>Export File (.zip)</label>
+            <input type="file" name="import_file" accept=".zip" class="input" required>
+        </div>
+
+        <div class="form-group" style="margin-top:.8rem">
+            <label>Conflict Resolution</label>
+            <div style="display:flex;flex-direction:column;gap:.5rem;margin-top:.4rem">
+                <label style="display:flex;align-items:flex-start;gap:.5rem;cursor:pointer">
+                    <input type="radio" name="import_mode" value="delete_all" required
+                           style="margin-top:.2rem">
+                    <span>
+                        <strong>Delete all previous data and restore from file</strong><br>
+                        <small style="opacity:.7">
+                            All existing pages, users, settings, and history are removed
+                            before the import. This is a full replacement.
+                        </small>
+                    </span>
+                </label>
+                <label style="display:flex;align-items:flex-start;gap:.5rem;cursor:pointer">
+                    <input type="radio" name="import_mode" value="override"
+                           style="margin-top:.2rem">
+                    <span>
+                        <strong>Keep previous data and restore from file (override conflicts)</strong><br>
+                        <small style="opacity:.7">
+                            Existing data is kept. When a record in the file has the same ID
+                            as an existing one, the file's version wins.
+                        </small>
+                    </span>
+                </label>
+                <label style="display:flex;align-items:flex-start;gap:.5rem;cursor:pointer">
+                    <input type="radio" name="import_mode" value="keep"
+                           style="margin-top:.2rem">
+                    <span>
+                        <strong>Keep previous data and restore from file (keep conflicts as-is)</strong><br>
+                        <small style="opacity:.7">
+                            Existing data is kept. When a record in the file has the same ID
+                            as an existing one, the existing version is preserved.
+                        </small>
+                    </span>
+                </label>
+            </div>
+        </div>
+
+        <button type="submit" class="btn"
+                onclick="return confirm('Are you sure you want to import site data? This may modify or delete existing content.')">
+            Import Site Data
+        </button>
+    </form>
+</div>
+{% endblock %}

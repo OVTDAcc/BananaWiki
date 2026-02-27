@@ -152,6 +152,14 @@
 
     <button type="submit" class="btn">Save Settings</button>
 </form>
+
+<div class="settings-section" style="margin-top:2rem">
+    <h3>Site Migration</h3>
+    <p style="opacity:.8;margin-bottom:.8rem">
+        Export or import all site data for backup and migration purposes.
+    </p>
+    <a href="{{ url_for('admin_migration') }}" class="btn btn-outline">Go to Migration Tools</a>
+</div>
 {% endblock %}
 
 {% block scripts %}
