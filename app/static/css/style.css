@@ -12,7 +12,7 @@ a:hover{text-decoration:underline}
 .topbar-right{display:flex;align-items:center;gap:.6rem}
 .user-info{font-size:.85rem;opacity:.55}
 /* Animated page title in topbar */
-.topbar-page-title{font-size:.95rem;font-weight:600;opacity:0;transform:translateY(8px);transition:opacity .25s,transform .25s;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;pointer-events:none;flex:1;text-align:center;padding:0 .5rem}
+.topbar-page-title{font-size:.95rem;font-weight:600;opacity:0;transform:translateY(8px);transition:opacity .25s,transform .25s;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;pointer-events:none;padding-left:.6rem;border-left:1px solid rgba(255,255,255,.12);margin-left:.4rem}
 .topbar-page-title.visible{opacity:1;transform:translateY(0)}
 
 /* Sidebar toggle (hamburger) */
