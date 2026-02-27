@@ -96,7 +96,7 @@
     {% set total = contributions.values() | sum %}
     <div class="contribution-section">
         <h2 class="contribution-title">{{ "{:,}".format(total) }} contribution{{ 's' if total != 1 else '' }} in {{ contrib_year }}</h2>
-        <div class="contribution-graph" id="contrib-graph" data-contributions="{{ contributions | tojson }}" data-year="{{ contrib_year }}"></div>
+        <div class="contribution-graph" id="contrib-graph" data-contributions='{{ contributions | tojson }}' data-year="{{ contrib_year }}"></div>
         <div class="contribution-legend">
             <span class="contrib-legend-label">Less</span>
             <span class="contrib-cell contrib-0"></span>
