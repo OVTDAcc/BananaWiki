@@ -20,9 +20,6 @@
             {% endif %}
             <div class="user-profile-badges">
                 <span class="badge badge-{{ target.role }}" title="{{ target.role }}">{{ role_labels.get(target.role, target.role) }}</span>
-                {% if target.role in ('admin', 'protected_admin') %}
-                <span class="badge badge-admin" title="Has admin access">Wiki Admin</span>
-                {% endif %}
                 {% if target.role == 'protected_admin' %}
                 <span class="badge badge-protected_admin" title="Protected admin — account hardened against modification">Protected</span>
                 {% endif %}
@@ -36,10 +33,60 @@
                 <span class="badge" style="opacity:.6">Hidden from public</span>
                 {% endif %}
             </div>
-            {% if is_own or is_admin %}
+            {% if is_own %}
             <div class="user-profile-actions">
-                <a href="{{ url_for('account_settings') }}#profile" class="btn btn-sm">Edit Profile</a>
-                <a href="{{ url_for('user_profile', username=target.username) }}" class="btn btn-sm btn-outline">View Public Profile</a>
+                <button class="btn btn-sm" onclick="var s=document.getElementById('profile-edit-section');s.style.display=s.style.display==='none'?'block':'none'">Edit Profile</button>
+                {% if profile %}
+                    {% if profile.page_published %}
+                    <form method="POST" action="{{ url_for('account_settings') }}" style="display:inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="action" value="unpublish_profile">
+                        <input type="hidden" name="next_url" value="{{ url_for('user_profile', username=target.username) }}">
+                        <button type="submit" class="btn btn-sm btn-outline">Hide Profile</button>
+                    </form>
+                    {% else %}
+                    <form method="POST" action="{{ url_for('account_settings') }}" style="display:inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="action" value="publish_profile">
+                        <input type="hidden" name="next_url" value="{{ url_for('user_profile', username=target.username) }}">
+                        <button type="submit" class="btn btn-sm"{% if profile.page_disabled_by_admin %} disabled title="Profile disabled by admin"{% endif %}>Publish Profile</button>
+                    </form>
+                    {% endif %}
+                {% endif %}
+            </div>
+            <div id="profile-edit-section" style="display:none;margin-top:1rem;background:rgba(255,255,255,.04);border-radius:6px;padding:1rem">
+                {% if profile and profile.page_disabled_by_admin %}
+                <div class="flash flash-error" style="margin-bottom:1rem">Your profile page has been disabled by an admin.</div>
+                {% endif %}
+                <form method="POST" action="{{ url_for('account_settings') }}" enctype="multipart/form-data">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="action" value="update_profile">
+                    <input type="hidden" name="next_url" value="{{ url_for('user_profile', username=target.username) }}">
+                    <div class="form-group">
+                        <label>Real Name (optional)</label>
+                        <input type="text" name="real_name" class="input" value="{{ profile.real_name if profile else '' }}" maxlength="100" placeholder="Your real name">
+                    </div>
+                    <div class="form-group">
+                        <label>Bio (optional, max 500 chars)</label>
+                        <textarea name="bio" class="input" rows="3" maxlength="500" placeholder="A short bio about yourself">{{ profile.bio if profile else '' }}</textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Profile Picture (PNG/JPG/GIF/WebP, max 1 MB)</label>
+                        <input type="file" name="avatar" class="input" accept="image/png,image/jpeg,image/gif,image/webp">
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-sm">Save</button>
+                        {% if profile and profile.avatar_filename %}
+                        <button type="submit" form="profile-remove-avatar-form" class="btn btn-sm btn-outline">Remove Avatar</button>
+                        {% endif %}
+                        <button type="button" class="btn btn-sm btn-outline" onclick="document.getElementById('profile-edit-section').style.display='none'">Cancel</button>
+                    </div>
+                </form>
+                <form id="profile-remove-avatar-form" method="POST" action="{{ url_for('account_settings') }}" style="display:none">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="action" value="remove_avatar">
+                    <input type="hidden" name="next_url" value="{{ url_for('user_profile', username=target.username) }}">
+                </form>
             </div>
             {% endif %}
         </div>

@@ -726,6 +726,15 @@ def lockdown():
 # ---------------------------------------------------------------------------
 #  Account settings
 # ---------------------------------------------------------------------------
+def _profile_next(fallback):
+    """Return next_url from the current form post if it is a safe same-site path, else fallback."""
+    url = request.form.get("next_url", "").strip()
+    # Only accept simple same-site paths: must start with / but not // and contain no backslashes
+    if url and url.startswith("/") and not url.startswith("//") and "\\" not in url:
+        return url
+    return fallback
+
+
 @app.route("/account", methods=["GET", "POST"])
 @login_required
 @rate_limit(10, 60)
@@ -862,7 +871,7 @@ def account_settings():
         db.upsert_user_profile(user["id"], real_name=real_name, bio=bio, avatar_filename=new_avatar)
         log_action("update_profile", request, user=user)
         flash("Profile updated.", "success")
-        return redirect(url_for("account_settings"))
+        return redirect(_profile_next(url_for("account_settings")))
 
     if action == "remove_avatar":
         profile = db.get_user_profile(user["id"])
@@ -872,7 +881,7 @@ def account_settings():
                 os.remove(old_path)
             db.upsert_user_profile(user["id"], avatar_filename="")
         flash("Avatar removed.", "success")
-        return redirect(url_for("account_settings"))
+        return redirect(_profile_next(url_for("account_settings")))
 
     if action == "publish_profile":
         profile = db.get_user_profile(user["id"])
@@ -882,13 +891,13 @@ def account_settings():
         db.upsert_user_profile(user["id"], page_published=True)
         log_action("publish_profile", request, user=user)
         flash("Your profile page is now public.", "success")
-        return redirect(url_for("account_settings"))
+        return redirect(_profile_next(url_for("account_settings")))
 
     if action == "unpublish_profile":
         db.upsert_user_profile(user["id"], page_published=False)
         log_action("unpublish_profile", request, user=user)
         flash("Your profile page is now hidden.", "success")
-        return redirect(url_for("account_settings"))
+        return redirect(_profile_next(url_for("account_settings")))
 
     if action == "delete_profile":
         profile = db.get_user_profile(user["id"])
@@ -899,7 +908,7 @@ def account_settings():
         db.delete_user_profile(user["id"])
         log_action("delete_profile", request, user=user)
         flash("Your profile page has been deleted.", "success")
-        return redirect(url_for("account_settings"))
+        return redirect(_profile_next(url_for("account_settings")))
 
     categories, uncategorized = db.get_category_tree()
     profile = db.get_user_profile(user["id"])

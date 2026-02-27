@@ -26,10 +26,10 @@ a:hover{text-decoration:underline}
 .layout{display:flex;flex:1;overflow:hidden;min-height:0}
 
 /* Sidebar */
-.sidebar{width:250px;min-width:180px;max-width:500px;background:var(--sidebar);border-right:1px solid rgba(255,255,255,.06);overflow-y:auto;padding:.5rem 0;flex-shrink:0;transition:width 0s;display:flex;flex-direction:column}
+.sidebar{width:250px;min-width:180px;max-width:500px;background:var(--sidebar);border-right:1px solid rgba(255,255,255,.06);padding:.5rem 0;flex-shrink:0;transition:width 0s;display:flex;flex-direction:column;overflow:hidden}
 .sidebar-header{display:flex;justify-content:space-between;align-items:center;padding:.6rem .8rem;font-size:.85rem;font-weight:600;text-transform:uppercase;letter-spacing:.6px;opacity:.5;border-bottom:1px solid rgba(255,255,255,.06);margin-bottom:.3rem}
 .sidebar-actions{display:flex;gap:.3rem}
-.sidebar-nav{display:flex;flex-direction:column;flex:1}
+.sidebar-nav{display:flex;flex-direction:column;flex:1;overflow-y:auto}
 .nav-item{display:block;padding:.4rem .8rem .4rem 1.2rem;font-size:.87rem;color:var(--text);transition:background .15s;opacity:.8;line-height:1.5}
 .nav-item:hover{background:rgba(255,255,255,.04);text-decoration:none;opacity:1}
 .nav-item.active{background:rgba(255,255,255,.06);border-left:2px solid var(--primary);font-weight:600;opacity:1}
