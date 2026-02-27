@@ -6,7 +6,7 @@ a{color:var(--accent);text-decoration:none}
 a:hover{text-decoration:underline}
 
 /* Topbar */
-.topbar{display:flex;justify-content:space-between;align-items:center;padding:.6rem 1.2rem;background:var(--secondary);border-bottom:1px solid rgba(255,255,255,.06);position:sticky;top:0;z-index:100;flex-shrink:0}
+.topbar{display:flex;justify-content:space-between;align-items:center;padding:.6rem 1.2rem;background:var(--secondary);border-bottom:1px solid rgba(255,255,255,.06);position:sticky;top:0;z-index:100;flex-shrink:0;will-change:transform}
 .topbar-left{display:flex;align-items:center;gap:.6rem}
 .topbar-left .logo{font-size:1.1rem;font-weight:600;color:var(--text);text-decoration:none;letter-spacing:.3px}
 .topbar-right{display:flex;align-items:center;gap:.6rem}
