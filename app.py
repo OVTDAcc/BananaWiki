@@ -2087,6 +2087,104 @@ def admin_export_user_data(user_id):
 
 
 # ---------------------------------------------------------------------------
+#  Admin – Site migration (export / import)
+# ---------------------------------------------------------------------------
+@app.route("/admin/migration")
+@login_required
+@admin_required
+def admin_migration():
+    """Render the site migration page."""
+    user = get_current_user()
+    categories, uncategorized = db.get_category_tree()
+    log_action("view_migration", request, user=user)
+    return render_template("admin/migration.html",
+                           categories=categories, uncategorized=uncategorized)
+
+
+@app.route("/admin/migration/export", methods=["POST"])
+@login_required
+@admin_required
+def admin_migration_export():
+    """Export the entire site as a ZIP containing a single JSON file."""
+    user = get_current_user()
+    data = db.export_site_data()
+    payload = json.dumps(data, indent=2).encode("utf-8")
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("site_export.json", payload)
+    buf.seek(0)
+
+    log_action("export_site", request, user=user)
+    notify_change("site_export", "Full site exported")
+    filename = f"site_export_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.zip"
+    return send_file(buf, mimetype="application/zip",
+                     as_attachment=True, download_name=filename)
+
+
+@app.route("/admin/migration/import", methods=["POST"])
+@login_required
+@admin_required
+def admin_migration_import():
+    """Import a previously exported site ZIP."""
+    user = get_current_user()
+    mode = request.form.get("import_mode", "")
+    if mode not in ("delete_all", "override", "keep"):
+        flash("Invalid import mode selected.", "error")
+        return redirect(url_for("admin_migration"))
+
+    f = request.files.get("import_file")
+    if not f or not f.filename:
+        flash("No file selected.", "error")
+        return redirect(url_for("admin_migration"))
+
+    if not f.filename.lower().endswith(".zip"):
+        flash("Please upload a .zip file.", "error")
+        return redirect(url_for("admin_migration"))
+
+    try:
+        raw = f.read()
+        with zipfile.ZipFile(io.BytesIO(raw)) as zf:
+            names = zf.namelist()
+            json_names = [n for n in names if n.endswith(".json")]
+            if not json_names:
+                flash("The uploaded archive contains no JSON data file.", "error")
+                return redirect(url_for("admin_migration"))
+            with zf.open(json_names[0]) as jf:
+                data = json.load(jf)
+    except zipfile.BadZipFile:
+        flash("The uploaded file is not a valid ZIP archive.", "error")
+        return redirect(url_for("admin_migration"))
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        flash("The data file inside the archive is not valid JSON.", "error")
+        return redirect(url_for("admin_migration"))
+    except Exception as exc:
+        get_logger().warning("site import – failed to read archive: %s", exc)
+        flash("Failed to read the uploaded archive.", "error")
+        return redirect(url_for("admin_migration"))
+
+    try:
+        db.import_site_data(data, mode)
+    except ValueError as exc:
+        flash(f"Import failed: {exc}", "error")
+        return redirect(url_for("admin_migration"))
+    except Exception as exc:
+        get_logger().exception("site import – unexpected error (mode=%s): %s", mode, exc)
+        flash("An unexpected error occurred during import. The operation was rolled back.", "error")
+        return redirect(url_for("admin_migration"))
+
+    mode_labels = {
+        "delete_all": "all previous data deleted, file restored",
+        "override": "previous data kept, conflicts overridden",
+        "keep": "previous data kept, conflicts left as-is",
+    }
+    log_action("import_site", request, user=user, mode=mode)
+    notify_change("site_import", f"Full site imported (mode={mode})")
+    flash(f"Site data imported successfully ({mode_labels[mode]}).", "success")
+    return redirect(url_for("admin_migration"))
+
+
+# ---------------------------------------------------------------------------
 #  Admin – Announcements
 # ---------------------------------------------------------------------------
 _VALID_ANN_COLORS = {"red", "orange", "yellow", "blue", "green"}
