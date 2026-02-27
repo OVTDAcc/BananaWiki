@@ -59,11 +59,13 @@ This document explains how BananaWiki is structured and how the main pieces fit 
 9. **Routes** — grouped by area:
    - `/setup`, `/login`, `/signup`, `/logout`, `/lockdown` — authentication and lockdown
    - `/account`, `/account/export` — account settings and self-service data export
+   - `/users`, `/users/<username>` — People directory and individual profile pages
    - `/`, `/page/<slug>`, `/page/<slug>/history`, etc. — wiki page viewing and editing
    - `/create-page`, `/page/<slug>/delete`, `/page/<slug>/move` — page management
    - `/category/*` — category CRUD and reordering
    - `/api/preview`, `/api/draft/*`, `/api/upload`, `/api/upload/delete`, `/api/accessibility`, `/api/accessibility/reset`, `/api/easter-egg/trigger` — internal JSON API
-   - `/admin/users`, `/admin/users/<id>/export`, `/admin/users/<id>/audit`, `/admin/users/<id>/editor-access`, `/admin/codes`, `/admin/settings`, `/admin/announcements`, `/admin/migration` — admin panel
+   - `/api/page/<id>/attachments`, `/api/attachments/<id>`, `/page/<slug>/attachments/*` — page file attachments
+   - `/admin/users`, `/admin/users/<id>/export`, `/admin/users/<id>/audit`, `/admin/users/<id>/editor-access`, `/admin/users/<id>/profile`, `/admin/codes`, `/admin/settings`, `/admin/announcements`, `/admin/migration` — admin panel
    - `/announcements/<id>` — public full-content announcement page
    - `/easter-egg` — easter egg page
 
@@ -146,6 +148,7 @@ Templates live in `app/templates/` and use Jinja2.
 | `wiki/` | `page.html`, `edit.html`, `create_page.html`, `history.html`, `history_entry.html`, `announcement.html`, `easter_egg.html`, `403.html`, `404.html`, `429.html`, `500.html` |
 | `account/settings.html` | Account settings page |
 | `admin/` | `users.html`, `codes.html`, `codes_expired.html`, `settings.html`, `announcements.html`, `audit.html`, `editor_access.html`, `migration.html` |
+| `users/` | `list.html` (People directory), `profile.html` (individual user profile with contribution heatmap) |
 
 Template variables injected on every request (via `inject_globals`):
 
@@ -159,6 +162,7 @@ Template variables injected on every request (via `inject_globals`):
 | `format_datetime` | Helper function: converts a UTC ISO timestamp to a formatted local time string |
 | `page_history_enabled` | Boolean from `config.PAGE_HISTORY_ENABLED` |
 | `user_accessibility` | Dict of the logged-in user's accessibility preferences (font scale, contrast, sidebar width, custom colors), or `{}` for unauthenticated requests |
+| `sidebar_people` | List of up to 19 users with published profiles (used for the sidebar People widget); empty list when no one is logged in |
 
 ---
 
@@ -220,5 +224,6 @@ For a typical page view (`GET /page/<slug>`):
 | `editor_category_access` | Per-editor restricted-access flag (one row per editor with category restrictions enabled) |
 | `editor_allowed_categories` | Category IDs an editor with restrictions is permitted to access |
 | `page_attachments` | Files attached to a page: stored filename (UUID), original name, size, uploader, upload time |
+| `user_profiles` | Optional public profile per user: `real_name`, `bio`, `avatar_filename`, `page_published` flag, `page_disabled_by_admin` flag |
 
 All timestamps are stored as UTC ISO-8601 strings (`datetime.now(timezone.utc).isoformat()`). The `format_datetime()` helper converts them to the site's configured timezone for display.

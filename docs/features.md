@@ -9,7 +9,9 @@ This document catalogues every feature in BananaWiki, ordered from the most visi
 - [Page history](#page-history)
 - [Drafts and collaboration](#drafts-and-collaboration)
 - [Image uploads](#image-uploads)
+- [Page attachments](#page-attachments)
 - [User accounts and roles](#user-accounts-and-roles)
+- [User profiles and People page](#user-profiles-and-people-page)
 - [Protected admin mode](#protected-admin-mode)
 - [Invite codes](#invite-codes)
 - [Announcements](#announcements)
@@ -195,6 +197,37 @@ The maximum upload size is 16 MB by default, enforced both by Flask's `MAX_CONTE
 
 ---
 
+## Page attachments
+
+### File attachments on wiki pages
+Editors can upload arbitrary files (PDFs, spreadsheets, archives, etc.) directly to any wiki page from the edit view. Attachments are stored in `instance/attachments/` (outside `static/`) so they are never served directly — every download goes through an authenticated route that checks the user's session.
+
+> `app.py` → `upload_attachment`, `delete_attachment`, `download_attachment`, `download_all_attachments`  
+> `config.py` → `ATTACHMENT_FOLDER`, `MAX_ATTACHMENT_SIZE`, `ATTACHMENT_ALLOWED_EXTENSIONS`  
+> `db.py` → `page_attachments` table, `add_page_attachment`, `get_page_attachments`, `get_page_attachment`, `delete_page_attachment`
+
+### Attachment size limit
+Each attachment is limited to 5 MB (configurable in `config.py` via `MAX_ATTACHMENT_SIZE`). The server enforces this before writing to disk.
+
+> `app.py` → `upload_attachment` (stream-length check), `config.py` → `MAX_ATTACHMENT_SIZE`
+
+### Authenticated attachment download
+Attachment files are read from `instance/attachments/` and sent via `send_file()` with the original filename as the download name. No unauthenticated URL can reach the stored file.
+
+> `app.py` → `download_attachment`
+
+### Download all attachments as a ZIP
+When a page has two or more attachments, a "Download All as ZIP" link appears. The server assembles an in-memory ZIP and streams it to the client.
+
+> `app.py` → `download_all_attachments`
+
+### Attachment permission check
+Uploading and deleting attachments requires `editor` role or higher. Additionally, category-access restrictions are enforced for editors: they can only attach files to pages in categories they are permitted to access.
+
+> `app.py` → `upload_attachment` (`editor_has_category_access` check), `delete_attachment`
+
+---
+
 ## User accounts and roles
 
 ### Four-tier role system
@@ -269,6 +302,73 @@ Any logged-in user can download all their own data as a ZIP file from the Accoun
 | `accessibility.json` | Saved accessibility preferences (font scale, contrast, sidebar width, custom colors). |
 
 > `app.py` → `export_own_data`, `_build_user_export_zip()`, `db.py` → `get_user_contributions()`
+
+---
+
+## User profiles and People page
+
+### Public profile pages
+Every user can optionally create a public profile page at `/users/<username>`. The profile displays:
+
+- Profile picture (avatar)
+- Username and optional real name
+- Optional bio (up to 500 characters)
+- Role badge
+- GitHub-style contribution heatmap for the last 365 days
+- List of the 50 most recent wiki edits
+
+Users who have not created a profile, or who have set their page to private, return a 404 to public visitors. Admins and the user themselves can always view the page regardless of its published state.
+
+> `app.py` → `user_profile`, `db.py` → `get_user_profile()`, `get_contributions_by_day()`, `get_user_contributions()`  
+> `app/templates/users/profile.html`
+
+### People directory (`/users`)
+A searchable member directory lists all users with published profiles. Searching by name or username filters the list in real time via a query parameter. Admins see all users (including those with private or disabled profiles), with status badges indicating their profile state.
+
+> `app.py` → `users_list`, `db.py` → `list_published_profiles()`, `list_all_users_with_profiles()`  
+> `app/templates/users/list.html`
+
+### Profile self-management
+From **Account Settings → Profile Page**, a user can:
+
+- Set or update their real name and bio
+- Upload or remove a profile picture (PNG/JPG/GIF/WebP, maximum 1 MB; validated with Pillow)
+- Publish their profile page (make it public)
+- Hide their profile page (make it private; contributions are still tracked)
+- Delete their profile page completely (the profile data is removed but contribution history is always preserved in `page_history`)
+
+> `app.py` → `account_settings` (actions `update_profile`, `publish_profile`, `unpublish_profile`, `delete_profile`, `remove_avatar`)  
+> `app/templates/account/settings.html` (Profile Page section)
+
+### Contribution heatmap
+The profile page includes a GitHub-style yearly heatmap showing the number of wiki edits per day for the last 365 days. The grid is rendered entirely in vanilla JavaScript by reading a `data-contributions` JSON attribute injected by the server.
+
+> `app/templates/users/profile.html` (inline `<script>` block)  
+> `db.py` → `get_contributions_by_day()`
+
+### Contributions always preserved
+Contribution history (stored in `page_history`) is never tied to profile existence. Whether a user hides their page, deletes it, or never creates one, their edit records remain in the database. The heatmap and contribution list are rebuilt from `page_history` on every profile view.
+
+> `db.py` → `page_history` table, `get_user_contributions()`, `get_contributions_by_day()`
+
+### Sidebar People widget
+When at least one published profile exists, a "People" section appears at the bottom of the sidebar showing up to 19 user avatars (or initial placeholders) in a 5×4 grid with a "More" link to the full directory. The list is injected on every page via `inject_globals`.
+
+> `app/templates/base.html` (People widget)  
+> `app.py` → `inject_globals` (`sidebar_people`)  
+> `db.py` → `list_published_profiles()`
+
+### Admin profile moderation
+Admins can access a profile moderation panel from a user's profile page (`/users/<username>`) or directly from **Admin → Manage Users → Profile**. Available actions:
+
+- Edit real name and bio
+- Remove the user's avatar
+- Disable the profile page (prevents the user from re-publishing until re-enabled by an admin)
+- Re-enable a previously disabled profile
+- Delete the profile entirely
+
+> `app.py` → `admin_moderate_profile`  
+> `app/templates/users/profile.html` (admin moderation form section)
 
 ---
 
