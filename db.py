@@ -150,6 +150,16 @@ def init_db():
         category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
         UNIQUE(user_id, category_id)
     );
+
+    CREATE TABLE IF NOT EXISTS page_attachments (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        page_id         INTEGER NOT NULL REFERENCES pages(id) ON DELETE CASCADE,
+        filename        TEXT    NOT NULL,
+        original_name   TEXT    NOT NULL,
+        file_size       INTEGER NOT NULL DEFAULT 0,
+        uploaded_by     TEXT REFERENCES users(id) ON DELETE SET NULL,
+        uploaded_at     TEXT    NOT NULL DEFAULT (datetime('now'))
+    );
     """)
 
     # -- Migrations: add columns to existing tables --
@@ -1406,3 +1416,53 @@ def import_site_data(data, mode):
     finally:
         conn.execute("PRAGMA foreign_keys=ON")
         conn.close()
+
+
+# ---------------------------------------------------------------------------
+#  Page Attachments
+# ---------------------------------------------------------------------------
+def add_page_attachment(page_id, filename, original_name, file_size, user_id):
+    """Record a new attachment for a page."""
+    conn = get_db()
+    cur = conn.cursor()
+    now = datetime.now(timezone.utc).isoformat()
+    cur.execute(
+        "INSERT INTO page_attachments (page_id, filename, original_name, file_size, uploaded_by, uploaded_at) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (page_id, filename, original_name, file_size, user_id, now),
+    )
+    attachment_id = cur.lastrowid
+    conn.commit()
+    conn.close()
+    return attachment_id
+
+
+def get_page_attachments(page_id):
+    """Return all attachments for a page, ordered oldest first."""
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT pa.*, COALESCE(u.username, 'deleted user') AS uploader_name "
+        "FROM page_attachments pa LEFT JOIN users u ON pa.uploaded_by=u.id "
+        "WHERE pa.page_id=? ORDER BY pa.uploaded_at ASC",
+        (page_id,),
+    ).fetchall()
+    conn.close()
+    return rows
+
+
+def get_page_attachment(attachment_id):
+    """Return a single attachment row by ID."""
+    conn = get_db()
+    row = conn.execute(
+        "SELECT * FROM page_attachments WHERE id=?", (attachment_id,)
+    ).fetchone()
+    conn.close()
+    return row
+
+
+def delete_page_attachment(attachment_id):
+    """Delete an attachment record."""
+    conn = get_db()
+    conn.execute("DELETE FROM page_attachments WHERE id=?", (attachment_id,))
+    conn.commit()
+    conn.close()

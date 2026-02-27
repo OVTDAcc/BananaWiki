@@ -107,6 +107,21 @@ MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16 MB max upload size
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp"}
 
 # =============================================================================
+# Page Attachments
+# =============================================================================
+# Stored outside the static folder so they are served through an authenticated
+# route and not directly accessible by URL.
+ATTACHMENT_FOLDER = os.path.join(BASE_DIR, "instance", "attachments")
+MAX_ATTACHMENT_SIZE = 5 * 1024 * 1024  # 5 MB per attachment
+ATTACHMENT_ALLOWED_EXTENSIONS = {
+    "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx",
+    "txt", "md", "csv", "json", "xml", "zip", "tar", "gz",
+    "png", "jpg", "jpeg", "gif", "webp",
+    "mp4", "webm", "mp3", "ogg",
+    "py", "js", "ts", "html", "css", "sh",
+}
+
+# =============================================================================
 # Logging
 # =============================================================================
 # Enable or disable logging (default: on)

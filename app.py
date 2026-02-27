@@ -282,6 +282,10 @@ def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in config.ALLOWED_EXTENSIONS
 
 
+def allowed_attachment(filename):
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in config.ATTACHMENT_ALLOWED_EXTENSIONS
+
+
 def _is_valid_hex_color(value):
     """Return True if value is a valid 7-char hex color like #aabbcc."""
     return bool(re.fullmatch(r"#[0-9a-fA-F]{6}", value))
@@ -915,6 +919,7 @@ def view_page(slug):
             }
 
     log_action("view_page", request, user=user, page=slug)
+    attachments = db.get_page_attachments(page["id"])
     return render_template(
         "wiki/page.html",
         page=page,
@@ -922,6 +927,7 @@ def view_page(slug):
         categories=categories,
         uncategorized=uncategorized,
         editor_info=editor_info,
+        attachments=attachments,
     )
 
 
@@ -1127,6 +1133,7 @@ def edit_page(slug):
 
     # Load draft if exists
     draft = db.get_draft(page["id"], user["id"])
+    attachments = db.get_page_attachments(page["id"])
     return render_template(
         "wiki/edit.html",
         page=page,
@@ -1134,6 +1141,7 @@ def edit_page(slug):
         other_drafts=other_drafts,
         categories=categories,
         uncategorized=uncategorized,
+        attachments=attachments,
     )
 
 
@@ -1618,6 +1626,124 @@ def delete_upload():
         log_action("delete_upload", request, user=user, filename=safe_name)
         notify_file_deleted(safe_name)
     return jsonify({"ok": True})
+
+
+# ---------------------------------------------------------------------------
+#  Page Attachments
+# ---------------------------------------------------------------------------
+
+@app.route("/api/page/<int:page_id>/attachments", methods=["POST"])
+@login_required
+@editor_required
+@rate_limit(20, 60)
+def upload_attachment(page_id):
+    """Upload a file attachment to a wiki page (max 5 MB)."""
+    page = db.get_page(page_id)
+    if not page:
+        return jsonify({"error": "Page not found"}), 404
+    user = get_current_user()
+    if not editor_has_category_access(user, page["category_id"]):
+        return jsonify({"error": "Access denied"}), 403
+    if "file" not in request.files:
+        return jsonify({"error": "No file provided"}), 400
+    f = request.files["file"]
+    if not f.filename or not allowed_attachment(f.filename):
+        return jsonify({"error": "File type not allowed"}), 400
+    # Stream to a temp file while enforcing the size limit
+    os.makedirs(config.ATTACHMENT_FOLDER, exist_ok=True)
+    ext = f.filename.rsplit(".", 1)[1].lower()
+    stored_name = f"{uuid.uuid4().hex}.{ext}"
+    attach_root = os.path.abspath(config.ATTACHMENT_FOLDER)
+    filepath = os.path.abspath(os.path.join(attach_root, stored_name))
+    if os.path.commonpath([attach_root, filepath]) != attach_root:
+        return jsonify({"error": "Invalid upload path"}), 400
+    file_size = 0
+    chunk_size = 64 * 1024  # 64 KB
+    try:
+        with open(filepath, "wb") as out:
+            while True:
+                chunk = f.stream.read(chunk_size)
+                if not chunk:
+                    break
+                file_size += len(chunk)
+                if file_size > config.MAX_ATTACHMENT_SIZE:
+                    out.close()
+                    os.remove(filepath)
+                    return jsonify({"error": "File exceeds the 5 MB limit"}), 413
+                out.write(chunk)
+    except OSError:
+        if os.path.isfile(filepath):
+            os.remove(filepath)
+        return jsonify({"error": "Failed to save file"}), 500
+    original_name = secure_filename(f.filename)
+    attachment_id = db.add_page_attachment(page_id, stored_name, original_name, file_size, user["id"])
+    log_action("upload_attachment", request, user=user, page=page["slug"], filename=original_name)
+    return jsonify({"id": attachment_id, "name": original_name, "size": file_size})
+
+
+@app.route("/api/attachments/<int:attachment_id>", methods=["DELETE"])
+@login_required
+@editor_required
+@rate_limit(20, 60)
+def delete_attachment(attachment_id):
+    """Delete a page attachment."""
+    attachment = db.get_page_attachment(attachment_id)
+    if not attachment:
+        return jsonify({"error": "Not found"}), 404
+    page = db.get_page(attachment["page_id"])
+    user = get_current_user()
+    if page and not editor_has_category_access(user, page["category_id"]):
+        return jsonify({"error": "Access denied"}), 403
+    filepath = os.path.join(config.ATTACHMENT_FOLDER, attachment["filename"])
+    attach_root = os.path.abspath(config.ATTACHMENT_FOLDER)
+    filepath = os.path.abspath(filepath)
+    if os.path.commonpath([attach_root, filepath]) == attach_root and os.path.isfile(filepath):
+        os.remove(filepath)
+    db.delete_page_attachment(attachment_id)
+    log_action("delete_attachment", request, user=user, filename=attachment["original_name"])
+    return jsonify({"ok": True})
+
+
+@app.route("/page/<slug>/attachments/<int:attachment_id>/download")
+@login_required
+def download_attachment(slug, attachment_id):
+    """Download a single attachment."""
+    page = db.get_page_by_slug(slug)
+    if not page:
+        abort(404)
+    attachment = db.get_page_attachment(attachment_id)
+    if not attachment or attachment["page_id"] != page["id"]:
+        abort(404)
+    attach_root = os.path.abspath(config.ATTACHMENT_FOLDER)
+    filepath = os.path.abspath(os.path.join(attach_root, attachment["filename"]))
+    if os.path.commonpath([attach_root, filepath]) != attach_root:
+        abort(404)
+    if not os.path.isfile(filepath):
+        abort(404)
+    return send_file(filepath, as_attachment=True, download_name=attachment["original_name"])
+
+
+@app.route("/page/<slug>/attachments/download-all")
+@login_required
+def download_all_attachments(slug):
+    """Download all attachments for a page as a ZIP file."""
+    page = db.get_page_by_slug(slug)
+    if not page:
+        abort(404)
+    attachments = db.get_page_attachments(page["id"])
+    if not attachments:
+        flash("No attachments to download.", "error")
+        return redirect(url_for("view_page", slug=slug))
+    attach_root = os.path.abspath(config.ATTACHMENT_FOLDER)
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for att in attachments:
+            filepath = os.path.abspath(os.path.join(attach_root, att["filename"]))
+            if os.path.commonpath([attach_root, filepath]) == attach_root and os.path.isfile(filepath):
+                zf.write(filepath, att["original_name"])
+    buf.seek(0)
+    zip_name = f"{slug}-attachments.zip"
+    return send_file(buf, mimetype="application/zip", as_attachment=True, download_name=zip_name)
 
 
 @app.route("/easter-egg")
