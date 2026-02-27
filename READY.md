@@ -2,7 +2,7 @@
 
 **Yes — the project is ready for deployment and actual admin usage.**
 
-This is a full code-level review of every route, security layer, database function, test, and deployment file as of commit c29b937.
+This is a full code-level review of every route, security layer, database function, test, and deployment file.
 
 ---
 
@@ -109,7 +109,7 @@ The database has an `is_superuser` column on the `users` table and the code chec
 |---|---|
 | `wsgi.py` | Ready |
 | `gunicorn.conf.py` | Ready — reads `HOST`, `PORT`, `PROXY_MODE` from `config.py` |
-| `bananawiki.service` | **Change `User=root` / `Group=root` to a non-root user** (e.g. `www-data`) before production use |
+| `bananawiki.service` | Ready — defaults to `User=www-data` / `Group=www-data`; update `WorkingDirectory` if you install to a different path |
 | `config.py` | Ready — all settings commented with safe defaults |
 | `reset_password.py` | Ready — CLI tool for emergency password resets over SSH |
 
@@ -118,10 +118,9 @@ The database has an `is_superuser` column on the `users` table and the code chec
 ## What to do before going live
 
 1. **Edit `config.py`** — set `PORT`, `USE_PUBLIC_IP`, `PROXY_MODE`, `CUSTOM_DOMAIN`.
-2. **Edit `bananawiki.service`** — change `User` and `Group` from `root` to a dedicated non-root user.
-3. **Pick a deployment method** — systemd + Nginx/Cloudflare is recommended; see `docs/deployment.md`.
-4. **Optionally enable Telegram sync** — set `SYNC = True`, `SYNC_TOKEN`, `SYNC_USERID` in `config.py`.
-5. **Start the app** — the first-run setup wizard will prompt you to create the initial admin account.
+2. **Pick a deployment method** — systemd + Nginx/Cloudflare is recommended; see `docs/deployment.md`.
+3. **Optionally enable Telegram sync** — set `SYNC = True`, `SYNC_TOKEN`, `SYNC_USERID` in `config.py`.
+4. **Start the app** — the first-run setup wizard will prompt you to create the initial admin account.
 
 No code changes are required before deployment.
 
