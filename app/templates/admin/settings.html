@@ -27,53 +27,55 @@
 
     <div class="settings-section">
         <h3>Theme Colors</h3>
+        <p class="a11y-hint" style="margin-bottom:.8rem">Site-wide default colors. Users can override these in their Accessibility settings.</p>
+        <div class="settings-color-preview" id="admin-color-preview"></div>
         <div class="color-group">
-            <label>Primary (highlights, logo)</label>
-            <input type="color" name="primary_color" value="{{ settings.primary_color }}"
-                   oninput="this.nextElementSibling.value=this.value">
-            <input type="text" value="{{ settings.primary_color }}" class="input input-sm"
-                   oninput="this.previousElementSibling.value=this.value"
-                   onchange="this.previousElementSibling.value=this.value">
-        </div>
-        <div class="color-group">
-            <label>Secondary (header, cards)</label>
-            <input type="color" name="secondary_color" value="{{ settings.secondary_color }}"
-                   oninput="this.nextElementSibling.value=this.value">
-            <input type="text" value="{{ settings.secondary_color }}" class="input input-sm"
-                   oninput="this.previousElementSibling.value=this.value"
-                   onchange="this.previousElementSibling.value=this.value">
-        </div>
-        <div class="color-group">
-            <label>Accent (links)</label>
-            <input type="color" name="accent_color" value="{{ settings.accent_color }}"
-                   oninput="this.nextElementSibling.value=this.value">
-            <input type="text" value="{{ settings.accent_color }}" class="input input-sm"
-                   oninput="this.previousElementSibling.value=this.value"
-                   onchange="this.previousElementSibling.value=this.value">
-        </div>
-        <div class="color-group">
-            <label>Text</label>
-            <input type="color" name="text_color" value="{{ settings.text_color }}"
-                   oninput="this.nextElementSibling.value=this.value">
-            <input type="text" value="{{ settings.text_color }}" class="input input-sm"
-                   oninput="this.previousElementSibling.value=this.value"
-                   onchange="this.previousElementSibling.value=this.value">
-        </div>
-        <div class="color-group">
-            <label>Sidebar</label>
-            <input type="color" name="sidebar_color" value="{{ settings.sidebar_color }}"
-                   oninput="this.nextElementSibling.value=this.value">
-            <input type="text" value="{{ settings.sidebar_color }}" class="input input-sm"
-                   oninput="this.previousElementSibling.value=this.value"
-                   onchange="this.previousElementSibling.value=this.value">
-        </div>
-        <div class="color-group">
-            <label>Background</label>
+            <label class="color-group-label">Background</label>
             <input type="color" name="bg_color" value="{{ settings.bg_color }}"
-                   oninput="this.nextElementSibling.value=this.value">
+                   oninput="syncAdminColor(this,'prev-bg');this.nextElementSibling.value=this.value">
             <input type="text" value="{{ settings.bg_color }}" class="input input-sm"
-                   oninput="this.previousElementSibling.value=this.value"
-                   onchange="this.previousElementSibling.value=this.value">
+                   oninput="this.previousElementSibling.value=this.value;syncAdminColor(this.previousElementSibling,'prev-bg')"
+                   onchange="this.previousElementSibling.value=this.value;syncAdminColor(this.previousElementSibling,'prev-bg')">
+        </div>
+        <div class="color-group">
+            <label class="color-group-label">Text</label>
+            <input type="color" name="text_color" value="{{ settings.text_color }}"
+                   oninput="syncAdminColor(this,'prev-text');this.nextElementSibling.value=this.value">
+            <input type="text" value="{{ settings.text_color }}" class="input input-sm"
+                   oninput="this.previousElementSibling.value=this.value;syncAdminColor(this.previousElementSibling,'prev-text')"
+                   onchange="this.previousElementSibling.value=this.value;syncAdminColor(this.previousElementSibling,'prev-text')">
+        </div>
+        <div class="color-group">
+            <label class="color-group-label">Primary (highlights, logo)</label>
+            <input type="color" name="primary_color" value="{{ settings.primary_color }}"
+                   oninput="syncAdminColor(this,'prev-primary');this.nextElementSibling.value=this.value">
+            <input type="text" value="{{ settings.primary_color }}" class="input input-sm"
+                   oninput="this.previousElementSibling.value=this.value;syncAdminColor(this.previousElementSibling,'prev-primary')"
+                   onchange="this.previousElementSibling.value=this.value;syncAdminColor(this.previousElementSibling,'prev-primary')">
+        </div>
+        <div class="color-group">
+            <label class="color-group-label">Secondary (header, cards)</label>
+            <input type="color" name="secondary_color" value="{{ settings.secondary_color }}"
+                   oninput="syncAdminColor(this,'prev-secondary');this.nextElementSibling.value=this.value">
+            <input type="text" value="{{ settings.secondary_color }}" class="input input-sm"
+                   oninput="this.previousElementSibling.value=this.value;syncAdminColor(this.previousElementSibling,'prev-secondary')"
+                   onchange="this.previousElementSibling.value=this.value;syncAdminColor(this.previousElementSibling,'prev-secondary')">
+        </div>
+        <div class="color-group">
+            <label class="color-group-label">Accent (links)</label>
+            <input type="color" name="accent_color" value="{{ settings.accent_color }}"
+                   oninput="syncAdminColor(this,'prev-accent');this.nextElementSibling.value=this.value">
+            <input type="text" value="{{ settings.accent_color }}" class="input input-sm"
+                   oninput="this.previousElementSibling.value=this.value;syncAdminColor(this.previousElementSibling,'prev-accent')"
+                   onchange="this.previousElementSibling.value=this.value;syncAdminColor(this.previousElementSibling,'prev-accent')">
+        </div>
+        <div class="color-group">
+            <label class="color-group-label">Sidebar</label>
+            <input type="color" name="sidebar_color" value="{{ settings.sidebar_color }}"
+                   oninput="syncAdminColor(this,'prev-sidebar');this.nextElementSibling.value=this.value">
+            <input type="text" value="{{ settings.sidebar_color }}" class="input input-sm"
+                   oninput="this.previousElementSibling.value=this.value;syncAdminColor(this.previousElementSibling,'prev-sidebar')"
+                   onchange="this.previousElementSibling.value=this.value;syncAdminColor(this.previousElementSibling,'prev-sidebar')">
         </div>
     </div>
 
@@ -185,6 +187,34 @@
 
     enabledCheckbox.addEventListener('change', toggleOptions);
     typeSelect.addEventListener('change', updatePreview);
+})();
+
+// Color preview strip
+function syncAdminColor(input, swatchId) {
+    var swatch = document.getElementById(swatchId);
+    if (swatch) swatch.style.background = input.value;
+}
+
+(function initColorPreview() {
+    var preview = document.getElementById('admin-color-preview');
+    if (!preview) return;
+    var swatches = [
+        { id: 'prev-bg', input: 'bg_color', label: 'Background' },
+        { id: 'prev-text', input: 'text_color', label: 'Text' },
+        { id: 'prev-primary', input: 'primary_color', label: 'Primary' },
+        { id: 'prev-secondary', input: 'secondary_color', label: 'Secondary' },
+        { id: 'prev-accent', input: 'accent_color', label: 'Accent' },
+        { id: 'prev-sidebar', input: 'sidebar_color', label: 'Sidebar' },
+    ];
+    swatches.forEach(function(s) {
+        var inp = document.querySelector('input[name="' + s.input + '"]');
+        var el = document.createElement('span');
+        el.id = s.id;
+        el.className = 'settings-color-swatch';
+        el.title = s.label;
+        el.style.background = inp ? inp.value : '#000';
+        preview.appendChild(el);
+    });
 })();
 </script>
 {% endblock %}

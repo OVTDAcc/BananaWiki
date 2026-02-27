@@ -56,8 +56,8 @@ A lightweight, self-hosted wiki built with Flask and SQLite. Clean, fast, and ea
 - **User Data Export** — Users can download all their data (account info, contributions, drafts, username history, accessibility preferences) as a ZIP file from Account Settings; admins can export any user's data from the user management page
 
 **Accessibility**
-- **Per-User Preferences** — Text size (6 steps), high-contrast mode (5 levels), custom colors, and sidebar width — all saved automatically to the user's account and applied on every page load without a flash
-- **Accessibility Panel** — One-click "Access" button in the topbar opens a drawer with all controls; available on every page including the editor
+- **Per-User Preferences** — Text size (6 steps), high-contrast mode (6 levels), line spacing, letter spacing, reduce-motion toggle, six custom color overrides, and sidebar width — all saved to the user's account and applied server-side on every page load with no flash
+- **Accessibility Panel** — One-click ♿ "Accessibility" button in the topbar opens a drawer with all controls; available on every page including the editor
 - **Reset to Default** — Restore all accessibility settings from the panel or from Account Settings
 
 **Admin**

@@ -811,10 +811,37 @@ function applyA11yPrefs(prefs) {
     } else {
         root.style.removeProperty('--primary');
     }
+    if (prefs.custom_secondary) {
+        root.style.setProperty('--secondary', prefs.custom_secondary);
+    } else {
+        root.style.removeProperty('--secondary');
+    }
     if (prefs.custom_accent) {
         root.style.setProperty('--accent', prefs.custom_accent);
     } else {
         root.style.removeProperty('--accent');
+    }
+    if (prefs.custom_sidebar) {
+        root.style.setProperty('--sidebar', prefs.custom_sidebar);
+    } else {
+        root.style.removeProperty('--sidebar');
+    }
+
+    // Line height
+    var lineHeightMap = ['1.8', '2.2', '2.6'];
+    var lhIdx = prefs.line_height || 0;
+    root.style.setProperty('--a11y-line-height', lineHeightMap[lhIdx] || '1.8');
+
+    // Letter spacing
+    var letterSpacingMap = ['normal', '0.04em', '0.08em'];
+    var lsIdx = prefs.letter_spacing || 0;
+    root.style.setProperty('--a11y-letter-spacing', letterSpacingMap[lsIdx] || 'normal');
+
+    // Reduce motion
+    if (prefs.reduce_motion) {
+        document.body.classList.add('a11y-reduce-motion');
+    } else {
+        document.body.classList.remove('a11y-reduce-motion');
     }
 }
 
@@ -893,12 +920,47 @@ function initAccessibility(prefs) {
         });
     });
 
+    // Line height buttons
+    panel.querySelectorAll('.a11y-line-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var idx = parseInt(btn.dataset.lineHeight, 10);
+            _a11yPrefs.line_height = idx;
+            applyA11yPrefs(_a11yPrefs);
+            saveA11ySetting('line_height', idx);
+            syncLineBtns();
+        });
+    });
+
+    // Letter spacing buttons
+    panel.querySelectorAll('.a11y-spacing-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var idx = parseInt(btn.dataset.spacing, 10);
+            _a11yPrefs.letter_spacing = idx;
+            applyA11yPrefs(_a11yPrefs);
+            saveA11ySetting('letter_spacing', idx);
+            syncSpacingBtns();
+        });
+    });
+
+    // Reduce motion toggle
+    var motionToggle = document.getElementById('a11y-motion-toggle');
+    if (motionToggle) {
+        motionToggle.addEventListener('change', function() {
+            var val = motionToggle.checked ? 1 : 0;
+            _a11yPrefs.reduce_motion = val;
+            applyA11yPrefs(_a11yPrefs);
+            saveA11ySetting('reduce_motion', val);
+        });
+    }
+
     // Color inputs
     var colorMap = {
-        'bg': { input: document.getElementById('a11y-color-bg'), prop: 'custom_bg' },
-        'text': { input: document.getElementById('a11y-color-text'), prop: 'custom_text' },
-        'primary': { input: document.getElementById('a11y-color-primary'), prop: 'custom_primary' },
-        'accent': { input: document.getElementById('a11y-color-accent'), prop: 'custom_accent' },
+        'bg': { input: document.getElementById('a11y-color-bg'), prop: 'custom_bg', cssVar: '--bg' },
+        'text': { input: document.getElementById('a11y-color-text'), prop: 'custom_text', cssVar: '--text' },
+        'primary': { input: document.getElementById('a11y-color-primary'), prop: 'custom_primary', cssVar: '--primary' },
+        'secondary': { input: document.getElementById('a11y-color-secondary'), prop: 'custom_secondary', cssVar: '--secondary' },
+        'accent': { input: document.getElementById('a11y-color-accent'), prop: 'custom_accent', cssVar: '--accent' },
+        'sidebar': { input: document.getElementById('a11y-color-sidebar'), prop: 'custom_sidebar', cssVar: '--sidebar' },
     };
 
     Object.keys(colorMap).forEach(function(key) {
@@ -961,6 +1023,25 @@ function initAccessibility(prefs) {
         });
     }
 
+    function syncLineBtns() {
+        var idx = _a11yPrefs.line_height || 0;
+        panel.querySelectorAll('.a11y-line-btn').forEach(function(btn) {
+            btn.classList.toggle('active', parseInt(btn.dataset.lineHeight, 10) === idx);
+        });
+    }
+
+    function syncSpacingBtns() {
+        var idx = _a11yPrefs.letter_spacing || 0;
+        panel.querySelectorAll('.a11y-spacing-btn').forEach(function(btn) {
+            btn.classList.toggle('active', parseInt(btn.dataset.spacing, 10) === idx);
+        });
+    }
+
+    function syncMotionToggle() {
+        var motionToggle = document.getElementById('a11y-motion-toggle');
+        if (motionToggle) motionToggle.checked = !!(_a11yPrefs.reduce_motion);
+    }
+
     function syncColorInputs() {
         var root = document.documentElement;
         var computed = getComputedStyle(root);
@@ -972,8 +1053,7 @@ function initAccessibility(prefs) {
                 entry.input.value = _rgbToHex(stored);
             } else {
                 // Show current computed color as placeholder
-                var varName = '--' + (key === 'bg' ? 'bg' : key === 'text' ? 'text' : key === 'primary' ? 'primary' : 'accent');
-                var color = computed.getPropertyValue(varName).trim();
+                var color = computed.getPropertyValue(entry.cssVar).trim();
                 entry.input.value = _rgbToHex(color) || '#000000';
             }
         });
@@ -982,6 +1062,9 @@ function initAccessibility(prefs) {
     function syncPanelUI() {
         syncFontBtns();
         syncContrastBtns();
+        syncLineBtns();
+        syncSpacingBtns();
+        syncMotionToggle();
         syncColorInputs();
     }
 }
