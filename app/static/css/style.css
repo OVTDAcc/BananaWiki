@@ -217,12 +217,22 @@ select.input{appearance:auto}
     .sidebar.open{left:0}
     .sidebar-overlay.active{display:block}
     .sidebar-resize-handle{display:none}
-    .content{padding:1rem}
+    /* Allow body to scroll on mobile so pull-to-refresh (swipe down) works */
+    body{height:auto;min-height:100vh;overflow-y:auto;overflow-x:hidden}
+    .layout{overflow:visible;min-height:0}
+    .content{height:auto;overflow-y:visible;padding:1rem}
     .editor-container{flex-direction:column}
     .editor-divider{width:100%;height:1px}
     .topbar-right .user-info{display:none}
+    /* Tighten topbar-right gap so buttons don't overflow */
+    .topbar-right{gap:.3rem;flex-shrink:1;min-width:0}
     .page-header{flex-wrap:wrap;gap:.4rem}
     .page-header h1{width:100%;font-size:1.4rem}
+}
+/* Narrow phones: hide Accessibility label text, show icon only */
+@media(max-width:520px){
+    .a11y-btn-label{display:none}
+    .btn-sm{padding:.2rem .45rem;font-size:.78rem}
 }
 
 /* Drop zone */
