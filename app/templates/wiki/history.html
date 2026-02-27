@@ -33,7 +33,7 @@
             <td>
                 <a href="{{ url_for('view_history_entry', slug=page.slug, entry_id=entry.id) }}" class="btn btn-sm btn-outline">View</a>
                 {% if current_user and current_user.role in ('editor', 'admin', 'protected_admin') %}
-                <form method="POST" action="{{ url_for('revert_page', slug=page.slug, entry_id=entry.id) }}" style="display:inline" onsubmit="return confirm('Revert to this version?')">
+                <form method="POST" action="{{ url_for('revert_page', slug=page.slug, entry_id=entry.id) }}" style="display:inline" data-confirm="Revert to this version?">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button class="btn btn-sm">Revert</button>
                 </form>
@@ -41,7 +41,7 @@
                 {% if current_user and current_user.role in ('admin', 'protected_admin') %}
                 <button class="btn btn-sm btn-outline" onclick="document.getElementById('transfer-{{ entry.id }}').style.display=document.getElementById('transfer-{{ entry.id }}').style.display==='none'?'block':'none'">Transfer</button>
                 <div id="transfer-{{ entry.id }}" style="display:none;margin-top:.4rem">
-                    <form method="POST" action="{{ url_for('transfer_attribution', slug=page.slug, entry_id=entry.id) }}" style="display:flex;gap:.4rem;flex-wrap:wrap;align-items:center" onsubmit="return confirm('Transfer this contribution to the selected user?')">
+                    <form method="POST" action="{{ url_for('transfer_attribution', slug=page.slug, entry_id=entry.id) }}" style="display:flex;gap:.4rem;flex-wrap:wrap;align-items:center" data-confirm="Transfer this contribution to the selected user?">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <select name="new_user_id" class="input input-sm" style="width:160px" required>
                             <option value="">— select user —</option>
@@ -53,7 +53,7 @@
                         </select>
                         <button class="btn btn-sm">Move this entry</button>
                     </form>
-                    <form method="POST" action="{{ url_for('bulk_transfer_attribution', slug=page.slug) }}" style="display:flex;gap:.4rem;flex-wrap:wrap;align-items:center;margin-top:.3rem" onsubmit="return confirm('Transfer ALL contributions by this user on this page to the selected user?')">
+                    <form method="POST" action="{{ url_for('bulk_transfer_attribution', slug=page.slug) }}" style="display:flex;gap:.4rem;flex-wrap:wrap;align-items:center;margin-top:.3rem" data-confirm="Transfer ALL contributions by this user on this page to the selected user?">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="from_user_id" value="{{ entry.edited_by }}">
                         <select name="new_user_id" class="input input-sm" style="width:160px" required>

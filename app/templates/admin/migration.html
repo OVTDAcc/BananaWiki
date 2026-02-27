@@ -24,7 +24,8 @@
         already exists on this site.
     </p>
     <form method="POST" action="{{ url_for('admin_migration_import') }}"
-          enctype="multipart/form-data">
+          enctype="multipart/form-data"
+          data-confirm="Are you sure you want to import site data? This may modify or delete existing content.">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
         <div class="form-group">
@@ -71,8 +72,7 @@
             </div>
         </div>
 
-        <button type="submit" class="btn"
-                onclick="return confirm('Are you sure you want to import site data? This may modify or delete existing content.')">
+        <button type="submit" class="btn">
             Import Site Data
         </button>
     </form>
