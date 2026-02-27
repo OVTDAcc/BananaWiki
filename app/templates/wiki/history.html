@@ -11,6 +11,7 @@
             <th>Date</th>
             <th>Editor</th>
             <th>Summary</th>
+            <th>Changes</th>
             <th>Actions</th>
         </tr>
     </thead>
@@ -20,6 +21,15 @@
             <td><span title="{{ format_datetime(entry.created_at) }}">{{ time_ago(entry.created_at) }}</span></td>
             <td>{{ entry.username }}</td>
             <td>{{ entry.edit_message or '—' }}</td>
+            <td style="white-space:nowrap;font-family:monospace;font-size:.85rem">
+                {% set stats = diff_stats.get(entry.id) %}
+                {% if stats %}
+                    <span style="color:#28a745;font-weight:600">+{{ stats.added }}</span>
+                    <span style="color:#dc3545;font-weight:600">-{{ stats.deleted }}</span>
+                {% else %}
+                    <span style="opacity:.4">—</span>
+                {% endif %}
+            </td>
             <td>
                 <a href="{{ url_for('view_history_entry', slug=page.slug, entry_id=entry.id) }}" class="btn btn-sm btn-outline">View</a>
                 {% if current_user and current_user.role in ('editor', 'admin', 'protected_admin') %}

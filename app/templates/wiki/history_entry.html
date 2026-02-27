@@ -14,7 +14,32 @@
     </form>
 </div>
 {% endif %}
-<div class="wiki-content">
+{% if diff_html is not none %}
+<div style="margin-bottom:1rem;display:flex;gap:.6rem;align-items:center">
+    <button class="btn btn-sm btn-outline" id="toggle-diff-btn">Show diff</button>
+</div>
+<div id="diff-view" style="display:none;margin-bottom:1.5rem;padding:1rem;border:1px solid #dee2e6;border-radius:.4rem;font-family:monospace;white-space:pre-wrap;line-height:1.6;font-size:.85rem">
+    {{ diff_html|safe }}
+</div>
+{% endif %}
+<div class="wiki-content" id="rendered-view">
     {{ content_html|safe }}
 </div>
+<script>
+(function () {
+    var btn = document.getElementById('toggle-diff-btn');
+    if (btn) {
+        btn.addEventListener('click', function () {
+            var diff = document.getElementById('diff-view');
+            if (diff.style.display === 'none') {
+                diff.style.display = 'block';
+                btn.textContent = 'Hide diff';
+            } else {
+                diff.style.display = 'none';
+                btn.textContent = 'Show diff';
+            }
+        });
+    }
+}());
+</script>
 {% endblock %}

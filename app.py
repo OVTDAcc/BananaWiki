@@ -7,6 +7,7 @@ import re
 import uuid
 import json
 import sqlite3
+import difflib
 import functools
 import threading
 from collections import defaultdict
@@ -171,6 +172,61 @@ def render_markdown(text):
 def render_md_filter(text):
     from markupsafe import Markup
     return Markup(render_markdown(text or ""))
+
+
+def compute_char_diff(old_text, new_text):
+    """Return (added_chars, deleted_chars) between two text versions."""
+    old_text = old_text or ""
+    new_text = new_text or ""
+    added = deleted = 0
+    matcher = difflib.SequenceMatcher(None, old_text, new_text, autojunk=False)
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag == "insert":
+            added += j2 - j1
+        elif tag == "delete":
+            deleted += i2 - i1
+        elif tag == "replace":
+            added += j2 - j1
+            deleted += i2 - i1
+    return added, deleted
+
+
+def compute_diff_html(old_text, new_text):
+    """Return an HTML string with inline word-level diff highlighting."""
+    from markupsafe import Markup, escape
+
+    old_words = re.split(r"(\s+)", old_text or "")
+    new_words = re.split(r"(\s+)", new_text or "")
+
+    matcher = difflib.SequenceMatcher(None, old_words, new_words, autojunk=False)
+    parts = []
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag == "equal":
+            parts.append(str(escape("".join(old_words[i1:i2]))))
+        elif tag == "insert":
+            parts.append(
+                '<span style="background:#d4edda;color:#155724">'
+                + str(escape("".join(new_words[j1:j2])))
+                + "</span>"
+            )
+        elif tag == "delete":
+            parts.append(
+                '<span style="background:#f8d7da;color:#721c24;text-decoration:line-through">'
+                + str(escape("".join(old_words[i1:i2])))
+                + "</span>"
+            )
+        elif tag == "replace":
+            parts.append(
+                '<span style="background:#f8d7da;color:#721c24;text-decoration:line-through">'
+                + str(escape("".join(old_words[i1:i2])))
+                + "</span>"
+            )
+            parts.append(
+                '<span style="background:#d4edda;color:#155724">'
+                + str(escape("".join(new_words[j1:j2])))
+                + "</span>"
+            )
+    return Markup("".join(parts))
 
 
 def slugify(text):
@@ -768,10 +824,18 @@ def page_history(slug):
     current_user = get_current_user()
     all_users = db.list_users() if current_user and current_user["role"] in ("admin", "protected_admin") else []
     categories, uncategorized = db.get_category_tree()
+    # Compute per-entry char diffs (compare each entry to the next older one)
+    history_list = list(history)
+    diff_stats = {}
+    for idx, entry in enumerate(history_list):
+        prev_content = history_list[idx + 1]["content"] if idx + 1 < len(history_list) else ""
+        added, deleted = compute_char_diff(prev_content, entry["content"])
+        diff_stats[entry["id"]] = {"added": added, "deleted": deleted}
     return render_template(
         "wiki/history.html",
         page=page,
-        history=history,
+        history=history_list,
+        diff_stats=diff_stats,
         all_users=all_users,
         categories=categories,
         uncategorized=uncategorized,
@@ -789,6 +853,18 @@ def view_history_entry(slug, entry_id):
     entry = db.get_history_entry(entry_id)
     if not entry or entry["page_id"] != page["id"]:
         abort(404)
+    # Find the previous (older) history entry to diff against
+    history = db.get_page_history(page["id"])
+    history_list = list(history)
+    prev_content = None
+    for idx, h in enumerate(history_list):
+        if h["id"] == entry_id and idx + 1 < len(history_list):
+            prev_content = history_list[idx + 1]["content"]
+            break
+    if prev_content is not None:
+        diff_html = compute_diff_html(prev_content, entry["content"])
+    else:
+        diff_html = None
     content_html = render_markdown(entry["content"])
     categories, uncategorized = db.get_category_tree()
     return render_template(
@@ -796,6 +872,7 @@ def view_history_entry(slug, entry_id):
         page=page,
         entry=entry,
         content_html=content_html,
+        diff_html=diff_html,
         categories=categories,
         uncategorized=uncategorized,
     )
