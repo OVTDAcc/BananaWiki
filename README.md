@@ -41,14 +41,14 @@ A lightweight, self-hosted wiki built with Flask and SQLite. Clean, fast, and ea
 
 **Content**
 - **Markdown Editing** — Tables, fenced code blocks, auto-generated table of contents (`[TOC]`), and newline-to-`<br>` support
-- **Split-Pane Editor** — Live rendered preview updates while you type; formatting toolbar for quick Markdown shortcuts; image drop zone; editor/preview divider is drag-resizable
+- **Split-Pane Editor** — Live rendered preview updates while you type; formatting toolbar for quick Markdown shortcuts; image drop zone with positioning modal (inline / float left / float right / center) and optional width; editor/preview divider is drag-resizable
 - **Page History** — Every save creates a versioned snapshot; view any past state, read edit summaries, and revert with one click — nothing is ever deleted from history
 - **Draft Autosave** — Browser saves a draft every few seconds; restores automatically on re-open; shows a conflict warning when two editors are working on the same page simultaneously
 - **Difficulty Tags** — Editors can tag pages with an optional difficulty level (`Beginner`, `Easy`, `Intermediate`, `Expert`, `Extra`); shown as a colored badge next to the page title
 
 **Organisation**
 - **Hierarchical Categories** — Unlimited nesting depth; collapsible tree in the sidebar; drag-to-reorder pages and categories
-- **Image Uploads** — Drag-and-drop or file picker; Pillow-validated; UUID filenames; orphaned images cleaned up automatically after each commit or draft deletion
+- **Image Uploads & Positioning** — Drag-and-drop or file picker; after upload an options modal lets editors set alt text, position (inline / float left / float right / center), and optional pixel width; Pillow-validated; UUID filenames; orphaned images cleaned up automatically after each commit or draft deletion
 
 **Accounts & Access**
 - **Four-Tier Role System** — `user` (read-only) → `editor` → `admin` → `protected_admin`, each with clearly defined permissions

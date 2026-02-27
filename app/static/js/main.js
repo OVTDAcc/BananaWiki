@@ -469,10 +469,7 @@ function initImageUpload(contentEl) {
                     return result.data;
                 }
                 if (result.data.url) {
-                    var pos = contentEl.selectionStart || contentEl.value.length;
-                    var md = '\n![' + file.name + '](' + result.data.url + ')\n';
-                    contentEl.value = contentEl.value.substring(0, pos) + md + contentEl.value.substring(pos);
-                    contentEl.dispatchEvent(new Event('input'));
+                    openImageOptionsModal(result.data.url, file.name, contentEl);
                 }
                 return result.data;
             })
@@ -517,7 +514,83 @@ function initImageUpload(contentEl) {
     }
 }
 
-// Open category manage modal by moving it to body (escapes sidebar overflow)
+// Image options modal
+var _imgModalUrl = '', _imgModalInsertPos = 0, _imgModalEl = null;
+
+function openImageOptionsModal(url, filename, contentEl) {
+    _imgModalUrl = url;
+    _imgModalEl = contentEl;
+    _imgModalInsertPos = contentEl ? (contentEl.selectionStart || contentEl.value.length) : 0;
+    var preview = document.getElementById('img-preview');
+    if (preview) { preview.src = url; preview.style.display = ''; }
+    var altInput = document.getElementById('img-alt-input');
+    if (altInput) altInput.value = filename ? filename.replace(/\.[^.]+$/, '') : '';
+    var widthInput = document.getElementById('img-width-input');
+    if (widthInput) widthInput.value = '';
+    document.querySelectorAll('.img-align-btn').forEach(function(b) {
+        b.classList.remove('active');
+        b.classList.add('btn-outline');
+    });
+    var noneBtn = document.querySelector('.img-align-btn[data-align="none"]');
+    if (noneBtn) { noneBtn.classList.add('active'); noneBtn.classList.remove('btn-outline'); }
+    var modal = document.getElementById('image-options-modal');
+    if (modal) modal.style.display = 'flex';
+}
+
+function closeImageOptionsModal() {
+    var modal = document.getElementById('image-options-modal');
+    if (modal) modal.style.display = 'none';
+}
+
+function confirmImageInsert() {
+    var ta = _imgModalEl;
+    if (!ta) return;
+    var altEl = document.getElementById('img-alt-input');
+    var widthEl = document.getElementById('img-width-input');
+    var alt = (altEl ? altEl.value || '' : '').trim();
+    var width = (widthEl ? widthEl.value || '' : '').trim();
+    var activeBtn = document.querySelector('.img-align-btn.active');
+    var alignVal = activeBtn ? activeBtn.dataset.align : 'none';
+    var url = escapeHtml(_imgModalUrl);
+    var md;
+    if (alignVal === 'none' && !width) {
+        md = '\n![' + alt + '](' + _imgModalUrl + ')\n';
+    } else if (alignVal === 'none') {
+        md = '\n<img src="' + url + '" alt="' + escapeHtml(alt) + '" width="' + escapeHtml(width) + '">\n';
+    } else {
+        var cls = 'wiki-img-' + alignVal;
+        var imgTag = '<img src="' + url + '" alt="' + escapeHtml(alt) + '"' + (width ? ' width="' + escapeHtml(width) + '"' : '') + '>';
+        var caption = alt ? '<figcaption>' + escapeHtml(alt) + '</figcaption>' : '';
+        md = '\n<figure class="' + cls + '">' + imgTag + caption + '</figure>\n';
+    }
+    ta.value = ta.value.substring(0, _imgModalInsertPos) + md + ta.value.substring(_imgModalInsertPos);
+    ta.dispatchEvent(new Event('input'));
+    ta.focus();
+    closeImageOptionsModal();
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    var insertBtn = document.getElementById('img-insert-btn');
+    var cancelBtn = document.getElementById('img-cancel-btn');
+    var modal = document.getElementById('image-options-modal');
+    if (insertBtn) insertBtn.addEventListener('click', confirmImageInsert);
+    if (cancelBtn) cancelBtn.addEventListener('click', closeImageOptionsModal);
+    if (modal) {
+        modal.addEventListener('click', function(e) { if (e.target === this) closeImageOptionsModal(); });
+    }
+    document.querySelectorAll('.img-align-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.img-align-btn').forEach(function(b) {
+                b.classList.remove('active');
+                b.classList.add('btn-outline');
+            });
+            btn.classList.add('active');
+            btn.classList.remove('btn-outline');
+        });
+    });
+});
+
+
 function openCatModal(id) {
     var modal = document.getElementById(id);
     if (!modal) return;

@@ -39,9 +39,18 @@ The edit page shows the raw Markdown source on the left and a rendered preview o
 > `app/templates/wiki/edit.html`, `app/static/js/main.js`, `app.py` → `api_preview`
 
 ### Image drop zone in the editor
-Images can be dragged directly onto the editor pane or selected via a file picker. The file is uploaded immediately and the resulting Markdown image tag is inserted at the cursor position.
+Images can be dragged directly onto the editor pane or selected via a file picker (the **Attach Image** button in the toolbar). After the file is uploaded, an **image options modal** appears so the editor can set:
 
-> `app/static/js/main.js`, `app.py` → `upload_image`
+- **Alt text / Caption** — pre-filled from the filename; used as both the image alt attribute and the `<figcaption>` text
+- **Position** — `Inline` (default, standard Markdown), `Float Left`, `Float Right`, or `Center`
+- **Width (px)** — optional; limits the rendered image width
+
+For the default inline position without a custom width, a standard Markdown `![alt](url)` tag is inserted. For all other combinations, the editor inserts the appropriate HTML (`<figure class="wiki-img-{align}">` or `<img width="…">`), which passes through the Bleach allowlist unchanged.
+
+> `app/static/js/main.js` → `initImageUpload`, `openImageOptionsModal`, `confirmImageInsert`  
+> `app.py` → `upload_image`  
+> `app/templates/wiki/edit.html` → `#image-options-modal`  
+> `app/static/css/style.css` → `.wiki-img-left`, `.wiki-img-right`, `.wiki-img-center`
 
 ### Inline title editing
 The page title can be changed without opening the full Markdown editor — a dedicated inline form posts to `/page/<slug>/edit/title`. The slug is not changed when the title is renamed, so existing links remain valid.
