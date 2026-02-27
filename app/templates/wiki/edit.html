@@ -137,6 +137,36 @@
     </ul>
     <div id="attachment-upload-status"></div>
 </div>
+<!-- Image options modal -->
+<div class="modal" id="image-options-modal" style="display:none">
+    <div class="modal-content">
+        <h3>Insert Image</h3>
+        <div style="text-align:center;margin-bottom:.8rem">
+            <img id="img-preview" src="" alt="" style="max-width:100%;max-height:180px;border-radius:4px;display:none">
+        </div>
+        <div class="form-group">
+            <label>Alt text / Caption</label>
+            <input type="text" id="img-alt-input" class="input" placeholder="Image description">
+        </div>
+        <div class="form-group">
+            <label>Position</label>
+            <div class="img-align-btns">
+                <button type="button" class="btn btn-sm img-align-btn active" data-align="none">Inline</button>
+                <button type="button" class="btn btn-sm btn-outline img-align-btn" data-align="left">Float Left</button>
+                <button type="button" class="btn btn-sm btn-outline img-align-btn" data-align="right">Float Right</button>
+                <button type="button" class="btn btn-sm btn-outline img-align-btn" data-align="center">Center</button>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Width (px, optional)</label>
+            <input type="number" id="img-width-input" class="input" placeholder="e.g. 300" min="50" max="2000" style="max-width:140px">
+        </div>
+        <div class="form-actions">
+            <button type="button" class="btn" id="img-insert-btn">Insert</button>
+            <button type="button" class="btn btn-outline" id="img-cancel-btn">Cancel</button>
+        </div>
+    </div>
+</div>
 <!-- Link insert modal -->
 <div class="modal" id="link-modal" style="display:none">
     <div class="modal-content">

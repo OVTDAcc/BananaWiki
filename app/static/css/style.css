@@ -108,6 +108,12 @@ select.input{appearance:auto}
 .wiki-content code{background:rgba(255,255,255,.06);padding:.15rem .35rem;border-radius:3px;font-size:.88rem}
 .wiki-content pre code{background:none;padding:0}
 .wiki-content img{max-width:100%;border-radius:4px;margin:.5rem 0}
+.wiki-content figure.wiki-img-right{float:right;clear:right;margin:0 0 1rem 1.5rem;max-width:50%}
+.wiki-content figure.wiki-img-left{float:left;clear:left;margin:0 1.5rem 1rem 0;max-width:50%}
+.wiki-content figure.wiki-img-center{display:table;margin:1rem auto;text-align:center}
+.wiki-content figure img{max-width:100%;height:auto;display:block;border-radius:4px}
+.wiki-content figure figcaption{font-size:.82rem;opacity:.65;margin-top:.3rem;text-align:center}
+.wiki-content::after{content:"";display:table;clear:both}
 .wiki-content blockquote{border-left:3px solid var(--primary);padding:.4rem .8rem;margin:.6rem 0;opacity:.8}
 .wiki-content table{border-collapse:collapse;width:100%;margin:.6rem 0}
 .wiki-content th,.wiki-content td{border:1px solid rgba(255,255,255,.08);padding:.45rem .65rem;text-align:left}
@@ -136,6 +142,12 @@ select.input{appearance:auto}
 .preview-content code{background:rgba(255,255,255,.06);padding:.12rem .3rem;border-radius:3px;font-size:.84rem}
 .preview-content pre code{background:none;padding:0}
 .preview-content img{max-width:100%;border-radius:4px;margin:.4rem 0}
+.preview-content figure.wiki-img-right{float:right;clear:right;margin:0 0 1rem 1.5rem;max-width:50%}
+.preview-content figure.wiki-img-left{float:left;clear:left;margin:0 1.5rem 1rem 0;max-width:50%}
+.preview-content figure.wiki-img-center{display:table;margin:1rem auto;text-align:center}
+.preview-content figure img{max-width:100%;height:auto;display:block;border-radius:4px}
+.preview-content figure figcaption{font-size:.82rem;opacity:.65;margin-top:.3rem;text-align:center}
+.preview-content::after{content:"";display:table;clear:both}
 .preview-content blockquote{border-left:3px solid var(--primary);padding:.3rem .8rem;margin:.4rem 0;opacity:.8}
 .preview-content table{border-collapse:collapse;width:100%;margin:.4rem 0}
 .preview-content th,.preview-content td{border:1px solid rgba(255,255,255,.08);padding:.3rem .5rem;text-align:left}
@@ -164,6 +176,8 @@ select.input{appearance:auto}
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;z-index:400}
 .modal-content{background:var(--secondary);border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:1.2rem;max-width:450px;width:90%}
 .modal-content h3{margin-bottom:.8rem;font-weight:600}
+.img-align-btns{display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.3rem}
+.img-align-btn.active{background:var(--primary);color:#0d0d14;border-color:var(--primary)}
 
 /* Cards / tables for admin */
 .admin-table{width:100%;border-collapse:collapse;font-size:.85rem}
