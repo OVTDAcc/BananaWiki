@@ -37,7 +37,8 @@ Every layer that handles user input or data mutation is protected:
 | **Authorization** | Four-tier role system (`user` / `editor` / `admin` / `protected_admin`); `@editor_required` and `@admin_required` decorators on every relevant route; editor category-access restrictions enforced on all page and category mutation routes |
 | **Rate limiting** | Per-route `@rate_limit` on all sensitive write endpoints. Login rate limiting is DB-backed and shared across all Gunicorn workers. The general in-memory rate limit is per-worker — a known, accepted trade-off for a small wiki |
 | **Input sanitization** | Markdown rendered through Bleach with an explicit tag + attribute allowlist — no raw HTML reaches the browser unsanitized |
-| **File uploads** | Extension whitelist (`png`, `jpg`, `jpeg`, `gif`, `webp`); SVG excluded to prevent XSS; Pillow validates the file is a genuine image; path traversal checked before every write |
+| **Image uploads** | Extension whitelist (`png`, `jpg`, `jpeg`, `gif`, `webp`); SVG excluded to prevent XSS; Pillow validates the file is a genuine image; path traversal checked before every write |
+| **File attachments** | Stored in `instance/attachments/` — outside the `static/` folder, never served as raw static URLs; extension whitelist enforced; 5 MB per-file limit enforced server-side via streaming; path traversal blocked; download routes require authentication; editors restricted to their permitted categories |
 | **CSRF** | Flask-WTF CSRF protection on all HTML forms and AJAX calls |
 | **Security headers** | `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Content-Security-Policy` on every response |
 | **Secret key** | Auto-generated on first run, persisted to `instance/.secret_key` (mode 0600), overridable via `SECRET_KEY` env var |
@@ -58,6 +59,7 @@ All features are code-complete, passing tests, and accessible in the UI:
 - Page revision history — every save is snapshotted; one-click revert
 - Draft autosave with conflict warning when two editors open the same page simultaneously
 - Image uploads with Pillow validation; orphaned images cleaned up after each commit or draft deletion
+- **Page attachments** — editors can upload files (up to 5 MB each) to any page; readers see per-file download buttons below the page content; a "Download All as ZIP" button appears when there are two or more attachments; editors can delete attachments from the edit view
 
 **Organisation**
 - Hierarchical categories with collapsible sidebar and unlimited nesting depth
