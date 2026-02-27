@@ -235,6 +235,7 @@ def compute_diff_html(old_text, new_text):
                 else:
                     parts.append(str(escape(tok)))
         elif tag == "replace":
+            has_del = False
             for tok in old_tokens[i1:i2]:
                 if tok.strip():
                     parts.append(
@@ -242,8 +243,15 @@ def compute_diff_html(old_text, new_text):
                         + str(escape(tok))
                         + "</del>"
                     )
+                    has_del = True
+                else:
+                    parts.append(str(escape(tok)))
+            sep_needed = has_del
             for tok in new_tokens[j1:j2]:
                 if tok.strip():
+                    if sep_needed:
+                        parts.append(" ")
+                        sep_needed = False
                     parts.append(
                         '<ins style="background:rgba(63,185,80,.25);color:#7ee787;text-decoration:none;border-radius:2px">'
                         + str(escape(tok))
