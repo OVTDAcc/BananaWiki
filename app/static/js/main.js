@@ -653,6 +653,9 @@ document.addEventListener('DOMContentLoaded', initAnnouncements);
             var idx = siblings.indexOf(row);
             var swapIdx = dir === 'up' ? idx - 1 : idx + 1;
             if (swapIdx < 0 || swapIdx >= siblings.length) return;
+            var pageTitleEl = row.querySelector('.nav-item');
+            var pageTitle = pageTitleEl ? pageTitleEl.textContent.trim() : 'this page';
+            if (!confirm('Are you sure you want to move "' + pageTitle + '" ' + dir + '?')) return;
             // Swap in DOM
             if (dir === 'up') {
                 row.parentNode.insertBefore(row, siblings[swapIdx]);
@@ -673,6 +676,9 @@ document.addEventListener('DOMContentLoaded', initAnnouncements);
             var idx = siblings.indexOf(section);
             var swapIdx = dir === 'up' ? idx - 1 : idx + 1;
             if (swapIdx < 0 || swapIdx >= siblings.length) return;
+            var catNameEl = section.querySelector('.nav-section-title');
+            var catName = catNameEl ? catNameEl.textContent.trim() : 'this category';
+            if (!confirm('Are you sure you want to move "' + catName + '" ' + dir + '?')) return;
             if (dir === 'up') {
                 section.parentNode.insertBefore(section, siblings[swapIdx]);
             } else {
