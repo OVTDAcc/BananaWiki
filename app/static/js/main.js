@@ -811,10 +811,20 @@ function applyA11yPrefs(prefs) {
     } else {
         root.style.removeProperty('--primary');
     }
+    if (prefs.custom_secondary) {
+        root.style.setProperty('--secondary', prefs.custom_secondary);
+    } else {
+        root.style.removeProperty('--secondary');
+    }
     if (prefs.custom_accent) {
         root.style.setProperty('--accent', prefs.custom_accent);
     } else {
         root.style.removeProperty('--accent');
+    }
+    if (prefs.custom_sidebar) {
+        root.style.setProperty('--sidebar', prefs.custom_sidebar);
+    } else {
+        root.style.removeProperty('--sidebar');
     }
 
     // Line height
@@ -945,10 +955,12 @@ function initAccessibility(prefs) {
 
     // Color inputs
     var colorMap = {
-        'bg': { input: document.getElementById('a11y-color-bg'), prop: 'custom_bg' },
-        'text': { input: document.getElementById('a11y-color-text'), prop: 'custom_text' },
-        'primary': { input: document.getElementById('a11y-color-primary'), prop: 'custom_primary' },
-        'accent': { input: document.getElementById('a11y-color-accent'), prop: 'custom_accent' },
+        'bg': { input: document.getElementById('a11y-color-bg'), prop: 'custom_bg', cssVar: '--bg' },
+        'text': { input: document.getElementById('a11y-color-text'), prop: 'custom_text', cssVar: '--text' },
+        'primary': { input: document.getElementById('a11y-color-primary'), prop: 'custom_primary', cssVar: '--primary' },
+        'secondary': { input: document.getElementById('a11y-color-secondary'), prop: 'custom_secondary', cssVar: '--secondary' },
+        'accent': { input: document.getElementById('a11y-color-accent'), prop: 'custom_accent', cssVar: '--accent' },
+        'sidebar': { input: document.getElementById('a11y-color-sidebar'), prop: 'custom_sidebar', cssVar: '--sidebar' },
     };
 
     Object.keys(colorMap).forEach(function(key) {
@@ -1041,8 +1053,7 @@ function initAccessibility(prefs) {
                 entry.input.value = _rgbToHex(stored);
             } else {
                 // Show current computed color as placeholder
-                var varName = '--' + (key === 'bg' ? 'bg' : key === 'text' ? 'text' : key === 'primary' ? 'primary' : 'accent');
-                var color = computed.getPropertyValue(varName).trim();
+                var color = computed.getPropertyValue(entry.cssVar).trim();
                 entry.input.value = _rgbToHex(color) || '#000000';
             }
         });

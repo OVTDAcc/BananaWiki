@@ -28,7 +28,9 @@
         {% if user_accessibility.custom_bg %}:root { --bg: {{ user_accessibility.custom_bg }}; }{% endif %}
         {% if user_accessibility.custom_text %}:root { --text: {{ user_accessibility.custom_text }}; }{% endif %}
         {% if user_accessibility.custom_primary %}:root { --primary: {{ user_accessibility.custom_primary }}; }{% endif %}
+        {% if user_accessibility.custom_secondary %}:root { --secondary: {{ user_accessibility.custom_secondary }}; }{% endif %}
         {% if user_accessibility.custom_accent %}:root { --accent: {{ user_accessibility.custom_accent }}; }{% endif %}
+        {% if user_accessibility.custom_sidebar %}:root { --sidebar: {{ user_accessibility.custom_sidebar }}; }{% endif %}
         :root { --a11y-font-scale: {{ user_accessibility.font_scale }}; }
         {% set lh_map = ['1.8', '2.2', '2.6'] %}
         :root { --a11y-line-height: {{ lh_map[user_accessibility.line_height | int] if user_accessibility.line_height | int < 3 else '1.8' }}; }
@@ -217,9 +219,19 @@
                     <button class="btn-icon a11y-color-clear" data-target="primary" title="Reset to site default">✕</button>
                 </div>
                 <div class="a11y-color-row">
+                    <label class="a11y-color-label">Secondary</label>
+                    <input type="color" id="a11y-color-secondary" class="a11y-color-input" title="Secondary color (header, cards)">
+                    <button class="btn-icon a11y-color-clear" data-target="secondary" title="Reset to site default">✕</button>
+                </div>
+                <div class="a11y-color-row">
                     <label class="a11y-color-label">Accent</label>
                     <input type="color" id="a11y-color-accent" class="a11y-color-input" title="Link/accent color">
                     <button class="btn-icon a11y-color-clear" data-target="accent" title="Reset to site default">✕</button>
+                </div>
+                <div class="a11y-color-row">
+                    <label class="a11y-color-label">Sidebar</label>
+                    <input type="color" id="a11y-color-sidebar" class="a11y-color-input" title="Sidebar background color">
+                    <button class="btn-icon a11y-color-clear" data-target="sidebar" title="Reset to site default">✕</button>
                 </div>
             </div>
             <div class="a11y-section">

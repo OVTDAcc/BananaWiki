@@ -1699,10 +1699,12 @@ def api_save_accessibility():
         "font_scale": font_scale,
         "contrast": contrast,
         "sidebar_width": sidebar_width,
-        "custom_bg": _clean_color(data.get("custom_bg", current["custom_bg"])),
-        "custom_text": _clean_color(data.get("custom_text", current["custom_text"])),
-        "custom_primary": _clean_color(data.get("custom_primary", current["custom_primary"])),
-        "custom_accent": _clean_color(data.get("custom_accent", current["custom_accent"])),
+        "custom_bg": _clean_color(data.get("custom_bg", current.get("custom_bg", ""))),
+        "custom_text": _clean_color(data.get("custom_text", current.get("custom_text", ""))),
+        "custom_primary": _clean_color(data.get("custom_primary", current.get("custom_primary", ""))),
+        "custom_secondary": _clean_color(data.get("custom_secondary", current.get("custom_secondary", ""))),
+        "custom_accent": _clean_color(data.get("custom_accent", current.get("custom_accent", ""))),
+        "custom_sidebar": _clean_color(data.get("custom_sidebar", current.get("custom_sidebar", ""))),
     }
 
     line_height = data.get("line_height", current.get("line_height", 0))
