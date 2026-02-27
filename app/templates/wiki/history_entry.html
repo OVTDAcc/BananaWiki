@@ -15,32 +15,34 @@
 </div>
 {% endif %}
 {% if diff_html is not none %}
-<div style="margin-bottom:1rem;display:flex;gap:.6rem;align-items:center">
+<div style="margin-bottom:1rem">
     <button class="btn btn-sm btn-outline" id="toggle-diff-btn">Show diff</button>
-</div>
-<div id="diff-view" style="display:none;margin-bottom:1.5rem;border:1px solid rgba(255,255,255,.1);border-radius:.4rem;overflow-x:auto;font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;font-size:.84rem;line-height:1.7">
-    <div style="padding:.35rem .5rem;font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;opacity:.45;border-bottom:1px solid rgba(255,255,255,.06)">Changes from previous version</div>
-    <div style="padding:.4rem 0">{{ diff_html|safe }}</div>
 </div>
 {% endif %}
 <div class="wiki-content" id="rendered-view">
     {{ content_html|safe }}
 </div>
+{% if diff_html is not none %}
+<div id="diff-view" style="display:none">
+    {{ diff_html|safe }}
+</div>
 <script>
 (function () {
     var btn = document.getElementById('toggle-diff-btn');
-    if (btn) {
-        btn.addEventListener('click', function () {
-            var diff = document.getElementById('diff-view');
-            if (diff.style.display === 'none') {
-                diff.style.display = 'block';
-                btn.textContent = 'Hide diff';
-            } else {
-                diff.style.display = 'none';
-                btn.textContent = 'Show diff';
-            }
-        });
-    }
+    var rendered = document.getElementById('rendered-view');
+    var diff = document.getElementById('diff-view');
+    btn.addEventListener('click', function () {
+        if (diff.style.display === 'none') {
+            diff.style.display = 'block';
+            rendered.style.display = 'none';
+            btn.textContent = 'Hide diff';
+        } else {
+            diff.style.display = 'none';
+            rendered.style.display = 'block';
+            btn.textContent = 'Show diff';
+        }
+    });
 }());
 </script>
+{% endif %}
 {% endblock %}

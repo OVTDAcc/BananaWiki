@@ -192,50 +192,70 @@ def compute_char_diff(old_text, new_text):
 
 
 def compute_diff_html(old_text, new_text):
-    """Return an HTML string with line-level git-style diff highlighting."""
+    """Return inline word-level diff HTML showing the full new content with change highlights."""
+    import re
     from markupsafe import Markup, escape
 
-    old_lines = (old_text or "").splitlines()
-    new_lines = (new_text or "").splitlines()
+    old_text = old_text or ""
+    new_text = new_text or ""
 
-    matcher = difflib.SequenceMatcher(None, old_lines, new_lines, autojunk=False)
+    # Tokenize preserving whitespace as separate tokens so spacing is retained
+    def tokenize(text):
+        return re.split(r"(\s+)", text)
+
+    old_tokens = tokenize(old_text)
+    new_tokens = tokenize(new_text)
+
+    matcher = difflib.SequenceMatcher(None, old_tokens, new_tokens, autojunk=False)
     parts = []
     for tag, i1, i2, j1, j2 in matcher.get_opcodes():
         if tag == "equal":
-            for line in old_lines[i1:i2]:
-                parts.append(
-                    '<span style="display:block;padding:1px .5rem"> '
-                    + str(escape(line))
-                    + "</span>"
-                )
-        elif tag == "delete":
-            for line in old_lines[i1:i2]:
-                parts.append(
-                    '<span style="display:block;background:rgba(255,107,107,.13);color:#ff8585;padding:1px .5rem">- '
-                    + str(escape(line))
-                    + "</span>"
-                )
+            for tok in new_tokens[j1:j2]:
+                parts.append(str(escape(tok)))
         elif tag == "insert":
-            for line in new_lines[j1:j2]:
-                parts.append(
-                    '<span style="display:block;background:rgba(63,185,80,.13);color:#7ee787;padding:1px .5rem">+ '
-                    + str(escape(line))
-                    + "</span>"
-                )
+            for tok in new_tokens[j1:j2]:
+                if tok.strip():
+                    parts.append(
+                        '<ins style="background:rgba(63,185,80,.25);color:#7ee787;text-decoration:none;border-radius:2px">'
+                        + str(escape(tok))
+                        + "</ins>"
+                    )
+                else:
+                    parts.append(str(escape(tok)))
+        elif tag == "delete":
+            for tok in old_tokens[i1:i2]:
+                if tok.strip():
+                    parts.append(
+                        '<del style="background:rgba(255,107,107,.2);color:#ff8585;border-radius:2px">'
+                        + str(escape(tok))
+                        + "</del>"
+                    )
+                else:
+                    parts.append(str(escape(tok)))
         elif tag == "replace":
-            for line in old_lines[i1:i2]:
-                parts.append(
-                    '<span style="display:block;background:rgba(255,107,107,.13);color:#ff8585;padding:1px .5rem">- '
-                    + str(escape(line))
-                    + "</span>"
-                )
-            for line in new_lines[j1:j2]:
-                parts.append(
-                    '<span style="display:block;background:rgba(63,185,80,.13);color:#7ee787;padding:1px .5rem">+ '
-                    + str(escape(line))
-                    + "</span>"
-                )
-    return Markup("".join(parts))
+            for tok in old_tokens[i1:i2]:
+                if tok.strip():
+                    parts.append(
+                        '<del style="background:rgba(255,107,107,.2);color:#ff8585;border-radius:2px">'
+                        + str(escape(tok))
+                        + "</del>"
+                    )
+            for tok in new_tokens[j1:j2]:
+                if tok.strip():
+                    parts.append(
+                        '<ins style="background:rgba(63,185,80,.25);color:#7ee787;text-decoration:none;border-radius:2px">'
+                        + str(escape(tok))
+                        + "</ins>"
+                    )
+                else:
+                    parts.append(str(escape(tok)))
+    return Markup(
+        '<pre style="white-space:pre-wrap;word-break:break-word;'
+        "font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;"
+        'font-size:.88rem;line-height:1.75;margin:0">'
+        + "".join(parts)
+        + "</pre>"
+    )
 
 
 def slugify(text):
