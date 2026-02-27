@@ -64,8 +64,9 @@ python -m pytest tests/
 
 **People**
 - User profile pages (`/users/<username>`) with avatar, bio, real name, role badge, and GitHub-style contribution heatmap
-- People directory (`/users`) with search; sidebar widget shows the most active members
-- Profile self-management: publish, hide, delete; contribution history preserved regardless
+- People directory (`/users`) with search; sidebar widget shows the most active members, always pinned at the bottom of the sidebar
+- Profile self-management directly from the profile page: inline bio/avatar editing, one-click publish/hide toggle; contribution history preserved regardless
+- Contributor attribution links: "Last edit by" on page view and every row in the page history table are clickable links to that user's profile
 - Admin profile moderation: edit data, remove avatar, disable/re-enable/delete profile pages
 
 **Accounts & Access**
