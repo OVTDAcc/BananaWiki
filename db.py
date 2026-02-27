@@ -139,6 +139,17 @@ def init_db():
         new_username TEXT   NOT NULL,
         changed_at  TEXT    NOT NULL DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS editor_category_access (
+        user_id     TEXT    PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        restricted  INTEGER NOT NULL DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS editor_allowed_categories (
+        user_id     TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+        UNIQUE(user_id, category_id)
+    );
     """)
 
     # -- Migrations: add columns to existing tables --
@@ -585,6 +596,59 @@ def count_admins():
     ).fetchone()[0]
     conn.close()
     return cnt
+
+
+# ---------------------------------------------------------------------------
+#  Editor category access helpers
+# ---------------------------------------------------------------------------
+def get_editor_access(user_id):
+    """Return the category access settings for an editor.
+
+    Returns a dict with:
+      - ``restricted`` (bool): True if the editor is limited to specific categories.
+      - ``allowed_category_ids`` (list[int]): The IDs of categories the editor may access
+        (only meaningful when ``restricted`` is True).
+    """
+    conn = get_db()
+    row = conn.execute(
+        "SELECT restricted FROM editor_category_access WHERE user_id=?", (user_id,)
+    ).fetchone()
+    restricted = bool(row["restricted"]) if row else False
+    if restricted:
+        rows = conn.execute(
+            "SELECT category_id FROM editor_allowed_categories WHERE user_id=?", (user_id,)
+        ).fetchall()
+        allowed_ids = [r["category_id"] for r in rows]
+    else:
+        allowed_ids = []
+    conn.close()
+    return {"restricted": restricted, "allowed_category_ids": allowed_ids}
+
+
+def set_editor_access(user_id, restricted, category_ids=None):
+    """Persist category access settings for an editor.
+
+    Args:
+        user_id: The editor's user ID.
+        restricted: If True the editor can only access the specified categories.
+        category_ids: Iterable of category IDs to allow (ignored when restricted=False).
+    """
+    conn = get_db()
+    conn.execute(
+        "INSERT OR REPLACE INTO editor_category_access (user_id, restricted) VALUES (?, ?)",
+        (user_id, 1 if restricted else 0),
+    )
+    conn.execute(
+        "DELETE FROM editor_allowed_categories WHERE user_id=?", (user_id,)
+    )
+    if restricted and category_ids:
+        for cat_id in category_ids:
+            conn.execute(
+                "INSERT OR IGNORE INTO editor_allowed_categories (user_id, category_id) VALUES (?, ?)",
+                (user_id, cat_id),
+            )
+    conn.commit()
+    conn.close()
 
 
 # ---------------------------------------------------------------------------
@@ -1215,6 +1279,8 @@ _EXPORT_TABLES = [
     "drafts",
     "announcements",
     "username_history",
+    "editor_category_access",
+    "editor_allowed_categories",
     "site_settings",
 ]
 

@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Editor Access – {{ target.username }} – {{ settings.site_name }}{% endblock %}
+{% block content %}
+<h1>Editor Access: {{ target.username }}</h1>
+<p style="opacity:.7;margin-bottom:1.5rem">
+    Configure which categories <strong>{{ target.username }}</strong> can edit.
+    By default, editors have unrestricted access to all pages and categories.
+</p>
+
+<form method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div class="settings-section">
+        <h3>Access Mode</h3>
+
+        <div class="form-group">
+            <label style="display:flex;align-items:center;gap:.6rem;cursor:pointer">
+                <input type="radio" name="restricted" value="0"
+                       id="access-unrestricted"
+                       {% if not access.restricted %}checked{% endif %}
+                       onchange="toggleCategoryPanel()">
+                <span><strong>Unrestricted access</strong> – can edit all pages and categories</span>
+            </label>
+        </div>
+
+        <div class="form-group">
+            <label style="display:flex;align-items:center;gap:.6rem;cursor:pointer">
+                <input type="radio" name="restricted" value="1"
+                       id="access-restricted"
+                       {% if access.restricted %}checked{% endif %}
+                       onchange="toggleCategoryPanel()">
+                <span><strong>Restricted access</strong> – can only edit pages in selected categories</span>
+            </label>
+        </div>
+    </div>
+
+    <div class="settings-section" id="category-panel"
+         style="{% if not access.restricted %}opacity:.4;pointer-events:none{% endif %}">
+        <h3>Allowed Categories</h3>
+        <p style="opacity:.7;font-size:.88rem;margin-bottom:1rem">
+            Check the categories this editor is allowed to edit pages in.
+            New categories added in the future will <em>not</em> be granted automatically.
+        </p>
+
+        {% if all_categories %}
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.5rem">
+            {% for cat in all_categories %}
+            <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;
+                          padding:.4rem .6rem;border-radius:4px;
+                          background:rgba(255,255,255,.04)">
+                <input type="checkbox" name="category_ids" value="{{ cat.id }}"
+                       {% if cat.id in access.allowed_category_ids %}checked{% endif %}>
+                {{ cat.name }}
+            </label>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p style="opacity:.6">No categories exist yet.</p>
+        {% endif %}
+    </div>
+
+    <div style="margin-top:1rem;display:flex;gap:.8rem;align-items:center">
+        <button type="submit" class="btn">Save Settings</button>
+        <a href="{{ url_for('admin_users') }}" class="btn btn-outline">← Back to Users</a>
+    </div>
+</form>
+
+<script>
+function toggleCategoryPanel() {
+    var restricted = document.getElementById('access-restricted').checked;
+    var panel = document.getElementById('category-panel');
+    if (restricted) {
+        panel.style.opacity = '1';
+        panel.style.pointerEvents = 'auto';
+    } else {
+        panel.style.opacity = '.4';
+        panel.style.pointerEvents = 'none';
+    }
+}
+</script>
+{% endblock %}
