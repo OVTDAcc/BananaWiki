@@ -97,6 +97,28 @@
                 </div>
                 {% endif %}
             </nav>
+            {% if sidebar_people %}
+            <div class="sidebar-people">
+                <div class="sidebar-people-header">
+                    <span>People</span>
+                    <a href="{{ url_for('users_list') }}" class="sidebar-people-more">More</a>
+                </div>
+                <div class="sidebar-people-grid">
+                    {% for p in sidebar_people[:19] %}
+                    <a href="{{ url_for('user_profile', username=p.username) }}" class="sidebar-person" title="{{ p.username }}">
+                        {% if p.avatar_filename %}
+                        <img src="{{ url_for('static', filename='uploads/' + p.avatar_filename) }}" alt="{{ p.username }}" class="sidebar-person-img">
+                        {% else %}
+                        <span class="sidebar-person-placeholder">{{ p.username[0].upper() }}</span>
+                        {% endif %}
+                    </a>
+                    {% endfor %}
+                    {% if sidebar_people | length >= 19 %}
+                    <a href="{{ url_for('users_list') }}" class="sidebar-person sidebar-person-more" title="More members">+</a>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
         </aside>
         <div class="sidebar-resize-handle" id="sidebar-resize-handle"></div>
         <div class="sidebar-overlay" id="sidebar-overlay"></div>

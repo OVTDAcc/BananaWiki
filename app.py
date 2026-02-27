@@ -450,6 +450,7 @@ def inject_globals():
     user = get_current_user()
     active_announcements = db.get_active_announcements(bool(user))
     user_accessibility = db.get_user_accessibility(user["id"]) if user else {}
+    sidebar_people = db.list_published_profiles()[:19] if user else []
     return {
         "current_user": user,
         "settings": settings,
@@ -459,6 +460,7 @@ def inject_globals():
         "all_categories": db.list_categories(),
         "active_announcements": active_announcements,
         "user_accessibility": user_accessibility,
+        "sidebar_people": sidebar_people,
     }
 
 
@@ -807,9 +809,92 @@ def account_settings():
             flash("Protected admin status disabled.", "success")
         return redirect(url_for("account_settings"))
 
+    if action == "update_profile":
+        real_name = request.form.get("real_name", "").strip()[:100]
+        bio = request.form.get("bio", "").strip()[:500]
+        avatar_file = request.files.get("avatar")
+        profile = db.get_user_profile(user["id"])
+        old_avatar = profile["avatar_filename"] if profile else ""
+        new_avatar = old_avatar
+        if avatar_file and avatar_file.filename:
+            if not allowed_file(avatar_file.filename):
+                flash("Invalid avatar file type.", "error")
+                return redirect(url_for("account_settings"))
+            # 1 MB limit for avatars
+            avatar_file.stream.seek(0, 2)
+            size = avatar_file.stream.tell()
+            avatar_file.stream.seek(0)
+            if size > 1 * 1024 * 1024:
+                flash("Avatar must be 1 MB or smaller.", "error")
+                return redirect(url_for("account_settings"))
+            try:
+                img = Image.open(avatar_file.stream)
+                img.verify()
+                avatar_file.stream.seek(0)
+            except Exception:
+                flash("Avatar is not a valid image.", "error")
+                return redirect(url_for("account_settings"))
+            avatar_dir = os.path.join(config.UPLOAD_FOLDER, "avatars")
+            os.makedirs(avatar_dir, exist_ok=True)
+            ext = avatar_file.filename.rsplit(".", 1)[1].lower()
+            new_avatar = f"avatars/{uuid.uuid4().hex}.{ext}"
+            save_path = os.path.abspath(os.path.join(config.UPLOAD_FOLDER, new_avatar))
+            if os.path.commonpath([os.path.abspath(config.UPLOAD_FOLDER), save_path]) != os.path.abspath(config.UPLOAD_FOLDER):
+                flash("Invalid upload path.", "error")
+                return redirect(url_for("account_settings"))
+            avatar_file.save(save_path)
+            # Remove old avatar file if different
+            if old_avatar and old_avatar != new_avatar:
+                old_path = os.path.join(config.UPLOAD_FOLDER, old_avatar)
+                if os.path.isfile(old_path):
+                    os.remove(old_path)
+        db.upsert_user_profile(user["id"], real_name=real_name, bio=bio, avatar_filename=new_avatar)
+        log_action("update_profile", request, user=user)
+        flash("Profile updated.", "success")
+        return redirect(url_for("account_settings"))
+
+    if action == "remove_avatar":
+        profile = db.get_user_profile(user["id"])
+        if profile and profile["avatar_filename"]:
+            old_path = os.path.join(config.UPLOAD_FOLDER, profile["avatar_filename"])
+            if os.path.isfile(old_path):
+                os.remove(old_path)
+            db.upsert_user_profile(user["id"], avatar_filename="")
+        flash("Avatar removed.", "success")
+        return redirect(url_for("account_settings"))
+
+    if action == "publish_profile":
+        profile = db.get_user_profile(user["id"])
+        if profile and profile["page_disabled_by_admin"]:
+            flash("Your profile page has been disabled by an admin.", "error")
+            return redirect(url_for("account_settings"))
+        db.upsert_user_profile(user["id"], page_published=True)
+        log_action("publish_profile", request, user=user)
+        flash("Your profile page is now public.", "success")
+        return redirect(url_for("account_settings"))
+
+    if action == "unpublish_profile":
+        db.upsert_user_profile(user["id"], page_published=False)
+        log_action("unpublish_profile", request, user=user)
+        flash("Your profile page is now hidden.", "success")
+        return redirect(url_for("account_settings"))
+
+    if action == "delete_profile":
+        profile = db.get_user_profile(user["id"])
+        if profile and profile["avatar_filename"]:
+            old_path = os.path.join(config.UPLOAD_FOLDER, profile["avatar_filename"])
+            if os.path.isfile(old_path):
+                os.remove(old_path)
+        db.delete_user_profile(user["id"])
+        log_action("delete_profile", request, user=user)
+        flash("Your profile page has been deleted.", "success")
+        return redirect(url_for("account_settings"))
+
     categories, uncategorized = db.get_category_tree()
+    profile = db.get_user_profile(user["id"])
     return render_template("account/settings.html", user=user,
-                           categories=categories, uncategorized=uncategorized)
+                           categories=categories, uncategorized=uncategorized,
+                           profile=profile)
 
 
 def _build_user_export_zip(user):
@@ -864,6 +949,119 @@ def export_own_data():
     log_action("export_own_data", request, user=user)
     return send_file(buf, mimetype="application/zip",
                      as_attachment=True, download_name=filename)
+
+
+# ---------------------------------------------------------------------------
+#  Users – People list & profiles
+# ---------------------------------------------------------------------------
+@app.route("/users")
+@login_required
+def users_list():
+    query = request.args.get("q", "").strip().lower()
+    current_user = get_current_user()
+    if current_user["role"] in ("admin", "protected_admin"):
+        users = db.list_all_users_with_profiles()
+    else:
+        users = db.list_published_profiles()
+        # Normalise column names so template works for both result sets
+        users = [dict(u) for u in users]
+        for u in users:
+            u.setdefault("role", "user")
+            u.setdefault("suspended", 0)
+            u.setdefault("page_published", 1)
+            u.setdefault("page_disabled_by_admin", 0)
+    if query:
+        users = [u for u in users if query in u["username"].lower()
+                 or query in u["real_name"].lower()]
+    categories, uncategorized = db.get_category_tree()
+    return render_template("users/list.html", users=users, query=query,
+                           categories=categories, uncategorized=uncategorized)
+
+
+@app.route("/users/<string:username>")
+@login_required
+def user_profile(username):
+    target = db.get_user_by_username(username)
+    if not target:
+        abort(404)
+    profile = db.get_user_profile(target["id"])
+    current_user = get_current_user()
+    is_admin = current_user["role"] in ("admin", "protected_admin")
+    is_own = current_user["id"] == target["id"]
+    # Only admins and the user themselves can view unpublished/disabled profiles
+    if not (is_admin or is_own):
+        if not profile or not profile["page_published"] or profile["page_disabled_by_admin"]:
+            abort(404)
+    contributions = db.get_contributions_by_day(target["id"])
+    contribution_list = db.get_user_contributions(target["id"])
+    categories, uncategorized = db.get_category_tree()
+    return render_template(
+        "users/profile.html",
+        target=target,
+        profile=profile,
+        contributions=contributions,
+        contribution_list=contribution_list,
+        is_own=is_own,
+        is_admin=is_admin,
+        categories=categories,
+        uncategorized=uncategorized,
+    )
+
+
+@app.route("/admin/users/<string:user_id>/profile", methods=["POST"])
+@login_required
+@admin_required
+def admin_moderate_profile(user_id):
+    """Admin: edit or disable a user's profile page."""
+    target = db.get_user_by_id(user_id)
+    if not target:
+        abort(404)
+    current_user = get_current_user()
+    action = request.form.get("action", "")
+
+    if action == "edit_profile":
+        real_name = request.form.get("real_name", "").strip()[:100]
+        bio = request.form.get("bio", "").strip()[:500]
+        db.upsert_user_profile(user_id, real_name=real_name, bio=bio)
+        log_action("admin_edit_profile", request, user=current_user,
+                   target_user=target["username"])
+        flash("Profile updated.", "success")
+
+    elif action == "remove_avatar":
+        profile = db.get_user_profile(user_id)
+        if profile and profile["avatar_filename"]:
+            old_path = os.path.join(config.UPLOAD_FOLDER, profile["avatar_filename"])
+            if os.path.isfile(old_path):
+                os.remove(old_path)
+            db.upsert_user_profile(user_id, avatar_filename="")
+        log_action("admin_remove_avatar", request, user=current_user,
+                   target_user=target["username"])
+        flash("Avatar removed.", "success")
+
+    elif action == "disable_profile":
+        db.upsert_user_profile(user_id, page_disabled_by_admin=True, page_published=False)
+        log_action("admin_disable_profile", request, user=current_user,
+                   target_user=target["username"])
+        flash("Profile disabled.", "success")
+
+    elif action == "enable_profile":
+        db.upsert_user_profile(user_id, page_disabled_by_admin=False)
+        log_action("admin_enable_profile", request, user=current_user,
+                   target_user=target["username"])
+        flash("Profile re-enabled.", "success")
+
+    elif action == "delete_profile":
+        profile = db.get_user_profile(user_id)
+        if profile and profile["avatar_filename"]:
+            old_path = os.path.join(config.UPLOAD_FOLDER, profile["avatar_filename"])
+            if os.path.isfile(old_path):
+                os.remove(old_path)
+        db.delete_user_profile(user_id)
+        log_action("admin_delete_profile", request, user=current_user,
+                   target_user=target["username"])
+        flash("Profile deleted.", "success")
+
+    return redirect(url_for("admin_users"))
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+{% block title %}{{ target.username }} – {{ settings.site_name }}{% endblock %}
+{% block content %}
+<div class="user-profile-page">
+    <div class="user-profile-header">
+        <div class="user-profile-avatar-wrap">
+            {% if profile and profile.avatar_filename %}
+            <img src="{{ url_for('static', filename='uploads/' + profile.avatar_filename) }}" alt="{{ target.username }}" class="user-profile-avatar">
+            {% else %}
+            <span class="user-profile-avatar-placeholder">{{ target.username[0].upper() }}</span>
+            {% endif %}
+        </div>
+        <div class="user-profile-meta">
+            <h1 class="user-profile-username">{{ target.username }}</h1>
+            {% if profile and profile.real_name %}
+            <p class="user-profile-realname">{{ profile.real_name }}</p>
+            {% endif %}
+            {% if profile and profile.bio %}
+            <p class="user-profile-bio">{{ profile.bio }}</p>
+            {% endif %}
+            <div class="user-profile-badges">
+                <span class="badge badge-{{ target.role }}">{{ target.role }}</span>
+                {% if profile and profile.page_disabled_by_admin %}
+                <span class="badge badge-suspended">Profile disabled by admin</span>
+                {% endif %}
+                {% if (is_own or is_admin) and profile and not profile.page_published %}
+                <span class="badge" style="opacity:.6">Hidden from public</span>
+                {% endif %}
+            </div>
+            {% if is_own or is_admin %}
+            <div class="user-profile-actions">
+                <a href="{{ url_for('account_settings') }}#profile" class="btn btn-sm">Edit Profile</a>
+                <a href="{{ url_for('user_profile', username=target.username) }}" class="btn btn-sm btn-outline">View Public Profile</a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    {# ----- Contribution heatmap ----- #}
+    {% set total = contributions.values() | sum %}
+    <div class="contribution-section">
+        <h2 class="contribution-title">{{ "{:,}".format(total) }} contribution{{ 's' if total != 1 else '' }} in the last year</h2>
+        <div class="contribution-graph" id="contrib-graph" data-contributions="{{ contributions | tojson }}"></div>
+        <div class="contribution-legend">
+            <span class="contrib-legend-label">Less</span>
+            <span class="contrib-cell contrib-0"></span>
+            <span class="contrib-cell contrib-1"></span>
+            <span class="contrib-cell contrib-2"></span>
+            <span class="contrib-cell contrib-3"></span>
+            <span class="contrib-cell contrib-4"></span>
+            <span class="contrib-legend-label">More</span>
+        </div>
+    </div>
+
+    {# ----- Recent contributions list ----- #}
+    <div class="contribution-list-section">
+        <h2>Recent Contributions</h2>
+        {% if contribution_list %}
+        <ul class="contribution-list">
+            {% for c in contribution_list[:50] %}
+            <li class="contribution-item">
+                <span class="contribution-date">{{ format_datetime(c.created_at) }}</span>
+                {% if c.page_slug %}
+                <a href="{{ url_for('view_page', slug=c.page_slug) }}" class="contribution-page">{{ c.page_title }}</a>
+                {% else %}
+                <span class="contribution-page deleted">{{ c.page_title }}</span>
+                {% endif %}
+                {% if c.edit_message %}<span class="contribution-msg">— {{ c.edit_message }}</span>{% endif %}
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p style="opacity:.6">No contributions yet.</p>
+        {% endif %}
+    </div>
+
+    {# ----- Admin moderation tools ----- #}
+    {% if is_admin and not is_own %}
+    <div class="settings-section" style="margin-top:2rem">
+        <h2>Admin Moderation</h2>
+        <form method="POST" action="{{ url_for('admin_moderate_profile', user_id=target.id) }}" class="admin-profile-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="form-group">
+                <label>Real Name</label>
+                <input type="text" name="real_name" class="input" value="{{ profile.real_name if profile else '' }}" maxlength="100">
+            </div>
+            <div class="form-group">
+                <label>Bio</label>
+                <textarea name="bio" class="input" rows="3" maxlength="500">{{ profile.bio if profile else '' }}</textarea>
+            </div>
+            <div class="form-actions">
+                <button type="submit" name="action" value="edit_profile" class="btn">Save Changes</button>
+                {% if profile and profile.avatar_filename %}
+                <button type="submit" name="action" value="remove_avatar" class="btn btn-outline">Remove Avatar</button>
+                {% endif %}
+                {% if profile and profile.page_disabled_by_admin %}
+                <button type="submit" name="action" value="enable_profile" class="btn btn-outline">Re-enable Profile</button>
+                {% else %}
+                <button type="submit" name="action" value="disable_profile" class="btn btn-danger"
+                    onclick="return confirm('Disable this user\'s profile page?')">Disable Profile</button>
+                {% endif %}
+                {% if profile %}
+                <button type="submit" name="action" value="delete_profile" class="btn btn-danger"
+                    onclick="return confirm('Delete this user\'s profile page permanently?')">Delete Profile</button>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    var data = JSON.parse(document.getElementById('contrib-graph').dataset.contributions || '{}');
+    var graph = document.getElementById('contrib-graph');
+    if (!graph) return;
+
+    // Build 53 weeks x 7 days grid (Sun–Sat)
+    var today = new Date();
+    today.setHours(0, 0, 0, 0);
+    // Start from the most recent complete week
+    var startDay = new Date(today);
+    startDay.setDate(startDay.getDate() - 364);
+    // Align to Sunday
+    startDay.setDate(startDay.getDate() - startDay.getDay());
+
+    var weeks = [];
+    var d = new Date(startDay);
+    while (d <= today) {
+        var week = [];
+        for (var i = 0; i < 7; i++) {
+            var key = d.toISOString().substring(0, 10);
+            week.push({ date: key, count: data[key] || 0, future: d > today });
+            d.setDate(d.getDate() + 1);
+        }
+        weeks.push(week);
+    }
+
+    // Month labels
+    var monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var monthLabels = [];
+    for (var w = 0; w < weeks.length; w++) {
+        var firstDay = weeks[w][0];
+        var dt = new Date(firstDay.date);
+        if (w === 0 || dt.getDate() <= 7) {
+            monthLabels[w] = monthNames[dt.getMonth()];
+        }
+    }
+
+    // Compute max for colour scaling
+    var maxCount = 0;
+    for (var key in data) { if (data[key] > maxCount) maxCount = data[key]; }
+
+    function levelOf(count) {
+        if (count === 0) return 0;
+        if (maxCount === 0) return 1;
+        var ratio = count / maxCount;
+        if (ratio < 0.25) return 1;
+        if (ratio < 0.5) return 2;
+        if (ratio < 0.75) return 3;
+        return 4;
+    }
+
+    // Build table
+    var wrapper = document.createElement('div');
+    wrapper.className = 'contrib-wrapper';
+
+    // Month header row
+    var headerRow = document.createElement('div');
+    headerRow.className = 'contrib-months';
+    var dayLabels = document.createElement('div');
+    dayLabels.className = 'contrib-day-labels';
+    ['', 'Mon', '', 'Wed', '', 'Fri', ''].forEach(function(lbl) {
+        var s = document.createElement('span');
+        s.textContent = lbl;
+        dayLabels.appendChild(s);
+    });
+
+    var monthRow = document.createElement('div');
+    monthRow.className = 'contrib-month-row';
+    for (var w = 0; w < weeks.length; w++) {
+        var lbl = document.createElement('span');
+        lbl.className = 'contrib-month-label';
+        lbl.textContent = monthLabels[w] || '';
+        monthRow.appendChild(lbl);
+    }
+    headerRow.appendChild(monthRow);
+
+    var grid = document.createElement('div');
+    grid.className = 'contrib-grid';
+
+    grid.appendChild(dayLabels);
+
+    var colsDiv = document.createElement('div');
+    colsDiv.className = 'contrib-cols';
+    for (var w = 0; w < weeks.length; w++) {
+        var col = document.createElement('div');
+        col.className = 'contrib-col';
+        for (var d2 = 0; d2 < weeks[w].length; d2++) {
+            var day = weeks[w][d2];
+            var cell = document.createElement('span');
+            cell.className = 'contrib-cell contrib-' + (day.future ? 'future' : levelOf(day.count));
+            cell.title = day.date + ': ' + day.count + ' contribution' + (day.count !== 1 ? 's' : '');
+            col.appendChild(cell);
+        }
+        colsDiv.appendChild(col);
+    }
+    grid.appendChild(colsDiv);
+
+    wrapper.appendChild(headerRow);
+    wrapper.appendChild(grid);
+    graph.appendChild(wrapper);
+}());
+</script>
+{% endblock %}

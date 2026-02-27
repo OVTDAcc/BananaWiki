@@ -117,6 +117,82 @@
     <a href="{{ url_for('export_own_data') }}" class="btn btn-outline">⬇ Download My Data</a>
 </div>
 
+<div class="settings-section" id="profile">
+    <h3>Profile Page</h3>
+    <p style="font-size:.85rem;opacity:.7;margin-bottom:.8rem">Set up your public profile with a bio, real name and avatar. Max avatar size: 1 MB.</p>
+
+    {% if profile and profile.page_disabled_by_admin %}
+    <div class="flash flash-error" style="margin-bottom:1rem">Your profile page has been disabled by an admin.</div>
+    {% endif %}
+
+    <form method="POST" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="update_profile">
+        <div class="form-group">
+            <label>Real Name (optional)</label>
+            <input type="text" name="real_name" class="input" value="{{ profile.real_name if profile else '' }}" maxlength="100" placeholder="Your real name">
+        </div>
+        <div class="form-group">
+            <label>Bio (optional, max 500 chars)</label>
+            <textarea name="bio" class="input" rows="3" maxlength="500" placeholder="A short bio about yourself">{{ profile.bio if profile else '' }}</textarea>
+        </div>
+        <div class="form-group">
+            <label>Profile Picture (PNG/JPG/GIF/WebP, max 1 MB)</label>
+            {% if profile and profile.avatar_filename %}
+            <div style="margin-bottom:.5rem">
+                <img src="{{ url_for('static', filename='uploads/' + profile.avatar_filename) }}" alt="Current avatar" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:2px solid var(--primary)">
+            </div>
+            {% endif %}
+            <input type="file" name="avatar" class="input" accept="image/png,image/jpeg,image/gif,image/webp">
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn">Save Profile</button>
+            {% if profile and profile.avatar_filename %}
+            <button type="submit" form="remove-avatar-form" class="btn btn-outline">Remove Avatar</button>
+            {% endif %}
+        </div>
+    </form>
+
+    <form id="remove-avatar-form" method="POST" style="display:none">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="remove_avatar">
+    </form>
+
+    {% if profile %}
+    <hr style="margin:1.2rem 0;opacity:.15">
+    <div class="form-actions">
+        {% if profile.page_published %}
+        <form method="POST" style="display:inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="unpublish_profile">
+            <button type="submit" class="btn btn-outline">Hide Profile Page</button>
+        </form>
+        {% else %}
+        <form method="POST" style="display:inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="publish_profile">
+            <button type="submit" class="btn"{% if profile.page_disabled_by_admin %} disabled title="Profile disabled by admin"{% endif %}>Publish Profile Page</button>
+        </form>
+        {% endif %}
+        <form method="POST" style="display:inline" data-confirm="Delete your profile page? Your contributions will be kept.">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="delete_profile">
+            <button type="submit" class="btn btn-danger">Delete Profile Page</button>
+        </form>
+    </div>
+    <p style="font-size:.82rem;opacity:.6;margin-top:.5rem">
+        Profile status:
+        {% if profile.page_disabled_by_admin %}
+        <strong>Disabled by admin</strong>
+        {% elif profile.page_published %}
+        <strong>Public</strong> – <a href="{{ url_for('user_profile', username=user.username) }}">View your profile</a>
+        {% else %}
+        <strong>Private</strong>
+        {% endif %}
+    </p>
+    {% endif %}
+</div>
+
 {% if not user.is_superuser %}
 <div class="settings-section" style="border-color:#f38ba8">
     <h3 style="color:#f38ba8">Delete Account</h3>
