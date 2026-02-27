@@ -2,6 +2,7 @@
 BananaWiki – Database layer (SQLite)
 """
 
+import json
 import re
 import sqlite3
 import os
@@ -164,6 +165,10 @@ def init_db():
         cur.execute("ALTER TABLE site_settings ADD COLUMN lockdown_mode INTEGER NOT NULL DEFAULT 0")
     if "lockdown_message" not in ss_cols:
         cur.execute("ALTER TABLE site_settings ADD COLUMN lockdown_message TEXT NOT NULL DEFAULT ''")
+
+    # Add accessibility column to users if missing
+    if "accessibility" not in cols:
+        cur.execute("ALTER TABLE users ADD COLUMN accessibility TEXT")
 
     # Migrate users.id from INTEGER to TEXT if needed
     user_id_type = next(
@@ -481,8 +486,45 @@ def set_easter_egg_found(user_id):
 
 
 # ---------------------------------------------------------------------------
-#  Login attempt helpers (shared rate limiting across workers)
+#  Accessibility / user preferences
 # ---------------------------------------------------------------------------
+_A11Y_DEFAULTS = {
+    "font_scale": 1.0,
+    "contrast": 0,
+    "sidebar_width": 250,
+    "custom_bg": "",
+    "custom_text": "",
+    "custom_primary": "",
+    "custom_accent": "",
+}
+
+
+def get_user_accessibility(user_id):
+    """Return the accessibility preferences dict for a user (merged with defaults)."""
+    conn = get_db()
+    row = conn.execute("SELECT accessibility FROM users WHERE id=?", (user_id,)).fetchone()
+    conn.close()
+    result = dict(_A11Y_DEFAULTS)
+    if row and row["accessibility"]:
+        try:
+            saved = json.loads(row["accessibility"])
+            result.update({k: v for k, v in saved.items() if k in _A11Y_DEFAULTS})
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return result
+
+
+def save_user_accessibility(user_id, prefs):
+    """Persist accessibility preferences for a user."""
+    cleaned = {k: prefs[k] for k in _A11Y_DEFAULTS if k in prefs}
+    conn = get_db()
+    conn.execute("UPDATE users SET accessibility=? WHERE id=?",
+                 (json.dumps(cleaned), user_id))
+    conn.commit()
+    conn.close()
+
+
+
 def record_login_attempt(ip):
     conn = get_db()
     now = datetime.now(timezone.utc).isoformat()

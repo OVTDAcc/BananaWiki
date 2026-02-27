@@ -133,6 +133,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 resizeHandle.classList.remove('resizing');
                 document.body.style.cursor = '';
                 document.body.style.userSelect = '';
+                // Save the new sidebar width as an accessibility preference
+                var w = parseInt(sidebar.style.width, 10);
+                if (w >= 180 && w <= 500) {
+                    saveA11ySetting('sidebar_width', w);
+                }
             }
         });
     }
@@ -680,3 +685,276 @@ document.addEventListener('DOMContentLoaded', initAnnouncements);
         }
     });
 }());
+
+// ---------------------------------------------------------------------------
+//  Accessibility panel
+// ---------------------------------------------------------------------------
+
+// Current in-memory preferences (set via initAccessibility)
+var _a11yPrefs = {};
+var _a11ySaveTimer = null;
+
+function saveA11ySetting(key, value) {
+    _a11yPrefs[key] = value;
+    if (_a11ySaveTimer) clearTimeout(_a11ySaveTimer);
+    _a11ySaveTimer = setTimeout(function() {
+        fetch('/api/accessibility', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+            body: JSON.stringify(_a11yPrefs)
+        }).catch(function() {});
+    }, 600);
+}
+
+function applyA11yPrefs(prefs) {
+    // Font scale
+    var scale = prefs.font_scale || 1.0;
+    document.documentElement.style.setProperty('--a11y-font-scale', scale);
+
+    // Contrast: remove old classes and set new one
+    for (var i = 0; i <= 5; i++) {
+        document.body.classList.remove('a11y-contrast-' + i);
+    }
+    if (prefs.contrast > 0) {
+        document.body.classList.add('a11y-contrast-' + prefs.contrast);
+    }
+
+    // Sidebar width
+    var sidebar = document.getElementById('sidebar');
+    if (sidebar && prefs.sidebar_width && prefs.sidebar_width >= 180 && prefs.sidebar_width <= 500) {
+        sidebar.style.width = prefs.sidebar_width + 'px';
+        sidebar.style.minWidth = prefs.sidebar_width + 'px';
+    }
+
+    // Custom CSS colors
+    var root = document.documentElement;
+    if (prefs.custom_bg) {
+        root.style.setProperty('--bg', prefs.custom_bg);
+    } else {
+        root.style.removeProperty('--bg');
+    }
+    if (prefs.custom_text) {
+        root.style.setProperty('--text', prefs.custom_text);
+    } else {
+        root.style.removeProperty('--text');
+    }
+    if (prefs.custom_primary) {
+        root.style.setProperty('--primary', prefs.custom_primary);
+    } else {
+        root.style.removeProperty('--primary');
+    }
+    if (prefs.custom_accent) {
+        root.style.setProperty('--accent', prefs.custom_accent);
+    } else {
+        root.style.removeProperty('--accent');
+    }
+}
+
+function _rgbToHex(color) {
+    // Convert computed color (rgb or hex) to #rrggbb for color input
+    if (!color) return '#000000';
+    if (color.charAt(0) === '#') return color;
+    var m = color.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/);
+    if (!m) return '#000000';
+    return '#' + [m[1], m[2], m[3]].map(function(n) {
+        return ('0' + parseInt(n, 10).toString(16)).slice(-2);
+    }).join('');
+}
+
+function initAccessibility(prefs) {
+    _a11yPrefs = prefs || {};
+
+    // Apply stored prefs immediately
+    applyA11yPrefs(_a11yPrefs);
+
+    var panel = document.getElementById('a11y-panel');
+    var overlay = document.getElementById('a11y-overlay');
+    var toggleBtn = document.getElementById('a11y-toggle-btn');
+    var closeBtn = document.getElementById('a11y-close-btn');
+    if (!panel || !toggleBtn) return;
+
+    function openPanel() {
+        panel.style.display = 'flex';
+        if (overlay) overlay.classList.add('active');
+        // Sync UI controls to current prefs
+        syncPanelUI();
+    }
+
+    function closePanel() {
+        panel.style.display = 'none';
+        if (overlay) overlay.classList.remove('active');
+    }
+
+    toggleBtn.addEventListener('click', function() {
+        if (panel.style.display === 'none' || !panel.style.display) {
+            openPanel();
+        } else {
+            closePanel();
+        }
+    });
+
+    if (closeBtn) closeBtn.addEventListener('click', closePanel);
+    if (overlay) overlay.addEventListener('click', closePanel);
+
+    // Close on Escape
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && panel.style.display !== 'none') {
+            closePanel();
+        }
+    });
+
+    // Font size buttons
+    panel.querySelectorAll('.a11y-font-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var scale = parseFloat(btn.dataset.scale);
+            _a11yPrefs.font_scale = scale;
+            applyA11yPrefs(_a11yPrefs);
+            saveA11ySetting('font_scale', scale);
+            syncFontBtns();
+        });
+    });
+
+    // Contrast buttons
+    panel.querySelectorAll('.a11y-contrast-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var level = parseInt(btn.dataset.contrast, 10);
+            _a11yPrefs.contrast = level;
+            applyA11yPrefs(_a11yPrefs);
+            saveA11ySetting('contrast', level);
+            syncContrastBtns();
+        });
+    });
+
+    // Color inputs
+    var colorMap = {
+        'bg': { input: document.getElementById('a11y-color-bg'), prop: 'custom_bg' },
+        'text': { input: document.getElementById('a11y-color-text'), prop: 'custom_text' },
+        'primary': { input: document.getElementById('a11y-color-primary'), prop: 'custom_primary' },
+        'accent': { input: document.getElementById('a11y-color-accent'), prop: 'custom_accent' },
+    };
+
+    Object.keys(colorMap).forEach(function(key) {
+        var entry = colorMap[key];
+        if (!entry.input) return;
+        entry.input.addEventListener('input', function() {
+            _a11yPrefs[entry.prop] = entry.input.value;
+            applyA11yPrefs(_a11yPrefs);
+            saveA11ySetting(entry.prop, entry.input.value);
+        });
+    });
+
+    // Clear buttons
+    panel.querySelectorAll('.a11y-color-clear').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var target = btn.dataset.target;
+            var prop = 'custom_' + target;
+            _a11yPrefs[prop] = '';
+            applyA11yPrefs(_a11yPrefs);
+            saveA11ySetting(prop, '');
+            syncColorInputs();
+        });
+    });
+
+    // Reset all button
+    var resetBtn = document.getElementById('a11y-reset-btn');
+    if (resetBtn) {
+        resetBtn.addEventListener('click', function() {
+            if (!confirm('Reset all accessibility settings to default?')) return;
+            fetch('/api/accessibility/reset', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+                body: '{}'
+            }).then(function(r) { return r.json(); })
+            .then(function(d) {
+                if (d.defaults) {
+                    _a11yPrefs = d.defaults;
+                    applyA11yPrefs(_a11yPrefs);
+                    syncPanelUI();
+                    // Also remove inline styles that were set by server-side rendering
+                    var a11yStyle = document.getElementById('a11y-style');
+                    if (a11yStyle) a11yStyle.remove();
+                }
+            }).catch(function() {});
+        });
+    }
+
+    function syncFontBtns() {
+        var scale = _a11yPrefs.font_scale || 1.0;
+        panel.querySelectorAll('.a11y-font-btn').forEach(function(btn) {
+            btn.classList.toggle('active', parseFloat(btn.dataset.scale) === scale);
+        });
+    }
+
+    function syncContrastBtns() {
+        var level = _a11yPrefs.contrast || 0;
+        panel.querySelectorAll('.a11y-contrast-btn').forEach(function(btn) {
+            btn.classList.toggle('active', parseInt(btn.dataset.contrast, 10) === level);
+        });
+    }
+
+    function syncColorInputs() {
+        var root = document.documentElement;
+        var computed = getComputedStyle(root);
+        Object.keys(colorMap).forEach(function(key) {
+            var entry = colorMap[key];
+            if (!entry.input) return;
+            var stored = _a11yPrefs[entry.prop];
+            if (stored) {
+                entry.input.value = _rgbToHex(stored);
+            } else {
+                // Show current computed color as placeholder
+                var varName = '--' + (key === 'bg' ? 'bg' : key === 'text' ? 'text' : key === 'primary' ? 'primary' : 'accent');
+                var color = computed.getPropertyValue(varName).trim();
+                entry.input.value = _rgbToHex(color) || '#000000';
+            }
+        });
+    }
+
+    function syncPanelUI() {
+        syncFontBtns();
+        syncContrastBtns();
+        syncColorInputs();
+    }
+}
+
+// ---------------------------------------------------------------------------
+//  Editor pane resize (split editor/preview in edit mode)
+// ---------------------------------------------------------------------------
+function initEditorResize() {
+    var divider = document.querySelector('.editor-divider');
+    var editorPane = document.querySelector('.editor-pane');
+    var previewPane = document.querySelector('.preview-pane');
+    if (!divider || !editorPane || !previewPane) return;
+
+    var isResizingEditor = false;
+    var container = divider.parentElement;
+
+    divider.addEventListener('mousedown', function(e) {
+        isResizingEditor = true;
+        divider.classList.add('resizing');
+        document.body.style.userSelect = 'none';
+        document.body.style.cursor = 'col-resize';
+        e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', function(e) {
+        if (!isResizingEditor) return;
+        var rect = container.getBoundingClientRect();
+        var offsetX = e.clientX - rect.left;
+        var totalW = rect.width;
+        var pct = Math.max(15, Math.min(85, (offsetX / totalW) * 100));
+        editorPane.style.flex = 'none';
+        editorPane.style.width = pct + '%';
+        previewPane.style.flex = 'none';
+        previewPane.style.width = (100 - pct) + '%';
+    });
+
+    document.addEventListener('mouseup', function() {
+        if (isResizingEditor) {
+            isResizingEditor = false;
+            divider.classList.remove('resizing');
+            document.body.style.userSelect = '';
+            document.body.style.cursor = '';
+        }
+    });
+}
