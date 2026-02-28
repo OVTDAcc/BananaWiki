@@ -2060,6 +2060,7 @@ def upload_attachment(page_id):
     original_name = secure_filename(f.filename)
     attachment_id = db.add_page_attachment(page_id, stored_name, original_name, file_size, user["id"])
     log_action("upload_attachment", request, user=user, page=page["slug"], filename=original_name)
+    notify_change("attachment_upload", f"Attachment '{original_name}' uploaded to page '{page['slug']}'")
     return jsonify({"id": attachment_id, "name": original_name, "size": file_size})
 
 
@@ -2083,6 +2084,7 @@ def delete_attachment(attachment_id):
         os.remove(filepath)
     db.delete_page_attachment(attachment_id)
     log_action("delete_attachment", request, user=user, filename=attachment["original_name"])
+    notify_change("attachment_delete", f"Attachment '{attachment['original_name']}' deleted from page '{page['slug'] if page else 'unknown'}'")
     return jsonify({"ok": True})
 
 
