@@ -1,42 +1,78 @@
 # Deployment Readiness Assessment
 
-**Short answer: Yes, the project is deployment-ready from a code standpoint — with one important documentation gap to be aware of.**
+**Short answer: The application code is ready. The docs have stale instructions that will silently misconfigure any admin who follows them exactly. Fix those first, then it is fully ready.**
 
 ---
 
-## What works correctly
+## What is working correctly right now
 
-All 527 automated tests pass. Every route has authentication guards, CSRF protection, and rate limiting. The database migration is safe for existing installs (new columns are added via `ALTER TABLE` if they don't already exist, and every new column has a sensible default). The import chain (`config → db → app → wsgi → gunicorn.conf.py`) loads cleanly with no errors.
-
-The features added in the recent PR are all wired up end-to-end:
-
-- **Category change during edit** — the edit form sends a `category_id` field; the route validates access and applies the move inline alongside the content save.
-- **Tag and category at page creation** — the Create Page form now includes the full difficulty-tag selector; the route saves the tag immediately after inserting the page.
-- **Slug rename with auto-relink** — `POST /page/<slug>/rename` calls `db.update_page_slug()`, which rewrites every `/page/<old-slug>` string in all other pages' content and open drafts in a single transaction before redirecting to the new URL.
-- **Internal link picker** — the link dialog in the editor has External/Wiki-Page tabs; the Wiki Page tab queries `/api/pages/search` (login-required, rate-limited) for autocomplete and inserts a standard Markdown internal link.
-- **Sequential prev/next navigation** — `sequential_nav` defaults to `0` (disabled) on every category. When an editor enables it through the category manage modal, `db.get_adjacent_pages()` finds the surrounding pages by `sort_order` and the page template renders the Prev/Next buttons. Nothing is shown on pages where it is disabled.
-- **Simplified config** — `USE_PUBLIC_IP`, `SSL_CERT`, `SSL_KEY`, and `CUSTOM_DOMAIN` have been removed. The new defaults (`HOST = "127.0.0.1"`, `PROXY_MODE = True`) match the standard nginx deployment described in the systemd service file.
+- **All 527 automated tests pass.** Every route, every database operation, every security check is exercised.
+- **The import chain is clean.** `config.py` → `db.py` → `app.py` → `wsgi.py` → `gunicorn.conf.py` all load without errors.
+- **Security is solid.** CSRF protection on every form, Bleach-sanitized HTML on every Markdown render, rate limiting on every mutation route (SQLite-backed across Gunicorn workers), constant-time login checks, security headers on every response.
+- **Database migrations are backward-compatible.** Every new column is added with `ALTER TABLE … ADD COLUMN … DEFAULT` if it does not already exist, so existing installs upgrade safely with no manual SQL.
+- **All features are wired up end-to-end.** Pages, categories, history, drafts, attachments, user profiles, invites, announcements, accessibility preferences, Telegram sync, admin tools — all work.
+- **`config.py` is clean.** The settings that were removed in a previous cleanup (`USE_PUBLIC_IP`, `CUSTOM_DOMAIN`, `SSL_CERT`, `SSL_KEY`) are fully gone from both `config.py` and `gunicorn.conf.py`.
 
 ---
 
-## The one gap: the docs are out of date
+## What will mislead an admin right now
 
-`docs/configuration.md`, `docs/deployment.md`, and `docs/features.md` still document the removed settings (`USE_PUBLIC_IP`, `CUSTOM_DOMAIN`, `SSL_CERT`, `SSL_KEY`) and do not mention the five new features listed above. This does not affect runtime behaviour — it only affects human readers following the docs.
+`docs/deployment.md`, `docs/configuration.md`, and `docs/features.md` still document the four settings that were removed. This is not a crash bug, but it causes a real operational problem:
 
-If an admin reads the deployment guide and tries to set `USE_PUBLIC_IP = True`, Python will raise `AttributeError` when `gunicorn.conf.py` tries to read it. So the doc pages for *configuration* and *deployment* should be updated before pointing anyone at them. The code itself is fine.
+### The broken deployment scenario
+
+The docs tell admins to do this for a Cloudflare setup or IP-only access:
+
+```python
+# What docs/deployment.md says to put in config.py
+USE_PUBLIC_IP = True        # Cloudflare / IP-only setup
+CUSTOM_DOMAIN = "wiki.example.com"
+```
+
+But neither of those settings does anything in the current codebase. `config.py` now has `HOST = "127.0.0.1"` hardcoded. `gunicorn.conf.py` reads `HOST` directly — it does not read `USE_PUBLIC_IP`. So if an admin follows the docs, they will:
+
+1. Add `USE_PUBLIC_IP = True` to `config.py` — silently ignored.
+2. Start the server — it binds only to `127.0.0.1:5001`, not to `0.0.0.0`.
+3. Find the site unreachable from the outside — no error, just no connection.
+
+The Direct HTTPS guide is also broken: it tells admins to set `SSL_CERT` and `SSL_KEY`, but no code reads those keys anywhere, so HTTPS will never start.
+
+### What the docs need to say instead
+
+| Old (wrong) | New (correct) |
+|---|---|
+| `USE_PUBLIC_IP = True` | `HOST = "0.0.0.0"` |
+| `USE_PUBLIC_IP = False` | `HOST = "127.0.0.1"` *(already the default, omit it)* |
+| `CUSTOM_DOMAIN = "wiki.example.com"` | Delete this line — the setting no longer exists and does nothing |
+| `SSL_CERT = "/path/to/cert.pem"` | Delete this line — SSL must be terminated at nginx, Caddy, or Cloudflare, not by Gunicorn |
+| `SSL_KEY = "/path/to/key.pem"` | Delete this line — same reason |
 
 ---
 
-## What you need to do before pointing users at the docs
+## What you need to do
 
-1. Remove references to `USE_PUBLIC_IP`, `CUSTOM_DOMAIN`, `SSL_CERT`, and `SSL_KEY` from `docs/configuration.md` and `docs/deployment.md`. The correct way to bind to a public IP now is to set `HOST = "0.0.0.0"` directly in `config.py`; SSL termination should always go through nginx or Cloudflare.
-2. Add entries for the five new features (category during edit, tag at creation, slug rename, internal link picker, sequential nav) to `docs/features.md`.
-3. Update `docs/architecture.md` to mention the three new routes (`/page/<slug>/rename`, `/category/<id>/sequential-nav`, `/api/pages/search`) and the two new DB helpers (`db.update_page_slug`, `db.get_adjacent_pages`, `db.search_pages`).
+These are the only remaining tasks before the project is fully ready for admins to follow:
 
-None of these are blockers for the application running — they are purely documentation tasks.
+**1. Fix `docs/deployment.md`**
+
+Replace every code block that contains `USE_PUBLIC_IP`, `CUSTOM_DOMAIN`, `SSL_CERT`, or `SSL_KEY` with the correct equivalent. The Cloudflare and IP-only sections need `HOST = "0.0.0.0"`. The Direct HTTPS section needs to be rewritten to say "use nginx or Caddy instead" because Gunicorn no longer handles TLS directly. The nginx/Caddy/systemd sections just need `CUSTOM_DOMAIN` removed.
+
+**2. Fix `docs/configuration.md`**
+
+The Networking table documents `USE_PUBLIC_IP` and `HOST (derived)` — replace them with a single `HOST` row explaining the two valid values (`127.0.0.1` for proxy mode, `0.0.0.0` for direct access). Remove the `CUSTOM_DOMAIN` row. Remove the entire SSL/HTTPS section (it documents `SSL_CERT` and `SSL_KEY` which no longer exist).
+
+**3. Fix `docs/features.md`**
+
+Lines 684–689 reference `SSL_CERT`, `SSL_KEY`, `USE_PUBLIC_IP`, and the "derived HOST" pattern. Update those lines to match the current config.
 
 ---
 
-## Summary
+## Nothing else is needed
 
-The application is production-ready. The code is clean, all paths are authenticated and rate-limited, the database migrates safely, and all new features work end-to-end. The only thing outstanding is bringing the docs directory in sync with what the code actually does.
+The code itself requires no changes. No missing features, no broken routes, no unsafe patterns. Once the three doc files above are updated, every person who follows the docs will get a working server.
+
+---
+
+## In one sentence
+
+The application is production-ready from a code perspective; the only outstanding work is updating three doc files to remove four config settings that no longer exist, so that admins who follow the deployment guide get a running server instead of a silent bind-to-localhost misconfiguration.
