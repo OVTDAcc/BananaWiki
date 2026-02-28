@@ -1,42 +1,60 @@
 # Deployment Readiness Assessment
 
-**Short answer: Yes, the project is deployment-ready from a code standpoint — with one important documentation gap to be aware of.**
+**Short answer: The code is deployment-ready. The docs are not.**
+
+All 538 automated tests pass. The application imports cleanly, every route is authenticated and rate-limited, CSRF protection is active on every form, and the database schema migrations are safe for existing installs. `gunicorn.conf.py` and `wsgi.py` wire up correctly with the current `config.py`.
 
 ---
 
-## What works correctly
+## What is broken: the docs reference settings that no longer exist
 
-All 527 automated tests pass. Every route has authentication guards, CSRF protection, and rate limiting. The database migration is safe for existing installs (new columns are added via `ALTER TABLE` if they don't already exist, and every new column has a sensible default). The import chain (`config → db → app → wsgi → gunicorn.conf.py`) loads cleanly with no errors.
+`docs/configuration.md` and `docs/deployment.md` were written for an older version of `config.py`. That older version had four settings that have since been removed:
 
-The features added in the recent PR are all wired up end-to-end:
+| Setting | Status |
+|---|---|
+| `USE_PUBLIC_IP` | **Removed.** Replaced by setting `HOST = "0.0.0.0"` directly. |
+| `CUSTOM_DOMAIN` | **Removed.** Not used anywhere in the code. |
+| `SSL_CERT` | **Removed.** `gunicorn.conf.py` no longer reads it. |
+| `SSL_KEY` | **Removed.** `gunicorn.conf.py` no longer reads it. |
 
-- **Category change during edit** — the edit form sends a `category_id` field; the route validates access and applies the move inline alongside the content save.
-- **Tag and category at page creation** — the Create Page form now includes the full difficulty-tag selector; the route saves the tag immediately after inserting the page.
-- **Slug rename with auto-relink** — `POST /page/<slug>/rename` calls `db.update_page_slug()`, which rewrites every `/page/<old-slug>` string in all other pages' content and open drafts in a single transaction before redirecting to the new URL.
-- **Internal link picker** — the link dialog in the editor has External/Wiki-Page tabs; the Wiki Page tab queries `/api/pages/search` (login-required, rate-limited) for autocomplete and inserts a standard Markdown internal link.
-- **Sequential prev/next navigation** — `sequential_nav` defaults to `0` (disabled) on every category. When an editor enables it through the category manage modal, `db.get_adjacent_pages()` finds the surrounding pages by `sort_order` and the page template renders the Prev/Next buttons. Nothing is shown on pages where it is disabled.
-- **Simplified config** — `USE_PUBLIC_IP`, `SSL_CERT`, `SSL_KEY`, and `CUSTOM_DOMAIN` have been removed. The new defaults (`HOST = "127.0.0.1"`, `PROXY_MODE = True`) match the standard nginx deployment described in the systemd service file.
+Every code example in the deployment guide shows blocks like:
+
+```python
+PORT = 5001
+USE_PUBLIC_IP = False
+CUSTOM_DOMAIN = "wiki.example.com"
+PROXY_MODE = True
+```
+
+An admin following those examples will end up with a config file that silently ignores three out of four settings. The two cases where this causes real confusion:
+
+1. **Cloudflare / IP-only sections** tell admins to set `USE_PUBLIC_IP = True`. Gunicorn still binds to `127.0.0.1` (the `HOST` default) because `gunicorn.conf.py` reads `HOST`, not `USE_PUBLIC_IP`. The app will be unreachable from the outside.
+
+2. **"Direct HTTPS with Let's Encrypt"** tells admins to set `SSL_CERT` and `SSL_KEY` in `config.py`. Those settings are never read by `gunicorn.conf.py`, so Gunicorn serves plain HTTP on port 443, not HTTPS. This section describes a deployment mode that is entirely non-functional.
 
 ---
 
-## The one gap: the docs are out of date
+## What you need to do before handing the docs to an admin
 
-`docs/configuration.md`, `docs/deployment.md`, and `docs/features.md` still document the removed settings (`USE_PUBLIC_IP`, `CUSTOM_DOMAIN`, `SSL_CERT`, `SSL_KEY`) and do not mention the five new features listed above. This does not affect runtime behaviour — it only affects human readers following the docs.
+1. **`docs/deployment.md`** — Replace all `USE_PUBLIC_IP` / `CUSTOM_DOMAIN` / `SSL_CERT` / `SSL_KEY` lines in every code example with the current equivalents:
+   - Bind to a public IP → `HOST = "0.0.0.0"` in `config.py`
+   - Custom domain → remove: this setting is no longer needed; just configure nginx/Cloudflare
+   - Direct HTTPS → remove the entire "Direct HTTPS with Let's Encrypt" section; Gunicorn no longer supports `--certfile`/`--keyfile` via config.py; use nginx or Caddy for TLS instead
 
-If an admin reads the deployment guide and tries to set `USE_PUBLIC_IP = True`, Python will raise `AttributeError` when `gunicorn.conf.py` tries to read it. So the doc pages for *configuration* and *deployment* should be updated before pointing anyone at them. The code itself is fine.
+2. **`docs/configuration.md`** — Remove the `USE_PUBLIC_IP`, `CUSTOM_DOMAIN`, `SSL_CERT`, and `SSL_KEY` rows from the reference table and add `HOST` with its correct description (`"127.0.0.1"` default; change to `"0.0.0.0"` for direct exposure).
 
----
-
-## What you need to do before pointing users at the docs
-
-1. Remove references to `USE_PUBLIC_IP`, `CUSTOM_DOMAIN`, `SSL_CERT`, and `SSL_KEY` from `docs/configuration.md` and `docs/deployment.md`. The correct way to bind to a public IP now is to set `HOST = "0.0.0.0"` directly in `config.py`; SSL termination should always go through nginx or Cloudflare.
-2. Add entries for the five new features (category during edit, tag at creation, slug rename, internal link picker, sequential nav) to `docs/features.md`.
-3. Update `docs/architecture.md` to mention the three new routes (`/page/<slug>/rename`, `/category/<id>/sequential-nav`, `/api/pages/search`) and the two new DB helpers (`db.update_page_slug`, `db.get_adjacent_pages`, `db.search_pages`).
-
-None of these are blockers for the application running — they are purely documentation tasks.
+Nothing else. The code itself is fine.
 
 ---
 
 ## Summary
 
-The application is production-ready. The code is clean, all paths are authenticated and rate-limited, the database migrates safely, and all new features work end-to-end. The only thing outstanding is bringing the docs directory in sync with what the code actually does.
+| Area | Ready? |
+|---|---|
+| Code (routes, auth, CSRF, rate limiting, DB) | ✅ Yes |
+| All tests (538) | ✅ Pass |
+| Gunicorn / WSGI startup | ✅ Clean |
+| `docs/configuration.md` | ❌ References removed settings |
+| `docs/deployment.md` | ❌ References removed settings; "Direct HTTPS" section is non-functional |
+
+Fix the two doc files and the project is ready to hand to admins.
