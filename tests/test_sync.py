@@ -207,8 +207,9 @@ def test_create_backup_produces_valid_zip(tmp_path, monkeypatch):
             names = zf.namelist()
             assert "database/bananawiki.db" in names
             assert "config/config.py" in names
-            # Uploads are sent as individual Telegram messages, not in the zip
+            # Uploads and attachments are sent as individual Telegram messages, not in the zip
             assert not any(n.startswith("uploads/") for n in names)
+            assert not any(n.startswith("attachments/") for n in names)
             assert "logs/test.log" in names
             assert "instance/.secret_key" in names
             assert "backup_manifest.json" in names
@@ -679,7 +680,7 @@ def test_notify_file_upload_sends_immediately(tmp_path, monkeypatch):
 
     calls = []
 
-    def fake_do_send(filename, filepath):
+    def fake_do_send(filename, filepath, display_name=""):
         calls.append((filename, filepath))
 
     with patch.object(sync, "_do_send_upload", side_effect=fake_do_send):
@@ -838,15 +839,14 @@ def test_upload_msg_id_store_and_retrieve(tmp_path, monkeypatch):
 # -----------------------------------------------------------------------
 # Attachment backup tests
 # -----------------------------------------------------------------------
-def test_create_backup_includes_attachments(tmp_path, monkeypatch):
-    """Backup should include files from the attachments folder."""
+def test_create_backup_excludes_attachments_from_zip(tmp_path, monkeypatch):
+    """Attachments are sent individually to Telegram; they must NOT appear in the backup zip."""
     import sync
 
     attach_dir = str(tmp_path / "attachments")
     os.makedirs(attach_dir, exist_ok=True)
     monkeypatch.setattr(config, "ATTACHMENT_FOLDER", attach_dir)
 
-    # Create a fake attachment file
     att_path = os.path.join(attach_dir, "abc123.pdf")
     with open(att_path, "wb") as f:
         f.write(b"fake pdf content")
@@ -857,56 +857,8 @@ def test_create_backup_includes_attachments(tmp_path, monkeypatch):
     try:
         with zipfile.ZipFile(zip_path, "r") as zf:
             names = zf.namelist()
-            assert "attachments/abc123.pdf" in names
-        assert not any(e[0].startswith("attachments/") for e in excluded)
-    finally:
-        if zip_path and os.path.exists(zip_path):
-            os.remove(zip_path)
-
-
-def test_create_backup_excludes_oversized_attachment(tmp_path, monkeypatch):
-    """Attachment files that exceed the size limit should be excluded."""
-    import sync
-    monkeypatch.setattr(sync, "TELEGRAM_FILE_LIMIT", 2048)
-
-    attach_dir = str(tmp_path / "attachments")
-    os.makedirs(attach_dir, exist_ok=True)
-    monkeypatch.setattr(config, "ATTACHMENT_FOLDER", attach_dir)
-
-    att_path = os.path.join(attach_dir, "huge.pdf")
-    with open(att_path, "wb") as f:
-        f.write(b"x" * 2000)
-
-    changes = [{"type": "test", "description": "test", "timestamp": "2024-01-01T00:00:00"}]
-    zip_path, excluded = sync._create_backup(changes)
-
-    try:
-        excluded_names = [e[0] for e in excluded]
-        assert "attachments/huge.pdf" in excluded_names
-
-        with zipfile.ZipFile(zip_path, "r") as zf:
-            manifest = json.loads(zf.read("backup_manifest.json"))
-            assert any(e["file"] == "attachments/huge.pdf" for e in manifest["excluded_files"])
-    finally:
-        if zip_path and os.path.exists(zip_path):
-            os.remove(zip_path)
-
-
-def test_create_backup_no_attachment_folder(tmp_path, monkeypatch):
-    """Backup should succeed gracefully when ATTACHMENT_FOLDER does not exist."""
-    import sync
-
-    monkeypatch.setattr(config, "ATTACHMENT_FOLDER", str(tmp_path / "nonexistent_attachments"))
-
-    changes = [{"type": "test", "description": "test", "timestamp": "2024-01-01T00:00:00"}]
-    zip_path, excluded = sync._create_backup(changes)
-
-    try:
-        assert zip_path is not None
-        assert os.path.exists(zip_path)
-        with zipfile.ZipFile(zip_path, "r") as zf:
-            names = zf.namelist()
             assert not any(n.startswith("attachments/") for n in names)
+        assert not any(e[0].startswith("attachments/") for e in excluded)
     finally:
         if zip_path and os.path.exists(zip_path):
             os.remove(zip_path)
@@ -916,7 +868,7 @@ def test_create_backup_no_attachment_folder(tmp_path, monkeypatch):
 # Integration: attachment routes trigger sync
 # -----------------------------------------------------------------------
 def test_upload_attachment_triggers_sync(logged_in_admin, monkeypatch, tmp_path):
-    """Uploading a page attachment should queue a sync change when enabled."""
+    """Uploading a page attachment should queue a sync change and send the file individually."""
     import sync
     import db
     monkeypatch.setattr(config, "SYNC", True)
@@ -927,8 +879,10 @@ def test_upload_attachment_triggers_sync(logged_in_admin, monkeypatch, tmp_path)
     # Create a page to attach to
     page_id = db.create_page("Attach Test", "attach-test", "content")
 
-    with patch("sync.threading.Timer") as mock_timer:
+    with patch("sync.threading.Timer") as mock_timer, \
+         patch("sync.threading.Thread") as mock_thread:
         mock_timer.return_value = MagicMock()
+        mock_thread.return_value = MagicMock()
         resp = logged_in_admin.post(
             f"/api/page/{page_id}/attachments",
             data={"file": (io.BytesIO(b"hello world"), "test.txt")},
@@ -938,10 +892,12 @@ def test_upload_attachment_triggers_sync(logged_in_admin, monkeypatch, tmp_path)
 
     found = any(c["type"] == "attachment_upload" for c in sync._pending_changes)
     assert found
+    # File should also be sent individually via a Thread (notify_file_upload)
+    assert mock_thread.called
 
 
 def test_delete_attachment_triggers_sync(logged_in_admin, admin_user, monkeypatch, tmp_path):
-    """Deleting a page attachment should queue a sync change when enabled."""
+    """Deleting a page attachment should queue a sync change and send a deletion notice."""
     import sync
     import db
     monkeypatch.setattr(config, "SYNC", True)
@@ -960,13 +916,17 @@ def test_delete_attachment_triggers_sync(logged_in_admin, admin_user, monkeypatc
         f.write(b"data")
     attachment_id = db.add_page_attachment(page_id, stored_name, "original.txt", 4, admin_user)
 
-    with patch("sync.threading.Timer") as mock_timer:
+    with patch("sync.threading.Timer") as mock_timer, \
+         patch("sync.threading.Thread") as mock_thread:
         mock_timer.return_value = MagicMock()
+        mock_thread.return_value = MagicMock()
         resp = logged_in_admin.delete(f"/api/attachments/{attachment_id}")
         assert resp.status_code == 200
 
     found = any(c["type"] == "attachment_delete" for c in sync._pending_changes)
     assert found
+    # Deletion notice should also be sent individually via a Thread (notify_file_deleted)
+    assert mock_thread.called
 
 
 # -----------------------------------------------------------------------

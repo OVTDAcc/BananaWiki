@@ -249,23 +249,7 @@ def _create_backup(changes: list[dict]) -> tuple[str | None, list[tuple]]:
                             (f"logs/{log_file}", file_size, "Exceeds size limit")
                         )
 
-            # 5. Page attachments ----------------------------------------
-            attach_dir = config.ATTACHMENT_FOLDER
-            if os.path.isdir(attach_dir):
-                for att_file in sorted(os.listdir(attach_dir)):
-                    att_path = os.path.join(attach_dir, att_file)
-                    if not os.path.isfile(att_path):
-                        continue
-                    file_size = os.path.getsize(att_path)
-                    if current_size + file_size < max_size:
-                        zf.write(att_path, f"attachments/{att_file}")
-                        current_size += file_size
-                    else:
-                        excluded_files.append(
-                            (f"attachments/{att_file}", file_size, "Exceeds size limit")
-                        )
-
-            # 6. Backup manifest -----------------------------------------
+            # 5. Backup manifest -----------------------------------------
             manifest = {
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "changes": changes,
@@ -372,19 +356,21 @@ def _send_to_telegram(
 # ---------------------------------------------------------------------------
 #  Per-upload Telegram notifications
 # ---------------------------------------------------------------------------
-def notify_file_upload(filename: str, filepath: str) -> None:
+def notify_file_upload(filename: str, filepath: str, display_name: str = "") -> None:
     """Send a newly uploaded file to Telegram as a dedicated message.
 
     Each upload is sent as an individual document message so that file-size
     limits are applied per file rather than across an entire backup zip.
     The returned Telegram message_id is persisted so that a subsequent
     deletion can reply to the original message.
+
+    *display_name* is shown in the Telegram caption; defaults to *filename*.
     """
     if not is_enabled():
         return
     t = threading.Thread(
         target=_do_send_upload,
-        args=(filename, filepath),
+        args=(filename, filepath, display_name),
         daemon=True,
     )
     t.start()
@@ -465,7 +451,7 @@ def _delete_upload_msg_id(filename: str) -> None:
 # ---------------------------------------------------------------------------
 #  Internal helpers for per-upload sends
 # ---------------------------------------------------------------------------
-def _do_send_upload(filename: str, filepath: str) -> None:
+def _do_send_upload(filename: str, filepath: str, display_name: str = "") -> None:
     """Send *filepath* to Telegram as a dedicated document message."""
     token = config.SYNC_TOKEN
     user_id = config.SYNC_USERID
@@ -483,8 +469,9 @@ def _do_send_upload(filename: str, filepath: str) -> None:
         )
         return
 
+    label = display_name or filename
     caption = (
-        f"\U0001f4ce New upload: {filename}\n"
+        f"\U0001f4ce New upload: {label}\n"
         f"\U0001f4c5 {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}"
     )
 
