@@ -1615,15 +1615,17 @@ def list_all_users_with_profiles():
 
 
 def get_contributions_by_day(user_id):
-    """Return a dict {date_str: count} of daily wiki edits for a user (last 365 days)."""
+    """Return a tuple (year, {date_str: count}) of daily wiki edits for a user (current calendar year)."""
     conn = get_db()
-    cutoff = (datetime.now(timezone.utc) - timedelta(days=365)).isoformat()
+    year = datetime.now(timezone.utc).year
+    start = f"{year}-01-01"
+    end_exclusive = f"{year + 1}-01-01"
     rows = conn.execute(
         "SELECT substr(created_at, 1, 10) AS day, COUNT(*) AS cnt "
         "FROM page_history "
-        "WHERE edited_by=? AND created_at >= ? "
+        "WHERE edited_by=? AND created_at >= ? AND created_at < ? "
         "GROUP BY day",
-        (user_id, cutoff),
+        (user_id, start, end_exclusive),
     ).fetchall()
     conn.close()
-    return {r["day"]: r["cnt"] for r in rows}
+    return year, {r["day"]: r["cnt"] for r in rows}

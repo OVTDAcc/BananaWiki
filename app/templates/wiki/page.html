@@ -30,7 +30,7 @@
 
 {% if editor_info %}
 <div class="edit-info">
-    Last edit by <strong>{{ editor_info.username }}</strong> <span title="{{ editor_info.edited_at }}">{{ editor_info.time_ago }}</span>
+    Last edit by <strong><a href="{{ url_for('user_profile', username=editor_info.username) }}" style="color:inherit">{{ editor_info.username }}</a></strong> <span title="{{ editor_info.edited_at }}">{{ editor_info.time_ago }}</span>
     {% if page_history_enabled %}· <a href="{{ url_for('page_history', slug=page.slug) }}">View history</a>{% endif %}
 </div>
 {% elif page.last_edited_at and page_history_enabled %}
@@ -88,7 +88,7 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="form-group">
                 <label>Difficulty Tag</label>
-                <select name="difficulty_tag" class="input" id="tagModalSelect" onchange="toggleCustomTag(this,'tagModal')">
+                <select name="difficulty_tag" class="input" id="tagModalSelect" onchange="toggleCustomTag(this,'tagModalCustom')">
                     <option value="" {% if not page.difficulty_tag %}selected{% endif %}>None</option>
                     <option value="beginner" {% if page.difficulty_tag == 'beginner' %}selected{% endif %}>Beginner</option>
                     <option value="easy" {% if page.difficulty_tag == 'easy' %}selected{% endif %}>Easy</option>

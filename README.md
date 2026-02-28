@@ -56,9 +56,11 @@ A lightweight, self-hosted wiki built with Flask and SQLite. Clean, fast, and ea
 - **Image Uploads & Positioning** — Drag-and-drop or file picker; after upload an options modal lets editors set alt text, position (inline / float left / float right / center), and optional pixel width; Pillow-validated; UUID filenames; orphaned images cleaned up automatically after each commit or draft deletion
 
 **People**
-- **User Profiles** — Users can create a public profile page with a real name, bio, and avatar (max 1 MB); profiles can be published, hidden, or deleted at any time; contribution history is always preserved internally
+- **User Profiles** — Users can create a public profile page with a real name, bio, and avatar (max 1 MB); profiles can be published, hidden, or deleted directly from the profile page with a single click, with no need to visit account settings; contribution history is always preserved internally
+- **Inline Profile Editing** — Real name, bio, and avatar can be edited directly on the profile page via a collapsible form; all changes redirect back to the profile page
 - **Contribution Heatmap** — Each profile shows a GitHub-style yearly heatmap of wiki edits
-- **People Directory** — A searchable member list at `/users` shows all published profiles; a sidebar widget shows the most active members at a glance
+- **People Directory** — A searchable member list at `/users` shows all published profiles; a sidebar widget shows the most active members at a glance, pinned at the bottom of the sidebar regardless of how long the page tree is
+- **Clickable Contributor Attribution** — The "Last edit by" line on every page view and every row in the page history table link directly to that user's profile
 - **Admin Profile Moderation** — Admins can edit any user's profile data, remove avatars, and disable or delete profile pages
 
 **Accounts & Access**
@@ -164,7 +166,7 @@ BananaWiki/
 ├── docs/               # Detailed documentation
 ├── instance/           # Database, attachments, and secret key — created at runtime (gitignored)
 ├── logs/               # Application logs — created at runtime (gitignored)
-└── tests/              # Test suite (499 tests across 6 files)
+└── tests/              # Test suite (500 tests across 6 files)
 ```
 
 ## Running Tests

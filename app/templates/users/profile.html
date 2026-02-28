@@ -20,9 +20,6 @@
             {% endif %}
             <div class="user-profile-badges">
                 <span class="badge badge-{{ target.role }}" title="{{ target.role }}">{{ role_labels.get(target.role, target.role) }}</span>
-                {% if target.role in ('admin', 'protected_admin') %}
-                <span class="badge badge-admin" title="Has admin access">Wiki Admin</span>
-                {% endif %}
                 {% if target.role == 'protected_admin' %}
                 <span class="badge badge-protected_admin" title="Protected admin — account hardened against modification">Protected</span>
                 {% endif %}
@@ -36,10 +33,60 @@
                 <span class="badge" style="opacity:.6">Hidden from public</span>
                 {% endif %}
             </div>
-            {% if is_own or is_admin %}
+            {% if is_own %}
             <div class="user-profile-actions">
-                <a href="{{ url_for('account_settings') }}#profile" class="btn btn-sm">Edit Profile</a>
-                <a href="{{ url_for('user_profile', username=target.username) }}" class="btn btn-sm btn-outline">View Public Profile</a>
+                <button class="btn btn-sm" onclick="var s=document.getElementById('profile-edit-section');s.style.display=s.style.display==='none'?'block':'none'">Edit Profile</button>
+                {% if profile %}
+                    {% if profile.page_published %}
+                    <form method="POST" action="{{ url_for('account_settings') }}" style="display:inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="action" value="unpublish_profile">
+                        <input type="hidden" name="next_url" value="{{ url_for('user_profile', username=target.username) }}">
+                        <button type="submit" class="btn btn-sm btn-outline">Hide Profile</button>
+                    </form>
+                    {% else %}
+                    <form method="POST" action="{{ url_for('account_settings') }}" style="display:inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="action" value="publish_profile">
+                        <input type="hidden" name="next_url" value="{{ url_for('user_profile', username=target.username) }}">
+                        <button type="submit" class="btn btn-sm"{% if profile.page_disabled_by_admin %} disabled title="Profile disabled by admin"{% endif %}>Publish Profile</button>
+                    </form>
+                    {% endif %}
+                {% endif %}
+            </div>
+            <div id="profile-edit-section" style="display:none;margin-top:1rem;background:rgba(255,255,255,.04);border-radius:6px;padding:1rem">
+                {% if profile and profile.page_disabled_by_admin %}
+                <div class="flash flash-error" style="margin-bottom:1rem">Your profile page has been disabled by an admin.</div>
+                {% endif %}
+                <form method="POST" action="{{ url_for('account_settings') }}" enctype="multipart/form-data">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="action" value="update_profile">
+                    <input type="hidden" name="next_url" value="{{ url_for('user_profile', username=target.username) }}">
+                    <div class="form-group">
+                        <label>Real Name (optional)</label>
+                        <input type="text" name="real_name" class="input" value="{{ profile.real_name if profile else '' }}" maxlength="100" placeholder="Your real name">
+                    </div>
+                    <div class="form-group">
+                        <label>Bio (optional, max 500 chars)</label>
+                        <textarea name="bio" class="input" rows="3" maxlength="500" placeholder="A short bio about yourself">{{ profile.bio if profile else '' }}</textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Profile Picture (PNG/JPG/GIF/WebP, max 1 MB)</label>
+                        <input type="file" name="avatar" class="input" accept="image/png,image/jpeg,image/gif,image/webp">
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-sm">Save</button>
+                        {% if profile and profile.avatar_filename %}
+                        <button type="submit" form="profile-remove-avatar-form" class="btn btn-sm btn-outline">Remove Avatar</button>
+                        {% endif %}
+                        <button type="button" class="btn btn-sm btn-outline" onclick="document.getElementById('profile-edit-section').style.display='none'">Cancel</button>
+                    </div>
+                </form>
+                <form id="profile-remove-avatar-form" method="POST" action="{{ url_for('account_settings') }}" style="display:none">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="action" value="remove_avatar">
+                    <input type="hidden" name="next_url" value="{{ url_for('user_profile', username=target.username) }}">
+                </form>
             </div>
             {% endif %}
         </div>
@@ -48,8 +95,8 @@
     {# ----- Contribution heatmap ----- #}
     {% set total = contributions.values() | sum %}
     <div class="contribution-section">
-        <h2 class="contribution-title">{{ "{:,}".format(total) }} contribution{{ 's' if total != 1 else '' }} in the last year</h2>
-        <div class="contribution-graph" id="contrib-graph" data-contributions="{{ contributions | tojson }}"></div>
+        <h2 class="contribution-title">{{ "{:,}".format(total) }} contribution{{ 's' if total != 1 else '' }} in {{ contrib_year }}</h2>
+        <div class="contribution-graph" id="contrib-graph" data-contributions='{{ contributions | tojson }}' data-year="{{ contrib_year }}"></div>
         <div class="contribution-legend">
             <span class="contrib-legend-label">Less</span>
             <span class="contrib-cell contrib-0"></span>
@@ -122,63 +169,91 @@
 {% block scripts %}
 <script>
 (function() {
-    var data = JSON.parse(document.getElementById('contrib-graph').dataset.contributions || '{}');
-    var graph = document.getElementById('contrib-graph');
-    if (!graph) return;
+    var graphEl = document.getElementById('contrib-graph');
+    if (!graphEl) return;
+    var data = JSON.parse(graphEl.dataset.contributions || '{}');
+    var year = parseInt(graphEl.dataset.year, 10);
 
-    // Build 53 weeks x 7 days grid (Sun–Sat)
+    // Format a Date as YYYY-MM-DD without UTC conversion
+    function fmtDate(d) {
+        return d.getFullYear() + '-' +
+               String(d.getMonth() + 1).padStart(2, '0') + '-' +
+               String(d.getDate()).padStart(2, '0');
+    }
+
     var today = new Date();
     today.setHours(0, 0, 0, 0);
-    // Start from the most recent complete week
-    var startDay = new Date(today);
-    startDay.setDate(startDay.getDate() - 364);
-    // Align to Sunday
+
+    // Grid starts on the Sunday on or before Jan 1
+    var jan1 = new Date(year, 0, 1);
+    var startDay = new Date(jan1);
     startDay.setDate(startDay.getDate() - startDay.getDay());
 
+    // Grid ends on the Saturday on or after Dec 31
+    var dec31 = new Date(year, 11, 31);
+    var endDay = new Date(dec31);
+    endDay.setDate(endDay.getDate() + (6 - endDay.getDay()));
+
+    // Build weeks
     var weeks = [];
     var d = new Date(startDay);
-    while (d <= today) {
+    while (d <= endDay) {
         var week = [];
         for (var i = 0; i < 7; i++) {
-            var key = d.toISOString().substring(0, 10);
-            week.push({ date: key, count: data[key] || 0, future: d > today });
+            var key = fmtDate(d);
+            var inYear = d.getFullYear() === year;
+            var isFuture = d > today;
+            week.push({
+                date: key,
+                count: (inYear && !isFuture) ? (data[key] || 0) : 0,
+                outside: !inYear,
+                future: isFuture && inYear
+            });
             d.setDate(d.getDate() + 1);
         }
         weeks.push(week);
     }
 
-    // Month labels
-    var monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    var monthLabels = [];
-    for (var w = 0; w < weeks.length; w++) {
-        var firstDay = weeks[w][0];
-        var dt = new Date(firstDay.date);
-        if (w === 0 || dt.getDate() <= 7) {
-            monthLabels[w] = monthNames[dt.getMonth()];
-        }
-    }
-
     // Compute max for colour scaling
     var maxCount = 0;
     for (var key in data) { if (data[key] > maxCount) maxCount = data[key]; }
-
     function levelOf(count) {
         if (count === 0) return 0;
         if (maxCount === 0) return 1;
         var ratio = count / maxCount;
         if (ratio < 0.25) return 1;
-        if (ratio < 0.5) return 2;
+        if (ratio < 0.5)  return 2;
         if (ratio < 0.75) return 3;
         return 4;
     }
 
-    // Build table
+    // Month labels: show name on the first column that starts a new in-year month
+    var monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var monthLabels = [];
+    var seenMonths = {};
+    for (var w = 0; w < weeks.length; w++) {
+        var label = '';
+        for (var di = 0; di < 7; di++) {
+            var cell = weeks[w][di];
+            var parts = cell.date.split('-');
+            var cellYear = parseInt(parts[0], 10);
+            var cellMonth = parseInt(parts[1], 10) - 1; // 0-indexed
+            if (cellYear === year && !seenMonths[cellMonth]) {
+                seenMonths[cellMonth] = true;
+                label = monthNames[cellMonth];
+                break;
+            }
+        }
+        monthLabels.push(label);
+    }
+
+    // Build DOM
     var wrapper = document.createElement('div');
     wrapper.className = 'contrib-wrapper';
 
-    // Month header row
     var headerRow = document.createElement('div');
     headerRow.className = 'contrib-months';
+
     var dayLabels = document.createElement('div');
     dayLabels.className = 'contrib-day-labels';
     ['', 'Mon', '', 'Wed', '', 'Fri', ''].forEach(function(lbl) {
@@ -192,14 +267,13 @@
     for (var w = 0; w < weeks.length; w++) {
         var lbl = document.createElement('span');
         lbl.className = 'contrib-month-label';
-        lbl.textContent = monthLabels[w] || '';
+        lbl.textContent = monthLabels[w];
         monthRow.appendChild(lbl);
     }
     headerRow.appendChild(monthRow);
 
     var grid = document.createElement('div');
     grid.className = 'contrib-grid';
-
     grid.appendChild(dayLabels);
 
     var colsDiv = document.createElement('div');
@@ -207,12 +281,18 @@
     for (var w = 0; w < weeks.length; w++) {
         var col = document.createElement('div');
         col.className = 'contrib-col';
-        for (var d2 = 0; d2 < weeks[w].length; d2++) {
-            var day = weeks[w][d2];
-            var cell = document.createElement('span');
-            cell.className = 'contrib-cell contrib-' + (day.future ? 'future' : levelOf(day.count));
-            cell.title = day.date + ': ' + day.count + ' contribution' + (day.count !== 1 ? 's' : '');
-            col.appendChild(cell);
+        for (var di = 0; di < weeks[w].length; di++) {
+            var day = weeks[w][di];
+            var cellEl = document.createElement('span');
+            if (day.outside) {
+                cellEl.className = 'contrib-cell contrib-outside';
+            } else if (day.future) {
+                cellEl.className = 'contrib-cell contrib-future';
+            } else {
+                cellEl.className = 'contrib-cell contrib-' + levelOf(day.count);
+                cellEl.title = day.date + ': ' + day.count + ' contribution' + (day.count !== 1 ? 's' : '');
+            }
+            col.appendChild(cellEl);
         }
         colsDiv.appendChild(col);
     }
@@ -220,7 +300,7 @@
 
     wrapper.appendChild(headerRow);
     wrapper.appendChild(grid);
-    graph.appendChild(wrapper);
+    graphEl.appendChild(wrapper);
 }());
 </script>
 {% endblock %}
