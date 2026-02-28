@@ -198,14 +198,16 @@ def _create_backup(changes: list[dict]) -> tuple[str | None, list[tuple]]:
 
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
             # 1. Database -------------------------------------------------
+            # Always included: passwords are hashed and the DB must be
+            # backed up to prevent data loss if the server encounters an issue.
             if os.path.exists(config.DATABASE_PATH):
                 db_size = os.path.getsize(config.DATABASE_PATH)
-                if include_sensitive and current_size + db_size < max_size:
+                if current_size + db_size < max_size:
                     zf.write(config.DATABASE_PATH, "database/bananawiki.db")
                     current_size += db_size
                 else:
                     excluded_files.append(
-                        ("database/bananawiki.db", db_size, "Excluded by config" if not include_sensitive else "Exceeds size limit")
+                        ("database/bananawiki.db", db_size, "Exceeds size limit")
                     )
 
             # 2. Config file ---------------------------------------------

@@ -225,6 +225,35 @@ def test_create_backup_produces_valid_zip(tmp_path, monkeypatch):
             os.remove(zip_path)
 
 
+def test_create_backup_always_includes_db(tmp_path, monkeypatch):
+    """Database should be included in the backup even when SYNC_INCLUDE_SENSITIVE=False."""
+    import sync
+    import db
+
+    # Explicitly disable sensitive artifacts
+    monkeypatch.setattr(config, "SYNC_INCLUDE_SENSITIVE", False)
+
+    db.create_user("testuser", "hash123", role="user")
+
+    changes = [{"type": "test", "description": "test change", "timestamp": "2024-01-01T00:00:00"}]
+    zip_path, excluded = sync._create_backup(changes)
+
+    try:
+        assert zip_path is not None
+        assert os.path.exists(zip_path)
+
+        with zipfile.ZipFile(zip_path, "r") as zf:
+            names = zf.namelist()
+            # Database must always be included regardless of SYNC_INCLUDE_SENSITIVE
+            assert "database/bananawiki.db" in names
+            # Sensitive files (config, secret key, logs) are still excluded
+            assert "config/config.py" not in names
+            assert "instance/.secret_key" not in names
+    finally:
+        if zip_path and os.path.exists(zip_path):
+            os.remove(zip_path)
+
+
 def test_create_backup_excludes_gitkeep(tmp_path, monkeypatch):
     """Uploads (including .gitkeep) are not included in the backup zip."""
     import sync
