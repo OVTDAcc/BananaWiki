@@ -69,6 +69,16 @@ When a new page is created, its URL slug is derived from the title: lowercased, 
 
 > `app.py` → `slugify()`, `create_page`
 
+### Page URL slug rename
+Editors can change a page's URL slug after creation via a form on the page view. The rename operation atomically rewrites every `/page/<old-slug>` reference in all other pages' content and all open drafts before redirecting to the new URL — no broken internal links.
+
+> `app.py` → `rename_page_slug`, `db.py` → `update_page_slug()`
+
+### Internal link picker
+The Markdown editor's link dialog has two tabs: **External URL** and **Wiki Page**. The Wiki Page tab queries `/api/pages/search` as the editor types and inserts a standard `[Title](/page/slug)` Markdown link when selected.
+
+> `app.py` → `api_pages_search`, `db.py` → `search_pages()`, `app/static/js/main.js` → link dialog, `app/templates/wiki/edit.html`
+
 ---
 
 ## Navigation and organization
@@ -82,6 +92,11 @@ Categories form a tree structure with unlimited nesting depth. The sidebar rende
 Editors can create, rename, move (re-parent), and delete categories. When deleting a category the admin chooses what happens to its pages: uncategorize them, delete them, or move them to another category. Circular-reference moves (moving a category into one of its own descendants) are detected and blocked.
 
 > `app.py` → `create_category`, `edit_category`, `move_category`, `delete_category_route`
+
+### Sequential navigation
+Each category can have sequential Prev/Next navigation enabled. When turned on, every page in that category shows Prev and Next buttons based on `sort_order`, letting readers walk through the category like a book. The setting is toggled by editors from the category management UI.
+
+> `app.py` → `toggle_category_sequential_nav`, `db.py` → `update_category_sequential_nav()`, `get_adjacent_pages()`
 
 ### Page movement between categories
 An editor can reassign a page to a different category (or to no category) from the page view without editing the content.
@@ -678,15 +693,10 @@ Setting `PROXY_MODE = True` wraps the app with Werkzeug's `ProxyFix` middleware 
 
 > `app.py` → proxy setup block, `config.py` → `PROXY_MODE`
 
-### Direct SSL/TLS support
-Providing paths to an SSL certificate and private key in `config.py` enables HTTPS without a separate reverse proxy. Not needed when Cloudflare handles TLS.
-
-> `config.py` → `SSL_CERT`, `SSL_KEY`
-
 ### Flexible binding
-`USE_PUBLIC_IP` controls whether Gunicorn binds to `0.0.0.0` (all interfaces) or `127.0.0.1` (localhost only). The derived `HOST` variable is read by `gunicorn.conf.py`.
+Set `HOST = "0.0.0.0"` in `config.py` to bind Gunicorn to all network interfaces (required for IP-only direct access or when Cloudflare/nginx connects to the server's public IP directly). The default `"127.0.0.1"` is correct for the standard nginx/Caddy proxy setup. `gunicorn.conf.py` reads `HOST` directly.
 
-> `config.py` → `USE_PUBLIC_IP`, `HOST`, `gunicorn.conf.py`
+> `config.py` → `HOST`, `gunicorn.conf.py`
 
 ### systemd service file
 `bananawiki.service` is a ready-to-use systemd unit file for running BananaWiki as a persistent background service on Linux.

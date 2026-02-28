@@ -50,9 +50,12 @@ A lightweight, self-hosted wiki built with Flask and SQLite. Clean, fast, and ea
 - **Draft Autosave** — Browser saves a draft every few seconds; restores automatically on re-open; shows a conflict warning when two editors are working on the same page simultaneously
 - **Difficulty Tags** — Editors can tag pages with an optional difficulty level (`Beginner`, `Easy`, `Intermediate`, `Expert`, `Extra`) or a fully custom label and color; shown as a colored badge next to the page title
 - **Page Attachments** — Editors can upload arbitrary files (PDFs, archives, etc.) directly to a page; attachments are served through an authenticated route, not exposed as static files
+- **URL Slug Rename** — Editors can rename a page's URL slug after creation; all internal links across every page and open draft are rewritten atomically
+- **Internal Link Picker** — The editor's link dialog includes a Wiki Page tab with autocomplete search so editors can link to other pages without knowing their exact URL
 
 **Organisation**
 - **Hierarchical Categories** — Unlimited nesting depth; collapsible tree in the sidebar; drag-to-reorder pages and categories
+- **Sequential Navigation** — Per-category Prev/Next buttons let readers walk through a category in order, like chapters in a book
 - **Image Uploads & Positioning** — Drag-and-drop or file picker; after upload an options modal lets editors set alt text, position (inline / float left / float right / center), and optional pixel width; Pillow-validated; UUID filenames; orphaned images cleaned up automatically after each commit or draft deletion
 
 **People**
@@ -143,6 +146,7 @@ BananaWiki/
 ├── wsgi.py             # WSGI entry point for Gunicorn
 ├── gunicorn.conf.py    # Gunicorn server configuration
 ├── bananawiki.service  # systemd service file for production
+├── setup.py            # One-shot server provisioning wizard (systemd + nginx + certbot)
 ├── reset_password.py   # CLI tool for resetting a user password outside the web UI
 ├── requirements.txt    # Python dependencies
 ├── app/
@@ -166,7 +170,7 @@ BananaWiki/
 ├── docs/               # Detailed documentation
 ├── instance/           # Database, attachments, and secret key — created at runtime (gitignored)
 ├── logs/               # Application logs — created at runtime (gitignored)
-└── tests/              # Test suite (500 tests across 6 files)
+└── tests/              # Test suite (538 tests across 6 files)
 ```
 
 ## Running Tests

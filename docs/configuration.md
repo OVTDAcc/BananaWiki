@@ -7,22 +7,13 @@ All configuration lives in `config.py` at the root of the project. Edit it direc
 | Setting | Default | Description |
 |---|---|---|
 | `PORT` | `5001` | Port the server listens on. Pick a free port for each app on your server. |
-| `USE_PUBLIC_IP` | `False` | `True` binds to `0.0.0.0` (all interfaces). `False` binds to `127.0.0.1` (localhost only — use this behind a reverse proxy). |
-| `HOST` | *(derived)* | Set automatically from `USE_PUBLIC_IP`. Do not edit directly. |
-| `CUSTOM_DOMAIN` | `None` | Domain or subdomain for the site (e.g. `wiki.example.com`). Used in log messages and links. Set to `None` for IP-only access. |
+| `HOST` | `"127.0.0.1"` | Address Gunicorn binds to. The default (`127.0.0.1`) is correct when nginx or Cloudflare is the public-facing proxy. Set to `"0.0.0.0"` only if Gunicorn must be reachable directly from the internet (no proxy). |
 
 ## Reverse Proxy & Cloudflare
 
 | Setting | Default | Description |
 |---|---|---|
-| `PROXY_MODE` | `False` | Set to `True` when running behind nginx, Caddy, or Cloudflare. Enables `ProxyFix` middleware so Flask reads the real client IP and protocol from forwarded headers. Also marks session cookies as `Secure`. |
-
-## SSL / HTTPS
-
-| Setting | Default | Description |
-|---|---|---|
-| `SSL_CERT` | `None` | Path to an SSL certificate (e.g. `/etc/letsencrypt/live/example.com/fullchain.pem`). Leave `None` if using Cloudflare or a reverse proxy for TLS. |
-| `SSL_KEY` | `None` | Path to the matching SSL private key. |
+| `PROXY_MODE` | `True` | Set to `True` when running behind nginx, Caddy, or Cloudflare (the recommended setup). Enables `ProxyFix` middleware so Flask reads the real client IP and protocol from forwarded headers. Also marks session cookies as `Secure`. Set to `False` only for local development. |
 
 ## Security
 
