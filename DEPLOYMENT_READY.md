@@ -76,15 +76,3 @@ The code itself requires no changes. No missing features, no broken routes, no u
 ## In one sentence
 
 The application is production-ready from a code perspective; the only outstanding work is updating three doc files to remove four config settings that no longer exist, so that admins who follow the deployment guide get a running server instead of a silent bind-to-localhost misconfiguration.
-
----
-
-## Status update — docs now fixed
-
-The items listed in "What you need to do" above have been resolved:
-
-- **`docs/deployment.md`** — all `USE_PUBLIC_IP`, `CUSTOM_DOMAIN`, `SSL_CERT`, and `SSL_KEY` examples replaced with the correct `HOST = "0.0.0.0"` / `PROXY_MODE = True` equivalents. The non-functional "Direct HTTPS with Let's Encrypt" section removed entirely.
-- **`docs/configuration.md`** — stale `USE_PUBLIC_IP`, `HOST (derived)`, and `CUSTOM_DOMAIN` rows replaced with a single `HOST` row. Entire SSL/HTTPS section removed. `PROXY_MODE` default corrected to `True`.
-
-**The project is fully ready for admin deployment.** All 538 tests pass and the docs now accurately describe how to deploy.
-
