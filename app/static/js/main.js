@@ -82,7 +82,7 @@ function initPageTitleScroll() {
     topbarTitle.textContent = pageH1.textContent;
     var topbarThreshold = 50; // approx topbar height in px
     var ticking = false;
-    contentEl.addEventListener('scroll', function() {
+    function onScroll() {
         if (!ticking) {
             requestAnimationFrame(function() {
                 var rect = pageH1.getBoundingClientRect();
@@ -95,7 +95,11 @@ function initPageTitleScroll() {
             });
             ticking = true;
         }
-    });
+    }
+    // Desktop: content element scrolls independently
+    contentEl.addEventListener('scroll', onScroll);
+    // Mobile: body/window scrolls (content has overflow-y:visible on small screens)
+    window.addEventListener('scroll', onScroll);
 }
 
 document.addEventListener('DOMContentLoaded', function() {
