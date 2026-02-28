@@ -1041,6 +1041,7 @@ def admin_moderate_profile(user_id):
         db.upsert_user_profile(user_id, real_name=real_name, bio=bio)
         log_action("admin_edit_profile", request, user=current_user,
                    target_user=target["username"])
+        notify_change("admin_edit_profile", f"Profile of '{target['username']}' edited")
         flash("Profile updated.", "success")
 
     elif action == "remove_avatar":
@@ -1052,18 +1053,21 @@ def admin_moderate_profile(user_id):
             db.upsert_user_profile(user_id, avatar_filename="")
         log_action("admin_remove_avatar", request, user=current_user,
                    target_user=target["username"])
+        notify_change("admin_remove_avatar", f"Avatar removed for '{target['username']}'")
         flash("Avatar removed.", "success")
 
     elif action == "disable_profile":
         db.upsert_user_profile(user_id, page_disabled_by_admin=True, page_published=False)
         log_action("admin_disable_profile", request, user=current_user,
                    target_user=target["username"])
+        notify_change("admin_disable_profile", f"Profile of '{target['username']}' disabled")
         flash("Profile disabled.", "success")
 
     elif action == "enable_profile":
         db.upsert_user_profile(user_id, page_disabled_by_admin=False)
         log_action("admin_enable_profile", request, user=current_user,
                    target_user=target["username"])
+        notify_change("admin_enable_profile", f"Profile of '{target['username']}' re-enabled")
         flash("Profile re-enabled.", "success")
 
     elif action == "delete_profile":
@@ -1075,6 +1079,7 @@ def admin_moderate_profile(user_id):
         db.delete_user_profile(user_id)
         log_action("admin_delete_profile", request, user=current_user,
                    target_user=target["username"])
+        notify_change("admin_delete_profile", f"Profile of '{target['username']}' deleted")
         flash("Profile deleted.", "success")
 
     return redirect(url_for("admin_users"))
@@ -1771,6 +1776,7 @@ def toggle_category_sequential_nav(cat_id):
     enabled = request.form.get("sequential_nav", "0") == "1"
     db.update_category_sequential_nav(cat_id, enabled)
     log_action("toggle_sequential_nav", request, user=user, category_id=cat_id, enabled=enabled)
+    notify_change("category_sequential_nav", f"Category {cat_id} sequential navigation {'enabled' if enabled else 'disabled'}")
     flash("Sequential navigation setting updated.", "success")
     return redirect(_safe_referrer() or url_for("home"))
 
@@ -2060,6 +2066,7 @@ def upload_attachment(page_id):
     original_name = secure_filename(f.filename)
     attachment_id = db.add_page_attachment(page_id, stored_name, original_name, file_size, user["id"])
     log_action("upload_attachment", request, user=user, page=page["slug"], filename=original_name)
+    notify_change("attachment_upload", f"Attachment '{original_name}' uploaded to page '{page['slug']}'")
     return jsonify({"id": attachment_id, "name": original_name, "size": file_size})
 
 
@@ -2083,6 +2090,7 @@ def delete_attachment(attachment_id):
         os.remove(filepath)
     db.delete_page_attachment(attachment_id)
     log_action("delete_attachment", request, user=user, filename=attachment["original_name"])
+    notify_change("attachment_delete", f"Attachment '{attachment['original_name']}' deleted from page '{page['slug'] if page else 'unknown'}'")
     return jsonify({"ok": True})
 
 
@@ -2458,6 +2466,7 @@ def admin_editor_access(user_id):
             restricted=restricted,
             category_ids=selected_ids if restricted else [],
         )
+        notify_change("admin_editor_access", f"Editor access updated for '{target['username']}'")
         flash("Editor access settings updated.", "success")
         return redirect(url_for("admin_editor_access", user_id=user_id))
 

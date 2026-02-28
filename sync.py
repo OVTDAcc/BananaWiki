@@ -247,7 +247,23 @@ def _create_backup(changes: list[dict]) -> tuple[str | None, list[tuple]]:
                             (f"logs/{log_file}", file_size, "Excluded by config" if not include_sensitive else "Exceeds size limit")
                         )
 
-            # 5. Backup manifest -----------------------------------------
+            # 5. Page attachments ----------------------------------------
+            attach_dir = config.ATTACHMENT_FOLDER
+            if os.path.isdir(attach_dir):
+                for att_file in sorted(os.listdir(attach_dir)):
+                    att_path = os.path.join(attach_dir, att_file)
+                    if not os.path.isfile(att_path):
+                        continue
+                    file_size = os.path.getsize(att_path)
+                    if current_size + file_size < max_size:
+                        zf.write(att_path, f"attachments/{att_file}")
+                        current_size += file_size
+                    else:
+                        excluded_files.append(
+                            (f"attachments/{att_file}", file_size, "Exceeds size limit")
+                        )
+
+            # 6. Backup manifest -----------------------------------------
             manifest = {
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "changes": changes,
