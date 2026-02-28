@@ -2,13 +2,13 @@
 
 **Yes — the project is ready for deployment.**
 
-All 538 automated tests pass. The application imports cleanly. No debug flags are enabled in production. Here is a summary of what was checked:
+All 539 automated tests pass. The application imports cleanly. No debug flags are enabled in production. Here is a summary of what was checked:
 
 ---
 
 ## What passes
 
-- **All 538 tests pass** across 6 test files covering routes, database operations, rate limiting, networking/proxy config, Telegram sync, and user profiles.
+- **All 539 tests pass** across 6 test files covering routes, database operations, rate limiting, networking/proxy config, Telegram sync, and user profiles.
 - **Clean import chain.** `config.py` → `db.py` → `app.py` → `wsgi.py` → `gunicorn.conf.py` all load without errors or warnings.
 - **No TODO/FIXME/HACK markers** in any of the core files (`app.py`, `db.py`, `config.py`, `sync.py`, `wiki_logger.py`).
 - **`debug=False`** is set in the `app.run()` fallback; Gunicorn is the intended production entry point and does not use it.
@@ -26,7 +26,8 @@ All 538 automated tests pass. The application imports cleanly. No debug flags ar
 
 ## Database
 
-- All schema migrations use `ALTER TABLE … ADD COLUMN … DEFAULT` wrapped in `try/except` so they are safe to run against an existing database. Existing installs upgrade automatically on first start with no manual SQL required.
+- All schema migrations use `ALTER TABLE … ADD COLUMN … DEFAULT` so they are safe to run against an existing database. Existing installs upgrade automatically on first start with no manual SQL required.
+- The database is always included in every Telegram backup (passwords are hashed; this is safe). Config, secret key, and logs are still gated behind `SYNC_INCLUDE_SENSITIVE` and excluded by default.
 
 ## Dependencies
 
