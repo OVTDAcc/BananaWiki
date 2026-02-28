@@ -1342,9 +1342,9 @@ def edit_page(slug):
             new_cat_id = page["category_id"]
         if new_cat_id != page["category_id"]:
             if new_cat_id and not db.get_category(new_cat_id):
-                flash("Selected category does not exist.", "error")
+                flash("Category update skipped: selected category does not exist.", "error")
             elif not editor_has_category_access(user, new_cat_id):
-                flash("You do not have permission to move pages into this category.", "error")
+                flash("Category update skipped: you do not have permission to move pages into this category.", "error")
             else:
                 db.update_page_category(page["id"], new_cat_id)
                 log_action("move_page", request, user=user, page=slug, category_id=new_cat_id)

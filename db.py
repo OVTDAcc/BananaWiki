@@ -900,7 +900,7 @@ def get_category_tree():
     cat_map = {}
     for c in cats:
         cat_map[c["id"]] = {"id": c["id"], "name": c["name"], "parent_id": c["parent_id"],
-                            "sequential_nav": c["sequential_nav"] if "sequential_nav" in c.keys() else 0,
+                            "sequential_nav": c["sequential_nav"],
                             "children": [], "pages": []}
 
     for p in pages:
