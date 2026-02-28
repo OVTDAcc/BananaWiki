@@ -8,7 +8,7 @@ This is a full code-level review of every route, security layer, database functi
 
 ## Test results
 
-All **500 tests pass** with zero failures:
+All **531 tests pass** with zero failures:
 
 | File | Tests | Covers |
 |---|---|---|
@@ -18,6 +18,7 @@ All **500 tests pass** with zero failures:
 | `test_migration.py` | 19 | Site export/import across all three conflict modes |
 | `test_networking.py` | 13 | Proxy, SSL, and host-binding logic |
 | `test_rate_limiting.py` | 11 | Every mutation route and the global rate limit |
+| `test_user_profiles.py` | 31 | User profile lifecycle, avatar validation, People directory, contribution heatmap, admin moderation, access control |
 
 ```bash
 pip install -r requirements.txt pytest
