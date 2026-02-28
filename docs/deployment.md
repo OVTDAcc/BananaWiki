@@ -9,7 +9,6 @@ This guide covers all the ways to run BananaWiki in production.
 - [Cloudflare (custom domain + free SSL)](#cloudflare-custom-domain--free-ssl)
 - [Nginx reverse proxy](#nginx-reverse-proxy)
 - [Caddy reverse proxy](#caddy-reverse-proxy)
-- [Direct HTTPS with Let's Encrypt](#direct-https-with-lets-encrypt)
 - [IP-only access (no domain)](#ip-only-access-no-domain)
 - [Multiple apps on one server](#multiple-apps-on-one-server)
 
@@ -33,8 +32,6 @@ pip install -r requirements.txt
 **2. Edit `config.py`:**
 ```python
 PORT = 5001
-USE_PUBLIC_IP = False          # False when nginx is on the same machine
-CUSTOM_DOMAIN = "wiki.example.com"
 PROXY_MODE = True              # True when behind nginx or Cloudflare
 ```
 
@@ -95,9 +92,8 @@ Cloudflare is the easiest way to get a real domain and HTTPS in front of BananaW
 **4.** Set `config.py`:
 ```python
 PORT = 5001
-USE_PUBLIC_IP = True        # Cloudflare connects directly to your IP
+HOST = "0.0.0.0"           # Cloudflare connects directly to your IP
 PROXY_MODE = True
-CUSTOM_DOMAIN = "wiki.example.com"
 ```
 
 **Recommended Cloudflare settings:**
@@ -144,9 +140,7 @@ sudo nginx -t && sudo systemctl reload nginx
 **`config.py`:**
 ```python
 PORT = 5001
-USE_PUBLIC_IP = False       # Gunicorn listens on localhost only
 PROXY_MODE = True
-CUSTOM_DOMAIN = "wiki.example.com"
 ```
 
 ---
@@ -165,48 +159,23 @@ wiki.example.com {
 **`config.py`:**
 ```python
 PORT = 5001
-USE_PUBLIC_IP = False
 PROXY_MODE = True
-CUSTOM_DOMAIN = "wiki.example.com"
 ```
-
----
-
-## Direct HTTPS with Let's Encrypt
-
-Skip a reverse proxy entirely and have Gunicorn serve HTTPS directly.
-
-**Get a certificate:**
-```bash
-sudo certbot certonly --standalone -d wiki.example.com
-```
-
-**`config.py`:**
-```python
-PORT = 443
-USE_PUBLIC_IP = True
-PROXY_MODE = False
-SSL_CERT = "/etc/letsencrypt/live/wiki.example.com/fullchain.pem"
-SSL_KEY  = "/etc/letsencrypt/live/wiki.example.com/privkey.pem"
-```
-
-> **Note:** Running on port 443 typically requires root or `CAP_NET_BIND_SERVICE`. A reverse proxy is usually simpler.
 
 ---
 
 ## IP-only access (no domain)
 
-No DNS setup required. Just:
+No DNS setup required. Just set `HOST = "0.0.0.0"` in `config.py`:
 
 ```python
 PORT = 5001
-USE_PUBLIC_IP = True        # binds to 0.0.0.0
-CUSTOM_DOMAIN = None
+HOST = "0.0.0.0"
 ```
 
 Access at `http://<your-server-ip>:5001`.
 
-> `USE_PUBLIC_IP = True` exposes the port to all network interfaces. Make sure your firewall only allows traffic from trusted sources.
+> Setting `HOST = "0.0.0.0"` exposes the port to all network interfaces. Make sure your firewall only allows traffic from trusted sources.
 
 ---
 

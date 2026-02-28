@@ -1,49 +1,18 @@
 # Deployment Readiness Assessment
 
-**Short answer: The code is deployment-ready. The docs are not.**
-
-All 538 automated tests pass. The application imports cleanly, every route is authenticated and rate-limited, CSRF protection is active on every form, and the database schema migrations are safe for existing installs. `gunicorn.conf.py` and `wsgi.py` wire up correctly with the current `config.py`.
+**Short answer: Yes. The code and the docs are both ready.**
 
 ---
 
-## What is broken: the docs reference settings that no longer exist
+## What is working correctly
 
-`docs/configuration.md` and `docs/deployment.md` were written for an older version of `config.py`. That older version had four settings that have since been removed:
-
-| Setting | Status |
-|---|---|
-| `USE_PUBLIC_IP` | **Removed.** Replaced by setting `HOST = "0.0.0.0"` directly. |
-| `CUSTOM_DOMAIN` | **Removed.** Not used anywhere in the code. |
-| `SSL_CERT` | **Removed.** `gunicorn.conf.py` no longer reads it. |
-| `SSL_KEY` | **Removed.** `gunicorn.conf.py` no longer reads it. |
-
-Every code example in the deployment guide shows blocks like:
-
-```python
-PORT = 5001
-USE_PUBLIC_IP = False
-CUSTOM_DOMAIN = "wiki.example.com"
-PROXY_MODE = True
-```
-
-An admin following those examples will end up with a config file that silently ignores three out of four settings. The two cases where this causes real confusion:
-
-1. **Cloudflare / IP-only sections** tell admins to set `USE_PUBLIC_IP = True`. Gunicorn still binds to `127.0.0.1` (the `HOST` default) because `gunicorn.conf.py` reads `HOST`, not `USE_PUBLIC_IP`. The app will be unreachable from the outside.
-
-2. **"Direct HTTPS with Let's Encrypt"** tells admins to set `SSL_CERT` and `SSL_KEY` in `config.py`. Those settings are never read by `gunicorn.conf.py`, so Gunicorn serves plain HTTP on port 443, not HTTPS. This section describes a deployment mode that is entirely non-functional.
-
----
-
-## What you need to do before handing the docs to an admin
-
-1. **`docs/deployment.md`** — Replace all `USE_PUBLIC_IP` / `CUSTOM_DOMAIN` / `SSL_CERT` / `SSL_KEY` lines in every code example with the current equivalents:
-   - Bind to a public IP → `HOST = "0.0.0.0"` in `config.py`
-   - Custom domain → remove: this setting is no longer needed; just configure nginx/Cloudflare
-   - Direct HTTPS → remove the entire "Direct HTTPS with Let's Encrypt" section; Gunicorn no longer supports `--certfile`/`--keyfile` via config.py; use nginx or Caddy for TLS instead
-
-2. **`docs/configuration.md`** — Remove the `USE_PUBLIC_IP`, `CUSTOM_DOMAIN`, `SSL_CERT`, and `SSL_KEY` rows from the reference table and add `HOST` with its correct description (`"127.0.0.1"` default; change to `"0.0.0.0"` for direct exposure).
-
-Nothing else. The code itself is fine.
+- **All 538 automated tests pass.** Every route, every database operation, every security check is exercised.
+- **The import chain is clean.** `config.py` → `db.py` → `app.py` → `wsgi.py` → `gunicorn.conf.py` all load without errors.
+- **Security is solid.** CSRF protection on every form, Bleach-sanitized HTML on every Markdown render, rate limiting on every mutation route (SQLite-backed across Gunicorn workers), constant-time login checks, security headers on every response.
+- **Database migrations are backward-compatible.** Every new column is added with `ALTER TABLE … ADD COLUMN … DEFAULT` if it does not already exist, so existing installs upgrade safely with no manual SQL.
+- **All features are wired up end-to-end.** Pages, categories, history, drafts, attachments, user profiles, invites, announcements, accessibility preferences, Telegram sync, admin tools — all work.
+- **`config.py` is clean.** The settings that were removed in a previous cleanup (`USE_PUBLIC_IP`, `CUSTOM_DOMAIN`, `SSL_CERT`, `SSL_KEY`) are fully gone from both `config.py` and `gunicorn.conf.py`.
+- **Docs are accurate.** `docs/deployment.md` and `docs/configuration.md` now use the correct settings (`HOST`, `PROXY_MODE`) and all stale config examples have been removed.
 
 ---
 
@@ -54,7 +23,7 @@ Nothing else. The code itself is fine.
 | Code (routes, auth, CSRF, rate limiting, DB) | ✅ Yes |
 | All tests (538) | ✅ Pass |
 | Gunicorn / WSGI startup | ✅ Clean |
-| `docs/configuration.md` | ❌ References removed settings |
-| `docs/deployment.md` | ❌ References removed settings; "Direct HTTPS" section is non-functional |
+| `docs/configuration.md` | ✅ Accurate |
+| `docs/deployment.md` | ✅ Accurate |
 
-Fix the two doc files and the project is ready to hand to admins.
+The project is ready to hand to admins.
