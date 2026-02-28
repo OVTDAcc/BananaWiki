@@ -177,9 +177,6 @@ def test_create_backup_produces_valid_zip(tmp_path, monkeypatch):
     import sync
     import db
 
-    # Allow sensitive artifacts for this test
-    monkeypatch.setattr(config, "SYNC_INCLUDE_SENSITIVE", True)
-
     # Create some test data
     db.create_user("testuser", "hash123", role="user")
 
@@ -225,15 +222,27 @@ def test_create_backup_produces_valid_zip(tmp_path, monkeypatch):
             os.remove(zip_path)
 
 
-def test_create_backup_always_includes_db(tmp_path, monkeypatch):
-    """Database should be included in the backup even when SYNC_INCLUDE_SENSITIVE=False."""
+def test_create_backup_always_includes_all(tmp_path, monkeypatch):
+    """All runtime artifacts (db, config, secret key, logs) are always included."""
     import sync
     import db
 
-    # Explicitly disable sensitive artifacts
-    monkeypatch.setattr(config, "SYNC_INCLUDE_SENSITIVE", False)
-
     db.create_user("testuser", "hash123", role="user")
+
+    # Create a log file
+    log_dir = str(tmp_path / "logs")
+    os.makedirs(log_dir, exist_ok=True)
+    monkeypatch.setattr(config, "LOG_FILE", os.path.join(log_dir, "test.log"))
+    with open(os.path.join(log_dir, "test.log"), "w") as f:
+        f.write("test log entry\n")
+
+    # Create secret key file
+    instance_dir = str(tmp_path / "instance")
+    os.makedirs(instance_dir, exist_ok=True)
+    secret_key_path = os.path.join(instance_dir, ".secret_key")
+    monkeypatch.setattr(config, "SECRET_KEY_FILE", secret_key_path)
+    with open(secret_key_path, "w") as f:
+        f.write("test-secret-key")
 
     changes = [{"type": "test", "description": "test change", "timestamp": "2024-01-01T00:00:00"}]
     zip_path, excluded = sync._create_backup(changes)
@@ -241,14 +250,15 @@ def test_create_backup_always_includes_db(tmp_path, monkeypatch):
     try:
         assert zip_path is not None
         assert os.path.exists(zip_path)
+        assert len(excluded) == 0
 
         with zipfile.ZipFile(zip_path, "r") as zf:
             names = zf.namelist()
-            # Database must always be included regardless of SYNC_INCLUDE_SENSITIVE
             assert "database/bananawiki.db" in names
-            # Sensitive files (config, secret key, logs) are still excluded
-            assert "config/config.py" not in names
-            assert "instance/.secret_key" not in names
+            assert "config/config.py" in names
+            assert "instance/.secret_key" in names
+            assert "logs/test.log" in names
+            assert "backup_manifest.json" in names
     finally:
         if zip_path and os.path.exists(zip_path):
             os.remove(zip_path)
@@ -283,7 +293,6 @@ def test_create_backup_excludes_large_log(tmp_path, monkeypatch):
     """Log files exceeding the Telegram limit should be excluded with a reason."""
     import sync
 
-    monkeypatch.setattr(config, "SYNC_INCLUDE_SENSITIVE", True)
     # Set a tiny file limit for testing
     monkeypatch.setattr(sync, "TELEGRAM_FILE_LIMIT", 2048)
 
@@ -963,41 +972,6 @@ def test_delete_attachment_triggers_sync(logged_in_admin, admin_user, monkeypatc
 # -----------------------------------------------------------------------
 # Caption exclusion message tests
 # -----------------------------------------------------------------------
-def test_telegram_caption_excluded_by_config_not_size_limit(tmp_path, monkeypatch):
-    """Caption should say 'excluded from backup', not '(size limit)',
-    when files are excluded because SYNC_INCLUDE_SENSITIVE is False."""
-    import sync
-    monkeypatch.setattr(config, "SYNC_TOKEN", "123:TESTTOKEN")
-    monkeypatch.setattr(config, "SYNC_USERID", "42")
-
-    zip_path = str(tmp_path / "test_backup.zip")
-    with zipfile.ZipFile(zip_path, "w") as zf:
-        zf.writestr("test.txt", "hello")
-
-    changes = [{"type": "test", "description": "test", "timestamp": "2024-01-01T00:00:00"}]
-    # Reason is "Excluded by config" not "Exceeds size limit"
-    excluded = [("database/bananawiki.db", 1024, "Excluded by config")]
-
-    captured_body = {}
-
-    def mock_urlopen(req, **kwargs):
-        captured_body["data"] = req.data
-        mock_resp = MagicMock()
-        mock_resp.read.return_value = json.dumps({"ok": True}).encode()
-        mock_resp.__enter__ = MagicMock(return_value=mock_resp)
-        mock_resp.__exit__ = MagicMock(return_value=False)
-        return mock_resp
-
-    with patch("sync.urlopen", side_effect=mock_urlopen):
-        result = sync._send_to_telegram(zip_path, changes, excluded)
-        assert result is True
-
-    body_text = captured_body["data"].decode("utf-8", errors="replace")
-    assert "excluded from backup" in body_text
-    # Must NOT incorrectly say "(size limit)" when excluded by config
-    assert "size limit" not in body_text
-
-
 def test_telegram_caption_excluded_by_size_limit(tmp_path, monkeypatch):
     """Caption should say 'excluded from backup' for size-limited files too."""
     import sync

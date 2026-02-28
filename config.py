@@ -122,6 +122,3 @@ INVITE_CODE_EXPIRY_HOURS = 48
 SYNC = False
 SYNC_TOKEN = ""
 SYNC_USERID = ""
-# Include sensitive artifacts (database, secret key, config, logs) in sync
-# archives. Disabled by default for safety.
-SYNC_INCLUDE_SENSITIVE = False
