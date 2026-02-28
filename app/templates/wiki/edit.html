@@ -51,6 +51,17 @@
             <option value="custom" {% if page.difficulty_tag == 'custom' %}selected{% endif %}>Custom…</option>
         </select>
     </div>
+    {% if not page.is_home %}
+    <div class="form-group">
+        <label>Category</label>
+        <select name="category_id" class="input" style="max-width:300px">
+            <option value="" {% if not page.category_id %}selected{% endif %}>Uncategorized</option>
+            {% for cat in all_categories %}
+            <option value="{{ cat.id }}" {% if page.category_id == cat.id %}selected{% endif %}>{{ cat.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    {% endif %}
     <div class="custom-tag-fields" id="editFormCustomTag" style="display:{% if page.difficulty_tag == 'custom' %}block{% else %}none{% endif %}">
         <div class="form-group">
             <label>Label</label>
@@ -171,16 +182,33 @@
 <div class="modal" id="link-modal" style="display:none">
     <div class="modal-content">
         <h3>Insert Link</h3>
-        <div class="form-group" id="link-text-group">
-            <label>Link Text</label>
-            <input type="text" id="link-text-input" class="input" placeholder="Descriptive text">
+        <div class="form-group" style="display:flex;gap:.5rem;margin-bottom:.6rem">
+            <button type="button" class="btn btn-sm" id="link-tab-external" onclick="setLinkTab('external')">External URL</button>
+            <button type="button" class="btn btn-sm btn-outline" id="link-tab-internal" onclick="setLinkTab('internal')">Wiki Page</button>
         </div>
-        <div class="form-group">
-            <label>URL</label>
-            <input type="text" id="link-url-input" class="input" placeholder="https://example.com">
+        <div id="link-external-section">
+            <div class="form-group" id="link-text-group">
+                <label>Link Text</label>
+                <input type="text" id="link-text-input" class="input" placeholder="Descriptive text">
+            </div>
+            <div class="form-group">
+                <label>URL</label>
+                <input type="text" id="link-url-input" class="input" placeholder="https://example.com">
+            </div>
+            <div class="form-group">
+                <label><input type="checkbox" id="link-newtab" checked> Open in new tab</label>
+            </div>
         </div>
-        <div class="form-group">
-            <label><input type="checkbox" id="link-newtab" checked> Open in new tab</label>
+        <div id="link-internal-section" style="display:none">
+            <div class="form-group">
+                <label>Search wiki pages</label>
+                <input type="text" id="link-page-search" class="input" placeholder="Type page title…" autocomplete="off">
+                <div id="link-page-results" style="margin-top:.3rem;max-height:180px;overflow-y:auto;border:1px solid rgba(255,255,255,.1);border-radius:4px;display:none"></div>
+            </div>
+            <div class="form-group" id="link-internal-text-group">
+                <label>Link Text (optional – defaults to page title)</label>
+                <input type="text" id="link-internal-text" class="input" placeholder="Leave blank to use page title">
+            </div>
         </div>
         <div class="form-actions">
             <button type="button" class="btn" id="link-insert-btn">Insert</button>
@@ -258,10 +286,24 @@
 
     // Link dialog
     var _linkInsertStart = 0, _linkInsertEnd = 0, _linkHasSelection = false;
+    var _linkTab = 'external';
+    var _selectedPageSlug = null, _selectedPageTitle = null;
 
     function escapeHtml(str) {
         return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
                   .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function setLinkTab(tab) {
+        _linkTab = tab;
+        document.getElementById('link-external-section').style.display = tab === 'external' ? '' : 'none';
+        document.getElementById('link-internal-section').style.display = tab === 'internal' ? '' : 'none';
+        document.getElementById('link-tab-external').className = tab === 'external' ? 'btn btn-sm' : 'btn btn-sm btn-outline';
+        document.getElementById('link-tab-internal').className = tab === 'internal' ? 'btn btn-sm' : 'btn btn-sm btn-outline';
+        _selectedPageSlug = null;
+        _selectedPageTitle = null;
+        document.getElementById('link-page-results').style.display = 'none';
+        document.getElementById('link-page-results').innerHTML = '';
     }
 
     function insertLink() {
@@ -285,6 +327,12 @@
             textGroup.style.display = '';
         }
         urlInput.value = '';
+        document.getElementById('link-internal-text').value = _linkHasSelection ? selectedText : '';
+        document.getElementById('link-page-search').value = '';
+        document.getElementById('link-page-results').style.display = 'none';
+        _selectedPageSlug = null;
+        _selectedPageTitle = null;
+        setLinkTab('external');
 
         document.getElementById('link-modal').style.display = 'flex';
         (_linkHasSelection ? urlInput : textInput).focus();
@@ -297,24 +345,37 @@
 
         function confirmLinkInsert() {
             var ta = document.getElementById('edit-content');
-            var textInput = document.getElementById('link-text-input');
-            var urlInput = document.getElementById('link-url-input');
-            var newTab = document.getElementById('link-newtab').checked;
+            var linkStr;
 
-            var displayText = (_linkHasSelection
-                ? ta.value.substring(_linkInsertStart, _linkInsertEnd)
-                : textInput.value) || 'link';
-            var url = urlInput.value.trim() || 'url';
-
-            var linkStr = newTab
-                ? '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(displayText) + '</a>'
-                : '[' + displayText + '](' + url + ')';
+            if (_linkTab === 'internal') {
+                if (!_selectedPageSlug) {
+                    alert('Please select a wiki page from the search results.');
+                    return;
+                }
+                var internalText = document.getElementById('link-internal-text').value.trim()
+                    || _selectedPageTitle || _selectedPageSlug;
+                if (_linkHasSelection) {
+                    internalText = ta.value.substring(_linkInsertStart, _linkInsertEnd) || internalText;
+                }
+                var internalUrl = '/page/' + _selectedPageSlug;
+                linkStr = '[' + internalText + '](' + internalUrl + ')';
+            } else {
+                var textInput = document.getElementById('link-text-input');
+                var urlInput = document.getElementById('link-url-input');
+                var newTab = document.getElementById('link-newtab').checked;
+                var displayText = (_linkHasSelection
+                    ? ta.value.substring(_linkInsertStart, _linkInsertEnd)
+                    : textInput.value) || 'link';
+                var url = urlInput.value.trim() || 'url';
+                linkStr = newTab
+                    ? '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(displayText) + '</a>'
+                    : '[' + displayText + '](' + url + ')';
+            }
 
             ta.value = ta.value.substring(0, _linkInsertStart) + linkStr + ta.value.substring(_linkInsertEnd);
             ta.selectionStart = ta.selectionEnd = _linkInsertStart + linkStr.length;
             ta.focus();
             ta.dispatchEvent(new Event('input'));
-
             closeLinkModal();
         }
 
@@ -331,6 +392,42 @@
                 if (e.key === 'Enter') confirmLinkInsert();
                 if (e.key === 'Escape') closeLinkModal();
             });
+        });
+
+        // Wiki page search for internal links
+        var _searchTimer = null;
+        document.getElementById('link-page-search').addEventListener('input', function() {
+            var q = this.value.trim();
+            var results = document.getElementById('link-page-results');
+            if (_searchTimer) clearTimeout(_searchTimer);
+            if (!q) { results.style.display = 'none'; results.innerHTML = ''; return; }
+            _searchTimer = setTimeout(function() {
+                fetch('/api/pages/search?q=' + encodeURIComponent(q))
+                .then(function(r) { return r.json(); })
+                .then(function(pages) {
+                    results.innerHTML = '';
+                    if (!pages.length) {
+                        results.innerHTML = '<div style="padding:.4rem .6rem;opacity:.6;font-size:.85rem">No pages found</div>';
+                        results.style.display = 'block';
+                        return;
+                    }
+                    pages.forEach(function(p) {
+                        var item = document.createElement('div');
+                        item.style.cssText = 'padding:.4rem .6rem;cursor:pointer;font-size:.9rem';
+                        item.textContent = p.title;
+                        item.addEventListener('mouseenter', function() { this.style.background = 'rgba(255,255,255,.07)'; });
+                        item.addEventListener('mouseleave', function() { this.style.background = ''; });
+                        item.addEventListener('click', function() {
+                            _selectedPageSlug = p.slug;
+                            _selectedPageTitle = p.title;
+                            document.getElementById('link-page-search').value = p.title;
+                            results.style.display = 'none';
+                        });
+                        results.appendChild(item);
+                    });
+                    results.style.display = 'block';
+                });
+            }, 300);
         });
     });
 

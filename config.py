@@ -11,57 +11,21 @@ BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 # =============================================================================
 # Networking Configuration
 # =============================================================================
-# Port to listen on.  Each app on your server gets its own port
-# (e.g. 5001 for BananaWiki, 5002 for another app, etc.).
-# Make sure the chosen port is not already in use.
+# Port Gunicorn binds to. Each app on the server gets its own port.
 PORT = 5001
 
-# Bind to all network interfaces so the app is reachable from other machines.
-# Set to False to restrict access to localhost only — safer default unless
-# you intentionally expose the service via HTTPS/proxy.
-USE_PUBLIC_IP = False
-
-# Host binding (derived from USE_PUBLIC_IP above):
-#   True  → 0.0.0.0   – all interfaces (public + local)
-#   False → 127.0.0.1 – localhost only (use with a local reverse proxy)
-HOST = "0.0.0.0" if USE_PUBLIC_IP else "127.0.0.1"
-
-# Custom domain or subdomain for production deployments.
-# Examples: "example.com", "wiki.example.com"
-# Set to None when accessing via IP address only.
-CUSTOM_DOMAIN = None
+# Gunicorn bind address. The default (127.0.0.1) is correct for the typical
+# deployment where nginx acts as the public-facing reverse proxy.
+# Change to 0.0.0.0 only if Gunicorn must be reachable directly (no proxy).
+HOST = "127.0.0.1"
 
 # =============================================================================
-# Reverse Proxy / Cloudflare Support
+# Reverse Proxy Support
 # =============================================================================
-# Enable this when running behind a reverse proxy (nginx, Caddy) or Cloudflare.
-# The proxy must set the standard forwarding headers (X-Forwarded-For,
-# X-Forwarded-Proto, etc.) so Flask sees the real client IP and scheme.
-#
-# Typical nginx → Cloudflare setup:
-#   1. Set USE_PUBLIC_IP = False  (Gunicorn listens on localhost only)
-#   2. Set PROXY_MODE = True
-#   3. Set CUSTOM_DOMAIN = "wiki.example.com"
-#   4. Configure nginx to reverse-proxy to 127.0.0.1:PORT
-#   5. Point Cloudflare DNS to your server's public IP
-#
-# Direct Cloudflare setup (no nginx):
-#   1. Keep USE_PUBLIC_IP = True  (Gunicorn listens on all interfaces)
-#   2. Set PROXY_MODE = True
-#   3. Set CUSTOM_DOMAIN = "wiki.example.com"
-#   4. Point Cloudflare DNS A record to your server's public IP
-PROXY_MODE = False
-
-# =============================================================================
-# SSL / HTTPS  (optional — not needed with Cloudflare)
-# =============================================================================
-# Provide paths to an SSL certificate and private key to serve HTTPS directly.
-# When Cloudflare handles SSL, leave these as None.
-# Example:
-#   SSL_CERT = "/etc/letsencrypt/live/yourdomain.com/fullchain.pem"
-#   SSL_KEY  = "/etc/letsencrypt/live/yourdomain.com/privkey.pem"
-SSL_CERT = None
-SSL_KEY = None
+# Set to True when running behind nginx (or any other reverse proxy).
+# This enables Flask's ProxyFix so the app sees the real client IP and
+# the correct scheme (https) from the X-Forwarded-* headers.
+PROXY_MODE = True
 
 # =============================================================================
 # Security

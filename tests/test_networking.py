@@ -55,16 +55,13 @@ def test_default_port():
 
 
 def test_default_host_public():
-    """Default bind is localhost for safety."""
-    assert config.USE_PUBLIC_IP is False
+    """Default bind is localhost (for use behind a reverse proxy)."""
     assert config.HOST == "127.0.0.1"
 
 
-def test_host_localhost_when_not_public():
-    """USE_PUBLIC_IP=False should result in localhost binding."""
-    # Verify the derivation logic used in config.py (line 28)
-    assert ("0.0.0.0" if True else "127.0.0.1") == "0.0.0.0"
-    assert ("0.0.0.0" if False else "127.0.0.1") == "127.0.0.1"
+def test_host_localhost_default():
+    """HOST defaults to 127.0.0.1 for use behind nginx."""
+    assert config.HOST == "127.0.0.1"
 
 
 def test_gunicorn_binds_localhost_when_not_public(monkeypatch):
@@ -74,17 +71,8 @@ def test_gunicorn_binds_localhost_when_not_public(monkeypatch):
     assert mod.bind == f"127.0.0.1:{config.PORT}"
 
 
-def test_default_proxy_mode_off():
-    assert config.PROXY_MODE is False
-
-
-def test_default_ssl_disabled():
-    assert config.SSL_CERT is None
-    assert config.SSL_KEY is None
-
-
-def test_default_custom_domain_none():
-    assert config.CUSTOM_DOMAIN is None
+def test_default_proxy_mode():
+    assert config.PROXY_MODE is True
 
 
 # -----------------------------------------------------------------------
@@ -111,7 +99,7 @@ def test_gunicorn_conf_proxy_forwarded(monkeypatch):
 
 
 # -----------------------------------------------------------------------
-# ProxyFix applied only when PROXY_MODE is True
+# ProxyFix applied when PROXY_MODE is True
 # -----------------------------------------------------------------------
 def test_proxy_fix_applied_when_enabled(monkeypatch):
     """When PROXY_MODE=True, the WSGI app should be wrapped by ProxyFix."""
@@ -119,11 +107,14 @@ def test_proxy_fix_applied_when_enabled(monkeypatch):
     import app as app_mod
     monkeypatch.setattr(config, "PROXY_MODE", True)
     importlib.reload(app_mod)
-    try:
-        assert isinstance(app_mod.app.wsgi_app, ProxyFix)
-    finally:
-        monkeypatch.setattr(config, "PROXY_MODE", False)
-        importlib.reload(app_mod)
+    assert isinstance(app_mod.app.wsgi_app, ProxyFix)
+
+
+def test_proxy_fix_applied_by_default():
+    """By default (PROXY_MODE=True), wsgi_app should be wrapped by ProxyFix."""
+    from app import app
+    from werkzeug.middleware.proxy_fix import ProxyFix
+    assert isinstance(app.wsgi_app, ProxyFix)
 
 
 # -----------------------------------------------------------------------

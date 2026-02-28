@@ -22,9 +22,53 @@
             {% endfor %}
         </select>
     </div>
+    <div class="form-group">
+        <label>Difficulty Tag (optional)</label>
+        <select name="difficulty_tag" class="input" id="createFormTagSelect" style="max-width:220px" onchange="toggleCustomTag(this,'createFormCustomTag')">
+            <option value="" {% if not form or not form.difficulty_tag %}selected{% endif %}>None</option>
+            <option value="beginner" {% if form and form.difficulty_tag == 'beginner' %}selected{% endif %}>Beginner</option>
+            <option value="easy" {% if form and form.difficulty_tag == 'easy' %}selected{% endif %}>Easy</option>
+            <option value="intermediate" {% if form and form.difficulty_tag == 'intermediate' %}selected{% endif %}>Intermediate</option>
+            <option value="expert" {% if form and form.difficulty_tag == 'expert' %}selected{% endif %}>Expert</option>
+            <option value="extra" {% if form and form.difficulty_tag == 'extra' %}selected{% endif %}>Extra</option>
+            <option value="custom" {% if form and form.difficulty_tag == 'custom' %}selected{% endif %}>Custom…</option>
+        </select>
+    </div>
+    <div class="custom-tag-fields" id="createFormCustomTag" style="display:{% if form and form.difficulty_tag == 'custom' %}block{% else %}none{% endif %}">
+        <div class="form-group">
+            <label>Label</label>
+            <input type="text" name="tag_custom_label" class="input" maxlength="50" placeholder="e.g. Advanced" value="{{ form.tag_custom_label if form else '' }}" style="max-width:220px">
+        </div>
+        <div class="form-group">
+            <label>Color</label>
+            <div style="display:flex;align-items:center;gap:.5rem">
+                <input type="color" class="color-hex-picker" id="createFormColorPicker" value="{{ form.tag_custom_color if form else '#4a90d9' }}">
+                <input type="text" name="tag_custom_color" class="input" id="createFormColorHex" maxlength="7" placeholder="#4a90d9" value="{{ form.tag_custom_color if form else '#4a90d9' }}" style="width:7rem;font-family:monospace">
+            </div>
+        </div>
+    </div>
     <div class="form-actions">
         <button type="submit" class="btn">Create Page</button>
         <a href="{{ url_for('home') }}" class="btn btn-outline">Cancel</a>
     </div>
 </form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleCustomTag(sel, customId) {
+    var custom = document.getElementById(customId);
+    if (custom) custom.style.display = sel.value === 'custom' ? 'block' : 'none';
+}
+document.addEventListener('DOMContentLoaded', function() {
+    var picker = document.getElementById('createFormColorPicker');
+    var hex = document.getElementById('createFormColorHex');
+    if (picker && hex) {
+        picker.addEventListener('input', function() { hex.value = picker.value; });
+        hex.addEventListener('input', function() {
+            if (/^#[0-9a-fA-F]{6}$/.test(hex.value)) picker.value = hex.value;
+        });
+    }
+});
+</script>
 {% endblock %}

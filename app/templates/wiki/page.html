@@ -14,6 +14,7 @@
         {% if not page.is_home %}
         <a href="{{ url_for('edit_page', slug=page.slug) }}" class="btn btn-sm">Edit</a>
         <button class="btn btn-sm btn-outline" onclick="document.getElementById('moveModal').style.display='flex'">Move</button>
+        <button class="btn btn-sm btn-outline" onclick="document.getElementById('renameSlugModal').style.display='flex'" title="Change page URL">URL</button>
         <form method="POST" action="{{ url_for('delete_page_route', slug=page.slug) }}" style="display:inline" data-confirm="Delete this page?">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button class="btn btn-sm btn-danger">Delete</button>
@@ -143,7 +144,42 @@
         </form>
     </div>
 </div>
+<!-- Rename slug modal -->
+<div class="modal" id="renameSlugModal" style="display:none">
+    <div class="modal-content">
+        <h3>Change Page URL</h3>
+        <p style="font-size:.85rem;opacity:.7;margin-bottom:.8rem">
+            Current URL: <code>/page/{{ page.slug }}</code><br>
+            All internal links to this page will be updated automatically.
+        </p>
+        <form method="POST" action="{{ url_for('rename_page_slug', slug=page.slug) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="form-group">
+                <label>New URL slug</label>
+                <input type="text" name="new_slug" class="input" required value="{{ page.slug }}" pattern="[a-zA-Z0-9_\- ]+" title="Letters, numbers, hyphens, underscores and spaces only">
+                <p style="font-size:.8rem;opacity:.6;margin-top:.3rem">Spaces will be converted to hyphens. Special characters will be removed.</p>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn">Update URL</button>
+                <button type="button" class="btn btn-outline" onclick="this.closest('.modal').style.display='none'">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
 {% endif %}
+{% endif %}
+
+{% if prev_page or next_page %}
+<nav class="page-seq-nav">
+    {% if prev_page %}
+    <a href="{{ url_for('view_page', slug=prev_page.slug) }}" class="btn btn-outline page-seq-prev">← {{ prev_page.title }}</a>
+    {% else %}
+    <span></span>
+    {% endif %}
+    {% if next_page %}
+    <a href="{{ url_for('view_page', slug=next_page.slug) }}" class="btn btn-outline page-seq-next">{{ next_page.title }} →</a>
+    {% endif %}
+</nav>
 {% endif %}
 {% endblock %}
 

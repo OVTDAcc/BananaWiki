@@ -45,12 +45,6 @@ app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.permanent_session_lifetime = timedelta(days=7)
 
-# --- SSL / HTTPS awareness ---
-_ssl_enabled = bool(config.SSL_CERT and config.SSL_KEY)
-if _ssl_enabled:
-    app.config["SESSION_COOKIE_SECURE"] = True
-    app.config["PREFERRED_URL_SCHEME"] = "https"
-
 # --- Reverse-proxy support ---
 if config.PROXY_MODE:
     app.wsgi_app = ProxyFix(
@@ -1140,6 +1134,7 @@ def view_page(slug):
 
     log_action("view_page", request, user=user, page=slug)
     attachments = db.get_page_attachments(page["id"])
+    prev_page, next_page = db.get_adjacent_pages(page["id"])
     return render_template(
         "wiki/page.html",
         page=page,
@@ -1148,6 +1143,8 @@ def view_page(slug):
         uncategorized=uncategorized,
         editor_info=editor_info,
         attachments=attachments,
+        prev_page=prev_page,
+        next_page=next_page,
     )
 
 
@@ -1337,6 +1334,21 @@ def edit_page(slug):
 
         db.update_page(page["id"], title, content, user["id"], edit_message)
 
+        # Update category if provided and changed
+        new_cat_id = request.form.get("category_id")
+        try:
+            new_cat_id = int(new_cat_id) if new_cat_id else None
+        except (TypeError, ValueError):
+            new_cat_id = page["category_id"]
+        if new_cat_id != page["category_id"]:
+            if new_cat_id and not db.get_category(new_cat_id):
+                flash("Category update skipped: selected category does not exist.", "error")
+            elif not editor_has_category_access(user, new_cat_id):
+                flash("Category update skipped: you do not have permission to move pages into this category.", "error")
+            else:
+                db.update_page_category(page["id"], new_cat_id)
+                log_action("move_page", request, user=user, page=slug, category_id=new_cat_id)
+
         # Update difficulty tag if provided
         tag = request.form.get("difficulty_tag", "").strip().lower()
         if tag in db.VALID_DIFFICULTY_TAGS:
@@ -1428,7 +1440,12 @@ def create_page():
         title = request.form.get("title", "").strip()
         content = request.form.get("content", "")
         cat_id = request.form.get("category_id")
-        form_data = {"title": title, "content": content, "category_id": cat_id or ""}
+        form_data = {
+            "title": title, "content": content, "category_id": cat_id or "",
+            "difficulty_tag": request.form.get("difficulty_tag", ""),
+            "tag_custom_label": request.form.get("tag_custom_label", ""),
+            "tag_custom_color": request.form.get("tag_custom_color", "#4a90d9"),
+        }
         try:
             cat_id = int(cat_id) if cat_id else None
         except (TypeError, ValueError):
@@ -1459,6 +1476,19 @@ def create_page():
             slug = f"{base_slug}-{counter}"
             counter += 1
         db.create_page(title, slug, content, cat_id, user["id"])
+        # Apply initial difficulty tag if specified
+        tag = request.form.get("difficulty_tag", "").strip().lower()
+        if tag in db.VALID_DIFFICULTY_TAGS and tag:
+            custom_label = ""
+            custom_color = ""
+            if tag == "custom":
+                custom_label = request.form.get("tag_custom_label", "").strip()[:50]
+                custom_color = request.form.get("tag_custom_color", "").strip()
+                if not custom_label or not _is_valid_hex_color(custom_color):
+                    tag = ""
+            if tag:
+                page_id = db.get_page_by_slug(slug)["id"]
+                db.update_page_tag(page_id, tag, custom_label, custom_color)
         cleanup_unused_uploads()
         log_action("create_page", request, user=user, page=slug)
         notify_change("page_create", f"Page '{slug}' created")
@@ -1688,6 +1718,75 @@ def delete_category_route(cat_id):
     notify_change("category_delete", f"Category {cat_id} deleted")
     flash("Category deleted.", "success")
     return redirect(_safe_referrer() or url_for("home"))
+
+
+@app.route("/page/<slug>/rename", methods=["POST"])
+@login_required
+@editor_required
+@rate_limit(10, 60)
+def rename_page_slug(slug):
+    page = db.get_page_by_slug(slug)
+    if not page:
+        abort(404)
+    if page["is_home"]:
+        flash("Cannot change the URL of the home page.", "error")
+        return redirect(url_for("home"))
+    user = get_current_user()
+    if not editor_has_category_access(user, page["category_id"]):
+        flash("You do not have permission to edit pages in this category.", "error")
+        return redirect(url_for("view_page", slug=slug))
+    new_slug = request.form.get("new_slug", "").strip()
+    if not new_slug:
+        flash("New URL slug is required.", "error")
+        return redirect(url_for("view_page", slug=slug))
+    new_slug = slugify(new_slug)
+    if not new_slug:
+        flash("Invalid slug.", "error")
+        return redirect(url_for("view_page", slug=slug))
+    if new_slug == slug:
+        flash("New URL is the same as the current one.", "info")
+        return redirect(url_for("view_page", slug=slug))
+    if db.get_page_by_slug(new_slug):
+        flash("That URL slug is already in use by another page.", "error")
+        return redirect(url_for("view_page", slug=slug))
+    db.update_page_slug(page["id"], new_slug)
+    log_action("rename_page_slug", request, user=user, page=slug, new_slug=new_slug)
+    notify_change("page_rename", f"Page '{slug}' renamed to '{new_slug}'")
+    flash("Page URL updated. All internal links have been updated automatically.", "success")
+    return redirect(url_for("view_page", slug=new_slug))
+
+
+@app.route("/category/<int:cat_id>/sequential-nav", methods=["POST"])
+@login_required
+@editor_required
+@rate_limit(20, 60)
+def toggle_category_sequential_nav(cat_id):
+    cat = db.get_category(cat_id)
+    if not cat:
+        abort(404)
+    user = get_current_user()
+    if db.get_editor_access(user["id"])["restricted"]:
+        flash("You do not have permission to modify categories.", "error")
+        return redirect(_safe_referrer() or url_for("home"))
+    enabled = request.form.get("sequential_nav", "0") == "1"
+    db.update_category_sequential_nav(cat_id, enabled)
+    log_action("toggle_sequential_nav", request, user=user, category_id=cat_id, enabled=enabled)
+    flash("Sequential navigation setting updated.", "success")
+    return redirect(_safe_referrer() or url_for("home"))
+
+
+# ---------------------------------------------------------------------------
+#  Pages search API (for link autocomplete)
+# ---------------------------------------------------------------------------
+@app.route("/api/pages/search")
+@login_required
+@rate_limit(60, 60)
+def api_pages_search():
+    query = request.args.get("q", "").strip()
+    if not query:
+        return jsonify([])
+    results = db.search_pages(query)
+    return jsonify([{"title": r["title"], "slug": r["slug"]} for r in results])
 
 
 # ---------------------------------------------------------------------------
@@ -2931,9 +3030,4 @@ if __name__ == "__main__":
     print(" * WARNING: Flask development server — not for production.")
     print(" * Production:  gunicorn wsgi:app -c gunicorn.conf.py")
 
-    ssl_ctx = None
-    if config.SSL_CERT and config.SSL_KEY:
-        ssl_ctx = (config.SSL_CERT, config.SSL_KEY)
-
-    app.run(host=config.HOST, port=config.PORT, debug=False,
-            ssl_context=ssl_ctx)
+    app.run(host=config.HOST, port=config.PORT, debug=False)

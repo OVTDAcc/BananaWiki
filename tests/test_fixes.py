@@ -1416,19 +1416,12 @@ def test_log_sanitize_prevents_injection_at_runtime():
 
 
 # -----------------------------------------------------------------------
-# SSL / HTTPS config defaults
+# Proxy / HTTPS config defaults
 # -----------------------------------------------------------------------
-def test_ssl_config_defaults():
-    """SSL_CERT and SSL_KEY should default to None."""
-    import config
-    assert config.SSL_CERT is None
-    assert config.SSL_KEY is None
-
-
 def test_proxy_mode_default():
-    """PROXY_MODE should default to False."""
+    """PROXY_MODE should default to True (nginx deployment assumed)."""
     import config
-    assert config.PROXY_MODE is False
+    assert config.PROXY_MODE is True
 
 
 # -----------------------------------------------------------------------
@@ -1444,16 +1437,13 @@ def test_proxy_fix_applied_when_enabled(monkeypatch):
     importlib.reload(app_mod)
     from werkzeug.middleware.proxy_fix import ProxyFix
     assert isinstance(app_mod.app.wsgi_app, ProxyFix)
-    # Restore
-    monkeypatch.setattr(cfg, "PROXY_MODE", False)
-    importlib.reload(app_mod)
 
 
-def test_proxy_fix_not_applied_by_default():
-    """By default wsgi_app should NOT be wrapped by ProxyFix."""
+def test_proxy_fix_applied_by_default():
+    """By default (PROXY_MODE=True) wsgi_app should be wrapped by ProxyFix."""
     from app import app
     from werkzeug.middleware.proxy_fix import ProxyFix
-    assert not isinstance(app.wsgi_app, ProxyFix)
+    assert isinstance(app.wsgi_app, ProxyFix)
 
 
 # -----------------------------------------------------------------------
@@ -1463,28 +1453,6 @@ def test_port_config_default():
     """PORT should default to 5001."""
     import config
     assert config.PORT == 5001
-
-
-def test_ssl_enables_secure_cookie(monkeypatch):
-    """When SSL is configured, SESSION_COOKIE_SECURE and PREFERRED_URL_SCHEME are set."""
-    import importlib
-    import config as cfg
-    monkeypatch.setattr(cfg, "SSL_CERT", "/tmp/cert.pem")
-    monkeypatch.setattr(cfg, "SSL_KEY", "/tmp/key.pem")
-    import app as app_mod
-    importlib.reload(app_mod)
-    assert app_mod.app.config["SESSION_COOKIE_SECURE"] is True
-    assert app_mod.app.config["PREFERRED_URL_SCHEME"] == "https"
-    # Restore
-    monkeypatch.setattr(cfg, "SSL_CERT", None)
-    monkeypatch.setattr(cfg, "SSL_KEY", None)
-    importlib.reload(app_mod)
-
-
-def test_ssl_not_enabled_by_default():
-    """Without SSL certs, _ssl_enabled should be False."""
-    import app as app_mod
-    assert app_mod._ssl_enabled is False
 
 
 # -----------------------------------------------------------------------
