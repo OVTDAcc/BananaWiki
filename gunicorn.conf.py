@@ -30,20 +30,10 @@ workers = min(multiprocessing.cpu_count() * 2 + 1, 4)
 worker_class = "sync"
 
 # ---------------------------------------------------------------------------
-#  SSL / HTTPS  (optional — not needed with Cloudflare)
-# ---------------------------------------------------------------------------
-# When SSL_CERT and SSL_KEY are set in config.py, Gunicorn will terminate
-# TLS directly.  If you use Cloudflare or a reverse proxy for TLS, leave
-# these as None in config.py and set PROXY_MODE = True instead.
-if _bw_config.SSL_CERT and _bw_config.SSL_KEY:
-    certfile = _bw_config.SSL_CERT
-    keyfile = _bw_config.SSL_KEY
-
-# ---------------------------------------------------------------------------
 #  Forwarded headers (reverse proxy)
 # ---------------------------------------------------------------------------
-# When behind a reverse proxy, Gunicorn needs to trust the X-Forwarded-*
-# headers. This is handled by ProxyFix in app.py when PROXY_MODE = True.
+# When behind nginx, Gunicorn trusts the X-Forwarded-* headers.
+# This is handled by ProxyFix in app.py when PROXY_MODE = True.
 forwarded_allow_ips = "*" if _bw_config.PROXY_MODE else "127.0.0.1"
 
 # ---------------------------------------------------------------------------

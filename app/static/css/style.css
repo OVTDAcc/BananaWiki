@@ -459,3 +459,8 @@ select.input{appearance:auto}
 .contribution-page:hover{text-decoration:underline}
 .contribution-page.deleted{opacity:.45;font-style:italic}
 .contribution-msg{opacity:.55;font-size:.8rem}
+
+/* Sequential page navigation */
+.page-seq-nav{display:flex;justify-content:space-between;align-items:center;margin-top:2.5rem;padding-top:1rem;border-top:1px solid rgba(255,255,255,.07);gap:1rem}
+.page-seq-prev{margin-right:auto}
+.page-seq-next{margin-left:auto}

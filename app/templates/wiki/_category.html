@@ -31,6 +31,18 @@
                     <button type="submit" class="btn btn-sm">Move</button>
                 </form>
                 <hr style="border-color:rgba(255,255,255,.08);margin:.6rem 0">
+                <!-- Sequential navigation -->
+                <form method="POST" action="{{ url_for('toggle_category_sequential_nav', cat_id=cat.id) }}" class="cat-manage-row">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <label style="font-size:.85rem;opacity:.7;white-space:nowrap">Sequential nav:</label>
+                    <input type="hidden" name="sequential_nav" value="0">
+                    <label style="font-size:.85rem;display:flex;align-items:center;gap:.4rem">
+                        <input type="checkbox" name="sequential_nav" value="1" {% if cat.sequential_nav %}checked{% endif %} onchange="this.form.querySelector('input[type=hidden][name=sequential_nav]').disabled=this.checked">
+                        Show Prev/Next buttons on pages
+                    </label>
+                    <button type="submit" class="btn btn-sm">Save</button>
+                </form>
+                <hr style="border-color:rgba(255,255,255,.08);margin:.6rem 0">
                 <!-- Delete -->
                 <form method="POST" action="{{ url_for('delete_category_route', cat_id=cat.id) }}" id="catDeleteForm{{ cat.id }}" onsubmit="return confirmCatDelete(this, {{ cat.pages|length }}, {{ cat.name|tojson }})">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

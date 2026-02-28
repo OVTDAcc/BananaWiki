@@ -202,6 +202,11 @@ def init_db():
     if "accessibility" not in cols:
         cur.execute("ALTER TABLE users ADD COLUMN accessibility TEXT")
 
+    # Add sequential_nav to categories if missing
+    cat_cols = [r[1] for r in cur.execute("PRAGMA table_info(categories)").fetchall()]
+    if "sequential_nav" not in cat_cols:
+        cur.execute("ALTER TABLE categories ADD COLUMN sequential_nav INTEGER NOT NULL DEFAULT 0")
+
     # Add difficulty_tag / custom-tag columns to pages if missing
     page_cols = [r[1] for r in cur.execute("PRAGMA table_info(pages)").fetchall()]
     if "difficulty_tag" not in page_cols:
@@ -894,7 +899,9 @@ def get_category_tree():
 
     cat_map = {}
     for c in cats:
-        cat_map[c["id"]] = {"id": c["id"], "name": c["name"], "parent_id": c["parent_id"], "children": [], "pages": []}
+        cat_map[c["id"]] = {"id": c["id"], "name": c["name"], "parent_id": c["parent_id"],
+                            "sequential_nav": c["sequential_nav"] if "sequential_nav" in c.keys() else 0,
+                            "children": [], "pages": []}
 
     for p in pages:
         if p["category_id"] and p["category_id"] in cat_map:
@@ -933,6 +940,98 @@ def update_categories_sort_order(ordered_ids):
 # ---------------------------------------------------------------------------
 #  Page helpers
 # ---------------------------------------------------------------------------
+def update_category_sequential_nav(cat_id, enabled):
+    """Enable or disable sequential prev/next navigation for pages in a category."""
+    conn = get_db()
+    conn.execute("UPDATE categories SET sequential_nav=? WHERE id=?", (1 if enabled else 0, cat_id))
+    conn.commit()
+    conn.close()
+
+
+def get_adjacent_pages(page_id):
+    """Return (prev_page, next_page) for sequential navigation within the same category.
+
+    Both values are sqlite3 Row objects (with id, title, slug) or None.
+    Returns (None, None) if the page's category does not have sequential_nav enabled.
+    """
+    conn = get_db()
+    row = conn.execute("SELECT category_id, sort_order FROM pages WHERE id=?", (page_id,)).fetchone()
+    if not row or not row["category_id"]:
+        conn.close()
+        return None, None
+    cat = conn.execute("SELECT sequential_nav FROM categories WHERE id=?",
+                       (row["category_id"],)).fetchone()
+    if not cat or not cat["sequential_nav"]:
+        conn.close()
+        return None, None
+    cat_id = row["category_id"]
+    sort_order = row["sort_order"]
+    prev_page = conn.execute(
+        "SELECT id, title, slug FROM pages WHERE category_id=? AND sort_order<? AND is_home=0 "
+        "ORDER BY sort_order DESC LIMIT 1",
+        (cat_id, sort_order),
+    ).fetchone()
+    next_page = conn.execute(
+        "SELECT id, title, slug FROM pages WHERE category_id=? AND sort_order>? AND is_home=0 "
+        "ORDER BY sort_order ASC LIMIT 1",
+        (cat_id, sort_order),
+    ).fetchone()
+    conn.close()
+    return prev_page, next_page
+
+
+def update_page_slug(page_id, new_slug):
+    """Change a page's URL slug and rewrite all internal links in other pages' content.
+
+    Any occurrence of /page/<old_slug> in page content is updated to /page/<new_slug>.
+    Returns the old slug so callers can redirect.
+    """
+    conn = get_db()
+    old_row = conn.execute("SELECT slug FROM pages WHERE id=?", (page_id,)).fetchone()
+    if not old_row:
+        conn.close()
+        return None
+    old_slug = old_row["slug"]
+    if old_slug == new_slug:
+        conn.close()
+        return old_slug
+    # Update the slug on the page itself
+    conn.execute("UPDATE pages SET slug=? WHERE id=?", (new_slug, page_id))
+    # Rewrite internal links in all other pages' content
+    old_link = f"/page/{old_slug}"
+    new_link = f"/page/{new_slug}"
+    pages = conn.execute("SELECT id, content FROM pages WHERE id!=?", (page_id,)).fetchall()
+    for p in pages:
+        if old_link in (p["content"] or ""):
+            updated = p["content"].replace(old_link, new_link)
+            conn.execute("UPDATE pages SET content=? WHERE id=?", (updated, p["id"]))
+    # Also rewrite in any open drafts
+    drafts = conn.execute("SELECT id, content FROM drafts").fetchall()
+    for d in drafts:
+        if old_link in (d["content"] or ""):
+            updated = d["content"].replace(old_link, new_link)
+            conn.execute("UPDATE drafts SET content=? WHERE id=?", (updated, d["id"]))
+    conn.commit()
+    conn.close()
+    return old_slug
+
+
+def search_pages(query, limit=15):
+    """Return pages whose title matches *query* (case-insensitive prefix/substring).
+
+    Used by the link-insertion autocomplete endpoint.
+    """
+    conn = get_db()
+    pattern = f"%{query}%"
+    rows = conn.execute(
+        "SELECT id, title, slug FROM pages WHERE is_home=0 AND title LIKE ? "
+        "ORDER BY title LIMIT ?",
+        (pattern, limit),
+    ).fetchall()
+    conn.close()
+    return rows
+
+
 def create_page(title, slug, content="", category_id=None, user_id=None):
     conn = get_db()
     cur = conn.cursor()
