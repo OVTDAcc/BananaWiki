@@ -316,7 +316,7 @@ def _send_to_telegram(
         if len(descriptions) > 10:
             caption += f"\n  … and {len(descriptions) - 10} more"
     if excluded_files:
-        caption += f"\n\u26a0\ufe0f {len(excluded_files)} file(s) excluded (size limit)"
+        caption += f"\n\u26a0\ufe0f {len(excluded_files)} file(s) excluded from backup"
 
     # --- Build multipart/form-data body using stdlib only ----------------
     boundary = f"----BananaWikiSync{int(time.time())}"
@@ -441,6 +441,23 @@ def _get_upload_msg_id(filename: str) -> int | None:
             return msgs.get(filename)
         except (OSError, ValueError):
             return None
+
+
+def _delete_upload_msg_id(filename: str) -> None:
+    """Remove the stored Telegram message_id for *filename* (if present)."""
+    with _upload_msgs_lock:
+        path = _get_upload_msg_store_path()
+        if not os.path.exists(path):
+            return
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                msgs = json.load(f)
+            if filename in msgs:
+                del msgs[filename]
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump(msgs, f, indent=2)
+        except (OSError, ValueError):
+            pass
 
 
 # ---------------------------------------------------------------------------
@@ -568,6 +585,7 @@ def _do_send_deletion_notice(filename: str) -> None:
         with urlopen(req, timeout=30) as resp:
             result = json.loads(resp.read().decode())
             if result.get("ok"):
+                _delete_upload_msg_id(filename)
                 _get_logger().info(
                     f"SYNC | Deletion notice sent for '{filename}'"
                 )

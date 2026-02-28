@@ -929,3 +929,146 @@ def test_delete_attachment_triggers_sync(logged_in_admin, admin_user, monkeypatc
 
     found = any(c["type"] == "attachment_delete" for c in sync._pending_changes)
     assert found
+
+
+# -----------------------------------------------------------------------
+# Caption exclusion message tests
+# -----------------------------------------------------------------------
+def test_telegram_caption_excluded_by_config_not_size_limit(tmp_path, monkeypatch):
+    """Caption should say 'excluded from backup', not '(size limit)',
+    when files are excluded because SYNC_INCLUDE_SENSITIVE is False."""
+    import sync
+    monkeypatch.setattr(config, "SYNC_TOKEN", "123:TESTTOKEN")
+    monkeypatch.setattr(config, "SYNC_USERID", "42")
+
+    zip_path = str(tmp_path / "test_backup.zip")
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.writestr("test.txt", "hello")
+
+    changes = [{"type": "test", "description": "test", "timestamp": "2024-01-01T00:00:00"}]
+    # Reason is "Excluded by config" not "Exceeds size limit"
+    excluded = [("database/bananawiki.db", 1024, "Excluded by config")]
+
+    captured_body = {}
+
+    def mock_urlopen(req, **kwargs):
+        captured_body["data"] = req.data
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps({"ok": True}).encode()
+        mock_resp.__enter__ = MagicMock(return_value=mock_resp)
+        mock_resp.__exit__ = MagicMock(return_value=False)
+        return mock_resp
+
+    with patch("sync.urlopen", side_effect=mock_urlopen):
+        result = sync._send_to_telegram(zip_path, changes, excluded)
+        assert result is True
+
+    body_text = captured_body["data"].decode("utf-8", errors="replace")
+    assert "excluded from backup" in body_text
+    # Must NOT incorrectly say "(size limit)" when excluded by config
+    assert "size limit" not in body_text
+
+
+def test_telegram_caption_excluded_by_size_limit(tmp_path, monkeypatch):
+    """Caption should say 'excluded from backup' for size-limited files too."""
+    import sync
+    monkeypatch.setattr(config, "SYNC_TOKEN", "123:TESTTOKEN")
+    monkeypatch.setattr(config, "SYNC_USERID", "42")
+
+    zip_path = str(tmp_path / "test_backup.zip")
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.writestr("test.txt", "hello")
+
+    changes = [{"type": "test", "description": "test", "timestamp": "2024-01-01T00:00:00"}]
+    excluded = [("attachments/huge.pdf", 60 * 1024 * 1024, "Exceeds size limit")]
+
+    captured_body = {}
+
+    def mock_urlopen(req, **kwargs):
+        captured_body["data"] = req.data
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps({"ok": True}).encode()
+        mock_resp.__enter__ = MagicMock(return_value=mock_resp)
+        mock_resp.__exit__ = MagicMock(return_value=False)
+        return mock_resp
+
+    with patch("sync.urlopen", side_effect=mock_urlopen):
+        result = sync._send_to_telegram(zip_path, changes, excluded)
+        assert result is True
+
+    body_text = captured_body["data"].decode("utf-8", errors="replace")
+    assert "excluded from backup" in body_text
+
+
+# -----------------------------------------------------------------------
+# Deletion notice message ID cleanup tests
+# -----------------------------------------------------------------------
+def test_deletion_notice_cleans_up_msg_id(tmp_path, monkeypatch):
+    """After a successful deletion notice, the stored message_id should be removed."""
+    import sync
+    monkeypatch.setattr(config, "SYNC_TOKEN", "123:TESTTOKEN")
+    monkeypatch.setattr(config, "SYNC_USERID", "42")
+    monkeypatch.setattr(config, "BASE_DIR", str(tmp_path))
+
+    # Pre-store a message ID for the file
+    sync._store_upload_msg_id("photo.png", 123)
+    assert sync._get_upload_msg_id("photo.png") == 123
+
+    def mock_urlopen(req, **kwargs):
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps({"ok": True, "result": {"message_id": 456}}).encode()
+        mock_resp.__enter__ = MagicMock(return_value=mock_resp)
+        mock_resp.__exit__ = MagicMock(return_value=False)
+        return mock_resp
+
+    with patch("sync.urlopen", side_effect=mock_urlopen):
+        sync._do_send_deletion_notice("photo.png")
+
+    # Message ID should be cleaned up after successful deletion notice
+    assert sync._get_upload_msg_id("photo.png") is None
+
+
+def test_deletion_notice_failed_send_keeps_msg_id(tmp_path, monkeypatch):
+    """If the deletion notice send fails, the stored message_id should be retained."""
+    import sync
+    monkeypatch.setattr(config, "SYNC_TOKEN", "123:TESTTOKEN")
+    monkeypatch.setattr(config, "SYNC_USERID", "42")
+    monkeypatch.setattr(config, "BASE_DIR", str(tmp_path))
+
+    sync._store_upload_msg_id("photo.png", 999)
+
+    def mock_urlopen(req, **kwargs):
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps({"ok": False, "description": "error"}).encode()
+        mock_resp.__enter__ = MagicMock(return_value=mock_resp)
+        mock_resp.__exit__ = MagicMock(return_value=False)
+        return mock_resp
+
+    with patch("sync.urlopen", side_effect=mock_urlopen):
+        sync._do_send_deletion_notice("photo.png")
+
+    # Message ID should still be present since the send failed
+    assert sync._get_upload_msg_id("photo.png") == 999
+
+
+def test_delete_upload_msg_id_removes_only_target(tmp_path, monkeypatch):
+    """_delete_upload_msg_id should only remove the specified filename."""
+    import sync
+    monkeypatch.setattr(config, "BASE_DIR", str(tmp_path))
+
+    sync._store_upload_msg_id("alpha.png", 100)
+    sync._store_upload_msg_id("beta.jpg", 200)
+
+    sync._delete_upload_msg_id("alpha.png")
+
+    assert sync._get_upload_msg_id("alpha.png") is None
+    assert sync._get_upload_msg_id("beta.jpg") == 200
+
+
+def test_delete_upload_msg_id_noop_when_no_store(tmp_path, monkeypatch):
+    """_delete_upload_msg_id should not raise when store file doesn't exist."""
+    import sync
+    monkeypatch.setattr(config, "BASE_DIR", str(tmp_path))
+
+    # Should not raise even if the file doesn't exist
+    sync._delete_upload_msg_id("ghost.png")
