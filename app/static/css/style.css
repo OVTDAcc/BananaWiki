@@ -253,6 +253,7 @@ select.input{appearance:auto}
     .content{height:auto;overflow-y:visible;overflow-x:hidden;padding:1rem;max-width:100%}
     .editor-container{flex-direction:column}
     .editor-divider{width:100%;height:1px}
+    .editor-area{min-height:250px}
     .topbar-right .user-info{display:none}
     /* Tighten topbar-right gap so buttons don't overflow */
     .topbar-right{gap:.3rem;flex-shrink:1;min-width:0;overflow:hidden}
@@ -260,6 +261,15 @@ select.input{appearance:auto}
     .page-header h1{width:100%;font-size:1.4rem}
     /* Cap a11y panel width to the viewport on narrow screens */
     .a11y-panel{width:min(300px,100vw)}
+    /* Tables: allow horizontal scrolling so wide tables don't overflow */
+    .wiki-content table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}
+    .admin-table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}
+    .draft-manager-table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}
+    /* Override inline max-width on inputs so forms stay within viewport */
+    .input{max-width:100% !important}
+    /* Truncate long sequential nav titles to prevent layout overflow;
+       48% = roughly half the row width, leaving room for the gap between prev and next */
+    .page-seq-prev,.page-seq-next{max-width:48%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 }
 /* Narrow phones: hide Accessibility label text, show icon only */
 @media(max-width:520px){
@@ -267,6 +277,12 @@ select.input{appearance:auto}
     .btn-sm{padding:.2rem .45rem;font-size:.78rem}
     /* On very narrow phones let the a11y panel fill the screen */
     .a11y-panel{width:100vw}
+    /* Stack page action buttons more tightly */
+    .page-header .btn-sm{font-size:.75rem;padding:.2rem .4rem}
+}
+/* Tablet: reduce content padding for intermediate screen widths */
+@media(min-width:769px) and (max-width:1024px){
+    .content{padding:1.2rem 1.5rem}
 }
 
 /* Drop zone */
