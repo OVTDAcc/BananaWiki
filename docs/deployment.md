@@ -4,6 +4,7 @@ This guide covers all the ways to run BananaWiki in production.
 
 ## Contents
 
+- [Automated setup wizard](#automated-setup-wizard)
 - [systemd (recommended)](#systemd-recommended)
 - [Manual Gunicorn](#manual-gunicorn)
 - [Cloudflare (custom domain + free SSL)](#cloudflare-custom-domain--free-ssl)
@@ -11,6 +12,28 @@ This guide covers all the ways to run BananaWiki in production.
 - [Caddy reverse proxy](#caddy-reverse-proxy)
 - [IP-only access (no domain)](#ip-only-access-no-domain)
 - [Multiple apps on one server](#multiple-apps-on-one-server)
+
+---
+
+## Automated setup wizard
+
+`setup.py` is a self-contained, one-shot provisioning tool. Run it on the server before starting BananaWiki for the first time and it will:
+
+1. Detect your server's public IP (and optional IPv6)
+2. Ask for your service name, domain, worker count, and port
+3. Verify DNS resolution for your domain
+4. Create and enable a **systemd** service unit
+5. Write an **nginx** reverse-proxy config (with HTTP → HTTPS redirect)
+6. Optionally run **Certbot** to obtain a Let's Encrypt TLS certificate
+
+```bash
+python setup.py              # binds to 127.0.0.1:5050 by default
+python setup.py --host 0.0.0.0 --port 5050   # to reach it from another machine
+```
+
+Open the printed URL in a browser and follow the three-phase wizard. The wizard shuts itself down automatically when provisioning is complete.
+
+> `setup.py` requires root privileges for writing systemd and nginx files. Run it as `sudo python setup.py` or from a root shell.
 
 ---
 

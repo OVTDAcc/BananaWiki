@@ -146,6 +146,7 @@ BananaWiki/
 ├── wsgi.py             # WSGI entry point for Gunicorn
 ├── gunicorn.conf.py    # Gunicorn server configuration
 ├── bananawiki.service  # systemd service file for production
+├── setup.py            # One-shot server provisioning wizard (systemd + nginx + certbot)
 ├── reset_password.py   # CLI tool for resetting a user password outside the web UI
 ├── requirements.txt    # Python dependencies
 ├── app/
