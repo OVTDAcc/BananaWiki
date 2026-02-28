@@ -1,98 +1,143 @@
-# BananaWiki
+# 🍌 BananaWiki
 
-A lightweight, self-hosted wiki built with Flask and SQLite. Clean, fast, and easy to run — just clone, install, and go.
+> A self-hosted wiki built with Flask and SQLite — clean, fast, and ready to run in minutes.
 
-## Contents
+![Python](https://img.shields.io/badge/python-3.9%2B-blue?logo=python&logoColor=white)
+![Flask](https://img.shields.io/badge/flask-3.1-lightgrey?logo=flask&logoColor=white)
+![SQLite](https://img.shields.io/badge/database-SQLite-003B57?logo=sqlite&logoColor=white)
+![License](https://img.shields.io/badge/license-MIT-green)
 
-- [Screenshots](#screenshots)
-- [Features](#features)
-- [Quick Start](#quick-start)
-- [Initial Setup](#initial-setup)
-- [User Roles](#user-roles)
-- [Project Structure](#project-structure)
-- [Running Tests](#running-tests)
-- [Documentation](#documentation)
+BananaWiki is a lightweight, private wiki you can host on your own server. No cloud services, no external databases — just a Python app, a single SQLite file, and full control over your knowledge base.
 
-## Screenshots
+---
+
+## 📸 Screenshots
 
 <table>
 <tr>
-<td><strong>Login page</strong><br><img src="https://github.com/user-attachments/assets/d9fad2c1-ced2-4320-9c1b-f03603df5d11" alt="Login page"></td>
-<td><strong>Home — wiki view</strong><br><img src="https://github.com/user-attachments/assets/ab13800e-08c4-425e-809c-05b1d1ef3599" alt="Home page"></td>
+<td align="center">
+  <strong>Home — wiki view</strong><br>
+  <img src="https://github.com/user-attachments/assets/ab13800e-08c4-425e-809c-05b1d1ef3599" alt="Home page" width="420">
+</td>
+<td align="center">
+  <strong>Split-pane Markdown editor</strong><br>
+  <img src="https://github.com/user-attachments/assets/e02c2bad-b065-4131-a869-1c2b15cb3219" alt="Markdown editor" width="420">
+</td>
 </tr>
 <tr>
-<td><strong>Split-pane Markdown editor with live preview</strong><br><img src="https://github.com/user-attachments/assets/e02c2bad-b065-4131-a869-1c2b15cb3219" alt="Markdown editor"></td>
-<td><strong>Page revision history</strong><br><img src="https://github.com/user-attachments/assets/b60f7a48-eb1a-4bd2-8cb7-8d220d364559" alt="Page history"></td>
+<td align="center">
+  <strong>Page revision history</strong><br>
+  <img src="https://github.com/user-attachments/assets/b60f7a48-eb1a-4bd2-8cb7-8d220d364559" alt="Page history" width="420">
+</td>
+<td align="center">
+  <strong>User profile with contribution heatmap</strong><br>
+  <img src="https://github.com/user-attachments/assets/e6e11b2e-dc9b-4a36-ba80-1014c7838bcf" alt="User profile" width="420">
+</td>
 </tr>
 <tr>
-<td><strong>Admin — manage users</strong><br><img src="https://github.com/user-attachments/assets/c2385adb-c6bb-46ee-86d0-ceb55f16a2c4" alt="Admin users"></td>
-<td><strong>Admin — site settings &amp; theme colors</strong><br><img src="https://github.com/user-attachments/assets/9f2cdf61-c944-4f3b-91f0-b2cc006bead5" alt="Admin settings"></td>
+<td align="center">
+  <strong>People sidebar &amp; member directory</strong><br>
+  <img src="https://github.com/user-attachments/assets/377a09a3-0515-4dbb-8d8a-9632940ce45b" alt="People sidebar" width="420">
+</td>
+<td align="center">
+  <strong>Account settings &amp; admin shortcuts</strong><br>
+  <img src="https://github.com/user-attachments/assets/05afee31-38cb-47b3-8c01-45f89052207e" alt="Account settings" width="420">
+</td>
 </tr>
 <tr>
-<td><strong>Admin — announcement manager</strong><br><img src="https://github.com/user-attachments/assets/3438ed27-4b4e-4f2d-b76c-ece9e537419a" alt="Admin announcements"></td>
-<td><strong>Account settings &amp; admin shortcuts</strong><br><img src="https://github.com/user-attachments/assets/05afee31-38cb-47b3-8c01-45f89052207e" alt="Account settings"></td>
+<td align="center">
+  <strong>Admin — manage users</strong><br>
+  <img src="https://github.com/user-attachments/assets/c2385adb-c6bb-46ee-86d0-ceb55f16a2c4" alt="Admin users" width="420">
+</td>
+<td align="center">
+  <strong>Admin — site settings &amp; theme colors</strong><br>
+  <img src="https://github.com/user-attachments/assets/9f2cdf61-c944-4f3b-91f0-b2cc006bead5" alt="Admin settings" width="420">
+</td>
 </tr>
 <tr>
-<td><strong>People sidebar widget &amp; member directory</strong><br><img src="https://github.com/user-attachments/assets/377a09a3-0515-4dbb-8d8a-9632940ce45b" alt="People sidebar"></td>
-<td><strong>User profile with contribution heatmap</strong><br><img src="https://github.com/user-attachments/assets/e6e11b2e-dc9b-4a36-ba80-1014c7838bcf" alt="User profile"></td>
+<td align="center">
+  <strong>Admin — announcement manager</strong><br>
+  <img src="https://github.com/user-attachments/assets/3438ed27-4b4e-4f2d-b76c-ece9e537419a" alt="Admin announcements" width="420">
+</td>
+<td align="center">
+  <strong>Login page</strong><br>
+  <img src="https://github.com/user-attachments/assets/d9fad2c1-ced2-4320-9c1b-f03603df5d11" alt="Login page" width="420">
+</td>
 </tr>
 <tr>
-<td colspan="2"><strong>Announcement banner — orange (1/2) and red (2/2) variants with navigation</strong><br><img src="https://github.com/user-attachments/assets/1be5bb61-7ae5-48aa-9bbd-47c513b581d0" alt="Announcement banner"></td>
+<td colspan="2" align="center">
+  <strong>Announcement banner — color variants with navigation</strong><br>
+  <img src="https://github.com/user-attachments/assets/1be5bb61-7ae5-48aa-9bbd-47c513b581d0" alt="Announcement banner" width="860">
+</td>
 </tr>
 </table>
 
-## Features
+---
 
-**Content**
-- **Markdown Editing** — Tables, fenced code blocks, auto-generated table of contents (`[TOC]`), and newline-to-`<br>` support
-- **Split-Pane Editor** — Live rendered preview updates while you type; formatting toolbar for quick Markdown shortcuts; image drop zone with positioning modal (inline / float left / float right / center) and optional width; editor/preview divider is drag-resizable
-- **Page History** — Every save creates a versioned snapshot; view any past state, read edit summaries, and revert with one click — nothing is ever deleted from history
-- **Draft Autosave** — Browser saves a draft every few seconds; restores automatically on re-open; shows a conflict warning when two editors are working on the same page simultaneously
-- **Difficulty Tags** — Editors can tag pages with an optional difficulty level (`Beginner`, `Easy`, `Intermediate`, `Expert`, `Extra`) or a fully custom label and color; shown as a colored badge next to the page title
-- **Page Attachments** — Editors can upload arbitrary files (PDFs, archives, etc.) directly to a page; attachments are served through an authenticated route, not exposed as static files
-- **URL Slug Rename** — Editors can rename a page's URL slug after creation; all internal links across every page and open draft are rewritten atomically
-- **Internal Link Picker** — The editor's link dialog includes a Wiki Page tab with autocomplete search so editors can link to other pages without knowing their exact URL
+## ✨ Features
 
-**Organisation**
-- **Hierarchical Categories** — Unlimited nesting depth; collapsible tree in the sidebar; drag-to-reorder pages and categories
-- **Sequential Navigation** — Per-category Prev/Next buttons let readers walk through a category in order, like chapters in a book
-- **Image Uploads & Positioning** — Drag-and-drop or file picker; after upload an options modal lets editors set alt text, position (inline / float left / float right / center), and optional pixel width; Pillow-validated; UUID filenames; orphaned images cleaned up automatically after each commit or draft deletion
+### 📝 Writing & Editing
+| Feature | Details |
+|---|---|
+| **Markdown editor** | Full Markdown support: tables, fenced code blocks, `[TOC]` table of contents, newline-to-`<br>` rendering |
+| **Split-pane live preview** | Editor and rendered output side by side; drag the divider to resize; formatting toolbar for quick shortcuts |
+| **Draft autosave** | Browser autosaves every few seconds; restores on re-open; conflict warning when two editors are on the same page at once |
+| **Image uploads** | Drag-and-drop or file picker; modal to set alt text, position (inline / float left / float right / center), and optional pixel width |
+| **Page attachments** | Attach PDFs, archives, and other files to any page; served through an authenticated route — not public static files |
+| **Internal link picker** | Link dialog includes a Wiki Page tab with autocomplete so editors can link without knowing the exact URL |
+| **URL slug rename** | Rename a page's slug after creation; all internal links across every page and open draft are rewritten atomically |
+| **Difficulty tags** | Tag pages as `Beginner`, `Easy`, `Intermediate`, `Expert`, `Extra`, or a custom label with a custom color |
 
-**People**
-- **User Profiles** — Users can create a public profile page with a real name, bio, and avatar (max 1 MB); profiles can be published, hidden, or deleted directly from the profile page with a single click, with no need to visit account settings; contribution history is always preserved internally
-- **Inline Profile Editing** — Real name, bio, and avatar can be edited directly on the profile page via a collapsible form; all changes redirect back to the profile page
-- **Contribution Heatmap** — Each profile shows a GitHub-style yearly heatmap of wiki edits
-- **People Directory** — A searchable member list at `/users` shows all published profiles; a sidebar widget shows the most active members at a glance, pinned at the bottom of the sidebar regardless of how long the page tree is
-- **Clickable Contributor Attribution** — The "Last edit by" line on every page view and every row in the page history table link directly to that user's profile
-- **Admin Profile Moderation** — Admins can edit any user's profile data, remove avatars, and disable or delete profile pages
+### 🗂️ Organisation
+| Feature | Details |
+|---|---|
+| **Hierarchical categories** | Unlimited nesting depth; collapsible tree in the sidebar; drag-to-reorder pages and categories |
+| **Sequential navigation** | Per-category Prev/Next buttons let readers walk through a category in order, like chapters in a book |
+| **Page history** | Every save is a versioned snapshot; view any past state, read edit summaries, and revert with one click — nothing is ever deleted from history |
 
-**Accounts & Access**
-- **Four-Tier Role System** — `user` (read-only) → `editor` → `admin` → `protected_admin`, each with clearly defined permissions
-- **Invite Code Signup** — Time-limited single-use codes generated by admins; race-condition–safe consumption
-- **Protected Admin Mode** — Self-toggleable account hardening: other admins cannot rename, demote, suspend, or delete a protected admin account
-- **User Data Export** — Users can download all their data (account info, contributions, drafts, username history, accessibility preferences) as a ZIP file from Account Settings; admins can export any user's data from the user management page
+### 👥 People
+| Feature | Details |
+|---|---|
+| **User profiles** | Public profile with real name, bio, and avatar (max 1 MB); publish, hide, or delete from the profile page directly |
+| **Contribution heatmap** | GitHub-style yearly heatmap of wiki edits on every profile |
+| **People directory** | Searchable member list at `/users`; sidebar widget shows the most active members |
+| **Contributor attribution** | "Last edit by" links on every page and in every history row go directly to that user's profile |
+| **Admin profile moderation** | Admins can edit any user's profile data, remove avatars, and disable or delete profile pages |
 
-**Accessibility**
-- **Per-User Preferences** — Text size (6 steps), high-contrast mode (6 levels), line spacing, letter spacing, reduce-motion toggle, six custom color overrides, and sidebar width — all saved to the user's account and applied server-side on every page load with no flash
-- **Accessibility Panel** — One-click ♿ "Accessibility" button in the topbar opens a drawer with all controls; available on every page including the editor
-- **Reset to Default** — Restore all accessibility settings from the panel or from Account Settings
+### 🔐 Accounts & Access
+| Feature | Details |
+|---|---|
+| **Four-tier roles** | `user` (read-only) → `editor` → `admin` → `protected_admin` |
+| **Invite code signup** | Time-limited single-use codes generated by admins; race-condition-safe consumption |
+| **Protected admin mode** | Self-toggleable hardening: other admins cannot rename, demote, suspend, or delete a protected admin |
+| **User data export** | Download all personal data (account info, contributions, drafts, history) as a ZIP from Account Settings |
 
-**Admin**
-- **Announcement Banners** — Site-wide banners with five color themes, three text sizes, per-audience visibility, expiry dates, and Markdown support; multi-banner navigation in the UI
-- **Customizable Appearance** — Site name, six CSS color palette fields, favicon (eight preset colors or custom upload)
-- **Lockdown Mode** — Instantly blocks all non-admin access with a configurable message
-- **Site Migration** — Full site export/import as a ZIP file; three conflict modes: delete all, override, or keep existing data
-- **Telegram Sync** — Debounced automatic backups to a Telegram chat: DB, config, logs, and per-file image uploads; exponential-backoff retries
+### ♿ Accessibility
+| Feature | Details |
+|---|---|
+| **Per-user preferences** | Text size (6 steps), high-contrast mode (6 levels), line/letter spacing, reduce-motion, six color overrides, sidebar width |
+| **Accessibility panel** | One-click ♿ button in the topbar opens a drawer with all controls — available on every page including the editor |
 
-**Security**
+### 🛠️ Admin & Operations
+| Feature | Details |
+|---|---|
+| **Announcement banners** | Site-wide banners with five color themes, three text sizes, per-audience visibility, expiry dates, and Markdown support |
+| **Customizable appearance** | Site name, six CSS color palette fields, favicon (eight preset colors or custom upload) |
+| **Lockdown mode** | Instantly blocks all non-admin access with a configurable message |
+| **Site migration** | Full export/import as a ZIP; three conflict modes: delete all, override, or keep existing data |
+| **Telegram backup** | Debounced automatic backups of the DB, config, logs, and uploads to a Telegram chat; exponential-backoff retries |
+
+### 🔒 Security
 - CSRF protection on every form and AJAX call (Flask-WTF)
-- Bleach HTML sanitization after every Markdown render
+- HTML sanitization with Bleach after every Markdown render
 - Login rate limiting shared across all Gunicorn workers (SQLite-backed, 5 attempts / 60 s)
-- Per-route `@rate_limit` decorators on all mutation endpoints
+- Per-route rate limiting on all mutation endpoints
 - Security headers on every response (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Content-Security-Policy`)
 - Constant-time login checks to prevent username enumeration
 
-## Quick Start
+---
+
+## 🚀 Quick Start
 
 **Requirements:** Python 3.9+
 
@@ -105,15 +150,13 @@ pip install -r requirements.txt
 gunicorn wsgi:app -c gunicorn.conf.py
 ```
 
-Open `http://localhost:5001` — you'll be redirected to the setup wizard to create the first admin account.
+Open **http://localhost:5001** — you'll be redirected to the setup wizard to create the first admin account.
 
-For local development you can also run the Flask dev server directly:
-```bash
-python app.py
-```
-> The Flask dev server is single-threaded. Use Gunicorn for anything beyond local testing.
+> **Local development:** You can also run `python app.py` to use the Flask dev server. It's single-threaded — use Gunicorn for anything beyond local testing.
 
-## Initial Setup
+---
+
+## ⚙️ Initial Setup
 
 On first run, BananaWiki shows a one-time setup wizard:
 
@@ -121,20 +164,24 @@ On first run, BananaWiki shows a one-time setup wizard:
 2. Set a **password** (minimum 6 characters)
 3. Confirm the password
 
-This creates the first admin account and marks setup complete. All subsequent users are added via invite codes or directly from the admin panel.
+This creates the first admin account and marks setup as complete. All subsequent users are added via **invite codes** or directly from the **Admin → Manage Users** panel.
 
-## User Roles
+---
 
-| Role | What they can do |
+## 👤 User Roles
+
+| Role | Permissions |
 |---|---|
-| **user** | View pages |
-| **editor** | View, create, edit, and delete pages; manage categories; revert history; upload images and attachments |
-| **admin** | Everything editors can do, plus: manage users, generate invite codes, configure settings, post announcements, moderate profiles |
-| **protected_admin** | Same as admin, but the account is shielded from modifications by other admins |
+| `user` | Read pages |
+| `editor` | Read, create, edit, and delete pages; manage categories; revert history; upload images and attachments |
+| `admin` | Everything editors can do, plus: manage users, generate invite codes, configure settings, post announcements, moderate profiles |
+| `protected_admin` | Same as admin, but shielded from modification by other admins |
 
-New users who sign up with an invite code receive the **user** role by default. Admins can change roles from **Admin → Manage Users**. The **protected_admin** role can only be toggled by the account owner from their own account settings page — no other admin can grant or remove it.
+New users who sign up with an invite code receive the **user** role by default. Admins can change roles from **Admin → Manage Users**. The `protected_admin` role can only be toggled by the account owner from their own Account Settings page.
 
-## Project Structure
+---
+
+## 🗄️ Project Structure
 
 ```
 BananaWiki/
@@ -163,30 +210,36 @@ BananaWiki/
 │       │               # history_entry.html, announcement.html, easter_egg.html,
 │       │               # 403.html, 404.html, 429.html, 500.html
 │       ├── account/    # settings.html
-│       ├── users/      # list.html (People directory), profile.html (user profile)
+│       ├── users/      # list.html, profile.html
 │       └── admin/      # users.html, codes.html, codes_expired.html,
 │                       # settings.html, announcements.html, audit.html,
 │                       # editor_access.html, migration.html
 ├── docs/               # Detailed documentation
-├── instance/           # Database, attachments, and secret key — created at runtime (gitignored)
+├── instance/           # Database, attachments, secret key — created at runtime (gitignored)
 ├── logs/               # Application logs — created at runtime (gitignored)
 └── tests/              # Test suite (538 tests across 6 files)
 ```
 
-## Running Tests
+---
+
+## 🧪 Running Tests
 
 ```bash
 pip install pytest
 python -m pytest tests/ -v
 ```
 
-Tests use isolated temporary databases and cover: routes, database logic, rate limiting, networking/proxy config, and Telegram sync behavior.
+Tests use isolated temporary databases and cover routes, database logic, rate limiting, networking/proxy configuration, and Telegram sync behavior.
 
-## Documentation
+---
 
-Detailed docs live in the [`docs/`](docs/) directory:
+## 📚 Documentation
 
-- **[Features](docs/features.md)** — complete feature catalogue from most visible to most undocumented, each with a code reference
-- **[Configuration](docs/configuration.md)** — every `config.py` setting explained with defaults and usage notes
-- **[Deployment](docs/deployment.md)** — systemd, manual Gunicorn, Cloudflare, nginx, Caddy, and direct SSL/TLS setups
-- **[Architecture](docs/architecture.md)** — how the codebase is structured, the request lifecycle, security model, and database schema
+Full documentation lives in the [`docs/`](docs/) directory:
+
+| Doc | What's in it |
+|---|---|
+| [Features](docs/features.md) | Complete feature catalogue with code references |
+| [Configuration](docs/configuration.md) | Every `config.py` setting with defaults and usage notes |
+| [Deployment](docs/deployment.md) | systemd, manual Gunicorn, Cloudflare, nginx, Caddy, and direct SSL/TLS setups |
+| [Architecture](docs/architecture.md) | Codebase structure, request lifecycle, security model, and database schema |
