@@ -21,7 +21,7 @@
             <h1>{{ settings.site_name }}</h1>
             <p class="subtitle">🔒 This wiki is currently in lockdown</p>
             {% if settings.lockdown_message %}
-            <div class="flash flash-info" style="white-space:pre-wrap">{{ settings.lockdown_message }}</div>
+            <div class="flash flash-info wiki-content">{{ settings.lockdown_message | render_md }}</div>
             {% endif %}
             <div style="margin-top:1.5rem;text-align:center">
                 <a href="{{ url_for('login') }}" class="btn">Admin Login</a>

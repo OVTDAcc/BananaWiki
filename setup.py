@@ -1102,8 +1102,14 @@ WantedBy=multi-user.target
             "__done__": True,
             "success": True,
             "message": f"Service <strong>{name}</strong> is running. "
-                       f"Nginx has been configured and reloaded.",
+                       f"Nginx has been configured and reloaded. "
+                       f"The setup wizard will now delete itself.",
         })
+        # One-shot wizard: delete itself upon successful completion
+        try:
+            os.remove(__file__)
+        except OSError:
+            pass
 
     except Exception as exc:  # noqa: BLE001
         _log(f"FATAL: {exc}", "err")
