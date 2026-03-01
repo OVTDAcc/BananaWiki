@@ -6,6 +6,7 @@
 ![Flask](https://img.shields.io/badge/flask-3.1-lightgrey?logo=flask&logoColor=white)
 ![SQLite](https://img.shields.io/badge/database-SQLite-003B57?logo=sqlite&logoColor=white)
 ![License](https://img.shields.io/badge/license-MIT-green)
+![GitHub Stars](https://img.shields.io/github/stars/ovtdadt/BananaWiki?style=social)
 
 BananaWiki is a lightweight, private wiki you can host on your own server. No cloud services, no external databases — just a Python app, a single SQLite file, and full control over your knowledge base.
 
