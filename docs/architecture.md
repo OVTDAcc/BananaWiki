@@ -122,7 +122,7 @@ When `SYNC = True`, a background thread watches for change events and sends a zi
 
 **File uploads:** Images are sent as separate Telegram messages (not in the zip) via `notify_file_upload()`. Their message IDs are saved in `sync_upload_msgs.json` so they can be deleted when the corresponding file is removed.
 
-**What's in the zip:** By default the zip contains only uploads. If `SYNC_INCLUDE_SENSITIVE = True`, the database, secret key, `config.py`, and logs are also included.
+**What's in the zip:** Every backup zip always contains the database, `config.py`, the secret key, log files, and a `backup_manifest.json` listing the changes that triggered the backup and any files excluded due to size limits. The only reason a file is excluded is if including it would push the archive over Telegram's 50 MB limit.
 
 ---
 
