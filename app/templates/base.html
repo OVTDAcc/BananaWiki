@@ -93,8 +93,9 @@
                 <div class="nav-section">
                     <span class="nav-section-title">Uncategorized</span>
                     {% for p in uncategorized %}
+                    {% if not p.is_deindexed or (current_user and current_user.role in ('editor', 'admin', 'protected_admin')) %}
                     <div class="nav-item-row" data-page-id="{{ p.id }}">
-                        <a href="{{ url_for('view_page', slug=p.slug) }}" class="nav-item {% if page and page.id == p.id %}active{% endif %}">{{ p.title }}</a>
+                        <a href="{{ url_for('view_page', slug=p.slug) }}" class="nav-item {% if page and page.id == p.id %}active{% endif %}{% if p.is_deindexed %} deindexed-nav-item{% endif %}">{% if p.is_deindexed %}<s>{{ p.title }}</s>{% else %}{{ p.title }}{% endif %}</a>
                         {% if current_user and current_user.role in ('editor', 'admin', 'protected_admin') %}
                         <span class="page-order-btns">
                             <button class="btn-icon-tiny reorder-btn" data-dir="up" data-type="page" data-id="{{ p.id }}" data-cat="" title="Move page up" aria-label="Move page up">▲</button>
@@ -102,6 +103,7 @@
                         </span>
                         {% endif %}
                     </div>
+                    {% endif %}
                     {% endfor %}
                 </div>
                 {% endif %}

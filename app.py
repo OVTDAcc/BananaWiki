@@ -1850,6 +1850,30 @@ def rename_page_slug(slug):
     return redirect(url_for("view_page", slug=new_slug))
 
 
+@app.route("/page/<slug>/deindex", methods=["POST"])
+@login_required
+@editor_required
+@rate_limit(20, 60)
+def toggle_page_deindex(slug):
+    page = db.get_page_by_slug(slug)
+    if not page:
+        abort(404)
+    if page["is_home"]:
+        flash("The home page cannot be deindexed.", "error")
+        return redirect(url_for("home"))
+    user = get_current_user()
+    if not editor_has_category_access(user, page["category_id"]):
+        flash("You do not have permission to edit pages in this category.", "error")
+        return redirect(url_for("view_page", slug=slug))
+    new_state = not bool(page["is_deindexed"])
+    db.set_page_deindexed(page["id"], new_state)
+    action = "deindexed" if new_state else "reindexed"
+    log_action(f"page_{action}", request, user=user, page=slug)
+    notify_change("page_deindex", f"Page '{slug}' {action}")
+    flash(f"Page {action}.", "success")
+    return redirect(url_for("view_page", slug=slug))
+
+
 @app.route("/category/<int:cat_id>/sequential-nav", methods=["POST"])
 @login_required
 @editor_required
@@ -1880,7 +1904,9 @@ def api_pages_search():
     query = request.args.get("q", "").strip()
     if not query:
         return jsonify([])
-    results = db.search_pages(query)
+    user = get_current_user()
+    include_deindexed = user and user["role"] in ("editor", "admin", "protected_admin")
+    results = db.search_pages(query, include_deindexed=include_deindexed)
     return jsonify([{"title": r["title"], "slug": r["slug"]} for r in results])
 
 

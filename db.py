@@ -215,6 +215,8 @@ def init_db():
         cur.execute("ALTER TABLE pages ADD COLUMN tag_custom_label TEXT NOT NULL DEFAULT ''")
     if "tag_custom_color" not in page_cols:
         cur.execute("ALTER TABLE pages ADD COLUMN tag_custom_color TEXT NOT NULL DEFAULT ''")
+    if "is_deindexed" not in page_cols:
+        cur.execute("ALTER TABLE pages ADD COLUMN is_deindexed INTEGER NOT NULL DEFAULT 0")
 
     # Add is_revert column to page_history if missing
     hist_cols = [r[1] for r in cur.execute("PRAGMA table_info(page_history)").fetchall()]
@@ -968,12 +970,12 @@ def get_adjacent_pages(page_id):
     cat_id = row["category_id"]
     sort_order = row["sort_order"]
     prev_page = conn.execute(
-        "SELECT id, title, slug FROM pages WHERE category_id=? AND sort_order<? AND is_home=0 "
+        "SELECT id, title, slug FROM pages WHERE category_id=? AND sort_order<? AND is_home=0 AND is_deindexed=0 "
         "ORDER BY sort_order DESC LIMIT 1",
         (cat_id, sort_order),
     ).fetchone()
     next_page = conn.execute(
-        "SELECT id, title, slug FROM pages WHERE category_id=? AND sort_order>? AND is_home=0 "
+        "SELECT id, title, slug FROM pages WHERE category_id=? AND sort_order>? AND is_home=0 AND is_deindexed=0 "
         "ORDER BY sort_order ASC LIMIT 1",
         (cat_id, sort_order),
     ).fetchone()
@@ -1017,15 +1019,17 @@ def update_page_slug(page_id, new_slug):
     return old_slug
 
 
-def search_pages(query, limit=15):
+def search_pages(query, limit=15, include_deindexed=False):
     """Return pages whose title matches *query* (case-insensitive prefix/substring).
 
-    Used by the link-insertion autocomplete endpoint.
+    Used by the link-insertion autocomplete endpoint.  Deindexed pages are
+    excluded by default; pass ``include_deindexed=True`` for editors/admins.
     """
     conn = get_db()
     pattern = f"%{query}%"
+    deindex_clause = "" if include_deindexed else " AND is_deindexed=0"
     rows = conn.execute(
-        "SELECT id, title, slug FROM pages WHERE is_home=0 AND title LIKE ? "
+        f"SELECT id, title, slug FROM pages WHERE is_home=0{deindex_clause} AND title LIKE ? "
         "ORDER BY title LIMIT ?",
         (pattern, limit),
     ).fetchall()
@@ -1137,6 +1141,14 @@ def update_page_tag(page_id, difficulty_tag, custom_label="", custom_color=""):
         "UPDATE pages SET difficulty_tag=?, tag_custom_label=?, tag_custom_color=? WHERE id=?",
         (difficulty_tag, custom_label, custom_color, page_id),
     )
+    conn.commit()
+    conn.close()
+
+
+def set_page_deindexed(page_id, is_deindexed):
+    """Set or clear the deindexed flag for a page."""
+    conn = get_db()
+    conn.execute("UPDATE pages SET is_deindexed=? WHERE id=?", (1 if is_deindexed else 0, page_id))
     conn.commit()
     conn.close()
 
