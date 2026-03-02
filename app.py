@@ -1046,6 +1046,14 @@ def admin_moderate_profile(user_id):
     current_user = get_current_user()
     action = request.form.get("action", "")
 
+    if target["is_superuser"]:
+        flash("This account is protected and cannot be modified.", "error")
+        return redirect(url_for("admin_users"))
+
+    if target["role"] == "protected_admin" and user_id != current_user["id"]:
+        flash("Protected admin accounts can only be edited by their owner.", "error")
+        return redirect(url_for("admin_users"))
+
     if action == "edit_profile":
         real_name = request.form.get("real_name", "").strip()[:100]
         bio = request.form.get("bio", "").strip()[:500]
