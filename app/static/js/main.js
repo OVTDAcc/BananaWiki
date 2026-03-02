@@ -923,14 +923,35 @@ function applyA11yPrefs(prefs) {
 }
 
 function _rgbToHex(color) {
-    // Convert computed color (rgb or hex) to #rrggbb for color input
-    if (!color) return '#000000';
+    // Convert computed color (rgb or hex) to #rrggbb for color input.
+    // Returns null when the value cannot be parsed so callers can skip
+    // setting the input value and avoid accidentally persisting a fallback
+    // black (#000000) that would turn the entire site black.
+    if (!color) return null;
     if (color.charAt(0) === '#') return color;
     var m = color.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/);
-    if (!m) return '#000000';
+    if (!m) return null;
     return '#' + [m[1], m[2], m[3]].map(function(n) {
         return ('0' + parseInt(n, 10).toString(16)).slice(-2);
     }).join('');
+}
+
+// Rebuild the server-rendered <style id="a11y-style"> element to reflect the
+// current _a11yPrefs custom-color state.  This must be called whenever a
+// custom color is cleared so that the stale server-rendered CSS rule (e.g.
+// --bg:#000) no longer overrides the site's default, which would otherwise
+// keep the site black even after the user clicks the ✕ clear button.
+function _syncA11yStyleBlock() {
+    var el = document.getElementById('a11y-style');
+    if (!el) return;
+    var rules = [];
+    if (_a11yPrefs.custom_bg)        rules.push('--bg:'        + _a11yPrefs.custom_bg);
+    if (_a11yPrefs.custom_text)      rules.push('--text:'      + _a11yPrefs.custom_text);
+    if (_a11yPrefs.custom_primary)   rules.push('--primary:'   + _a11yPrefs.custom_primary);
+    if (_a11yPrefs.custom_secondary) rules.push('--secondary:' + _a11yPrefs.custom_secondary);
+    if (_a11yPrefs.custom_accent)    rules.push('--accent:'    + _a11yPrefs.custom_accent);
+    if (_a11yPrefs.custom_sidebar)   rules.push('--sidebar:'   + _a11yPrefs.custom_sidebar);
+    el.textContent = rules.length ? ':root{' + rules.join(';') + '}' : '';
 }
 
 function initAccessibility(prefs) {
@@ -1058,6 +1079,10 @@ function initAccessibility(prefs) {
             _a11yPrefs[prop] = '';
             applyA11yPrefs(_a11yPrefs);
             saveA11ySetting(prop, '');
+            // Rebuild the server-rendered <style id="a11y-style"> so the stale
+            // CSS rule is removed immediately and the site colour reverts to the
+            // site default instead of remaining black until the next page load.
+            _syncA11yStyleBlock();
             syncColorInputs();
         });
     });
@@ -1126,13 +1151,19 @@ function initAccessibility(prefs) {
             var entry = colorMap[key];
             if (!entry.input) return;
             var stored = _a11yPrefs[entry.prop];
+            var hex;
             if (stored) {
-                entry.input.value = _rgbToHex(stored);
+                hex = _rgbToHex(stored);
             } else {
                 // Show current computed color as placeholder
                 var color = computed.getPropertyValue(entry.cssVar).trim();
-                entry.input.value = _rgbToHex(color) || '#000000';
+                hex = _rgbToHex(color);
             }
+            // Only update the input when we have a valid, parseable color.
+            // Skipping on null prevents an unresolvable CSS variable from
+            // silently setting the picker to #000000 and later being saved
+            // as a custom color that turns the whole site black.
+            if (hex) entry.input.value = hex;
         });
     }
 
