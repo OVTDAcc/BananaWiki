@@ -15,35 +15,80 @@
     </form>
 </div>
 {% endif %}
-{% if diff_html is not none %}
-<div style="margin-bottom:1rem">
+<div style="margin-bottom:1rem;display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+    {% if diff_html is not none %}
     <button class="btn btn-sm btn-outline" id="toggle-diff-btn">Show diff</button>
+    {% endif %}
+    <button class="btn btn-sm btn-outline" id="toggle-md-btn">Markdown</button>
 </div>
-{% endif %}
-<div class="wiki-content" id="rendered-view">
+
+{# View 1: formatted, no diff (default) #}
+<div class="wiki-content" id="view-formatted">
     {{ content_html|safe }}
 </div>
+
+{# View 2: formatted, with diff #}
+{% if formatted_diff_html is not none %}
+<div class="wiki-content" id="view-formatted-diff" style="display:none">
+    {{ formatted_diff_html|safe }}
+</div>
+{% endif %}
+
+{# View 3: markdown (raw), no diff #}
+<div id="view-markdown" style="display:none">
+    <pre class="diff-pre">{{ raw_content }}</pre>
+</div>
+
+{# View 4: markdown (raw), with diff #}
 {% if diff_html is not none %}
-<div id="diff-view" style="display:none">
+<div id="view-markdown-diff" style="display:none">
     {{ diff_html|safe }}
 </div>
+{% endif %}
+
 <script>
 (function () {
-    var btn = document.getElementById('toggle-diff-btn');
-    var rendered = document.getElementById('rendered-view');
-    var diff = document.getElementById('diff-view');
-    btn.addEventListener('click', function () {
-        if (diff.style.display === 'none') {
-            diff.style.display = 'block';
-            rendered.style.display = 'none';
-            btn.textContent = 'Hide diff';
-        } else {
-            diff.style.display = 'none';
-            rendered.style.display = 'block';
-            btn.textContent = 'Show diff';
-        }
-    });
+    var showDiff = false;
+    var showMd = false;
+
+    var btnDiff = document.getElementById('toggle-diff-btn');
+    var btnMd   = document.getElementById('toggle-md-btn');
+
+    var vFormatted     = document.getElementById('view-formatted');
+    var vFormattedDiff = document.getElementById('view-formatted-diff');
+    var vMarkdown      = document.getElementById('view-markdown');
+    var vMarkdownDiff  = document.getElementById('view-markdown-diff');
+
+    function update() {
+        // Hide all views first
+        [vFormatted, vFormattedDiff, vMarkdown, vMarkdownDiff].forEach(function(el) {
+            if (el) el.style.display = 'none';
+        });
+
+        if (!showMd && !showDiff && vFormatted)     vFormatted.style.display = '';
+        if (!showMd &&  showDiff && vFormattedDiff) vFormattedDiff.style.display = '';
+        if (!showMd &&  showDiff && !vFormattedDiff && vFormatted) vFormatted.style.display = '';
+        if ( showMd && !showDiff && vMarkdown)      vMarkdown.style.display = '';
+        if ( showMd &&  showDiff && vMarkdownDiff)  vMarkdownDiff.style.display = '';
+        if ( showMd &&  showDiff && !vMarkdownDiff && vMarkdown) vMarkdown.style.display = '';
+
+        if (btnDiff) btnDiff.textContent = showDiff ? 'Hide diff' : 'Show diff';
+        if (btnMd)   btnMd.textContent   = showMd   ? 'Formatted' : 'Markdown';
+    }
+
+    if (btnDiff) {
+        btnDiff.addEventListener('click', function () {
+            showDiff = !showDiff;
+            update();
+        });
+    }
+
+    if (btnMd) {
+        btnMd.addEventListener('click', function () {
+            showMd = !showMd;
+            update();
+        });
+    }
 }());
 </script>
-{% endif %}
 {% endblock %}
