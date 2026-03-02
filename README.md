@@ -125,6 +125,8 @@ BananaWiki is a lightweight, private wiki you can host on your own server. No cl
 | **Announcement banners** | Site-wide banners with five color themes, three text sizes, per-audience visibility, expiry dates, and Markdown support |
 | **Customizable appearance** | Site name, six CSS color palette fields, favicon (eight preset colors or custom upload) |
 | **Lockdown mode** | Instantly blocks all non-admin access with a configurable message |
+| **Video embedding** | Bare YouTube and Vimeo URLs pasted on their own line are automatically rendered as responsive embedded players (opt-in per-site setting) |
+| **Session limit** | Enforce one active session per user — signing in on a new device invalidates the previous session (opt-in per-site setting) |
 | **Site migration** | Full export/import as a ZIP; three conflict modes: delete all, override, or keep existing data |
 | **Telegram backup** | Debounced automatic backups of the DB, config, logs, and uploads to a Telegram chat; exponential-backoff retries |
 
@@ -218,7 +220,7 @@ BananaWiki/
 ├── docs/               # Detailed documentation
 ├── instance/           # Database, attachments, secret key — created at runtime (gitignored)
 ├── logs/               # Application logs — created at runtime (gitignored)
-└── tests/              # Test suite (577 tests across 8 files)
+└── tests/              # Test suite (598 tests across 8 files)
 ```
 
 ---

@@ -55,7 +55,7 @@ This document explains how BananaWiki is structured and how the main pieces fit 
 5. **Helpers** — `render_markdown()`, `slugify()`, `allowed_file()`, `time_ago()`, `format_datetime()`, and validation utilities used across routes.
 6. **Decorators** — `@login_required`, `@editor_required`, `@admin_required` wrap route functions to enforce access control.
 7. **Context processors** — `inject_globals()` runs before every template render and injects `current_user`, `settings`, `active_announcements`, `all_categories`, and the `time_ago`/`format_datetime` helpers.
-8. **Request hooks** — `before_request_hook` redirects to `/setup` until setup is complete, enforces lockdown mode (kicking out non-admin users), and applies the global rate limit. `set_security_headers` adds security headers to every response.
+8. **Request hooks** — `before_request_hook` redirects to `/setup` until setup is complete, enforces lockdown mode (kicking out non-admin users), validates the per-user session token when session limiting is enabled, and applies the global rate limit. `set_security_headers` adds security headers to every response.
 9. **Routes** — grouped by area:
    - `/setup`, `/login`, `/signup`, `/logout`, `/lockdown` — authentication and lockdown
    - `/account`, `/account/export` — account settings and self-service data export
@@ -219,7 +219,7 @@ For a typical page view (`GET /page/<slug>`):
 | `pages` | Wiki pages: title, slug, content, category, home flag, last editor, `difficulty_tag` (predefined level or `'custom'`), `tag_custom_label`, `tag_custom_color` (used when `difficulty_tag='custom'`), `is_deindexed` (hidden from sidebar and search for regular users) |
 | `page_history` | Every committed version of every page; never deleted |
 | `drafts` | One in-progress draft per (page, user) pair |
-| `site_settings` | Single-row table (id=1): site name, color palette, timezone, favicon, lockdown mode and message, setup flag |
+| `site_settings` | Single-row table (id=1): site name, color palette, timezone, favicon, lockdown mode and message, video embed toggle, session limit toggle, setup flag |
 | `login_attempts` | Failed login records used for per-IP rate limiting across workers |
 | `announcements` | Site-wide banner content, color, visibility, expiry, active flag |
 | `username_history` | Every username change (old name, new name, timestamp) per user |
