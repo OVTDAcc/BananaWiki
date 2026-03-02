@@ -543,6 +543,7 @@ _A11Y_DEFAULTS = {
     "font_scale": 1.0,
     "contrast": 0,
     "sidebar_width": 250,
+    "content_max_width": 0,
     "custom_bg": "",
     "custom_text": "",
     "custom_primary": "",

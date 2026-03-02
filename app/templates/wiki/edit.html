@@ -79,6 +79,7 @@
     </div>
 
     <input type="file" id="file-input" accept="image/*" multiple style="display:none">
+    <input type="file" id="replace-img-file-input" accept="image/*" style="display:none">
 
     <div class="editor-container">
         <!-- Editor pane -->
@@ -100,6 +101,7 @@
                 <button type="button" onclick="insertLine('---')" title="Horizontal rule">─</button>
                 <span class="sep"></span>
                 <button type="button" id="attach-btn" title="Attach image">Attach Image</button>
+                <button type="button" id="replace-img-btn" title="Replace an existing image in the content">Replace Image</button>
             </div>
             <div class="drop-zone" id="drop-zone">Drop images here</div>
             <textarea name="content" id="edit-content" class="editor-area">{{ draft.content if draft and draft.content else page.content }}</textarea>
@@ -213,6 +215,37 @@
         <div class="form-actions">
             <button type="button" class="btn" id="link-insert-btn">Insert</button>
             <button type="button" class="btn btn-outline" id="link-cancel-btn">Cancel</button>
+        </div>
+    </div>
+</div>
+<!-- Replace Image modal -->
+<div class="modal" id="replace-img-modal" style="display:none">
+    <div class="modal-content">
+        <h3>Replace Image</h3>
+        <div class="form-group">
+            <label>Select the image to replace</label>
+            <select id="replace-img-select" class="input">
+                <option value="">Loading images…</option>
+            </select>
+        </div>
+        <div style="text-align:center;margin:.6rem 0">
+            <img id="replace-img-current-preview" src="" alt="" style="max-width:100%;max-height:120px;border-radius:4px;display:none">
+        </div>
+        <div class="form-group">
+            <label>Upload replacement image</label>
+            <label class="btn btn-sm btn-outline" style="cursor:pointer">
+                Choose File
+                <input type="file" id="replace-img-upload-input" accept="image/*" style="display:none">
+            </label>
+            <span id="replace-img-upload-name" style="font-size:.85rem;opacity:.65;margin-left:.4rem"></span>
+        </div>
+        <div style="text-align:center;margin:.4rem 0">
+            <img id="replace-img-new-preview" src="" alt="" style="max-width:100%;max-height:120px;border-radius:4px;display:none">
+        </div>
+        <div id="replace-img-status" style="font-size:.85rem;opacity:.75;margin:.3rem 0"></div>
+        <div class="form-actions">
+            <button type="button" class="btn" id="replace-img-confirm-btn" disabled>Replace</button>
+            <button type="button" class="btn btn-outline" id="replace-img-cancel-btn">Cancel</button>
         </div>
     </div>
 </div>
@@ -547,6 +580,129 @@
 
     document.addEventListener('DOMContentLoaded', function() {
         buildPresets('editFormPresets','editFormColorPicker','editFormColorHex','editFormPreview','editFormLabel');
+    });
+
+    // ----- Replace Image -----
+    var _replaceImgNewUrl = null;
+
+    function extractImagesFromMarkdown(md) {
+        var images = [];
+        var seen = {};
+        // Standard markdown: ![alt](url)
+        var mdRe = /!\[([^\]]*)\]\(([^)]+)\)/g;
+        var m;
+        while ((m = mdRe.exec(md)) !== null) {
+            var url = m[2].trim();
+            if (!seen[url]) { seen[url] = true; images.push({ alt: m[1], url: url }); }
+        }
+        // HTML img tags: <img src="url"> or <img src='url'>
+        var htmlRe = /<img[^>]+src=(?:"([^"]+)"|'([^']+)')([^>]*)>/gi;
+        while ((m = htmlRe.exec(md)) !== null) {
+            var url = (m[1] || m[2] || '').trim();
+            if (url && !seen[url]) { seen[url] = true; images.push({ alt: url, url: url }); }
+        }
+        return images;
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        var replaceImgBtn = document.getElementById('replace-img-btn');
+        var replaceImgModal = document.getElementById('replace-img-modal');
+        var replaceImgSelect = document.getElementById('replace-img-select');
+        var replaceImgCurrentPreview = document.getElementById('replace-img-current-preview');
+        var replaceImgUploadInput = document.getElementById('replace-img-upload-input');
+        var replaceImgNewPreview = document.getElementById('replace-img-new-preview');
+        var replaceImgUploadName = document.getElementById('replace-img-upload-name');
+        var replaceImgStatus = document.getElementById('replace-img-status');
+        var replaceImgConfirmBtn = document.getElementById('replace-img-confirm-btn');
+        var replaceImgCancelBtn = document.getElementById('replace-img-cancel-btn');
+        if (!replaceImgBtn || !replaceImgModal) return;
+
+        replaceImgBtn.addEventListener('click', function() {
+            var ta = document.getElementById('edit-content');
+            if (!ta) return;
+            var images = extractImagesFromMarkdown(ta.value);
+            replaceImgSelect.innerHTML = '';
+            _replaceImgNewUrl = null;
+            replaceImgNewPreview.style.display = 'none';
+            replaceImgNewPreview.src = '';
+            replaceImgUploadName.textContent = '';
+            replaceImgStatus.textContent = '';
+            replaceImgConfirmBtn.disabled = true;
+            if (!images.length) {
+                replaceImgSelect.innerHTML = '<option value="">No images found in content</option>';
+                replaceImgCurrentPreview.style.display = 'none';
+            } else {
+                images.forEach(function(img, i) {
+                    var opt = document.createElement('option');
+                    opt.value = img.url;
+                    opt.textContent = (img.alt || img.url).substring(0, 60);
+                    replaceImgSelect.appendChild(opt);
+                });
+                replaceImgCurrentPreview.src = images[0].url;
+                replaceImgCurrentPreview.style.display = '';
+            }
+            replaceImgModal.style.display = 'flex';
+        });
+
+        replaceImgSelect.addEventListener('change', function() {
+            var url = replaceImgSelect.value;
+            if (url) {
+                replaceImgCurrentPreview.src = url;
+                replaceImgCurrentPreview.style.display = '';
+            } else {
+                replaceImgCurrentPreview.style.display = 'none';
+            }
+        });
+
+        replaceImgUploadInput.addEventListener('change', function() {
+            var file = replaceImgUploadInput.files[0];
+            if (!file) return;
+            replaceImgUploadName.textContent = file.name;
+            replaceImgStatus.textContent = 'Uploading…';
+            replaceImgConfirmBtn.disabled = true;
+            _replaceImgNewUrl = null;
+            replaceImgNewPreview.style.display = 'none';
+            var fd = new FormData();
+            fd.append('file', file);
+            fd.append('csrf_token', getCsrfToken());
+            fetch('/api/upload', { method: 'POST', body: fd })
+                .then(function(r) { return r.json(); })
+                .then(function(d) {
+                    if (d.error) {
+                        replaceImgStatus.textContent = 'Upload failed: ' + d.error;
+                        return;
+                    }
+                    _replaceImgNewUrl = d.url;
+                    replaceImgNewPreview.src = d.url;
+                    replaceImgNewPreview.style.display = '';
+                    replaceImgStatus.textContent = 'Ready to replace.';
+                    replaceImgConfirmBtn.disabled = false;
+                    replaceImgUploadInput.value = '';
+                })
+                .catch(function() {
+                    replaceImgStatus.textContent = 'Upload failed.';
+                });
+        });
+
+        replaceImgConfirmBtn.addEventListener('click', function() {
+            var oldUrl = replaceImgSelect.value;
+            if (!oldUrl || !_replaceImgNewUrl) return;
+            var ta = document.getElementById('edit-content');
+            if (!ta) return;
+            // Replace all occurrences of the old URL using split/join to avoid
+            // regex escaping issues with special characters in URLs
+            ta.value = ta.value.split(oldUrl).join(_replaceImgNewUrl);
+            ta.dispatchEvent(new Event('input'));
+            replaceImgModal.style.display = 'none';
+        });
+
+        function closeReplaceModal() {
+            replaceImgModal.style.display = 'none';
+        }
+        replaceImgCancelBtn.addEventListener('click', closeReplaceModal);
+        replaceImgModal.addEventListener('click', function(e) {
+            if (e.target === this) closeReplaceModal();
+        });
     });
 </script>
 {% endblock %}
