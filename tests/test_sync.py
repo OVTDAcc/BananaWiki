@@ -1181,3 +1181,119 @@ def test_cleanup_unused_uploads_triggers_notify_file_deleted(
     assert not os.path.exists(orphan)
     # And a deletion notice Thread should have been spawned
     assert mock_thread.called
+
+
+# -----------------------------------------------------------------------
+# User account deletion — avatar cleanup + deletion notice
+# -----------------------------------------------------------------------
+def test_delete_own_account_triggers_avatar_notify_file_deleted(
+    client, admin_user, monkeypatch, tmp_path
+):
+    """When a user deletes their own account, the avatar should get a deletion notice."""
+    import db
+    monkeypatch.setattr(config, "SYNC", True)
+    monkeypatch.setattr(config, "SYNC_TOKEN", "123:ABC")
+    monkeypatch.setattr(config, "SYNC_USERID", "999")
+    upload_dir = str(tmp_path / "uploads")
+    monkeypatch.setattr(config, "UPLOAD_FOLDER", upload_dir)
+    os.makedirs(os.path.join(upload_dir, "avatars"), exist_ok=True)
+
+    # Create a non-admin user with an avatar
+    from werkzeug.security import generate_password_hash
+    uid = db.create_user("selfdelete", generate_password_hash("pass123"), role="user")
+    avatar_rel = "avatars/selfav.png"
+    avatar_abs = os.path.join(upload_dir, avatar_rel)
+    with open(avatar_abs, "wb") as f:
+        f.write(b"fake avatar")
+    db.upsert_user_profile(uid, avatar_filename=avatar_rel)
+
+    # Log in as this user
+    client.post("/login", data={"username": "selfdelete", "password": "pass123"})
+
+    with patch("sync.threading.Timer") as mock_timer, \
+         patch("sync.threading.Thread") as mock_thread:
+        mock_timer.return_value = MagicMock()
+        mock_thread.return_value = MagicMock()
+        resp = client.post("/account", data={
+            "action": "delete_account",
+            "password": "pass123",
+        })
+        assert resp.status_code in (200, 302)
+
+    # Avatar should be removed from disk
+    assert not os.path.exists(avatar_abs)
+    # Deletion notice Thread should have been spawned
+    assert mock_thread.called
+
+
+def test_admin_delete_user_triggers_avatar_notify_file_deleted(
+    logged_in_admin, admin_user, monkeypatch, tmp_path
+):
+    """Admin deleting a user should send a deletion notice for the user's avatar."""
+    import db
+    from werkzeug.security import generate_password_hash
+    monkeypatch.setattr(config, "SYNC", True)
+    monkeypatch.setattr(config, "SYNC_TOKEN", "123:ABC")
+    monkeypatch.setattr(config, "SYNC_USERID", "999")
+    upload_dir = str(tmp_path / "uploads")
+    monkeypatch.setattr(config, "UPLOAD_FOLDER", upload_dir)
+    os.makedirs(os.path.join(upload_dir, "avatars"), exist_ok=True)
+
+    target_id = db.create_user("victim", generate_password_hash("pass123"), role="user")
+    avatar_rel = "avatars/victimav.png"
+    avatar_abs = os.path.join(upload_dir, avatar_rel)
+    with open(avatar_abs, "wb") as f:
+        f.write(b"fake avatar")
+    db.upsert_user_profile(target_id, avatar_filename=avatar_rel)
+
+    with patch("sync.threading.Timer") as mock_timer, \
+         patch("sync.threading.Thread") as mock_thread:
+        mock_timer.return_value = MagicMock()
+        mock_thread.return_value = MagicMock()
+        resp = logged_in_admin.post(
+            f"/admin/users/{target_id}/edit",
+            data={"action": "delete"},
+        )
+        assert resp.status_code in (200, 302)
+
+    assert not os.path.exists(avatar_abs)
+    assert mock_thread.called
+
+
+# -----------------------------------------------------------------------
+# Favicon upload/replace triggers
+# -----------------------------------------------------------------------
+def test_favicon_upload_triggers_notify_file_upload(logged_in_admin, monkeypatch, tmp_path):
+    """Uploading a custom favicon should send it as an individual Telegram message."""
+    from PIL import Image as PILImage
+    import app as app_mod
+    monkeypatch.setattr(config, "SYNC", True)
+    monkeypatch.setattr(config, "SYNC_TOKEN", "123:ABC")
+    monkeypatch.setattr(config, "SYNC_USERID", "999")
+    favicon_dir = str(tmp_path / "favicons")
+    os.makedirs(favicon_dir, exist_ok=True)
+    monkeypatch.setattr(app_mod, "FAVICON_UPLOAD_FOLDER", favicon_dir)
+
+    buf = io.BytesIO()
+    PILImage.new("RGB", (16, 16), color=(0, 128, 0)).save(buf, format="PNG")
+    buf.seek(0)
+
+    with patch("sync.threading.Timer") as mock_timer, \
+         patch("sync.threading.Thread") as mock_thread:
+        mock_timer.return_value = MagicMock()
+        mock_thread.return_value = MagicMock()
+        resp = logged_in_admin.post("/admin/settings", data={
+            "site_name": "TestWiki",
+            "primary_color": "#aabbcc",
+            "secondary_color": "#112233",
+            "accent_color": "#445566",
+            "text_color": "#778899",
+            "sidebar_color": "#001122",
+            "bg_color": "#334455",
+            "favicon_type": "custom",
+            "favicon_custom_file": (buf, "favicon.png"),
+        }, content_type="multipart/form-data")
+        assert resp.status_code in (200, 302)
+
+    # notify_file_upload spawns a Thread
+    assert mock_thread.called
