@@ -201,6 +201,42 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    // Content resize handle
+    var contentResizeHandle = document.getElementById('content-resize-handle');
+    var mainContent = document.getElementById('main-content');
+    if (contentResizeHandle && mainContent) {
+        var isContentResizing = false;
+        contentResizeHandle.addEventListener('mousedown', function(e) {
+            isContentResizing = true;
+            contentResizeHandle.classList.add('resizing');
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+            e.preventDefault();
+        });
+        document.addEventListener('mousemove', function(e) {
+            if (!isContentResizing) return;
+            var layoutLeft = mainContent.getBoundingClientRect().left;
+            var newWidth = e.clientX - layoutLeft;
+            var minWidth = 400;
+            var maxWidth = window.innerWidth - layoutLeft - 8;
+            if (newWidth >= minWidth && newWidth <= maxWidth) {
+                document.documentElement.style.setProperty('--content-max-width', newWidth + 'px');
+            }
+        });
+        document.addEventListener('mouseup', function() {
+            if (isContentResizing) {
+                isContentResizing = false;
+                contentResizeHandle.classList.remove('resizing');
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+                var w = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--content-max-width'), 10);
+                if (w >= 400) {
+                    saveA11ySetting('content_max_width', w);
+                }
+            }
+        });
+    }
 });
 
 // Autosave for editor
@@ -871,8 +907,15 @@ function applyA11yPrefs(prefs) {
         sidebar.style.minWidth = prefs.sidebar_width + 'px';
     }
 
-    // Custom CSS colors
+    // Content max width
     var root = document.documentElement;
+    if (prefs.content_max_width && prefs.content_max_width > 0) {
+        root.style.setProperty('--content-max-width', prefs.content_max_width + 'px');
+    } else {
+        root.style.removeProperty('--content-max-width');
+    }
+
+    // Custom CSS colors
     if (prefs.custom_bg) {
         root.style.setProperty('--bg', prefs.custom_bg);
     } else {

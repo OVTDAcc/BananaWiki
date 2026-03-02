@@ -32,6 +32,7 @@
         {% if user_accessibility.custom_secondary %}:root { --secondary: {{ user_accessibility.custom_secondary }}; }{% endif %}
         {% if user_accessibility.custom_accent %}:root { --accent: {{ user_accessibility.custom_accent }}; }{% endif %}
         {% if user_accessibility.custom_sidebar %}:root { --sidebar: {{ user_accessibility.custom_sidebar }}; }{% endif %}
+        {% if user_accessibility.content_max_width and user_accessibility.content_max_width > 0 %}:root { --content-max-width: {{ user_accessibility.content_max_width }}px; }{% endif %}
         :root { --a11y-font-scale: {{ user_accessibility.font_scale }}; }
         {% set lh_map = ['1.8', '2.2', '2.6'] %}
         :root { --a11y-line-height: {{ lh_map[user_accessibility.line_height | int] if user_accessibility.line_height | int < 3 else '1.8' }}; }
@@ -61,7 +62,7 @@
                     {% endif %}
                 </a>
                 <span class="user-info">{{ current_user.username }}</span>
-                <button class="btn btn-sm btn-outline a11y-toggle" id="a11y-toggle-btn" aria-label="Accessibility options" title="Accessibility options">&#9855; <span class="a11y-btn-label">Accessibility</span></button>
+                <button class="btn btn-sm btn-outline a11y-toggle" id="a11y-toggle-btn" aria-label="Accessibility options" title="Accessibility options">Aa <span class="a11y-btn-label">Accessibility</span></button>
                 <a href="{{ url_for('account_settings') }}" class="btn btn-sm">Account</a>
                 <form method="POST" action="{{ url_for('logout') }}" style="display:inline">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -131,7 +132,7 @@
         <div class="sidebar-resize-handle" id="sidebar-resize-handle"></div>
         <div class="sidebar-overlay" id="sidebar-overlay"></div>
         {% endif %}
-        <main class="content">
+        <main class="content" id="main-content">
             {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
             <div class="flash-messages">
@@ -146,6 +147,9 @@
             {% endwith %}
             {% block content %}{% endblock %}
         </main>
+        {% if current_user %}
+        <div class="content-resize-handle" id="content-resize-handle" title="Drag to resize content width"></div>
+        {% endif %}
     </div>
 
     {% if current_user and current_user.role in ('editor', 'admin', 'protected_admin') %}
@@ -181,7 +185,7 @@
     <!-- Accessibility Panel -->
     <div class="a11y-panel" id="a11y-panel" role="dialog" aria-label="Accessibility options" aria-modal="true" style="display:none">
         <div class="a11y-panel-header">
-            <span>&#9855; Accessibility</span>
+            <span>Aa Accessibility</span>
             <button class="btn-icon" id="a11y-close-btn" aria-label="Close accessibility panel">✕</button>
         </div>
         <div class="a11y-panel-body">

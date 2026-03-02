@@ -131,7 +131,7 @@
     </div>
 
     {# ----- Admin moderation tools ----- #}
-    {% if is_admin and not is_own %}
+    {% if is_admin and not is_own and target.role != 'protected_admin' %}
     <div class="settings-section" style="margin-top:2rem">
         <h2>Admin Moderation</h2>
         <form method="POST" action="{{ url_for('admin_moderate_profile', user_id=target.id) }}" class="admin-profile-form">
