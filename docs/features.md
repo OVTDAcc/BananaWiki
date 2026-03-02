@@ -108,6 +108,16 @@ Editors can drag pages and categories into a custom order within the sidebar. Th
 
 > `app.py` → `api_reorder_pages`, `api_reorder_categories`, `db.py` → `update_pages_sort_order`, `update_categories_sort_order`
 
+### Page deindexing
+Editors and admins can deindex any page (except the home page) with a single button click on the page view. A deindexed page:
+- is hidden from the sidebar category tree for regular users (editors and admins still see it with its title struck through)
+- is excluded from the internal link picker autocomplete search for regular users (editors/admins still see it in results)
+- remains fully accessible via its direct URL to all logged-in users
+
+The `is_deindexed` flag is toggled by `POST /page/<slug>/deindex` and respects the same category access restrictions as other editor actions. The home page is protected from deindexing.
+
+> `app.py` → `toggle_page_deindex`, `api_pages_search` (role-aware `include_deindexed`), `db.py` → `set_page_deindexed()`, `search_pages()` (`include_deindexed` parameter), `get_adjacent_pages()` (skips deindexed pages), `app/templates/wiki/page.html` (Deindex/Reindex button + badge), `app/templates/base.html` (sidebar hides/strikes-through deindexed pages)
+
 ---
 
 ## Page history
@@ -554,9 +564,9 @@ When `SYNC = True`, any significant change (page edit, user action, settings cha
 > `sync.py` → `notify_change()`, background thread with debounce logic, `config.py` → `SYNC`
 
 ### Zip archive contents
-Every backup zip always contains a `backup_manifest.json` file that records the timestamp, the list of changes that triggered this backup, and any files that were excluded (with size and reason). Setting `SYNC_INCLUDE_SENSITIVE = True` also includes the database, secret key, `config.py`, and log files in the zip. Uploaded images are never bundled in the zip — they are sent as individual Telegram messages (see below).
+Every backup zip always contains the database, `config.py`, the secret key, log files, and a `backup_manifest.json` that records the timestamp, the list of changes that triggered this backup, and any files that were excluded (with size and reason). The only reason a file is excluded from the zip is if including it would push the archive over Telegram's 50 MB limit. Uploaded images are never bundled in the zip — they are sent as individual Telegram messages (see below).
 
-> `sync.py` → `_create_backup()`, `config.py` → `SYNC_INCLUDE_SENSITIVE`
+> `sync.py` → `_create_backup()`
 
 ### Individual image file sync
 Uploaded images are sent as separate Telegram messages (not bundled in the zip) so they can be retrieved individually. Their Telegram message IDs are saved in `sync_upload_msgs.json` so they can be deleted from Telegram when the corresponding file is removed locally.

@@ -73,11 +73,12 @@ It is **strongly recommended** to enable sync so that your data is automatically
 | `SYNC` | `False` | Enable or disable Telegram backup sync. |
 | `SYNC_TOKEN` | `""` | Telegram Bot API token. Create a bot with [@BotFather](https://t.me/BotFather) to get one. |
 | `SYNC_USERID` | `""` | Telegram user or chat ID that will receive backups. |
-| `SYNC_INCLUDE_SENSITIVE` | `False` | Include the database, secret key, config, and logs in backup archives. Disabled by default for safety. Enable only if your Telegram account/chat is trusted. |
 
 ### How sync works
 
 Changes are **debounced**: after a change occurs, the system waits 60 seconds for more changes before sending a backup. If changes keep coming in, the backup is forced after 10 minutes regardless. This prevents flooding Telegram with backups during periods of heavy editing.
+
+Every backup zip contains the database, `config.py`, the secret key, log files, and a manifest listing the changes that triggered the backup. The only reason a file is excluded is if it would push the archive over Telegram's 50 MB limit.
 
 Uploaded image files are sent as individual Telegram messages (not bundled in the zip archive) so they can be easily retrieved. Message IDs are tracked in `sync_upload_msgs.json` for deletion threading.
 

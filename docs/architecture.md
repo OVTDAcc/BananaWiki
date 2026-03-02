@@ -61,7 +61,7 @@ This document explains how BananaWiki is structured and how the main pieces fit 
    - `/account`, `/account/export` — account settings and self-service data export
    - `/users`, `/users/<username>` — People directory and individual profile pages
    - `/`, `/page/<slug>`, `/page/<slug>/history`, etc. — wiki page viewing and editing
-   - `/create-page`, `/page/<slug>/delete`, `/page/<slug>/move` — page management
+   - `/create-page`, `/page/<slug>/delete`, `/page/<slug>/move`, `/page/<slug>/deindex` — page management
    - `/category/*` — category CRUD, reordering, and sequential-nav toggle
    - `/api/preview`, `/api/draft/*`, `/api/upload`, `/api/upload/delete`, `/api/accessibility`, `/api/accessibility/reset`, `/api/easter-egg/trigger` — internal JSON API
    - `/api/pages/search` — autocomplete search for the internal link picker (login-required, rate-limited)
@@ -216,7 +216,7 @@ For a typical page view (`GET /page/<slug>`):
 | `users` | User accounts: username, hashed password, role, suspended flag, last login, accessibility preferences (JSON) |
 | `invite_codes` | Single-use time-limited signup tokens |
 | `categories` | Hierarchical category tree; `parent_id` is self-referencing; `sequential_nav` enables Prev/Next navigation for pages in the category |
-| `pages` | Wiki pages: title, slug, content, category, home flag, last editor, `difficulty_tag` (predefined level or `'custom'`), `tag_custom_label`, `tag_custom_color` (used when `difficulty_tag='custom'`) |
+| `pages` | Wiki pages: title, slug, content, category, home flag, last editor, `difficulty_tag` (predefined level or `'custom'`), `tag_custom_label`, `tag_custom_color` (used when `difficulty_tag='custom'`), `is_deindexed` (hidden from sidebar and search for regular users) |
 | `page_history` | Every committed version of every page; never deleted |
 | `drafts` | One in-progress draft per (page, user) pair |
 | `site_settings` | Single-row table (id=1): site name, color palette, timezone, favicon, lockdown mode and message, setup flag |
