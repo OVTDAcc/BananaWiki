@@ -217,7 +217,7 @@ BananaWiki/
 ├── docs/               # Detailed documentation
 ├── instance/           # Database, attachments, secret key — created at runtime (gitignored)
 ├── logs/               # Application logs — created at runtime (gitignored)
-└── tests/              # Test suite (538 tests across 6 files)
+└── tests/              # Test suite (544 tests across 7 files)
 ```
 
 ---
