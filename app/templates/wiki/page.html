@@ -8,6 +8,9 @@
     {% elif page.difficulty_tag %}
     <span class="difficulty-tag difficulty-tag-{{ page.difficulty_tag }}">{{ page.difficulty_tag|capitalize }}</span>
     {% endif %}
+    {% if page.is_deindexed %}
+    <span class="deindexed-badge">Deindexed</span>
+    {% endif %}
     {% if current_user and current_user.role in ('editor', 'admin', 'protected_admin') %}
         <button class="btn-icon" onclick="document.getElementById('titleModal').style.display='flex'" title="Edit title">Edit title</button>
         <button class="btn-icon" onclick="document.getElementById('tagModal').style.display='flex'" title="Set tag">Tag</button>
@@ -15,6 +18,10 @@
         <a href="{{ url_for('edit_page', slug=page.slug) }}" class="btn btn-sm">Edit</a>
         <button class="btn btn-sm btn-outline" onclick="document.getElementById('moveModal').style.display='flex'">Move</button>
         <button class="btn btn-sm btn-outline" onclick="document.getElementById('renameSlugModal').style.display='flex'" title="Change page URL">URL</button>
+        <form method="POST" action="{{ url_for('toggle_page_deindex', slug=page.slug) }}" style="display:inline" data-confirm="{% if page.is_deindexed %}Reindex this page? It will appear in the site navigation and search again.{% else %}Deindex this page? It will be hidden from navigation and search, but still accessible via its URL.{% endif %}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn-sm btn-outline">{% if page.is_deindexed %}Reindex{% else %}Deindex{% endif %}</button>
+        </form>
         <form method="POST" action="{{ url_for('delete_page_route', slug=page.slug) }}" style="display:inline" data-confirm="Delete this page?">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button class="btn btn-sm btn-danger">Delete</button>
