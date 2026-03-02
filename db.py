@@ -197,6 +197,14 @@ def init_db():
         cur.execute("ALTER TABLE site_settings ADD COLUMN lockdown_mode INTEGER NOT NULL DEFAULT 0")
     if "lockdown_message" not in ss_cols:
         cur.execute("ALTER TABLE site_settings ADD COLUMN lockdown_message TEXT NOT NULL DEFAULT ''")
+    if "video_embed_enabled" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN video_embed_enabled INTEGER NOT NULL DEFAULT 0")
+    if "session_limit_enabled" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN session_limit_enabled INTEGER NOT NULL DEFAULT 0")
+
+    # Add session_token column to users if missing
+    if "session_token" not in cols:
+        cur.execute("ALTER TABLE users ADD COLUMN session_token TEXT")
 
     # Add accessibility column to users if missing
     if "accessibility" not in cols:
@@ -481,7 +489,7 @@ def get_user_by_username(username):
     return user
 
 
-_ALLOWED_USER_COLUMNS = {"username", "password", "role", "suspended", "last_login_at"}
+_ALLOWED_USER_COLUMNS = {"username", "password", "role", "suspended", "last_login_at", "session_token"}
 
 
 def update_user(user_id, **kwargs):
@@ -1327,6 +1335,7 @@ _ALLOWED_SETTINGS_COLUMNS = {
     "text_color", "sidebar_color", "bg_color", "setup_done", "timezone",
     "favicon_enabled", "favicon_type", "favicon_custom",
     "lockdown_mode", "lockdown_message",
+    "video_embed_enabled", "session_limit_enabled",
 }
 
 

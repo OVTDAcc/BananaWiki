@@ -152,6 +152,37 @@
         </div>
     </div>
 
+    <div class="settings-section">
+        <h3>Video Embedding</h3>
+        <div class="form-group">
+            <label>
+                <input type="checkbox" name="video_embed_enabled" value="1"{% if settings.video_embed_enabled %} checked{% endif %}>
+                Enable video embedding
+            </label>
+            <small style="opacity:.7;display:block;margin-top:.3rem">
+                When enabled, bare YouTube and Vimeo URLs pasted on their own line in wiki pages
+                are automatically rendered as embedded video players.
+                Supported formats: <code>https://www.youtube.com/watch?v=…</code>,
+                <code>https://youtu.be/…</code>, <code>https://vimeo.com/…</code>
+            </small>
+        </div>
+    </div>
+
+    <div class="settings-section">
+        <h3>Session Limit</h3>
+        <div class="form-group">
+            <label>
+                <input type="checkbox" name="session_limit_enabled" value="1"{% if settings.session_limit_enabled %} checked{% endif %}>
+                Limit users to one active session
+            </label>
+            <small style="opacity:.7;display:block;margin-top:.3rem">
+                When enabled, signing in from a new device or tab invalidates any previous session
+                for that user. This prevents users from being logged in on multiple devices or
+                browser tabs simultaneously.
+            </small>
+        </div>
+    </div>
+
     <button type="submit" class="btn">Save Settings</button>
 </form>
 
