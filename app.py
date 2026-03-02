@@ -155,13 +155,92 @@ def rate_limit(max_requests=60, window=60):
 # ---------------------------------------------------------------------------
 #  Helpers
 # ---------------------------------------------------------------------------
-def render_markdown(text):
-    """Convert markdown to sanitised HTML."""
+def render_markdown(text, embed_videos=False):
+    """Convert markdown to sanitised HTML.
+
+    When *embed_videos* is True, bare YouTube and Vimeo links are replaced
+    with responsive iframe embeds after sanitisation.
+    """
     html = markdown.markdown(
         text,
         extensions=["tables", "fenced_code", "toc", "nl2br"],
     )
-    return bleach.clean(html, tags=ALLOWED_TAGS, attributes=ALLOWED_ATTRS)
+    html = bleach.clean(html, tags=ALLOWED_TAGS, attributes=ALLOWED_ATTRS)
+    if embed_videos:
+        html = _embed_videos_in_html(html)
+    return html
+
+
+_YT_WATCH_RE = re.compile(
+    r'<a href="(https?://(?:www\.)?youtube\.com/watch\?[^"<]*)">\1</a>',
+    re.IGNORECASE,
+)
+_YT_SHORT_RE = re.compile(
+    r'<a href="(https?://youtu\.be/[^"<]*)">\1</a>',
+    re.IGNORECASE,
+)
+_VIMEO_RE = re.compile(
+    r'<a href="(https?://(?:www\.)?vimeo\.com/[^"<]*)">\1</a>',
+    re.IGNORECASE,
+)
+
+# Bare URL patterns (markdown does not autolink plain URLs; they appear as text)
+_YT_WATCH_BARE_RE = re.compile(
+    r'<p>\s*(https?://(?:www\.)?youtube\.com/watch\?[^\s<>]*)\s*</p>',
+    re.IGNORECASE,
+)
+_YT_SHORT_BARE_RE = re.compile(
+    r'<p>\s*(https?://youtu\.be/[^\s<>]*)\s*</p>',
+    re.IGNORECASE,
+)
+_VIMEO_BARE_RE = re.compile(
+    r'<p>\s*(https?://(?:www\.)?vimeo\.com/(\d+)[^\s<>]*)\s*</p>',
+    re.IGNORECASE,
+)
+
+
+def _make_video_iframe(embed_src):
+    return (
+        '<div class="video-embed" style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;margin:1rem 0">'
+        f'<iframe src="{embed_src}" style="position:absolute;top:0;left:0;width:100%;height:100%;border:0" '
+        'allowfullscreen loading="lazy"></iframe>'
+        '</div>'
+    )
+
+
+def _embed_videos_in_html(html):
+    """Replace bare YouTube/Vimeo anchor links with responsive iframe embeds."""
+    _yt_vid_re = re.compile(r'[?&]v=([A-Za-z0-9_-]{11})', re.IGNORECASE)
+    _yt_short_re = re.compile(r'youtu\.be/([A-Za-z0-9_-]{11})', re.IGNORECASE)
+    _vimeo_vid_re = re.compile(r'vimeo\.com/(\d+)', re.IGNORECASE)
+
+    def _yt_watch_replace(m):
+        vid_m = _yt_vid_re.search(m.group(1))
+        if not vid_m:
+            return m.group(0)
+        return _make_video_iframe(f"https://www.youtube.com/embed/{vid_m.group(1)}")
+
+    def _yt_short_replace(m):
+        vid_m = _yt_short_re.search(m.group(1))
+        if not vid_m:
+            return m.group(0)
+        return _make_video_iframe(f"https://www.youtube.com/embed/{vid_m.group(1)}")
+
+    def _vimeo_replace(m):
+        vid_m = _vimeo_vid_re.search(m.group(1))
+        if not vid_m:
+            return m.group(0)
+        return _make_video_iframe(f"https://player.vimeo.com/video/{vid_m.group(1)}")
+
+    # Handle linked URLs (markdown angle-bracket or explicit link syntax)
+    html = _YT_WATCH_RE.sub(_yt_watch_replace, html)
+    html = _YT_SHORT_RE.sub(_yt_short_replace, html)
+    html = _VIMEO_RE.sub(_vimeo_replace, html)
+    # Handle bare URLs (plain text in <p> tags, no markdown linking)
+    html = _YT_WATCH_BARE_RE.sub(_yt_watch_replace, html)
+    html = _YT_SHORT_BARE_RE.sub(_yt_short_replace, html)
+    html = _VIMEO_BARE_RE.sub(_vimeo_replace, html)
+    return html
 
 
 @app.template_filter("render_md")
@@ -572,6 +651,24 @@ def before_request_hook():
                 return jsonify({"error": "Wiki is in lockdown mode."}), 403
             return redirect(url_for("lockdown"))
 
+    # Session limit: enforce one active session per user
+    if settings["session_limit_enabled"] and request.endpoint not in (
+        "login", "logout", "setup", "static"
+    ):
+        uid = session.get("user_id")
+        if uid:
+            user = db.get_user_by_id(uid)
+            if user:
+                stored_token = user["session_token"]
+                session_token = session.get("session_token")
+                if stored_token and session_token != stored_token:
+                    session.clear()
+                    flash(
+                        "Your session was ended because you signed in from another device or tab.",
+                        "error",
+                    )
+                    return redirect(url_for("login"))
+
     # Global rate limit (skip static files)
     if request.endpoint and request.endpoint != "static":
         ip = request.remote_addr or "unknown"
@@ -691,6 +788,10 @@ def login():
         session.clear()
         session.permanent = True
         session["user_id"] = user["id"]
+        if settings["session_limit_enabled"]:
+            token = uuid.uuid4().hex
+            session["session_token"] = token
+            db.update_user(user["id"], session_token=token)
         _clear_login_attempts()
         db.update_user(user["id"], last_login_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
         log_action("login_success", request, user=user)
@@ -1178,7 +1279,9 @@ def admin_moderate_profile(user_id):
 def home():
     page = db.get_home_page()
     user = get_current_user()
-    content_html = render_markdown(page["content"]) if page else ""
+    settings = db.get_site_settings()
+    embed_videos = bool(settings["video_embed_enabled"])
+    content_html = render_markdown(page["content"], embed_videos=embed_videos) if page else ""
     categories, uncategorized = db.get_category_tree()
 
     editor_info = None
@@ -1209,7 +1312,9 @@ def view_page(slug):
     if not page:
         abort(404)
     user = get_current_user()
-    content_html = render_markdown(page["content"])
+    settings = db.get_site_settings()
+    embed_videos = bool(settings["video_embed_enabled"])
+    content_html = render_markdown(page["content"], embed_videos=embed_videos)
     categories, uncategorized = db.get_category_tree()
 
     editor_info = None
@@ -2794,6 +2899,8 @@ def admin_settings():
             favicon_custom=favicon_custom,
             lockdown_mode=1 if request.form.get("lockdown_mode") else 0,
             lockdown_message=request.form.get("lockdown_message", "").strip()[:1000],
+            video_embed_enabled=1 if request.form.get("video_embed_enabled") else 0,
+            session_limit_enabled=1 if request.form.get("session_limit_enabled") else 0,
             **color_fields,
         )
         user = get_current_user()
