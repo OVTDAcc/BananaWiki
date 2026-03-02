@@ -3488,6 +3488,81 @@ def test_history_entry_shows_editor_username(logged_in_admin, admin_user):
     assert b"admin" in resp.data
 
 
+def test_history_entry_shows_formatted_and_markdown_views(logged_in_admin, admin_user):
+    """History entry page should include all four view containers and two toggle buttons."""
+    import db
+    home = db.get_home_page()
+    db.update_page(home["id"], "Home", "First version", admin_user, "v1")
+    db.update_page(home["id"], "Home", "Second version", admin_user, "v2")
+    history = db.get_page_history(home["id"])
+    entry = history[0]
+    resp = logged_in_admin.get(f"/page/{home['slug']}/history/{entry['id']}")
+    assert resp.status_code == 200
+    data = resp.data
+    # Two toggle buttons must be present
+    assert b"toggle-diff-btn" in data
+    assert b"toggle-md-btn" in data
+    # All four view divs must be present
+    assert b'id="view-formatted"' in data
+    assert b'id="view-formatted-diff"' in data
+    assert b'id="view-markdown"' in data
+    assert b'id="view-markdown-diff"' in data
+
+
+def test_history_entry_formatted_diff_uses_css_classes(logged_in_admin, admin_user):
+    """Formatted diff should use CSS classes diff-ins/diff-del, not inline styles."""
+    import db
+    home = db.get_home_page()
+    db.update_page(home["id"], "Home", "Hello world", admin_user, "v1")
+    db.update_page(home["id"], "Home", "Hello universe", admin_user, "v2")
+    history = db.get_page_history(home["id"])
+    entry = history[0]
+    resp = logged_in_admin.get(f"/page/{home['slug']}/history/{entry['id']}")
+    assert resp.status_code == 200
+    data = resp.data
+    # CSS class-based highlighting must be used
+    assert b'class="diff-ins"' in data
+    assert b'class="diff-del"' in data
+    # Inline styles on ins/del should not be used
+    assert b'ins style=' not in data
+    assert b'del style=' not in data
+
+
+def test_history_entry_markdown_view_contains_raw_content(logged_in_admin, admin_user):
+    """Markdown view should include the raw markdown source."""
+    import db
+    home = db.get_home_page()
+    db.update_page(home["id"], "Home", "**raw** _markdown_ content", admin_user, "raw test")
+    history = db.get_page_history(home["id"])
+    entry = history[0]
+    resp = logged_in_admin.get(f"/page/{home['slug']}/history/{entry['id']}")
+    assert resp.status_code == 200
+    # The raw markdown source must appear on the page (in the markdown view div)
+    assert b"**raw** _markdown_ content" in resp.data
+
+
+def test_history_entry_first_revision_has_no_diff(logged_in_admin, admin_user):
+    """First revision (no previous entry) should have no diff views."""
+    import db
+    # Create a brand-new page using the admin user so FK constraint is satisfied
+    page_id = db.create_page("NoDiffPage", "nodiffpage", "initial content",
+                             category_id=None, user_id=admin_user)
+    history = db.get_page_history(page_id)
+    entry = history[0]
+    resp = logged_in_admin.get(f"/page/nodiffpage/history/{entry['id']}")
+    assert resp.status_code == 200
+    data = resp.data
+    # No diff toggle button element when there is no previous revision.
+    # The button HTML uses id="toggle-diff-btn"; the JS references it too so we
+    # search for the button tag specifically.
+    assert b'id="toggle-diff-btn"' not in data
+    # Only the formatted and markdown views (no diff variants)
+    assert b'id="view-formatted"' in data
+    assert b'id="view-markdown"' in data
+    assert b'id="view-formatted-diff"' not in data
+    assert b'id="view-markdown-diff"' not in data
+
+
 def test_get_history_entry_includes_username():
     """db.get_history_entry() must include the editor username."""
     import db

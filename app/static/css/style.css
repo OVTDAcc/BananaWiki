@@ -480,3 +480,8 @@ select.input{appearance:auto}
 .page-seq-nav{display:flex;justify-content:space-between;align-items:center;margin-top:2.5rem;padding-top:1rem;border-top:1px solid rgba(255,255,255,.07);gap:1rem}
 .page-seq-prev{margin-right:auto}
 .page-seq-next{margin-left:auto}
+
+/* History entry diff view */
+ins.diff-ins{background:rgba(63,185,80,.25);color:#7ee787;text-decoration:none;border-radius:2px}
+del.diff-del{background:rgba(255,107,107,.2);color:#ff8585;border-radius:2px}
+.diff-pre{white-space:pre-wrap;word-break:break-word;font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;font-size:.88rem;line-height:1.75;margin:0}
