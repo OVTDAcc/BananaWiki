@@ -630,6 +630,7 @@ def login():
         _clear_login_attempts()
         db.update_user(user["id"], last_login_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
         log_action("login_success", request, user=user)
+        notify_change("user_login", f"User '{user['username']}' logged in")
         return redirect(url_for("home"))
 
     return render_template("auth/login.html", lockdown=lockdown)
@@ -857,11 +858,13 @@ def account_settings():
                 flash("Invalid upload path.", "error")
                 return redirect(url_for("account_settings"))
             avatar_file.save(save_path)
+            notify_file_upload(new_avatar, save_path, display_name=f"Avatar for {user['username']}")
             # Remove old avatar file if different
             if old_avatar and old_avatar != new_avatar:
                 old_path = os.path.join(config.UPLOAD_FOLDER, old_avatar)
                 if os.path.isfile(old_path):
                     os.remove(old_path)
+                notify_file_deleted(old_avatar)
         db.upsert_user_profile(user["id"], real_name=real_name, bio=bio, avatar_filename=new_avatar)
         log_action("update_profile", request, user=user)
         flash("Profile updated.", "success")
@@ -873,6 +876,7 @@ def account_settings():
             old_path = os.path.join(config.UPLOAD_FOLDER, profile["avatar_filename"])
             if os.path.isfile(old_path):
                 os.remove(old_path)
+            notify_file_deleted(profile["avatar_filename"])
             db.upsert_user_profile(user["id"], avatar_filename="")
         flash("Avatar removed.", "success")
         return redirect(_profile_next(url_for("account_settings")))
@@ -899,6 +903,7 @@ def account_settings():
             old_path = os.path.join(config.UPLOAD_FOLDER, profile["avatar_filename"])
             if os.path.isfile(old_path):
                 os.remove(old_path)
+            notify_file_deleted(profile["avatar_filename"])
         db.delete_user_profile(user["id"])
         log_action("delete_profile", request, user=user)
         flash("Your profile page has been deleted.", "success")
@@ -1050,6 +1055,7 @@ def admin_moderate_profile(user_id):
             old_path = os.path.join(config.UPLOAD_FOLDER, profile["avatar_filename"])
             if os.path.isfile(old_path):
                 os.remove(old_path)
+            notify_file_deleted(profile["avatar_filename"])
             db.upsert_user_profile(user_id, avatar_filename="")
         log_action("admin_remove_avatar", request, user=current_user,
                    target_user=target["username"])
@@ -1076,6 +1082,7 @@ def admin_moderate_profile(user_id):
             old_path = os.path.join(config.UPLOAD_FOLDER, profile["avatar_filename"])
             if os.path.isfile(old_path):
                 os.remove(old_path)
+            notify_file_deleted(profile["avatar_filename"])
         db.delete_user_profile(user_id)
         log_action("admin_delete_profile", request, user=current_user,
                    target_user=target["username"])
@@ -1955,6 +1962,7 @@ def cleanup_unused_uploads():
             if os.path.isfile(fpath):
                 try:
                     os.remove(fpath)
+                    notify_file_deleted(fname)
                 except OSError:
                     pass
 

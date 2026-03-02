@@ -1035,3 +1035,149 @@ def test_delete_upload_msg_id_noop_when_no_store(tmp_path, monkeypatch):
 
     # Should not raise even if the file doesn't exist
     sync._delete_upload_msg_id("ghost.png")
+
+
+# -----------------------------------------------------------------------
+# Avatar upload/delete sync notification tests
+# -----------------------------------------------------------------------
+def test_avatar_upload_triggers_notify_file_upload(logged_in_admin, admin_user, monkeypatch, tmp_path):
+    """Uploading a profile avatar should send it as an individual Telegram message."""
+    from PIL import Image as PILImage
+    monkeypatch.setattr(config, "SYNC", True)
+    monkeypatch.setattr(config, "SYNC_TOKEN", "123:ABC")
+    monkeypatch.setattr(config, "SYNC_USERID", "999")
+    monkeypatch.setattr(config, "UPLOAD_FOLDER", str(tmp_path / "uploads"))
+    os.makedirs(str(tmp_path / "uploads" / "avatars"), exist_ok=True)
+
+    # Create a valid 1x1 PNG using PIL
+    buf = io.BytesIO()
+    PILImage.new("RGB", (1, 1), color=(255, 0, 0)).save(buf, format="PNG")
+    buf.seek(0)
+
+    with patch("sync.threading.Timer") as mock_timer, \
+         patch("sync.threading.Thread") as mock_thread:
+        mock_timer.return_value = MagicMock()
+        mock_thread.return_value = MagicMock()
+        resp = logged_in_admin.post("/account", data={
+            "action": "update_profile",
+            "real_name": "Test Admin",
+            "bio": "",
+            "avatar": (buf, "avatar.png"),
+        }, content_type="multipart/form-data")
+        assert resp.status_code in (200, 302)
+
+    # notify_file_upload spawns a Thread
+    assert mock_thread.called
+
+
+def test_avatar_remove_triggers_notify_file_deleted(logged_in_admin, admin_user, monkeypatch, tmp_path):
+    """Removing a profile avatar should send a deletion notice to Telegram."""
+    import db
+    monkeypatch.setattr(config, "SYNC", True)
+    monkeypatch.setattr(config, "SYNC_TOKEN", "123:ABC")
+    monkeypatch.setattr(config, "SYNC_USERID", "999")
+    upload_dir = str(tmp_path / "uploads")
+    monkeypatch.setattr(config, "UPLOAD_FOLDER", upload_dir)
+    os.makedirs(os.path.join(upload_dir, "avatars"), exist_ok=True)
+
+    # Pre-set an avatar for the admin user
+    avatar_rel = "avatars/testav.png"
+    avatar_abs = os.path.join(upload_dir, avatar_rel)
+    with open(avatar_abs, "wb") as f:
+        f.write(b"fake avatar")
+    db.upsert_user_profile(admin_user, avatar_filename=avatar_rel)
+
+    with patch("sync.threading.Timer") as mock_timer, \
+         patch("sync.threading.Thread") as mock_thread:
+        mock_timer.return_value = MagicMock()
+        mock_thread.return_value = MagicMock()
+        resp = logged_in_admin.post("/account", data={"action": "remove_avatar"})
+        assert resp.status_code in (200, 302)
+
+    # notify_file_deleted spawns a Thread
+    assert mock_thread.called
+
+
+def test_admin_remove_avatar_triggers_notify_file_deleted(logged_in_admin, admin_user, monkeypatch, tmp_path):
+    """Admin removing a user's avatar should send a deletion notice to Telegram."""
+    import db
+    from werkzeug.security import generate_password_hash
+    monkeypatch.setattr(config, "SYNC", True)
+    monkeypatch.setattr(config, "SYNC_TOKEN", "123:ABC")
+    monkeypatch.setattr(config, "SYNC_USERID", "999")
+    upload_dir = str(tmp_path / "uploads")
+    monkeypatch.setattr(config, "UPLOAD_FOLDER", upload_dir)
+    os.makedirs(os.path.join(upload_dir, "avatars"), exist_ok=True)
+
+    # Create a second user with an avatar
+    target_id = db.create_user("target_user", generate_password_hash("pass123"), role="user")
+    avatar_rel = "avatars/targetav.png"
+    avatar_abs = os.path.join(upload_dir, avatar_rel)
+    with open(avatar_abs, "wb") as f:
+        f.write(b"fake avatar")
+    db.upsert_user_profile(target_id, avatar_filename=avatar_rel)
+
+    with patch("sync.threading.Timer") as mock_timer, \
+         patch("sync.threading.Thread") as mock_thread:
+        mock_timer.return_value = MagicMock()
+        mock_thread.return_value = MagicMock()
+        resp = logged_in_admin.post(
+            f"/admin/users/{target_id}/profile",
+            data={"action": "remove_avatar"},
+        )
+        assert resp.status_code in (200, 302)
+
+    assert mock_thread.called
+
+
+# -----------------------------------------------------------------------
+# login trigger test
+# -----------------------------------------------------------------------
+def test_login_triggers_sync(client, admin_user, monkeypatch):
+    """Successful login should queue a user_login sync change when enabled."""
+    import sync
+    monkeypatch.setattr(config, "SYNC", True)
+    monkeypatch.setattr(config, "SYNC_TOKEN", "123:ABC")
+    monkeypatch.setattr(config, "SYNC_USERID", "999")
+
+    with patch("sync.threading.Timer") as mock_timer:
+        mock_timer.return_value = MagicMock()
+        resp = client.post("/login", data={"username": "admin", "password": "admin123"})
+        assert resp.status_code == 302
+
+    found = any(c["type"] == "user_login" for c in sync._pending_changes)
+    assert found
+
+
+# -----------------------------------------------------------------------
+# cleanup_unused_uploads deletion notification test
+# -----------------------------------------------------------------------
+def test_cleanup_unused_uploads_triggers_notify_file_deleted(
+    logged_in_admin, monkeypatch, tmp_path
+):
+    """cleanup_unused_uploads should send a deletion notice for each removed image."""
+    monkeypatch.setattr(config, "SYNC", True)
+    monkeypatch.setattr(config, "SYNC_TOKEN", "123:ABC")
+    monkeypatch.setattr(config, "SYNC_USERID", "999")
+    upload_dir = str(tmp_path / "uploads")
+    os.makedirs(upload_dir, exist_ok=True)
+    monkeypatch.setattr(config, "UPLOAD_FOLDER", upload_dir)
+
+    # Place an unreferenced image in the upload folder
+    orphan = os.path.join(upload_dir, "orphan.png")
+    with open(orphan, "wb") as f:
+        f.write(b"fake image")
+
+    # Import and call the function under test
+    from app import cleanup_unused_uploads
+
+    with patch("sync.threading.Timer") as mock_timer, \
+         patch("sync.threading.Thread") as mock_thread:
+        mock_timer.return_value = MagicMock()
+        mock_thread.return_value = MagicMock()
+        cleanup_unused_uploads()
+
+    # The orphan should be deleted from disk
+    assert not os.path.exists(orphan)
+    # And a deletion notice Thread should have been spawned
+    assert mock_thread.called
