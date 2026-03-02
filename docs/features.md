@@ -16,6 +16,8 @@ This document catalogues every feature in BananaWiki, ordered from the most visi
 - [Invite codes](#invite-codes)
 - [Announcements](#announcements)
 - [Admin panel](#admin-panel)
+- [Video embedding](#video-embedding)
+- [Session limit](#session-limit)
 - [Appearance customization](#appearance-customization)
 - [Accessibility preferences](#accessibility-preferences)
 - [Telegram backup sync](#telegram-backup-sync)
@@ -488,7 +490,7 @@ Admins can generate new invite codes, revoke unused codes, and view/purge the ar
 > `app.py` → `admin_codes`, `admin_generate_code`, `admin_delete_code`, `admin_codes_expired`, `admin_hard_delete_code`
 
 ### Site settings
-The admin settings page exposes: site name, six color palette fields (primary, secondary, accent, text, sidebar, background), timezone, favicon, and lockdown mode.
+The admin settings page exposes: site name, six color palette fields (primary, secondary, accent, text, sidebar, background), timezone, favicon, lockdown mode, video embedding, and session limiting.
 
 > `app.py` → `admin_settings`
 
@@ -524,6 +526,40 @@ Admins can export the entire site — pages, categories, users, settings, announ
 The feature is accessible at **Admin → Site Migration** (`/admin/migration`). Export and import are both protected by CSRF tokens.
 
 > `app.py` → `admin_migration`, `admin_migration_export`, `admin_migration_import`, `db.py` → `export_site_data()`, `import_site_data()`, `app/templates/admin/migration.html`
+
+---
+
+## Video embedding
+
+### Automatic YouTube and Vimeo embeds
+When enabled from the admin settings page (**Admin → Settings → Video Embedding**), bare YouTube and Vimeo URLs pasted on their own line in a wiki page are automatically replaced with responsive `<iframe>` embeds at render time. This applies to:
+
+- Full YouTube watch URLs (`https://www.youtube.com/watch?v=…`)
+- Short YouTube URLs (`https://youtu.be/…`)
+- Vimeo video URLs (`https://vimeo.com/<id>`)
+
+Links with custom text (e.g. `[Watch this](https://youtu.be/…)`) are **not** embedded — only bare URLs on their own paragraph are converted. The feature is off by default; admins can toggle it independently of any other setting.
+
+> `app.py` → `render_markdown()` (`embed_videos` parameter), `_embed_videos_in_html()`, `_make_video_iframe()`, `view_page`, `home`, `admin_settings`  
+> `db.py` → `site_settings.video_embed_enabled`  
+> `app/templates/admin/settings.html` → Video Embedding section
+
+---
+
+## Session limit
+
+### One active session per user
+When enabled from the admin settings page (**Admin → Settings → Session Limit**), the application enforces a single active login session per user. When a user signs in from a new device or browser:
+
+1. A new random `session_token` is generated and stored in the `users` table.
+2. The token is also stored in the Flask session cookie.
+3. On every subsequent request, `before_request_hook` compares the cookie token against the stored token. If they differ, the user is logged out immediately.
+
+This means that signing in on a second device automatically invalidates the first session. The feature is off by default; admins can toggle it from the settings page.
+
+> `app.py` → `before_request_hook` (token check), `login` (token generation), `admin_settings`  
+> `db.py` → `users.session_token`, `_ALLOWED_USER_COLUMNS`, `site_settings.session_limit_enabled`  
+> `app/templates/admin/settings.html` → Session Limit section
 
 ---
 
