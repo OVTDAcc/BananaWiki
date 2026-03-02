@@ -4986,3 +4986,112 @@ def test_base_html_has_color_scheme_dark(logged_in_admin):
     resp = logged_in_admin.get("/")
     assert resp.status_code == 200
     assert b'<meta name="color-scheme" content="dark">' in resp.data
+
+
+# Fix: remember resized dimensions (both vertical and horizontal)
+# -----------------------------------------------------------------------
+
+def test_content_max_width_persisted(logged_in_admin):
+    """content_max_width is saved and returned by the accessibility API."""
+    resp = logged_in_admin.post("/api/accessibility",
+                                json={"content_max_width": 900},
+                                content_type="application/json")
+    assert resp.status_code == 200
+    assert resp.get_json()["ok"] is True
+    prefs = logged_in_admin.get("/api/accessibility").get_json()
+    assert prefs["content_max_width"] == 900
+
+
+def test_content_max_width_cleared(logged_in_admin):
+    """Setting content_max_width to 0 clears the stored value."""
+    logged_in_admin.post("/api/accessibility",
+                         json={"content_max_width": 800},
+                         content_type="application/json")
+    logged_in_admin.post("/api/accessibility",
+                         json={"content_max_width": 0},
+                         content_type="application/json")
+    prefs = logged_in_admin.get("/api/accessibility").get_json()
+    assert prefs["content_max_width"] == 0
+
+
+def test_editor_pane_width_persisted(logged_in_admin):
+    """editor_pane_width (horizontal split %) is saved and returned."""
+    resp = logged_in_admin.post("/api/accessibility",
+                                json={"editor_pane_width": 60.0},
+                                content_type="application/json")
+    assert resp.status_code == 200
+    prefs = logged_in_admin.get("/api/accessibility").get_json()
+    assert prefs["editor_pane_width"] == 60.0
+
+
+def test_editor_pane_width_clamped(logged_in_admin):
+    """editor_pane_width values outside [15, 85] are clamped to that range."""
+    logged_in_admin.post("/api/accessibility",
+                         json={"editor_pane_width": 5.0},
+                         content_type="application/json")
+    prefs = logged_in_admin.get("/api/accessibility").get_json()
+    assert prefs["editor_pane_width"] == 15.0
+
+    logged_in_admin.post("/api/accessibility",
+                         json={"editor_pane_width": 95.0},
+                         content_type="application/json")
+    prefs = logged_in_admin.get("/api/accessibility").get_json()
+    assert prefs["editor_pane_width"] == 85.0
+
+
+def test_editor_pane_width_zero_means_default(logged_in_admin):
+    """editor_pane_width of 0 means 'use default split' and is stored as 0."""
+    logged_in_admin.post("/api/accessibility",
+                         json={"editor_pane_width": 0},
+                         content_type="application/json")
+    prefs = logged_in_admin.get("/api/accessibility").get_json()
+    assert prefs["editor_pane_width"] == 0
+
+
+def test_editor_height_persisted(logged_in_admin):
+    """editor_height (vertical size in px) is saved and returned."""
+    resp = logged_in_admin.post("/api/accessibility",
+                                json={"editor_height": 700},
+                                content_type="application/json")
+    assert resp.status_code == 200
+    prefs = logged_in_admin.get("/api/accessibility").get_json()
+    assert prefs["editor_height"] == 700
+
+
+def test_editor_height_clamped(logged_in_admin):
+    """editor_height values outside [300, 2000] are clamped."""
+    logged_in_admin.post("/api/accessibility",
+                         json={"editor_height": 100},
+                         content_type="application/json")
+    prefs = logged_in_admin.get("/api/accessibility").get_json()
+    assert prefs["editor_height"] == 300
+
+    logged_in_admin.post("/api/accessibility",
+                         json={"editor_height": 9999},
+                         content_type="application/json")
+    prefs = logged_in_admin.get("/api/accessibility").get_json()
+    assert prefs["editor_height"] == 2000
+
+
+def test_editor_height_zero_means_default(logged_in_admin):
+    """editor_height of 0 means 'use default height' and is stored as 0."""
+    logged_in_admin.post("/api/accessibility",
+                         json={"editor_height": 0},
+                         content_type="application/json")
+    prefs = logged_in_admin.get("/api/accessibility").get_json()
+    assert prefs["editor_height"] == 0
+
+
+def test_resize_dimensions_all_persist_together(logged_in_admin):
+    """All three resize dimensions are saved and restored independently."""
+    logged_in_admin.post("/api/accessibility",
+                         json={
+                             "content_max_width": 1100,
+                             "editor_pane_width": 55.0,
+                             "editor_height": 650,
+                         },
+                         content_type="application/json")
+    prefs = logged_in_admin.get("/api/accessibility").get_json()
+    assert prefs["content_max_width"] == 1100
+    assert prefs["editor_pane_width"] == 55.0
+    assert prefs["editor_height"] == 650

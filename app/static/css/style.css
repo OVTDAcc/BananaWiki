@@ -133,7 +133,7 @@ select.input{appearance:auto}
 .edit-info{font-size:.8rem;opacity:.4;margin-top:1.5rem;padding-top:.5rem;border-top:1px solid rgba(255,255,255,.06)}
 
 /* Editor – split pane layout */
-.editor-container{display:flex;gap:0;border:1px solid rgba(255,255,255,.1);border-radius:6px;overflow:hidden;min-height:500px;background:rgba(255,255,255,.02)}
+.editor-container{display:flex;gap:0;border:1px solid rgba(255,255,255,.1);border-radius:6px 6px 0 0;overflow:hidden;min-height:500px;background:rgba(255,255,255,.02)}
 .editor-pane{flex:1;display:flex;flex-direction:column;min-width:0}
 .editor-pane-header{display:flex;align-items:center;justify-content:space-between;padding:.4rem .8rem;background:rgba(255,255,255,.03);border-bottom:1px solid rgba(255,255,255,.08);font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;opacity:.5}
 .editor-area{width:100%;flex:1;min-height:400px;background:transparent;border:none;color:var(--text);font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;font-size:.88rem;padding:.8rem 1rem;resize:none;line-height:1.7;outline:none}
@@ -141,6 +141,9 @@ select.input{appearance:auto}
 .editor-divider{width:1px;background:rgba(255,255,255,.08)}
 .preview-pane{flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden}
 .preview-content{flex:1;padding:.8rem 1rem;overflow-y:auto;line-height:1.75}
+/* Vertical resize handle for editor container */
+.editor-resize-handle{height:6px;cursor:row-resize;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-top:none;border-radius:0 0 6px 6px;transition:background .15s;position:relative;z-index:10}
+.editor-resize-handle:hover,.editor-resize-handle.resizing{background:var(--primary);opacity:.6}
 .preview-content h1{font-size:1.6rem;margin:.8rem 0 .5rem;font-weight:600}
 .preview-content h2{font-size:1.3rem;margin:.8rem 0 .4rem;padding-bottom:.2rem;border-bottom:1px solid rgba(255,255,255,.06)}
 .preview-content h3{font-size:1.1rem;margin:.6rem 0 .3rem}

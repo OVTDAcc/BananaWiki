@@ -2432,6 +2432,28 @@ def api_save_accessibility():
     except (TypeError, ValueError):
         sidebar_width = 250
 
+    content_max_width = data.get("content_max_width", current.get("content_max_width", 0))
+    try:
+        content_max_width = int(content_max_width)
+        if content_max_width < 0:
+            content_max_width = 0
+    except (TypeError, ValueError):
+        content_max_width = 0
+
+    editor_pane_width = data.get("editor_pane_width", current.get("editor_pane_width", 0))
+    try:
+        editor_pane_width = float(editor_pane_width)
+        editor_pane_width = max(15, min(85, editor_pane_width)) if editor_pane_width > 0 else 0
+    except (TypeError, ValueError):
+        editor_pane_width = 0
+
+    editor_height = data.get("editor_height", current.get("editor_height", 0))
+    try:
+        editor_height = int(editor_height)
+        editor_height = max(300, min(2000, editor_height)) if editor_height > 0 else 0
+    except (TypeError, ValueError):
+        editor_height = 0
+
     def _clean_color(val):
         val = str(val).strip()
         if not val:
@@ -2446,6 +2468,9 @@ def api_save_accessibility():
         "font_scale": font_scale,
         "contrast": contrast,
         "sidebar_width": sidebar_width,
+        "content_max_width": content_max_width,
+        "editor_pane_width": editor_pane_width,
+        "editor_height": editor_height,
         "custom_bg": _clean_color(data.get("custom_bg", current.get("custom_bg", ""))),
         "custom_text": _clean_color(data.get("custom_text", current.get("custom_text", ""))),
         "custom_primary": _clean_color(data.get("custom_primary", current.get("custom_primary", ""))),

@@ -554,6 +554,8 @@ _A11Y_DEFAULTS = {
     "contrast": 0,
     "sidebar_width": 250,
     "content_max_width": 0,
+    "editor_pane_width": 0,
+    "editor_height": 0,
     "custom_bg": "",
     "custom_text": "",
     "custom_primary": "",

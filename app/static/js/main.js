@@ -915,6 +915,35 @@ function applyA11yPrefs(prefs) {
         root.style.removeProperty('--content-max-width');
     }
 
+    // Editor pane horizontal split
+    var editorPane = document.querySelector('.editor-pane');
+    var previewPane = document.querySelector('.preview-pane');
+    if (editorPane && previewPane) {
+        if (prefs.editor_pane_width > 0) {
+            editorPane.style.flex = 'none';
+            editorPane.style.width = prefs.editor_pane_width + '%';
+            previewPane.style.flex = 'none';
+            previewPane.style.width = (100 - prefs.editor_pane_width) + '%';
+        } else {
+            editorPane.style.flex = '';
+            editorPane.style.width = '';
+            previewPane.style.flex = '';
+            previewPane.style.width = '';
+        }
+    }
+
+    // Editor container height
+    var editorContainer = document.querySelector('.editor-container');
+    if (editorContainer) {
+        if (prefs.editor_height > 0) {
+            editorContainer.style.minHeight = prefs.editor_height + 'px';
+            editorContainer.style.height = prefs.editor_height + 'px';
+        } else {
+            editorContainer.style.minHeight = '';
+            editorContainer.style.height = '';
+        }
+    }
+
     // Custom CSS colors
     if (prefs.custom_bg) {
         root.style.setProperty('--bg', prefs.custom_bg);
@@ -1258,6 +1287,47 @@ function initEditorResize() {
             divider.classList.remove('resizing');
             document.body.style.userSelect = '';
             document.body.style.cursor = '';
+            var pct = parseFloat(editorPane.style.width);
+            if (pct >= 15 && pct <= 85) {
+                saveA11ySetting('editor_pane_width', pct);
+            }
         }
     });
+
+    // Vertical resize handle for editor container height
+    var vertHandle = document.getElementById('editor-resize-handle');
+    var editorContainer = document.querySelector('.editor-container');
+    if (vertHandle && editorContainer) {
+        var isResizingVert = false;
+        var startY, startH;
+        vertHandle.addEventListener('mousedown', function(e) {
+            isResizingVert = true;
+            startY = e.clientY;
+            startH = editorContainer.offsetHeight;
+            vertHandle.classList.add('resizing');
+            document.body.style.userSelect = 'none';
+            document.body.style.cursor = 'row-resize';
+            e.preventDefault();
+        });
+        document.addEventListener('mousemove', function(e) {
+            if (!isResizingVert) return;
+            var newH = startH + (e.clientY - startY);
+            if (newH >= 300 && newH <= 2000) {
+                editorContainer.style.minHeight = newH + 'px';
+                editorContainer.style.height = newH + 'px';
+            }
+        });
+        document.addEventListener('mouseup', function() {
+            if (isResizingVert) {
+                isResizingVert = false;
+                vertHandle.classList.remove('resizing');
+                document.body.style.userSelect = '';
+                document.body.style.cursor = '';
+                var h = parseInt(editorContainer.style.height, 10);
+                if (h >= 300 && h <= 2000) {
+                    saveA11ySetting('editor_height', h);
+                }
+            }
+        });
+    }
 }
