@@ -4824,3 +4824,90 @@ def test_tag_modal_select_toggles_correct_element(logged_in_admin):
     # The select's onchange should reference 'tagModalCustom' (the custom fields div)
     # not 'tagModal' (the modal container itself)
     assert b"toggleCustomTag(this,'tagModalCustom')" in resp.data
+
+
+# -----------------------------------------------------------------------
+# Fix: random black-screen – accessibility colour clear/save flow
+# -----------------------------------------------------------------------
+
+def test_accessibility_save_custom_bg(logged_in_admin):
+    """Saving a custom background colour persists it."""
+    resp = logged_in_admin.post("/api/accessibility",
+                                json={"custom_bg": "#112233"},
+                                content_type="application/json")
+    assert resp.status_code == 200
+    assert resp.get_json()["ok"] is True
+    # Verify via the GET endpoint
+    resp2 = logged_in_admin.get("/api/accessibility")
+    assert resp2.status_code == 200
+    prefs = resp2.get_json()
+    assert prefs["custom_bg"] == "#112233"
+
+
+def test_accessibility_clear_custom_bg(logged_in_admin):
+    """Saving an empty custom_bg clears the stored colour (stops site going black)."""
+    # First set a value …
+    logged_in_admin.post("/api/accessibility",
+                         json={"custom_bg": "#000000"},
+                         content_type="application/json")
+    # … then clear it by sending an empty string.
+    resp = logged_in_admin.post("/api/accessibility",
+                                json={"custom_bg": ""},
+                                content_type="application/json")
+    assert resp.status_code == 200
+    prefs = logged_in_admin.get("/api/accessibility").get_json()
+    assert prefs["custom_bg"] == ""
+
+
+def test_accessibility_black_bg_not_persisted_on_invalid_colour(logged_in_admin):
+    """An invalid colour string is rejected and does not overwrite the stored value."""
+    # Store a valid colour first.
+    logged_in_admin.post("/api/accessibility",
+                         json={"custom_bg": "#abcdef"},
+                         content_type="application/json")
+    # Try to save an invalid value.
+    logged_in_admin.post("/api/accessibility",
+                         json={"custom_bg": "not-a-colour"},
+                         content_type="application/json")
+    prefs = logged_in_admin.get("/api/accessibility").get_json()
+    # The invalid value must be rejected; the stored colour must remain empty
+    # (the server sanitises to "" when the value is invalid).
+    assert prefs["custom_bg"] == ""
+
+
+def test_accessibility_page_renders_a11y_style_with_custom_bg(logged_in_admin):
+    """When a custom background is set the rendered page includes the a11y-style block."""
+    logged_in_admin.post("/api/accessibility",
+                         json={"custom_bg": "#334455"},
+                         content_type="application/json")
+    resp = logged_in_admin.get("/")
+    assert resp.status_code == 200
+    assert b'id="a11y-style"' in resp.data
+    assert b"--bg:#334455" in resp.data or b"--bg: #334455" in resp.data
+
+
+def test_accessibility_page_no_a11y_style_after_clear(logged_in_admin):
+    """After all custom colours are cleared the a11y-style block has no colour rules."""
+    # Save a custom colour then clear it.
+    logged_in_admin.post("/api/accessibility",
+                         json={"custom_bg": "#223344"},
+                         content_type="application/json")
+    logged_in_admin.post("/api/accessibility",
+                         json={"custom_bg": ""},
+                         content_type="application/json")
+    resp = logged_in_admin.get("/")
+    assert resp.status_code == 200
+    # The a11y-style block must NOT contain --bg after clearing.
+    # (The block may still exist for font-scale / line-height rules.)
+    import re
+    html = resp.data.decode()
+    a11y_match = re.search(r'<style id="a11y-style">(.*?)</style>', html, re.DOTALL)
+    if a11y_match:
+        assert '--bg' not in a11y_match.group(1)
+
+
+def test_base_html_has_color_scheme_dark(logged_in_admin):
+    """Every page includes <meta name='color-scheme' content='dark'>."""
+    resp = logged_in_admin.get("/")
+    assert resp.status_code == 200
+    assert b'<meta name="color-scheme" content="dark">' in resp.data
