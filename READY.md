@@ -8,7 +8,7 @@ All 544 automated tests pass. The application imports cleanly. No debug flags ar
 
 ## What passes
 
-- **All 544 tests pass** across 7 test files covering routes, database operations, rate limiting, networking/proxy config, Telegram sync, and user profiles.
+- **All 577 tests pass** across 8 test files covering routes, database operations, rate limiting, networking/proxy config, Telegram sync, user profiles, and page deindexing.
 - **Clean import chain.** `config.py` → `db.py` → `app.py` → `wsgi.py` → `gunicorn.conf.py` all load without errors or warnings.
 - **No TODO/FIXME/HACK markers** in any of the core files (`app.py`, `db.py`, `config.py`, `sync.py`, `wiki_logger.py`).
 - **`debug=False`** is set in the `app.run()` fallback; Gunicorn is the intended production entry point and does not use it.

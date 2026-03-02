@@ -93,6 +93,7 @@ BananaWiki is a lightweight, private wiki you can host on your own server. No cl
 |---|---|
 | **Hierarchical categories** | Unlimited nesting depth; collapsible tree in the sidebar; drag-to-reorder pages and categories |
 | **Sequential navigation** | Per-category Prev/Next buttons let readers walk through a category in order, like chapters in a book |
+| **Page deindexing** | Editors can hide any page from the sidebar and search (while keeping it accessible via its URL) with a single toggle; admins and editors can still see and navigate to deindexed pages |
 | **Page history** | Every save is a versioned snapshot; view any past state, read edit summaries, and revert with one click — nothing is ever deleted from history |
 
 ### 👥 People
@@ -217,7 +218,7 @@ BananaWiki/
 ├── docs/               # Detailed documentation
 ├── instance/           # Database, attachments, secret key — created at runtime (gitignored)
 ├── logs/               # Application logs — created at runtime (gitignored)
-└── tests/              # Test suite (544 tests across 7 files)
+└── tests/              # Test suite (577 tests across 8 files)
 ```
 
 ---
