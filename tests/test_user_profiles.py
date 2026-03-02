@@ -476,3 +476,103 @@ def test_admin_moderation_requires_admin(alice_client, admin_uid):
     # Verify the DB was not modified
     profile = db.get_user_profile(admin_uid)
     assert profile is None or profile["real_name"] != "Hacked"
+
+
+# ---------------------------------------------------------------------------
+# Protected admin profile protection
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def second_admin_uid(admin_uid):
+    """A second admin used to test cross-admin restrictions."""
+    from werkzeug.security import generate_password_hash
+    import db
+    return db.create_user("admin2", generate_password_hash("admin2pass"), role="admin")
+
+
+@pytest.fixture
+def second_admin_client(client, second_admin_uid):
+    client.post("/login", data={"username": "admin2", "password": "admin2pass"})
+    return client
+
+
+@pytest.fixture
+def protected_admin_uid(admin_uid):
+    """An admin with the protected_admin role."""
+    from werkzeug.security import generate_password_hash
+    import db
+    uid = db.create_user("padmin", generate_password_hash("padmin123"), role="protected_admin")
+    db.upsert_user_profile(uid, real_name="Protected Admin", bio="Original bio")
+    return uid
+
+
+def test_admin_cannot_edit_protected_admin_profile(second_admin_client, protected_admin_uid):
+    """An admin cannot edit a protected_admin's profile page."""
+    import db
+    resp = second_admin_client.post(
+        f"/admin/users/{protected_admin_uid}/profile",
+        data={"action": "edit_profile", "real_name": "Hacked", "bio": "Hacked bio"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    profile = db.get_user_profile(protected_admin_uid)
+    assert profile["real_name"] != "Hacked"
+
+
+def test_admin_cannot_disable_protected_admin_profile(second_admin_client, protected_admin_uid):
+    """An admin cannot disable a protected_admin's profile page."""
+    import db
+    db.upsert_user_profile(protected_admin_uid, page_published=True)
+    resp = second_admin_client.post(
+        f"/admin/users/{protected_admin_uid}/profile",
+        data={"action": "disable_profile"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    profile = db.get_user_profile(protected_admin_uid)
+    assert profile["page_disabled_by_admin"] == 0
+
+
+def test_admin_cannot_delete_protected_admin_profile(second_admin_client, protected_admin_uid):
+    """An admin cannot delete a protected_admin's profile page."""
+    import db
+    resp = second_admin_client.post(
+        f"/admin/users/{protected_admin_uid}/profile",
+        data={"action": "delete_profile"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    profile = db.get_user_profile(protected_admin_uid)
+    assert profile is not None
+
+
+def test_admin_cannot_remove_avatar_of_protected_admin(second_admin_client, protected_admin_uid):
+    """An admin cannot remove the avatar of a protected_admin."""
+    import db
+    db.upsert_user_profile(protected_admin_uid, avatar_filename="avatars/padmin.png")
+    fake_path = os.path.join(config.UPLOAD_FOLDER, "avatars", "padmin.png")
+    os.makedirs(os.path.dirname(fake_path), exist_ok=True)
+    open(fake_path, "w").close()
+
+    resp = second_admin_client.post(
+        f"/admin/users/{protected_admin_uid}/profile",
+        data={"action": "remove_avatar"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    profile = db.get_user_profile(protected_admin_uid)
+    assert profile["avatar_filename"] == "avatars/padmin.png"
+
+
+def test_protected_admin_can_edit_own_profile_via_admin(client, protected_admin_uid):
+    """A protected_admin can moderate their own profile via the admin endpoint."""
+    import db
+    client.post("/login", data={"username": "padmin", "password": "padmin123"})
+    resp = client.post(
+        f"/admin/users/{protected_admin_uid}/profile",
+        data={"action": "edit_profile", "real_name": "Self Edit", "bio": "My bio"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    profile = db.get_user_profile(protected_admin_uid)
+    assert profile["real_name"] == "Self Edit"
