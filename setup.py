@@ -44,6 +44,7 @@ app.secret_key = os.urandom(32)
 _config: dict = {}          # Persisted form data across phases
 _log_queue: Queue = Queue() # SSE log messages for Phase 3
 _provisioning_done = threading.Event()
+_non_interactive: bool = False  # Set to True when running without the web UI
 
 # ---------------------------------------------------------------------------
 # Helper utilities
@@ -98,7 +99,11 @@ def _check_dns(domain: str, expected_ip: str) -> tuple[bool, str]:
 
 
 def _log(msg: str, level: str = "info") -> None:
-    _log_queue.put({"level": level, "msg": msg})
+    if _non_interactive:
+        prefix = {"head": ">>>", "ok": "[OK]", "warn": "[WARN]", "err": "[ERR]"}.get(level, "   ")
+        print(f"{prefix} {msg}", flush=True)
+    else:
+        _log_queue.put({"level": level, "msg": msg})
 
 
 def _run(cmd: list[str], check: bool = True) -> subprocess.CompletedProcess:
@@ -947,7 +952,15 @@ def done_page():
 # ---------------------------------------------------------------------------
 
 def _step(step: str, state: str) -> None:
-    _log_queue.put({"__step__": True, "step": step, "state": state})
+    if _non_interactive:
+        if state == "active":
+            print(f"\n[STEP] {step} ...", flush=True)
+        elif state == "done":
+            print(f"[STEP] {step} done.", flush=True)
+        elif state == "fail":
+            print(f"[STEP] {step} FAILED.", flush=True)
+    else:
+        _log_queue.put({"__step__": True, "step": step, "state": state})
 
 
 def _run_provisioning(cfg: dict) -> None:
@@ -1108,6 +1121,8 @@ WantedBy=multi-user.target
     except Exception as exc:  # noqa: BLE001
         _log(f"FATAL: {exc}", "err")
         _provisioning_done.set()
+        if _non_interactive:
+            sys.exit(1)
         _log_queue.put({
             "__done__": True,
             "success": False,
@@ -1221,11 +1236,109 @@ if __name__ == "__main__":
                         help="Port to run the setup wizard on (default: 5050)")
     parser.add_argument("--host", default="127.0.0.1",
                         help="Host to bind to (default: 127.0.0.1)")
+
+    # Non-interactive mode: skip the web UI and provision directly from CLI args
+    parser.add_argument("--non-interactive", action="store_true",
+                        help="Run provisioning without the web UI (all options required)")
+
+    # Required provisioning options
+    parser.add_argument("--site-name",
+                        help="Site/app name (lowercase, letters/digits/hyphens/underscores)")
+    parser.add_argument("--entrypoint", default="wsgi:app",
+                        help="Gunicorn entrypoint, e.g. wsgi:app (default: wsgi:app)")
+    parser.add_argument("--venv-path",
+                        help="Absolute path to the virtualenv, e.g. /var/www/myapp/venv")
+    parser.add_argument("--app-dir",
+                        help="Absolute path to the app working directory")
+    parser.add_argument("--app-user",
+                        help="System user that runs the app (do not use root)")
+    parser.add_argument("--sock-path",
+                        help="Absolute path for the Gunicorn UNIX socket")
+
+    # Optional provisioning options
+    parser.add_argument("--app-group",
+                        help="System group for the app (defaults to --app-user)")
+    parser.add_argument("--workers", type=int, default=DEFAULT_WORKERS,
+                        help=f"Gunicorn worker count (default: {DEFAULT_WORKERS})")
+    parser.add_argument("--http-port", type=int, default=80,
+                        help="HTTP port for nginx (default: 80)")
+    parser.add_argument("--deploy-mode", choices=["ip", "domain"], default="ip",
+                        help="Deployment mode: ip or domain (default: ip)")
+    parser.add_argument("--domain",
+                        help="Domain name (required when --deploy-mode=domain)")
+    parser.add_argument("--include-www", action="store_true",
+                        help="Also serve www.<domain>")
+    parser.add_argument("--redirect-https", action="store_true",
+                        help="Redirect HTTP to HTTPS")
+    parser.add_argument("--use-certbot", action="store_true",
+                        help="Obtain SSL certificate via Certbot (Let's Encrypt)")
+    parser.add_argument("--certbot-email", default="",
+                        help="Email for Certbot/Let's Encrypt notifications")
+    parser.add_argument("--env", metavar="KEY=VALUE", action="append", default=[],
+                        help="Environment variable to write to the env file "
+                             "(can be repeated, e.g. --env SECRET_KEY=abc)")
+
     args = parser.parse_args()
 
-    print(f"\n{'='*60}")
-    print(f"  Flask Platform Setup Wizard")
-    print(f"  Open http://{args.host}:{args.port} in your browser")
-    print(f"{'='*60}\n")
+    if args.non_interactive:
+        # Validate required arguments
+        required = {
+            "--site-name": args.site_name,
+            "--venv-path": args.venv_path,
+            "--app-dir": args.app_dir,
+            "--app-user": args.app_user,
+            "--sock-path": args.sock_path,
+        }
+        missing = [flag for flag, val in required.items() if not val]
+        if missing:
+            parser.error(
+                f"--non-interactive requires: {', '.join(missing)}"
+            )
+        if args.deploy_mode == "domain" and not args.domain:
+            parser.error("--non-interactive with --deploy-mode=domain requires --domain")
 
-    app.run(host=args.host, port=args.port, debug=False, threaded=True)
+        # Parse --env KEY=VALUE pairs
+        env_vars = []
+        for pair in args.env:
+            if "=" not in pair:
+                parser.error(f"--env value must be KEY=VALUE, got: {pair!r}")
+            k, _, v = pair.partition("=")
+            env_vars.append((k.strip(), v.strip()))
+
+        cfg = {
+            "site_name":      args.site_name,
+            "deploy_mode":    args.deploy_mode,
+            "domain":         args.domain or "",
+            "include_www":    args.include_www,
+            "redirect_https": args.redirect_https,
+            "use_certbot":    args.use_certbot,
+            "certbot_email":  args.certbot_email,
+            "entrypoint":     args.entrypoint,
+            "venv_path":      args.venv_path,
+            "app_dir":        args.app_dir,
+            "app_user":       args.app_user,
+            "app_group":      args.app_group or args.app_user,
+            "workers":        args.workers,
+            "sock_path":      args.sock_path,
+            "http_port":      args.http_port,
+            "env_vars":       env_vars,
+        }
+
+        _non_interactive = True
+
+        print(f"\n{'='*60}")
+        print(f"  Flask Platform Setup — Non-Interactive Provisioning")
+        print(f"  Site: {cfg['site_name']}  |  Mode: {cfg['deploy_mode']}")
+        print(f"{'='*60}\n")
+
+        _run_provisioning(cfg)
+
+        if not _provisioning_done.is_set():
+            sys.exit(1)
+    else:
+        print(f"\n{'='*60}")
+        print(f"  Flask Platform Setup Wizard")
+        print(f"  Open http://{args.host}:{args.port} in your browser")
+        print(f"{'='*60}\n")
+
+        app.run(host=args.host, port=args.port, debug=False, threaded=True)
