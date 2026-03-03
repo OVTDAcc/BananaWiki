@@ -34,8 +34,8 @@ a:hover{text-decoration:underline}
 .nav-item:hover{background:rgba(255,255,255,.04);text-decoration:none;opacity:1}
 .nav-item.active{background:rgba(255,255,255,.06);border-left:2px solid var(--primary);font-weight:600;opacity:1}
 .nav-section{margin-top:.3rem}
-.nav-section-header{display:flex;justify-content:space-between;align-items:center;padding:.3rem .8rem}
-.nav-section-title{font-size:.82rem;font-weight:700;text-transform:uppercase;opacity:.75;letter-spacing:.6px;padding:.3rem .8rem;flex:1;text-align:left;color:var(--primary)}
+.nav-section-header{display:flex;justify-content:space-between;align-items:center;padding:.45rem .8rem;cursor:pointer}
+.nav-section-title{font-size:.82rem;font-weight:700;text-transform:uppercase;opacity:.75;letter-spacing:.6px;padding:.3rem .8rem;flex:1;text-align:left;color:var(--primary);cursor:pointer}
 .nav-section-header .nav-section-title{padding:0}
 
 /* Page row with reorder buttons */
@@ -45,7 +45,7 @@ a:hover{text-decoration:underline}
 .nav-item-row:hover .page-order-btns{display:inline-flex}
 
 /* Collapsible categories */
-.cat-toggle{background:none;border:none;color:var(--text);cursor:pointer;font-size:.7rem;opacity:.35;padding:0 .2rem 0 0;transition:transform .15s,opacity .15s;line-height:1}
+.cat-toggle{background:none;border:none;color:var(--text);cursor:pointer;font-size:.7rem;opacity:.35;padding:.35rem .4rem;transition:transform .15s,opacity .15s;line-height:1}
 .cat-toggle:hover{opacity:.7}
 .nav-section.collapsed .cat-toggle{transform:rotate(-90deg)}
 .nav-section.collapsed>.nav-section-body{display:none}
@@ -111,9 +111,9 @@ select.input{appearance:auto}
 .wiki-content h2{font-size:1.4rem;margin:1.1rem 0 .6rem;border-bottom:1px solid rgba(255,255,255,.06);padding-bottom:.35rem}
 .wiki-content h3{font-size:1.15rem;margin:.9rem 0 .5rem}
 .wiki-content p{margin:.6rem 0}
-.wiki-content pre{background:rgba(255,255,255,.03);padding:.8rem;border-radius:4px;overflow-x:auto;font-size:.88rem;border:1px solid rgba(255,255,255,.06)}
-.wiki-content code{background:rgba(255,255,255,.06);padding:.15rem .35rem;border-radius:3px;font-size:.88rem}
-.wiki-content pre code{background:none;padding:0}
+.wiki-content pre{background:rgba(255,255,255,.06);padding:.9rem 1rem;border-radius:6px;overflow-x:auto;font-size:.88rem;border:1px solid rgba(255,255,255,.12);font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;line-height:1.65}
+.wiki-content code{background:rgba(255,255,255,.1);padding:.15rem .4rem;border-radius:4px;font-size:.88rem;font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;border:1px solid rgba(255,255,255,.08)}
+.wiki-content pre code{background:none;padding:0;border:none}
 .wiki-content img{max-width:100%;border-radius:4px;margin:.5rem 0}
 .wiki-content figure.wiki-img-right{float:right;clear:right;margin:0 0 1rem 1.5rem;max-width:50%}
 .wiki-content figure.wiki-img-left{float:left;clear:left;margin:0 1.5rem 1rem 0;max-width:50%}
@@ -148,9 +148,9 @@ select.input{appearance:auto}
 .preview-content h2{font-size:1.3rem;margin:.8rem 0 .4rem;padding-bottom:.2rem;border-bottom:1px solid rgba(255,255,255,.06)}
 .preview-content h3{font-size:1.1rem;margin:.6rem 0 .3rem}
 .preview-content p{margin:.4rem 0}
-.preview-content pre{background:rgba(255,255,255,.03);padding:.6rem;border-radius:4px;overflow-x:auto;font-size:.84rem;border:1px solid rgba(255,255,255,.06)}
-.preview-content code{background:rgba(255,255,255,.06);padding:.12rem .3rem;border-radius:3px;font-size:.84rem}
-.preview-content pre code{background:none;padding:0}
+.preview-content pre{background:rgba(255,255,255,.06);padding:.7rem .9rem;border-radius:6px;overflow-x:auto;font-size:.84rem;border:1px solid rgba(255,255,255,.12);font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;line-height:1.65}
+.preview-content code{background:rgba(255,255,255,.1);padding:.12rem .35rem;border-radius:4px;font-size:.84rem;font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;border:1px solid rgba(255,255,255,.08)}
+.preview-content pre code{background:none;padding:0;border:none}
 .preview-content img{max-width:100%;border-radius:4px;margin:.4rem 0}
 .preview-content figure.wiki-img-right{float:right;clear:right;margin:0 0 1rem 1.5rem;max-width:50%}
 .preview-content figure.wiki-img-left{float:left;clear:left;margin:0 1.5rem 1rem 0;max-width:50%}

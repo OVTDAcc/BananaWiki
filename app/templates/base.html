@@ -62,7 +62,7 @@
                     {% endif %}
                 </a>
                 <span class="user-info">{{ current_user.username }}</span>
-                <button class="btn btn-sm btn-outline a11y-toggle" id="a11y-toggle-btn" aria-label="Accessibility options" title="Accessibility options">Aa <span class="a11y-btn-label">Accessibility</span></button>
+                <button class="btn btn-sm btn-outline a11y-toggle" id="a11y-toggle-btn" aria-label="Customization options" title="Customization options">🎨 <span class="a11y-btn-label">Customize</span></button>
                 <a href="{{ url_for('account_settings') }}" class="btn btn-sm">Account</a>
                 <form method="POST" action="{{ url_for('logout') }}" style="display:inline">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -185,10 +185,10 @@
 
     {% if current_user %}
     <!-- Accessibility Panel -->
-    <div class="a11y-panel" id="a11y-panel" role="dialog" aria-label="Accessibility options" aria-modal="true" style="display:none">
+    <div class="a11y-panel" id="a11y-panel" role="dialog" aria-label="Customization options" aria-modal="true" style="display:none">
         <div class="a11y-panel-header">
-            <span>Aa Accessibility</span>
-            <button class="btn-icon" id="a11y-close-btn" aria-label="Close accessibility panel">✕</button>
+            <span>🎨 Customization</span>
+            <button class="btn-icon" id="a11y-close-btn" aria-label="Close customization panel">✕</button>
         </div>
         <div class="a11y-panel-body">
             <div class="a11y-section">

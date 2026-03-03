@@ -900,6 +900,66 @@ function initAnnouncements() {
 document.addEventListener('DOMContentLoaded', initAnnouncements);
 
 // ---------------------------------------------------------------------------
+// Collapse all sidebar categories by default; remember expanded ones
+// ---------------------------------------------------------------------------
+(function initCategoryCollapse() {
+    var STORAGE_KEY = 'bw_expanded_cats';
+
+    function getExpanded() {
+        try {
+            var raw = localStorage.getItem(STORAGE_KEY);
+            return raw ? JSON.parse(raw) : [];
+        } catch(e) { return []; }
+    }
+
+    function saveExpanded(ids) {
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(ids)); } catch(e) {}
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        var expanded = getExpanded();
+        document.querySelectorAll('.nav-section[data-cat-id]').forEach(function(section) {
+            var catId = section.dataset.catId;
+            // If the category contains the currently active page, expand it
+            var hasActive = section.querySelector('.nav-item.active');
+            if (!hasActive && expanded.indexOf(catId) === -1) {
+                section.classList.add('collapsed');
+            }
+        });
+
+        // Listen for toggle clicks and persist state
+        document.addEventListener('click', function(e) {
+            var toggle = e.target.closest('.cat-toggle');
+            if (!toggle) {
+                // Also allow clicking the section header title to toggle
+                var title = e.target.closest('.nav-section-title');
+                if (title && title.closest('.nav-section-header')) {
+                    var section = title.closest('.nav-section');
+                    if (section && section.dataset.catId) {
+                        section.classList.toggle('collapsed');
+                        persistState();
+                    }
+                }
+                return;
+            }
+            // The toggle button already toggles via onclick in HTML;
+            // just persist state after the click
+            setTimeout(persistState, 0);
+        });
+
+        function persistState() {
+            var ids = [];
+            document.querySelectorAll('.nav-section[data-cat-id]').forEach(function(s) {
+                if (!s.classList.contains('collapsed')) {
+                    ids.push(s.dataset.catId);
+                }
+            });
+            saveExpanded(ids);
+        }
+    });
+}());
+
+// ---------------------------------------------------------------------------
 // Sidebar reorder (up/down arrows for pages and categories)
 // ---------------------------------------------------------------------------
 (function initReorder() {
@@ -1271,7 +1331,7 @@ function initAccessibility(prefs) {
     var resetBtn = document.getElementById('a11y-reset-btn');
     if (resetBtn) {
         resetBtn.addEventListener('click', function() {
-            bwConfirm('Reset all accessibility settings to default?', function() {
+            bwConfirm('Reset all customization settings to default?', function() {
             fetch('/api/accessibility/reset', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
@@ -1424,6 +1484,47 @@ function initResizableImages(previewEl, textareaEl) {
                 document.body.style.cursor = '';
                 var finalW = Math.round(img.getBoundingClientRect().width);
                 updateImageWidthInEditor(textareaEl, img.getAttribute('src'), finalW);
+            }
+
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+        });
+    });
+
+    // Make embedded videos resizable in the preview pane
+    previewEl.querySelectorAll('.video-embed').forEach(function(embed) {
+        if (embed.dataset.bwResizable) return;
+        embed.dataset.bwResizable = '1';
+
+        var handle = document.createElement('span');
+        handle.className = 'preview-img-resize-handle';
+        handle.title = 'Drag to resize video';
+        handle.style.opacity = '0';
+        embed.style.position = 'relative';
+        embed.appendChild(handle);
+        embed.addEventListener('mouseenter', function() { handle.style.opacity = '.85'; });
+        embed.addEventListener('mouseleave', function() { handle.style.opacity = '0'; });
+
+        handle.addEventListener('mousedown', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            var startX = e.clientX;
+            var startW = embed.getBoundingClientRect().width;
+            document.body.style.userSelect = 'none';
+            document.body.style.cursor = 'ew-resize';
+
+            function onMove(ev) {
+                var newW = Math.max(200, Math.round(startW + (ev.clientX - startX)));
+                embed.style.width = newW + 'px';
+                embed.style.maxWidth = '100%';
+                embed.style.paddingBottom = Math.round(newW * 0.5625) + 'px';
+            }
+
+            function onUp() {
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+                document.body.style.userSelect = '';
+                document.body.style.cursor = '';
             }
 
             document.addEventListener('mousemove', onMove);

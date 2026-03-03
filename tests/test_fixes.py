@@ -5380,3 +5380,20 @@ def test_preview_renders_figure_img_preserves_width(logged_in_admin):
     html = resp.get_json()["html"]
     assert 'width="400"' in html
     assert 'src="/static/uploads/fig.png"' in html
+
+
+# -----------------------------------------------------------------------
+# Customization rename: account settings shows "Customization" instead of "Accessibility"
+# -----------------------------------------------------------------------
+def test_account_settings_shows_customization_label(logged_in_admin):
+    resp = logged_in_admin.get("/account")
+    assert resp.status_code == 200
+    assert b"Customization Settings" in resp.data
+    assert b"Accessibility Settings" not in resp.data
+
+
+def test_base_template_shows_customize_button(logged_in_admin):
+    resp = logged_in_admin.get("/")
+    assert resp.status_code == 200
+    assert b"Customize" in resp.data
+    assert b"Customization" in resp.data
