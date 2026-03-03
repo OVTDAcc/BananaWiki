@@ -587,6 +587,19 @@ def format_datetime(dt_str):
     return dt_local.strftime(f"%Y-%m-%d %H:%M {tz_label}")
 
 
+def format_datetime_local_input(dt_str):
+    """Convert a UTC ISO datetime to site-timezone value for datetime-local inputs."""
+    if not dt_str:
+        return ""
+    try:
+        dt = datetime.fromisoformat(dt_str).replace(tzinfo=timezone.utc)
+    except (ValueError, TypeError):
+        return ""
+    site_tz = get_site_timezone()
+    dt_local = dt.astimezone(site_tz)
+    return dt_local.strftime("%Y-%m-%dT%H:%M")
+
+
 # ---------------------------------------------------------------------------
 #  Context processors
 # ---------------------------------------------------------------------------
@@ -603,6 +616,7 @@ def inject_globals():
         "settings": settings,
         "time_ago": time_ago,
         "format_datetime": format_datetime,
+        "format_datetime_local_input": format_datetime_local_input,
         "page_history_enabled": config.PAGE_HISTORY_ENABLED,
         "all_categories": db.list_categories(),
         "active_announcements": active_announcements,
@@ -3146,6 +3160,8 @@ def admin_create_announcement():
     text_size = request.form.get("text_size", "normal")
     visibility = request.form.get("visibility", "both")
     expires_at = request.form.get("expires_at", "").strip() or None
+    not_removable = 1 if request.form.get("not_removable") else 0
+    show_countdown = 1 if request.form.get("show_countdown") else 0
     user = get_current_user()
 
     if not content:
@@ -3165,12 +3181,16 @@ def admin_create_announcement():
         return redirect(url_for("admin_announcements"))
     if expires_at:
         try:
-            datetime.fromisoformat(expires_at)
+            naive = datetime.fromisoformat(expires_at)
+            site_tz = get_site_timezone()
+            local_dt = naive.replace(tzinfo=site_tz)
+            expires_at = local_dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
         except ValueError:
             flash("Invalid expiration date format.", "error")
             return redirect(url_for("admin_announcements"))
 
-    db.create_announcement(content, color, text_size, visibility, expires_at, user["id"])
+    db.create_announcement(content, color, text_size, visibility, expires_at, user["id"],
+                           not_removable=not_removable, show_countdown=show_countdown)
     log_action("create_announcement", request, user=user)
     notify_change("announcement_create", "Announcement created")
     flash("Announcement created.", "success")
@@ -3190,6 +3210,8 @@ def admin_edit_announcement(ann_id):
     visibility = request.form.get("visibility", "both")
     expires_at = request.form.get("expires_at", "").strip() or None
     is_active = 1 if request.form.get("is_active") else 0
+    not_removable = 1 if request.form.get("not_removable") else 0
+    show_countdown = 1 if request.form.get("show_countdown") else 0
     user = get_current_user()
 
     if not content:
@@ -3209,13 +3231,17 @@ def admin_edit_announcement(ann_id):
         return redirect(url_for("admin_announcements"))
     if expires_at:
         try:
-            datetime.fromisoformat(expires_at)
+            naive = datetime.fromisoformat(expires_at)
+            site_tz = get_site_timezone()
+            local_dt = naive.replace(tzinfo=site_tz)
+            expires_at = local_dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
         except ValueError:
             flash("Invalid expiration date format.", "error")
             return redirect(url_for("admin_announcements"))
 
     db.update_announcement(ann_id, content=content, color=color, text_size=text_size,
-                           visibility=visibility, expires_at=expires_at, is_active=is_active)
+                           visibility=visibility, expires_at=expires_at, is_active=is_active,
+                           not_removable=not_removable, show_countdown=show_countdown)
     log_action("edit_announcement", request, user=user, ann_id=ann_id)
     notify_change("announcement_edit", f"Announcement {ann_id} updated")
     flash("Announcement updated.", "success")

@@ -118,18 +118,20 @@ def init_db():
     );
 
     CREATE TABLE IF NOT EXISTS announcements (
-        id          INTEGER PRIMARY KEY AUTOINCREMENT,
-        content     TEXT    NOT NULL DEFAULT '',
-        color       TEXT    NOT NULL DEFAULT 'orange'
-                            CHECK(color IN ('red','orange','yellow','blue','green')),
-        text_size   TEXT    NOT NULL DEFAULT 'normal'
-                            CHECK(text_size IN ('small','normal','large')),
-        visibility  TEXT    NOT NULL DEFAULT 'both'
-                            CHECK(visibility IN ('logged_in','logged_out','both')),
-        expires_at  TEXT,
-        is_active   INTEGER NOT NULL DEFAULT 1,
-        created_by  TEXT REFERENCES users(id) ON DELETE SET NULL,
-        created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        content         TEXT    NOT NULL DEFAULT '',
+        color           TEXT    NOT NULL DEFAULT 'orange'
+                                CHECK(color IN ('red','orange','yellow','blue','green')),
+        text_size       TEXT    NOT NULL DEFAULT 'normal'
+                                CHECK(text_size IN ('small','normal','large')),
+        visibility      TEXT    NOT NULL DEFAULT 'both'
+                                CHECK(visibility IN ('logged_in','logged_out','both')),
+        expires_at      TEXT,
+        is_active       INTEGER NOT NULL DEFAULT 1,
+        not_removable   INTEGER NOT NULL DEFAULT 1,
+        show_countdown  INTEGER NOT NULL DEFAULT 1,
+        created_by      TEXT REFERENCES users(id) ON DELETE SET NULL,
+        created_at      TEXT    NOT NULL DEFAULT (datetime('now'))
     );
 
     INSERT OR IGNORE INTO site_settings (id) VALUES (1);
@@ -224,6 +226,13 @@ def init_db():
         cur.execute("ALTER TABLE pages ADD COLUMN tag_custom_color TEXT NOT NULL DEFAULT ''")
     if "is_deindexed" not in page_cols:
         cur.execute("ALTER TABLE pages ADD COLUMN is_deindexed INTEGER NOT NULL DEFAULT 0")
+
+    # Add not_removable and show_countdown columns to announcements if missing
+    ann_cols = [r[1] for r in cur.execute("PRAGMA table_info(announcements)").fetchall()]
+    if "not_removable" not in ann_cols:
+        cur.execute("ALTER TABLE announcements ADD COLUMN not_removable INTEGER NOT NULL DEFAULT 1")
+    if "show_countdown" not in ann_cols:
+        cur.execute("ALTER TABLE announcements ADD COLUMN show_countdown INTEGER NOT NULL DEFAULT 1")
 
     # Add is_revert column to page_history if missing
     hist_cols = [r[1] for r in cur.execute("PRAGMA table_info(page_history)").fetchall()]
@@ -1355,14 +1364,15 @@ def update_site_settings(**kwargs):
 # ---------------------------------------------------------------------------
 #  Announcement helpers
 # ---------------------------------------------------------------------------
-def create_announcement(content, color, text_size, visibility, expires_at, user_id):
+def create_announcement(content, color, text_size, visibility, expires_at, user_id,
+                        not_removable=1, show_countdown=1):
     conn = get_db()
     cur = conn.cursor()
     now = datetime.now(timezone.utc).isoformat()
     cur.execute(
-        "INSERT INTO announcements (content, color, text_size, visibility, expires_at, is_active, created_by, created_at) "
-        "VALUES (?, ?, ?, ?, ?, 1, ?, ?)",
-        (content, color, text_size, visibility, expires_at or None, user_id, now),
+        "INSERT INTO announcements (content, color, text_size, visibility, expires_at, is_active, not_removable, show_countdown, created_by, created_at) "
+        "VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)",
+        (content, color, text_size, visibility, expires_at or None, int(not_removable), int(show_countdown), user_id, now),
     )
     ann_id = cur.lastrowid
     conn.commit()
@@ -1388,7 +1398,7 @@ def list_announcements():
     return rows
 
 
-_ALLOWED_ANN_COLUMNS = {"content", "color", "text_size", "visibility", "expires_at", "is_active"}
+_ALLOWED_ANN_COLUMNS = {"content", "color", "text_size", "visibility", "expires_at", "is_active", "not_removable", "show_countdown"}
 
 
 def update_announcement(ann_id, **kwargs):

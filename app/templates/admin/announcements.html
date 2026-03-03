@@ -40,9 +40,20 @@
                 </select>
             </div>
             <div class="form-group">
-                <label>Expires At (optional)</label>
+                <label>Expires At (optional, in site timezone)</label>
                 <input type="datetime-local" name="expires_at" class="input input-sm"
                        style="width:200px">
+            </div>
+            <div class="form-group">
+                <label>Options</label>
+                <label style="cursor:pointer;opacity:.85;font-size:.85rem;display:block">
+                    <input type="checkbox" name="not_removable" value="1" checked>
+                    Not removable (hide dismiss button)
+                </label>
+                <label style="cursor:pointer;opacity:.85;font-size:.85rem;display:block">
+                    <input type="checkbox" name="show_countdown" value="1" checked>
+                    Show countdown timer
+                </label>
             </div>
         </div>
         <button type="submit" class="btn">Create Announcement</button>
@@ -59,6 +70,8 @@
                 #{{ ann.id }} · {{ ann.color }} · {{ ann.text_size }} · show: {{ ann.visibility }}
                 {% if ann.expires_at %} · expires: {{ format_datetime(ann.expires_at) }}{% endif %}
                 {% if not ann.is_active %} · <span style="color:#c45c6a">inactive</span>{% endif %}
+                {% if ann.not_removable %} · not removable{% endif %}
+                {% if ann.show_countdown %} · countdown{% endif %}
                 · by {{ ann.creator_name }} · {{ time_ago(ann.created_at) }}
             </div>
             <div class="wiki-content" style="font-size:.9rem">{{ ann.content | render_md }}</div>
@@ -108,10 +121,10 @@
                     </select>
                 </div>
                 <div class="form-group">
-                    <label>Expires At (optional)</label>
+                    <label>Expires At (optional, in site timezone)</label>
                     <input type="datetime-local" name="expires_at" class="input input-sm"
                            style="width:200px"
-                           value="{{ ann.expires_at[:16] if ann.expires_at else '' }}">
+                           value="{{ format_datetime_local_input(ann.expires_at) }}">
                 </div>
                 <div class="form-group">
                     <label>Active</label>
@@ -119,6 +132,19 @@
                         <input type="checkbox" name="is_active" value="1"
                                {% if ann.is_active %}checked{% endif %}>
                         Active
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label>Options</label>
+                    <label style="cursor:pointer;opacity:.85;font-size:.85rem;display:block">
+                        <input type="checkbox" name="not_removable" value="1"
+                               {% if ann.not_removable %}checked{% endif %}>
+                        Not removable
+                    </label>
+                    <label style="cursor:pointer;opacity:.85;font-size:.85rem;display:block">
+                        <input type="checkbox" name="show_countdown" value="1"
+                               {% if ann.show_countdown %}checked{% endif %}>
+                        Show countdown
                     </label>
                 </div>
             </div>
