@@ -792,11 +792,15 @@ function initAnnouncements() {
             if (!cdEl || cdEl.classList.contains('ann-countdown-error')) return;
             var expiresAt = cdEl.dataset.expiresAt;
             if (!expiresAt) return;
-            // Treat stored time as UTC
-            var expDate = new Date(expiresAt.replace(' ', 'T') + (expiresAt.indexOf('Z') === -1 && expiresAt.indexOf('+') === -1 && expiresAt.indexOf('T') !== -1 ? 'Z' : ''));
+            // Normalize the stored UTC time for the Date constructor
+            var normalized = expiresAt.replace(' ', 'T');
+            var hasTimezone = normalized.indexOf('Z') !== -1 || normalized.indexOf('+') !== -1;
+            if (!hasTimezone && normalized.indexOf('T') !== -1) {
+                normalized += 'Z';
+            }
+            var expDate = new Date(normalized);
             var diff = expDate.getTime() - now;
             if (diff <= 0) {
-                // Timer expired – hide this announcement
                 var id = parseInt(slide.dataset.annId, 10);
                 removeSlide(id);
                 return;

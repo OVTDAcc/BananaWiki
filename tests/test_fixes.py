@@ -3476,8 +3476,238 @@ def test_admin_announcements_list_expiry_uses_format_datetime(logged_in_admin, a
 
 
 # ---------------------------------------------------------------------------
-# Fix: history entry detail view shows editor username
+# Announcement improvements: dismissible, countdown, timezone
 # ---------------------------------------------------------------------------
+
+def test_announcement_default_not_dismissible(admin_user):
+    """Announcements should default to not dismissible."""
+    import db
+    ann_id = db.create_announcement("Test", "orange", "normal", "both", None, admin_user)
+    ann = db.get_announcement(ann_id)
+    assert ann["dismissible"] == 0
+
+
+def test_announcement_default_show_countdown(admin_user):
+    """Announcements should default to showing countdown."""
+    import db
+    ann_id = db.create_announcement("Test", "orange", "normal", "both", None, admin_user)
+    ann = db.get_announcement(ann_id)
+    assert ann["show_countdown"] == 1
+
+
+def test_create_announcement_with_dismissible(admin_user):
+    """Can create an announcement with dismissible=1."""
+    import db
+    ann_id = db.create_announcement("Dismiss me", "blue", "normal", "both", None, admin_user,
+                                    dismissible=1)
+    ann = db.get_announcement(ann_id)
+    assert ann["dismissible"] == 1
+
+
+def test_create_announcement_with_show_countdown_off(admin_user):
+    """Can create an announcement with show_countdown=0."""
+    import db
+    ann_id = db.create_announcement("No timer", "red", "normal", "both", None, admin_user,
+                                    show_countdown=0)
+    ann = db.get_announcement(ann_id)
+    assert ann["show_countdown"] == 0
+
+
+def test_update_announcement_dismissible(admin_user):
+    """Can update the dismissible flag of an announcement."""
+    import db
+    ann_id = db.create_announcement("Test", "orange", "normal", "both", None, admin_user)
+    assert db.get_announcement(ann_id)["dismissible"] == 0
+    db.update_announcement(ann_id, dismissible=1)
+    assert db.get_announcement(ann_id)["dismissible"] == 1
+
+
+def test_update_announcement_show_countdown(admin_user):
+    """Can update the show_countdown flag of an announcement."""
+    import db
+    ann_id = db.create_announcement("Test", "orange", "normal", "both", None, admin_user)
+    assert db.get_announcement(ann_id)["show_countdown"] == 1
+    db.update_announcement(ann_id, show_countdown=0)
+    assert db.get_announcement(ann_id)["show_countdown"] == 0
+
+
+def test_admin_create_announcement_dismissible(logged_in_admin):
+    """Admin create route should accept the dismissible field."""
+    import db
+    resp = logged_in_admin.post("/admin/announcements/create", data={
+        "content": "Dismissible test",
+        "color": "orange",
+        "text_size": "normal",
+        "visibility": "both",
+        "expires_at": "",
+        "dismissible": "1",
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"Announcement created" in resp.data
+    rows = db.list_announcements()
+    ann = next(r for r in rows if r["content"] == "Dismissible test")
+    assert ann["dismissible"] == 1
+
+
+def test_admin_create_announcement_show_countdown(logged_in_admin):
+    """Admin create route should accept the show_countdown field."""
+    import db
+    resp = logged_in_admin.post("/admin/announcements/create", data={
+        "content": "Countdown test",
+        "color": "blue",
+        "text_size": "normal",
+        "visibility": "both",
+        "expires_at": "",
+        "show_countdown": "1",
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    rows = db.list_announcements()
+    ann = next(r for r in rows if r["content"] == "Countdown test")
+    assert ann["show_countdown"] == 1
+
+
+def test_admin_create_announcement_no_countdown(logged_in_admin):
+    """Omitting show_countdown in admin create should default to 0 (checkbox unchecked)."""
+    import db
+    resp = logged_in_admin.post("/admin/announcements/create", data={
+        "content": "No countdown",
+        "color": "green",
+        "text_size": "normal",
+        "visibility": "both",
+        "expires_at": "",
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    rows = db.list_announcements()
+    ann = next(r for r in rows if r["content"] == "No countdown")
+    assert ann["show_countdown"] == 0
+
+
+def test_admin_edit_announcement_dismissible(logged_in_admin, admin_user):
+    """Admin edit route should update dismissible flag."""
+    import db
+    ann_id = db.create_announcement("Edit me", "orange", "normal", "both", None, admin_user)
+    resp = logged_in_admin.post(f"/admin/announcements/{ann_id}/edit", data={
+        "content": "Edit me",
+        "color": "orange",
+        "text_size": "normal",
+        "visibility": "both",
+        "expires_at": "",
+        "is_active": "1",
+        "dismissible": "1",
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    ann = db.get_announcement(ann_id)
+    assert ann["dismissible"] == 1
+
+
+def test_admin_edit_announcement_show_countdown(logged_in_admin, admin_user):
+    """Admin edit route should update show_countdown flag."""
+    import db
+    ann_id = db.create_announcement("Edit me", "orange", "normal", "both", None, admin_user,
+                                    show_countdown=0)
+    resp = logged_in_admin.post(f"/admin/announcements/{ann_id}/edit", data={
+        "content": "Edit me",
+        "color": "orange",
+        "text_size": "normal",
+        "visibility": "both",
+        "expires_at": "",
+        "is_active": "1",
+        "show_countdown": "1",
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    ann = db.get_announcement(ann_id)
+    assert ann["show_countdown"] == 1
+
+
+def test_announcement_bar_no_close_button_when_not_dismissible(logged_in_admin, admin_user):
+    """Non-dismissible announcements should not render the close button."""
+    import db
+    db.create_announcement("Sticky", "orange", "normal", "both", None, admin_user, dismissible=0)
+    resp = logged_in_admin.get("/")
+    assert resp.status_code == 200
+    assert b"Sticky" in resp.data
+    assert b"ann-close" not in resp.data
+
+
+def test_announcement_bar_has_close_button_when_dismissible(logged_in_admin, admin_user):
+    """Dismissible announcements should render the close button."""
+    import db
+    db.create_announcement("Can dismiss", "blue", "normal", "both", None, admin_user, dismissible=1)
+    resp = logged_in_admin.get("/")
+    assert resp.status_code == 200
+    assert b"Can dismiss" in resp.data
+    assert b"ann-close" in resp.data
+
+
+def test_announcement_bar_countdown_shown_with_expiry(logged_in_admin, admin_user):
+    """Countdown element is shown when show_countdown=1 and expires_at is set."""
+    import db
+    from datetime import datetime, timezone, timedelta
+    future = (datetime.now(timezone.utc) + timedelta(days=1)).isoformat()
+    db.create_announcement("Timer test", "red", "normal", "both", future, admin_user,
+                           show_countdown=1)
+    resp = logged_in_admin.get("/")
+    assert resp.status_code == 200
+    assert b"ann-countdown" in resp.data
+    assert b"ann-countdown-error" not in resp.data
+
+
+def test_announcement_bar_countdown_error_without_expiry(logged_in_admin, admin_user):
+    """Countdown element shows error when show_countdown=1 but no expires_at."""
+    import db
+    db.create_announcement("No expiry timer", "green", "normal", "both", None, admin_user,
+                           show_countdown=1)
+    resp = logged_in_admin.get("/")
+    assert resp.status_code == 200
+    assert b"ann-countdown-error" in resp.data
+    assert b"No expiry set" in resp.data
+
+
+def test_announcement_bar_no_countdown_when_disabled(logged_in_admin, admin_user):
+    """Countdown element is not shown when show_countdown=0."""
+    import db
+    from datetime import datetime, timezone, timedelta
+    future = (datetime.now(timezone.utc) + timedelta(days=1)).isoformat()
+    db.create_announcement("No timer", "yellow", "normal", "both", future, admin_user,
+                           show_countdown=0)
+    resp = logged_in_admin.get("/")
+    assert resp.status_code == 200
+    assert b"No timer" in resp.data
+    assert b"ann-countdown" not in resp.data
+
+
+def test_announcement_bar_data_attributes(logged_in_admin, admin_user):
+    """Announcement slides should have data attributes for dismissible, show_countdown, expires_at."""
+    import db
+    from datetime import datetime, timezone, timedelta
+    future = (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat()
+    db.create_announcement("Data attr test", "blue", "normal", "both", future, admin_user,
+                           dismissible=1, show_countdown=1)
+    resp = logged_in_admin.get("/")
+    assert resp.status_code == 200
+    assert b'data-dismissible="1"' in resp.data
+    assert b'data-show-countdown="1"' in resp.data
+    assert b'data-expires-at="' in resp.data
+
+
+def test_admin_announcements_shows_dismissible_label(logged_in_admin, admin_user):
+    """Admin announcements page shows 'dismissible' label for dismissible announcements."""
+    import db
+    db.create_announcement("Label test", "orange", "normal", "both", None, admin_user,
+                           dismissible=1)
+    resp = logged_in_admin.get("/admin/announcements")
+    assert resp.status_code == 200
+    assert b"dismissible" in resp.data
+
+
+def test_admin_announcements_shows_countdown_label(logged_in_admin, admin_user):
+    """Admin announcements page shows 'countdown' label when show_countdown is enabled."""
+    import db
+    db.create_announcement("CD label test", "red", "normal", "both", None, admin_user,
+                           show_countdown=1)
+    resp = logged_in_admin.get("/admin/announcements")
+    assert resp.status_code == 200
+    assert b"countdown" in resp.data
 
 def test_history_entry_shows_editor_username(logged_in_admin, admin_user):
     """History entry detail view should show who edited the page."""
