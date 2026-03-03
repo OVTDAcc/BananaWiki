@@ -2336,6 +2336,9 @@ def api_transfer_draft():
     if not from_user:
         return jsonify({"error": "invalid page_id or from_user_id"}), 400
     user = get_current_user()
+    # Only admins may transfer another user's draft
+    if user["role"] not in ("admin", "protected_admin"):
+        return jsonify({"error": "admin access required"}), 403
     if from_user == user["id"]:
         return jsonify({"error": "cannot transfer draft from yourself"}), 400
     source_draft = db.get_draft(page_id, from_user)
@@ -2465,7 +2468,12 @@ def delete_upload():
     if os.path.commonpath([upload_root, filepath]) != upload_root:
         return jsonify({"error": "invalid filename"}), 400
     if os.path.isfile(filepath):
-        os.remove(filepath)
+        try:
+            os.remove(filepath)
+        except FileNotFoundError:
+            pass  # file was already removed (race condition)
+        except OSError:
+            return jsonify({"error": "failed to delete file"}), 500
         user = get_current_user()
         log_action("delete_upload", request, user=user, filename=safe_name)
         notify_file_deleted(safe_name)

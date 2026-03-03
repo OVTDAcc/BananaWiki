@@ -16,7 +16,7 @@ import config
 def get_db():
     """Return a new database connection."""
     os.makedirs(os.path.dirname(config.DATABASE_PATH), exist_ok=True)
-    conn = sqlite3.connect(config.DATABASE_PATH)
+    conn = sqlite3.connect(config.DATABASE_PATH, timeout=20)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
@@ -559,16 +559,18 @@ def _gen_user_id():
 
 def create_user(username, hashed_pw, role="user", invite_code=None):
     conn = get_db()
-    cur = conn.cursor()
-    uid = _gen_user_id()
-    while conn.execute("SELECT 1 FROM users WHERE id=?", (uid,)).fetchone():
+    try:
+        cur = conn.cursor()
         uid = _gen_user_id()
-    cur.execute(
-        "INSERT INTO users (id, username, password, role, invite_code) VALUES (?, ?, ?, ?, ?)",
-        (uid, username, hashed_pw, role, invite_code),
-    )
-    conn.commit()
-    conn.close()
+        while conn.execute("SELECT 1 FROM users WHERE id=?", (uid,)).fetchone():
+            uid = _gen_user_id()
+        cur.execute(
+            "INSERT INTO users (id, username, password, role, invite_code) VALUES (?, ?, ?, ?, ?)",
+            (uid, username, hashed_pw, role, invite_code),
+        )
+        conn.commit()
+    finally:
+        conn.close()
     return uid
 
 
@@ -598,21 +600,25 @@ def update_user(user_id, **kwargs):
     if not kwargs:
         return
     conn = get_db()
-    sets = ", ".join(f"{k}=?" for k in kwargs)
-    vals = list(kwargs.values()) + [user_id]
-    conn.execute(f"UPDATE users SET {sets} WHERE id=?", vals)
-    conn.commit()
-    conn.close()
+    try:
+        sets = ", ".join(f"{k}=?" for k in kwargs)
+        vals = list(kwargs.values()) + [user_id]
+        conn.execute(f"UPDATE users SET {sets} WHERE id=?", vals)
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def delete_user(user_id):
     if not user_id:
         raise ValueError("user_id is required")
     conn = get_db()
-    conn.execute("UPDATE invite_codes SET used_by=NULL WHERE used_by=?", (user_id,))
-    conn.execute("DELETE FROM users WHERE id=?", (user_id,))
-    conn.commit()
-    conn.close()
+    try:
+        conn.execute("UPDATE invite_codes SET used_by=NULL WHERE used_by=?", (user_id,))
+        conn.execute("DELETE FROM users WHERE id=?", (user_id,))
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def record_username_change(user_id, old_username, new_username):
@@ -1152,30 +1158,32 @@ def search_pages(query, limit=15, include_deindexed=False):
 
 def create_page(title, slug, content="", category_id=None, user_id=None):
     conn = get_db()
-    cur = conn.cursor()
-    now = datetime.now(timezone.utc).isoformat()
-    # New pages go to the bottom: pick max sort_order + 1 within the same category scope
-    max_row = conn.execute(
-        "SELECT COALESCE(MAX(sort_order), -1) FROM pages WHERE is_home=0 AND category_id IS ?"
-        if category_id is None else
-        "SELECT COALESCE(MAX(sort_order), -1) FROM pages WHERE is_home=0 AND category_id=?",
-        (category_id,),
-    ).fetchone()
-    next_sort = (max_row[0] + 1) if max_row else 0
-    cur.execute(
-        "INSERT INTO pages (title, slug, content, category_id, last_edited_by, last_edited_at, sort_order) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (title, slug, content, category_id, user_id, now, next_sort),
-    )
-    page_id = cur.lastrowid
-    if user_id:
+    try:
+        cur = conn.cursor()
+        now = datetime.now(timezone.utc).isoformat()
+        # New pages go to the bottom: pick max sort_order + 1 within the same category scope
+        max_row = conn.execute(
+            "SELECT COALESCE(MAX(sort_order), -1) FROM pages WHERE is_home=0 AND category_id IS ?"
+            if category_id is None else
+            "SELECT COALESCE(MAX(sort_order), -1) FROM pages WHERE is_home=0 AND category_id=?",
+            (category_id,),
+        ).fetchone()
+        next_sort = (max_row[0] + 1) if max_row else 0
         cur.execute(
-            "INSERT INTO page_history (page_id, title, content, edited_by, edit_message) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (page_id, title, content, user_id, "Page created"),
+            "INSERT INTO pages (title, slug, content, category_id, last_edited_by, last_edited_at, sort_order) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (title, slug, content, category_id, user_id, now, next_sort),
         )
-    conn.commit()
-    conn.close()
+        page_id = cur.lastrowid
+        if user_id:
+            cur.execute(
+                "INSERT INTO page_history (page_id, title, content, edited_by, edit_message) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (page_id, title, content, user_id, "Page created"),
+            )
+        conn.commit()
+    finally:
+        conn.close()
     return page_id
 
 
@@ -1202,18 +1210,20 @@ def get_home_page():
 
 def update_page(page_id, title, content, user_id, edit_message="", is_revert=False):
     conn = get_db()
-    now = datetime.now(timezone.utc).isoformat()
-    conn.execute(
-        "UPDATE pages SET title=?, content=?, last_edited_by=?, last_edited_at=? WHERE id=?",
-        (title, content, user_id, now, page_id),
-    )
-    conn.execute(
-        "INSERT INTO page_history (page_id, title, content, edited_by, edit_message, is_revert) "
-        "VALUES (?, ?, ?, ?, ?, ?)",
-        (page_id, title, content, user_id, edit_message, 1 if is_revert else 0),
-    )
-    conn.commit()
-    conn.close()
+    try:
+        now = datetime.now(timezone.utc).isoformat()
+        conn.execute(
+            "UPDATE pages SET title=?, content=?, last_edited_by=?, last_edited_at=? WHERE id=?",
+            (title, content, user_id, now, page_id),
+        )
+        conn.execute(
+            "INSERT INTO page_history (page_id, title, content, edited_by, edit_message, is_revert) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (page_id, title, content, user_id, edit_message, 1 if is_revert else 0),
+        )
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def update_page_title(page_id, title, user_id):
@@ -1397,14 +1407,16 @@ def transfer_draft(page_id, from_user, to_user):
     source user's draft.
     """
     conn = get_db()
-    now = datetime.now(timezone.utc).isoformat()
-    conn.execute("DELETE FROM drafts WHERE page_id=? AND user_id=?", (page_id, to_user))
-    conn.execute(
-        "UPDATE drafts SET user_id=?, updated_at=? WHERE page_id=? AND user_id=?",
-        (to_user, now, page_id, from_user),
-    )
-    conn.commit()
-    conn.close()
+    try:
+        now = datetime.now(timezone.utc).isoformat()
+        conn.execute("DELETE FROM drafts WHERE page_id=? AND user_id=?", (page_id, to_user))
+        conn.execute(
+            "UPDATE drafts SET user_id=?, updated_at=? WHERE page_id=? AND user_id=?",
+            (to_user, now, page_id, from_user),
+        )
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def get_user_draft_count(user_id):
@@ -1454,11 +1466,13 @@ def update_site_settings(**kwargs):
         if k not in _ALLOWED_SETTINGS_COLUMNS:
             raise ValueError(f"Invalid column: {k}")
     conn = get_db()
-    sets = ", ".join(f"{k}=?" for k in kwargs)
-    vals = list(kwargs.values())
-    conn.execute(f"UPDATE site_settings SET {sets} WHERE id=1", vals)
-    conn.commit()
-    conn.close()
+    try:
+        sets = ", ".join(f"{k}=?" for k in kwargs)
+        vals = list(kwargs.values())
+        conn.execute(f"UPDATE site_settings SET {sets} WHERE id=1", vals)
+        conn.commit()
+    finally:
+        conn.close()
 
 
 # ---------------------------------------------------------------------------
@@ -1467,16 +1481,18 @@ def update_site_settings(**kwargs):
 def create_announcement(content, color, text_size, visibility, expires_at, user_id,
                         not_removable=1, show_countdown=1):
     conn = get_db()
-    cur = conn.cursor()
-    now = datetime.now(timezone.utc).isoformat()
-    cur.execute(
-        "INSERT INTO announcements (content, color, text_size, visibility, expires_at, is_active, not_removable, show_countdown, created_by, created_at) "
-        "VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)",
-        (content, color, text_size, visibility, expires_at or None, int(not_removable), int(show_countdown), user_id, now),
-    )
-    ann_id = cur.lastrowid
-    conn.commit()
-    conn.close()
+    try:
+        cur = conn.cursor()
+        now = datetime.now(timezone.utc).isoformat()
+        cur.execute(
+            "INSERT INTO announcements (content, color, text_size, visibility, expires_at, is_active, not_removable, show_countdown, created_by, created_at) "
+            "VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)",
+            (content, color, text_size, visibility, expires_at or None, int(not_removable), int(show_countdown), user_id, now),
+        )
+        ann_id = cur.lastrowid
+        conn.commit()
+    finally:
+        conn.close()
     return ann_id
 
 
@@ -1506,11 +1522,13 @@ def update_announcement(ann_id, **kwargs):
         if k not in _ALLOWED_ANN_COLUMNS:
             raise ValueError(f"Invalid column: {k}")
     conn = get_db()
-    sets = ", ".join(f"{k}=?" for k in kwargs)
-    vals = list(kwargs.values()) + [ann_id]
-    conn.execute(f"UPDATE announcements SET {sets} WHERE id=?", vals)
-    conn.commit()
-    conn.close()
+    try:
+        sets = ", ".join(f"{k}=?" for k in kwargs)
+        vals = list(kwargs.values()) + [ann_id]
+        conn.execute(f"UPDATE announcements SET {sets} WHERE id=?", vals)
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def delete_announcement(ann_id):

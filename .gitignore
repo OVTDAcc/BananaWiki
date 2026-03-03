@@ -14,3 +14,4 @@ venv/
 .venv/
 *.db
 .pytest_cache/
+test_output.txt
