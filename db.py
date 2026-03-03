@@ -197,8 +197,6 @@ def init_db():
         cur.execute("ALTER TABLE site_settings ADD COLUMN lockdown_mode INTEGER NOT NULL DEFAULT 0")
     if "lockdown_message" not in ss_cols:
         cur.execute("ALTER TABLE site_settings ADD COLUMN lockdown_message TEXT NOT NULL DEFAULT ''")
-    if "video_embed_enabled" not in ss_cols:
-        cur.execute("ALTER TABLE site_settings ADD COLUMN video_embed_enabled INTEGER NOT NULL DEFAULT 0")
     if "session_limit_enabled" not in ss_cols:
         cur.execute("ALTER TABLE site_settings ADD COLUMN session_limit_enabled INTEGER NOT NULL DEFAULT 0")
 
