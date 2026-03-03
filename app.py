@@ -3719,6 +3719,497 @@ _schedule_chat_cleanup()
 
 
 # ---------------------------------------------------------------------------
+#  Group Chats
+# ---------------------------------------------------------------------------
+
+@app.route("/groups")
+@login_required
+def group_list():
+    user = get_current_user()
+    groups = db.get_user_groups(user["id"])
+    categories, uncategorized = db.get_category_tree()
+    return render_template("groups/list.html", groups=groups,
+                           categories=categories, uncategorized=uncategorized)
+
+
+@app.route("/groups/new", methods=["GET", "POST"])
+@login_required
+def group_new():
+    user = get_current_user()
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        if not name:
+            flash("Group name is required.", "error")
+            return redirect(url_for("group_new"))
+        if len(name) > 100:
+            flash("Group name too long (max 100 characters).", "error")
+            return redirect(url_for("group_new"))
+        group = db.create_group_chat(name, user["id"])
+        db.send_group_system_message(group["id"], f"{user['username']} created the group")
+        notify_change("group_create", group_name=name, user=user["username"])
+        flash("Group created!", "success")
+        return redirect(url_for("group_view", group_id=group["id"]))
+    categories, uncategorized = db.get_category_tree()
+    return render_template("groups/new.html",
+                           categories=categories, uncategorized=uncategorized)
+
+
+@app.route("/groups/join", methods=["GET", "POST"])
+@login_required
+def group_join():
+    user = get_current_user()
+    if request.method == "POST":
+        code = request.form.get("invite_code", "").strip()
+        if not code:
+            flash("Please enter an invite code.", "error")
+            return redirect(url_for("group_join"))
+        group = db.get_group_chat_by_invite(code)
+        if not group:
+            flash("Invalid invite code.", "error")
+            return redirect(url_for("group_join"))
+        if db.is_group_member(group["id"], user["id"]):
+            flash("You are already a member of this group.", "info")
+            return redirect(url_for("group_view", group_id=group["id"]))
+        db.add_group_member(group["id"], user["id"])
+        db.send_group_system_message(group["id"], f"{user['username']} joined the group")
+        notify_change("group_join", group_name=group["name"], user=user["username"])
+        flash(f"You joined {group['name']}!", "success")
+        return redirect(url_for("group_view", group_id=group["id"]))
+    categories, uncategorized = db.get_category_tree()
+    return render_template("groups/join.html",
+                           categories=categories, uncategorized=uncategorized)
+
+
+@app.route("/groups/global")
+@login_required
+def group_global():
+    """Join the global chat (auto-join) and redirect to it."""
+    user = get_current_user()
+    group = db.get_or_create_global_chat()
+    if not db.is_group_member(group["id"], user["id"]):
+        db.add_group_member(group["id"], user["id"])
+        db.send_group_system_message(group["id"], f"{user['username']} joined the group")
+    return redirect(url_for("group_view", group_id=group["id"]))
+
+
+@app.route("/groups/<int:group_id>")
+@login_required
+def group_view(group_id):
+    user = get_current_user()
+    group = db.get_group_chat(group_id)
+    if not group:
+        abort(404)
+    if not db.is_group_member(group_id, user["id"]):
+        flash("You are not a member of this group.", "error")
+        return redirect(url_for("group_list"))
+    messages = db.get_group_messages(group_id)
+    members = db.get_group_members(group_id)
+    my_membership = db.get_group_member(group_id, user["id"])
+    categories, uncategorized = db.get_category_tree()
+    return render_template("groups/chat.html", group=group, messages=messages,
+                           members=members, my_membership=my_membership,
+                           categories=categories, uncategorized=uncategorized)
+
+
+@app.route("/groups/<int:group_id>/send", methods=["POST"])
+@login_required
+@rate_limit(30, 60)
+def group_send(group_id):
+    user = get_current_user()
+    if not db.is_group_member(group_id, user["id"]):
+        flash("Access denied.", "error")
+        return redirect(url_for("group_list"))
+    if db.is_group_member_timed_out(group_id, user["id"]):
+        flash("You are timed out and cannot send messages.", "error")
+        return redirect(url_for("group_view", group_id=group_id))
+    content = request.form.get("content", "").strip()
+    if not content:
+        flash("Message cannot be empty.", "error")
+        return redirect(url_for("group_view", group_id=group_id))
+    if len(content) > 5000:
+        flash("Message too long (max 5000 characters).", "error")
+        return redirect(url_for("group_view", group_id=group_id))
+    ip_address = request.remote_addr or "unknown"
+    msg_id = db.send_group_message(group_id, user["id"], content, ip_address)
+
+    # Handle file attachment if present
+    if "attachment" in request.files:
+        f = request.files["attachment"]
+        if f.filename:
+            att_count = db.get_user_group_attachment_count_today(user["id"])
+            if att_count >= config.MAX_CHAT_ATTACHMENTS_PER_DAY:
+                flash("Daily attachment limit reached.", "error")
+                return redirect(url_for("group_view", group_id=group_id))
+            if not _chat_allowed_file(f.filename):
+                flash("File type not allowed.", "error")
+                return redirect(url_for("group_view", group_id=group_id))
+            original_name = secure_filename(f.filename) or "file"
+            ext = original_name.rsplit(".", 1)[1].lower() if "." in original_name else "bin"
+            stored_name = f"{uuid.uuid4().hex}.{ext}"
+            os.makedirs(config.CHAT_ATTACHMENT_FOLDER, exist_ok=True)
+            filepath = os.path.join(config.CHAT_ATTACHMENT_FOLDER, stored_name)
+            file_size = 0
+            chunk_size = 64 * 1024
+            oversized = False
+            with open(filepath, "wb") as out:
+                while True:
+                    chunk = f.stream.read(chunk_size)
+                    if not chunk:
+                        break
+                    file_size += len(chunk)
+                    if file_size > config.MAX_CHAT_ATTACHMENT_SIZE:
+                        oversized = True
+                        break
+                    out.write(chunk)
+            if oversized:
+                try:
+                    os.remove(filepath)
+                except OSError:
+                    pass
+                flash("File exceeds the 5 MB limit.", "error")
+                return redirect(url_for("group_view", group_id=group_id))
+            db.add_group_attachment(msg_id, stored_name, original_name, file_size)
+
+    log_action("group_chat_send", request, user=user, group_id=group_id)
+    return redirect(url_for("group_view", group_id=group_id))
+
+
+@app.route("/groups/attachments/<int:attachment_id>/download")
+@login_required
+def group_attachment_download(attachment_id):
+    att = db.get_group_attachment(attachment_id)
+    if not att:
+        abort(404)
+    user = get_current_user()
+    is_admin = user["role"] in ("admin", "protected_admin")
+    if not is_admin and not db.is_group_member(att["group_id"], user["id"]):
+        abort(403)
+    att_dir = os.path.abspath(config.CHAT_ATTACHMENT_FOLDER)
+    filepath = os.path.abspath(os.path.join(att_dir, att["filename"]))
+    if os.path.commonpath([att_dir, filepath]) != att_dir:
+        abort(400)
+    if not os.path.isfile(filepath):
+        abort(404)
+    return send_from_directory(att_dir, att["filename"],
+                               as_attachment=True,
+                               download_name=att["original_name"])
+
+
+# ---------------------------------------------------------------------------
+#  Group Chat – Moderation
+# ---------------------------------------------------------------------------
+
+@app.route("/groups/<int:group_id>/members/add", methods=["POST"])
+@login_required
+def group_add_member(group_id):
+    user = get_current_user()
+    group = db.get_group_chat(group_id)
+    if not group:
+        abort(404)
+    my_role = db.get_group_member_role(group_id, user["id"])
+    if my_role not in ("owner", "moderator"):
+        flash("You do not have permission to add members.", "error")
+        return redirect(url_for("group_view", group_id=group_id))
+    username = request.form.get("username", "").strip()
+    if not username:
+        flash("Please enter a username.", "error")
+        return redirect(url_for("group_view", group_id=group_id))
+    target = db.get_user_by_username(username)
+    if not target:
+        flash("User not found.", "error")
+        return redirect(url_for("group_view", group_id=group_id))
+    if db.is_group_member(group_id, target["id"]):
+        flash("User is already a member.", "info")
+        return redirect(url_for("group_view", group_id=group_id))
+    db.add_group_member(group_id, target["id"])
+    db.send_group_system_message(group_id, f"{target['username']} was added by {user['username']}")
+    notify_change("group_add_member", group_name=group["name"], added=target["username"], by=user["username"])
+    flash(f"{target['username']} has been added to the group.", "success")
+    return redirect(url_for("group_view", group_id=group_id))
+
+
+@app.route("/groups/<int:group_id>/leave", methods=["POST"])
+@login_required
+def group_leave(group_id):
+    user = get_current_user()
+    group = db.get_group_chat(group_id)
+    if not group:
+        abort(404)
+    my_role = db.get_group_member_role(group_id, user["id"])
+    if not my_role:
+        flash("You are not a member of this group.", "error")
+        return redirect(url_for("group_list"))
+    if my_role == "owner" and not group["is_global"]:
+        flash("You must transfer ownership before leaving.", "error")
+        return redirect(url_for("group_view", group_id=group_id))
+    db.remove_group_member(group_id, user["id"])
+    db.send_group_system_message(group_id, f"{user['username']} left the group")
+    notify_change("group_leave", group_name=group["name"], user=user["username"])
+    flash("You left the group.", "success")
+    return redirect(url_for("group_list"))
+
+
+@app.route("/groups/<int:group_id>/kick", methods=["POST"])
+@login_required
+def group_kick(group_id):
+    user = get_current_user()
+    group = db.get_group_chat(group_id)
+    if not group:
+        abort(404)
+    my_role = db.get_group_member_role(group_id, user["id"])
+    if my_role not in ("owner", "moderator"):
+        flash("Permission denied.", "error")
+        return redirect(url_for("group_view", group_id=group_id))
+    target_id = request.form.get("user_id", "")
+    target_membership = db.get_group_member(group_id, target_id)
+    if not target_membership:
+        flash("User is not a member.", "error")
+        return redirect(url_for("group_view", group_id=group_id))
+    # Moderators cannot kick other moderators or the owner
+    if my_role == "moderator" and target_membership["role"] in ("owner", "moderator"):
+        flash("You cannot remove a moderator or owner.", "error")
+        return redirect(url_for("group_view", group_id=group_id))
+    target_user = db.get_user_by_id(target_id)
+    target_name = target_user["username"] if target_user else "Unknown"
+    db.remove_group_member(group_id, target_id)
+    db.send_group_system_message(group_id, f"{target_name} was removed by {user['username']}")
+    notify_change("group_kick", group_name=group["name"], kicked=target_name, by=user["username"])
+    flash(f"{target_name} has been removed.", "success")
+    return redirect(url_for("group_view", group_id=group_id))
+
+
+@app.route("/groups/<int:group_id>/promote", methods=["POST"])
+@login_required
+def group_promote(group_id):
+    user = get_current_user()
+    group = db.get_group_chat(group_id)
+    if not group:
+        abort(404)
+    my_role = db.get_group_member_role(group_id, user["id"])
+    if my_role != "owner":
+        flash("Only the group owner can promote members.", "error")
+        return redirect(url_for("group_view", group_id=group_id))
+    target_id = request.form.get("user_id", "")
+    target_membership = db.get_group_member(group_id, target_id)
+    if not target_membership:
+        flash("User is not a member.", "error")
+        return redirect(url_for("group_view", group_id=group_id))
+    if target_membership["role"] != "member":
+        flash("User is already a moderator or owner.", "info")
+        return redirect(url_for("group_view", group_id=group_id))
+    target_user = db.get_user_by_id(target_id)
+    target_name = target_user["username"] if target_user else "Unknown"
+    db.set_group_member_role(group_id, target_id, "moderator")
+    db.send_group_system_message(group_id, f"{target_name} was promoted to moderator by {user['username']}")
+    notify_change("group_promote", group_name=group["name"], promoted=target_name, by=user["username"])
+    flash(f"{target_name} is now a moderator.", "success")
+    return redirect(url_for("group_view", group_id=group_id))
+
+
+@app.route("/groups/<int:group_id>/demote", methods=["POST"])
+@login_required
+def group_demote(group_id):
+    user = get_current_user()
+    group = db.get_group_chat(group_id)
+    if not group:
+        abort(404)
+    my_role = db.get_group_member_role(group_id, user["id"])
+    if my_role != "owner":
+        flash("Only the group owner can demote moderators.", "error")
+        return redirect(url_for("group_view", group_id=group_id))
+    target_id = request.form.get("user_id", "")
+    target_membership = db.get_group_member(group_id, target_id)
+    if not target_membership or target_membership["role"] != "moderator":
+        flash("User is not a moderator.", "error")
+        return redirect(url_for("group_view", group_id=group_id))
+    target_user = db.get_user_by_id(target_id)
+    target_name = target_user["username"] if target_user else "Unknown"
+    db.set_group_member_role(group_id, target_id, "member")
+    db.send_group_system_message(group_id, f"{target_name} was demoted to member by {user['username']}")
+    notify_change("group_demote", group_name=group["name"], demoted=target_name, by=user["username"])
+    flash(f"{target_name} is no longer a moderator.", "success")
+    return redirect(url_for("group_view", group_id=group_id))
+
+
+@app.route("/groups/<int:group_id>/transfer", methods=["POST"])
+@login_required
+def group_transfer(group_id):
+    user = get_current_user()
+    group = db.get_group_chat(group_id)
+    if not group:
+        abort(404)
+    if group["is_global"]:
+        flash("Cannot transfer ownership of the global chat.", "error")
+        return redirect(url_for("group_view", group_id=group_id))
+    my_role = db.get_group_member_role(group_id, user["id"])
+    if my_role != "owner":
+        flash("Only the group owner can transfer ownership.", "error")
+        return redirect(url_for("group_view", group_id=group_id))
+    target_id = request.form.get("user_id", "")
+    if target_id == user["id"]:
+        flash("You already own this group.", "error")
+        return redirect(url_for("group_view", group_id=group_id))
+    target_membership = db.get_group_member(group_id, target_id)
+    if not target_membership:
+        flash("User is not a member.", "error")
+        return redirect(url_for("group_view", group_id=group_id))
+    target_user = db.get_user_by_id(target_id)
+    target_name = target_user["username"] if target_user else "Unknown"
+    db.transfer_group_ownership(group_id, user["id"], target_id)
+    db.send_group_system_message(group_id, f"{user['username']} transferred ownership to {target_name}")
+    notify_change("group_transfer", group_name=group["name"], new_owner=target_name, by=user["username"])
+    flash(f"Ownership transferred to {target_name}. You are now a moderator.", "success")
+    return redirect(url_for("group_view", group_id=group_id))
+
+
+@app.route("/groups/<int:group_id>/timeout", methods=["POST"])
+@login_required
+def group_timeout(group_id):
+    user = get_current_user()
+    group = db.get_group_chat(group_id)
+    if not group:
+        abort(404)
+    my_role = db.get_group_member_role(group_id, user["id"])
+    is_site_admin = user["role"] in ("admin", "protected_admin")
+    # For global chat, site admins can moderate; for regular groups, owner/mod
+    if group["is_global"]:
+        if not is_site_admin:
+            flash("Only site admins can moderate the global chat.", "error")
+            return redirect(url_for("group_view", group_id=group_id))
+    else:
+        if my_role not in ("owner", "moderator"):
+            flash("Permission denied.", "error")
+            return redirect(url_for("group_view", group_id=group_id))
+    target_id = request.form.get("user_id", "")
+    target_membership = db.get_group_member(group_id, target_id)
+    if not target_membership:
+        flash("User is not a member.", "error")
+        return redirect(url_for("group_view", group_id=group_id))
+    # Don't allow timing out owner or same/higher rank
+    if not group["is_global"] and my_role == "moderator" and target_membership["role"] in ("owner", "moderator"):
+        flash("You cannot timeout a moderator or owner.", "error")
+        return redirect(url_for("group_view", group_id=group_id))
+    duration = request.form.get("duration", "").strip()
+    target_user = db.get_user_by_id(target_id)
+    target_name = target_user["username"] if target_user else "Unknown"
+    if duration == "indefinite":
+        # Far future date for indefinite timeout
+        until = "9999-12-31T23:59:59+00:00"
+        db.set_group_member_timeout(group_id, target_id, until)
+        db.send_group_system_message(group_id, f"{target_name} was timed out indefinitely by {user['username']}")
+    elif duration:
+        try:
+            minutes = int(duration)
+            if minutes < 1:
+                raise ValueError
+        except (ValueError, TypeError):
+            flash("Invalid duration.", "error")
+            return redirect(url_for("group_view", group_id=group_id))
+        until = (datetime.now(timezone.utc) + timedelta(minutes=minutes)).isoformat()
+        db.set_group_member_timeout(group_id, target_id, until)
+        db.send_group_system_message(group_id, f"{target_name} was timed out for {minutes} minute(s) by {user['username']}")
+    else:
+        flash("Please specify a duration.", "error")
+        return redirect(url_for("group_view", group_id=group_id))
+    notify_change("group_timeout", group_name=group["name"], target=target_name, by=user["username"])
+    flash(f"{target_name} has been timed out.", "success")
+    return redirect(url_for("group_view", group_id=group_id))
+
+
+@app.route("/groups/<int:group_id>/untimeout", methods=["POST"])
+@login_required
+def group_untimeout(group_id):
+    user = get_current_user()
+    group = db.get_group_chat(group_id)
+    if not group:
+        abort(404)
+    my_role = db.get_group_member_role(group_id, user["id"])
+    is_site_admin = user["role"] in ("admin", "protected_admin")
+    if group["is_global"]:
+        if not is_site_admin:
+            flash("Only site admins can moderate the global chat.", "error")
+            return redirect(url_for("group_view", group_id=group_id))
+    else:
+        if my_role not in ("owner", "moderator"):
+            flash("Permission denied.", "error")
+            return redirect(url_for("group_view", group_id=group_id))
+    target_id = request.form.get("user_id", "")
+    target_user = db.get_user_by_id(target_id)
+    target_name = target_user["username"] if target_user else "Unknown"
+    db.set_group_member_timeout(group_id, target_id, None)
+    db.send_group_system_message(group_id, f"{target_name} was untimeouted by {user['username']}")
+    flash(f"{target_name}'s timeout has been removed.", "success")
+    return redirect(url_for("group_view", group_id=group_id))
+
+
+@app.route("/groups/<int:group_id>/delete_message", methods=["POST"])
+@login_required
+def group_delete_message(group_id):
+    user = get_current_user()
+    group = db.get_group_chat(group_id)
+    if not group:
+        abort(404)
+    my_role = db.get_group_member_role(group_id, user["id"])
+    is_site_admin = user["role"] in ("admin", "protected_admin")
+    if group["is_global"]:
+        if not is_site_admin:
+            flash("Only site admins can delete messages in the global chat.", "error")
+            return redirect(url_for("group_view", group_id=group_id))
+    else:
+        if my_role not in ("owner", "moderator"):
+            flash("Permission denied.", "error")
+            return redirect(url_for("group_view", group_id=group_id))
+    message_id = request.form.get("message_id", type=int)
+    if not message_id:
+        flash("Invalid message.", "error")
+        return redirect(url_for("group_view", group_id=group_id))
+    msg = db.get_group_message_by_id(message_id)
+    if not msg or msg["group_id"] != group_id:
+        flash("Message not found.", "error")
+        return redirect(url_for("group_view", group_id=group_id))
+    files = db.delete_group_message(message_id)
+    for fname in files:
+        try:
+            fpath = os.path.join(config.CHAT_ATTACHMENT_FOLDER, fname)
+            if os.path.isfile(fpath):
+                os.remove(fpath)
+        except OSError:
+            pass
+    db.send_group_system_message(group_id, f"A message was deleted by {user['username']}")
+    flash("Message deleted.", "success")
+    return redirect(url_for("group_view", group_id=group_id))
+
+
+# ---------------------------------------------------------------------------
+#  Admin – Group Chat monitoring
+# ---------------------------------------------------------------------------
+
+@app.route("/admin/groups")
+@login_required
+@admin_required
+def admin_groups():
+    groups = db.get_all_group_chats_admin()
+    categories, uncategorized = db.get_category_tree()
+    return render_template("admin/groups.html", groups=groups,
+                           categories=categories, uncategorized=uncategorized)
+
+
+@app.route("/admin/groups/<int:group_id>")
+@login_required
+@admin_required
+def admin_group_view(group_id):
+    group = db.get_group_chat(group_id)
+    if not group:
+        abort(404)
+    messages = db.get_group_messages(group_id)
+    members = db.get_group_members(group_id)
+    categories, uncategorized = db.get_category_tree()
+    return render_template("admin/group_view.html", group=group,
+                           messages=messages, members=members,
+                           categories=categories, uncategorized=uncategorized)
+
+
+# ---------------------------------------------------------------------------
 #  Error handlers
 # ---------------------------------------------------------------------------
 @app.errorhandler(404)
