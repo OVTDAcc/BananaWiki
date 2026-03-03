@@ -1358,7 +1358,7 @@ def admin_manage_user_tags(user_id):
 
     elif action == "update_tag":
         tag_id = request.form.get("tag_id", type=int)
-        tag = db.get_user_custom_tag(tag_id) if tag_id is not None else None
+        tag = db.get_user_custom_tag(tag_id) if tag_id and tag_id > 0 else None
         if not tag or tag["user_id"] != user_id:
             flash("Tag not found.", "error")
         else:
@@ -1376,7 +1376,7 @@ def admin_manage_user_tags(user_id):
 
     elif action == "delete_tag":
         tag_id = request.form.get("tag_id", type=int)
-        tag = db.get_user_custom_tag(tag_id) if tag_id is not None else None
+        tag = db.get_user_custom_tag(tag_id) if tag_id and tag_id > 0 else None
         if not tag or tag["user_id"] != user_id:
             flash("Tag not found.", "error")
         else:
