@@ -45,6 +45,16 @@
                        style="width:200px">
             </div>
         </div>
+        <div style="display:flex;gap:1.5rem;flex-wrap:wrap;margin-bottom:.8rem">
+            <label style="cursor:pointer;opacity:.85;font-size:.85rem">
+                <input type="checkbox" name="dismissible" value="1">
+                Allow users to dismiss
+            </label>
+            <label style="cursor:pointer;opacity:.85;font-size:.85rem">
+                <input type="checkbox" name="show_countdown" value="1" checked>
+                Show countdown timer
+            </label>
+        </div>
         <button type="submit" class="btn">Create Announcement</button>
     </form>
 </div>
@@ -58,6 +68,8 @@
             <div style="font-size:.78rem;opacity:.5;margin-bottom:.4rem">
                 #{{ ann.id }} · {{ ann.color }} · {{ ann.text_size }} · show: {{ ann.visibility }}
                 {% if ann.expires_at %} · expires: {{ format_datetime(ann.expires_at) }}{% endif %}
+                {% if ann.dismissible %} · dismissible{% endif %}
+                {% if ann.show_countdown %} · countdown{% endif %}
                 {% if not ann.is_active %} · <span style="color:#c45c6a">inactive</span>{% endif %}
                 · by {{ ann.creator_name }} · {{ time_ago(ann.created_at) }}
             </div>
@@ -122,6 +134,18 @@
                     </label>
                 </div>
             </div>
+            <div style="display:flex;gap:1.5rem;flex-wrap:wrap;margin-bottom:.8rem">
+                <label style="cursor:pointer;opacity:.85;font-size:.85rem">
+                    <input type="checkbox" name="dismissible" value="1"
+                           {% if ann.dismissible %}checked{% endif %}>
+                    Allow users to dismiss
+                </label>
+                <label style="cursor:pointer;opacity:.85;font-size:.85rem">
+                    <input type="checkbox" name="show_countdown" value="1"
+                           {% if ann.show_countdown %}checked{% endif %}>
+                    Show countdown timer
+                </label>
+            </div>
             <div class="form-actions">
                 <button type="submit" class="btn btn-sm">Save</button>
                 <button type="button" class="btn btn-sm btn-outline"
@@ -142,5 +166,17 @@ function toggleEditForm(id) {
     var el = document.getElementById('edit-form-' + id);
     if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
 }
+// Convert datetime-local inputs from the admin's local timezone to UTC before submission
+document.querySelectorAll('form').forEach(function(form) {
+    form.addEventListener('submit', function() {
+        form.querySelectorAll('input[name="expires_at"]').forEach(function(input) {
+            var val = input.value;
+            if (!val) return;
+            var local = new Date(val);
+            if (isNaN(local.getTime())) return;
+            input.value = local.toISOString();
+        });
+    });
+});
 </script>
 {% endblock %}

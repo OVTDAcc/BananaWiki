@@ -129,7 +129,9 @@ def init_db():
         expires_at  TEXT,
         is_active   INTEGER NOT NULL DEFAULT 1,
         created_by  TEXT REFERENCES users(id) ON DELETE SET NULL,
-        created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+        created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+        dismissible    INTEGER NOT NULL DEFAULT 0,
+        show_countdown INTEGER NOT NULL DEFAULT 1
     );
 
     INSERT OR IGNORE INTO site_settings (id) VALUES (1);
@@ -229,6 +231,13 @@ def init_db():
     hist_cols = [r[1] for r in cur.execute("PRAGMA table_info(page_history)").fetchall()]
     if "is_revert" not in hist_cols:
         cur.execute("ALTER TABLE page_history ADD COLUMN is_revert INTEGER NOT NULL DEFAULT 0")
+
+    # Add dismissible and show_countdown columns to announcements if missing
+    ann_cols = [r[1] for r in cur.execute("PRAGMA table_info(announcements)").fetchall()]
+    if "dismissible" not in ann_cols:
+        cur.execute("ALTER TABLE announcements ADD COLUMN dismissible INTEGER NOT NULL DEFAULT 0")
+    if "show_countdown" not in ann_cols:
+        cur.execute("ALTER TABLE announcements ADD COLUMN show_countdown INTEGER NOT NULL DEFAULT 1")
 
     # Migrate users.id from INTEGER to TEXT if needed
     user_id_type = next(
@@ -368,13 +377,15 @@ def _migrate_user_id_to_text(conn, cur):
             expires_at  TEXT,
             is_active   INTEGER NOT NULL DEFAULT 1,
             created_by  TEXT REFERENCES users(id) ON DELETE SET NULL,
-            created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+            created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+            dismissible    INTEGER NOT NULL DEFAULT 0,
+            show_countdown INTEGER NOT NULL DEFAULT 1
         )
     """)
     cur.execute("""
         INSERT INTO announcements_new
         SELECT id, content, color, text_size, visibility, expires_at, is_active,
-               CAST(created_by AS TEXT), created_at
+               CAST(created_by AS TEXT), created_at, 0, 1
         FROM announcements
     """)
     cur.execute("DROP TABLE announcements")
@@ -1355,14 +1366,14 @@ def update_site_settings(**kwargs):
 # ---------------------------------------------------------------------------
 #  Announcement helpers
 # ---------------------------------------------------------------------------
-def create_announcement(content, color, text_size, visibility, expires_at, user_id):
+def create_announcement(content, color, text_size, visibility, expires_at, user_id, dismissible=0, show_countdown=1):
     conn = get_db()
     cur = conn.cursor()
     now = datetime.now(timezone.utc).isoformat()
     cur.execute(
-        "INSERT INTO announcements (content, color, text_size, visibility, expires_at, is_active, created_by, created_at) "
-        "VALUES (?, ?, ?, ?, ?, 1, ?, ?)",
-        (content, color, text_size, visibility, expires_at or None, user_id, now),
+        "INSERT INTO announcements (content, color, text_size, visibility, expires_at, is_active, created_by, created_at, dismissible, show_countdown) "
+        "VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)",
+        (content, color, text_size, visibility, expires_at or None, user_id, now, dismissible, show_countdown),
     )
     ann_id = cur.lastrowid
     conn.commit()
@@ -1388,7 +1399,7 @@ def list_announcements():
     return rows
 
 
-_ALLOWED_ANN_COLUMNS = {"content", "color", "text_size", "visibility", "expires_at", "is_active"}
+_ALLOWED_ANN_COLUMNS = {"content", "color", "text_size", "visibility", "expires_at", "is_active", "dismissible", "show_countdown"}
 
 
 def update_announcement(ann_id, **kwargs):

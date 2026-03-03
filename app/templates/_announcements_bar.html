@@ -2,7 +2,11 @@
 <div id="announcements-bar" class="announcements-bar" style="display:none" aria-live="polite">
     {% for ann in active_announcements %}
     <div class="announcement-slide announcement-color-{{ ann.color }} announcement-size-{{ ann.text_size }}"
-         data-ann-id="{{ ann.id }}" style="display:none">
+         data-ann-id="{{ ann.id }}"
+         data-dismissible="{{ ann.dismissible }}"
+         data-show-countdown="{{ ann.show_countdown }}"
+         {% if ann.expires_at %}data-expires-at="{{ ann.expires_at }}"{% endif %}
+         style="display:none">
         <div class="ann-inner">
             <div class="ann-body wiki-content">
                 {% if ann.content | length > 500 %}
@@ -13,10 +17,17 @@
                 {% endif %}
             </div>
             <div class="ann-controls">
+                {% if ann.show_countdown and ann.expires_at %}
+                <span class="ann-countdown" data-expires-at="{{ ann.expires_at }}"></span>
+                {% elif ann.show_countdown and not ann.expires_at %}
+                <span class="ann-countdown ann-countdown-error">No expiry set</span>
+                {% endif %}
                 <button class="ann-nav ann-prev" aria-label="Previous announcement" style="display:none">&#8249;</button>
                 <span class="ann-counter" style="display:none"><span class="ann-current">1</span></span>
                 <button class="ann-nav ann-next" aria-label="Next announcement" style="display:none">&#8250;</button>
+                {% if ann.dismissible %}
                 <button class="ann-close" data-ann-id="{{ ann.id }}" aria-label="Dismiss announcement">&#10005;</button>
+                {% endif %}
             </div>
         </div>
     </div>

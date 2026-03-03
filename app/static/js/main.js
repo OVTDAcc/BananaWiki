@@ -724,13 +724,14 @@ function initAnnouncements() {
     var allSlides = Array.from(bar.querySelectorAll('.announcement-slide'));
     if (!allSlides.length) return;
 
-    // Filter out session-dismissed announcements
+    // Filter out session-dismissed announcements (only for dismissible ones)
     var dismissed = [];
     try {
         dismissed = JSON.parse(sessionStorage.getItem('dismissed_announcements') || '[]');
     } catch (e) { dismissed = []; }
 
     var slides = allSlides.filter(function(s) {
+        if (s.dataset.dismissible !== '1') return true;
         return dismissed.indexOf(parseInt(s.dataset.annId, 10)) === -1;
     });
 
@@ -738,6 +739,15 @@ function initAnnouncements() {
 
     bar.style.display = 'block';
     var current = 0;
+
+    function removeSlide(id) {
+        slides = slides.filter(function(s) {
+            return parseInt(s.dataset.annId, 10) !== id;
+        });
+        if (!slides.length) { bar.style.display = 'none'; return; }
+        if (current >= slides.length) current = slides.length - 1;
+        showSlide(current);
+    }
 
     function showSlide(idx) {
         slides.forEach(function(s) { s.style.display = 'none'; });
@@ -770,14 +780,43 @@ function initAnnouncements() {
             var id = parseInt(target.dataset.annId, 10);
             dismissed.push(id);
             try { sessionStorage.setItem('dismissed_announcements', JSON.stringify(dismissed)); } catch (e) {}
-            slides = slides.filter(function(s) {
-                return parseInt(s.dataset.annId, 10) !== id;
-            });
-            if (!slides.length) { bar.style.display = 'none'; return; }
-            if (current >= slides.length) current = slides.length - 1;
-            showSlide(current);
+            removeSlide(id);
         }
     });
+
+    // Countdown timers
+    function updateCountdowns() {
+        var now = Date.now();
+        slides.forEach(function(slide) {
+            var cdEl = slide.querySelector('.ann-countdown');
+            if (!cdEl || cdEl.classList.contains('ann-countdown-error')) return;
+            var expiresAt = cdEl.dataset.expiresAt;
+            if (!expiresAt) return;
+            // Treat stored time as UTC
+            var expDate = new Date(expiresAt.replace(' ', 'T') + (expiresAt.indexOf('Z') === -1 && expiresAt.indexOf('+') === -1 && expiresAt.indexOf('T') !== -1 ? 'Z' : ''));
+            var diff = expDate.getTime() - now;
+            if (diff <= 0) {
+                // Timer expired – hide this announcement
+                var id = parseInt(slide.dataset.annId, 10);
+                removeSlide(id);
+                return;
+            }
+            var totalSec = Math.floor(diff / 1000);
+            var days = Math.floor(totalSec / 86400);
+            var hours = Math.floor((totalSec % 86400) / 3600);
+            var minutes = Math.floor((totalSec % 3600) / 60);
+            var seconds = totalSec % 60;
+            var parts = [];
+            if (days > 0) parts.push(days + 'd');
+            if (hours > 0) parts.push(hours + 'h');
+            parts.push(minutes + 'm');
+            parts.push(seconds + 's');
+            cdEl.textContent = parts.join(' ');
+        });
+    }
+
+    updateCountdowns();
+    setInterval(updateCountdowns, 1000);
 }
 
 // ---------------------------------------------------------------------------

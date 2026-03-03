@@ -3146,6 +3146,8 @@ def admin_create_announcement():
     text_size = request.form.get("text_size", "normal")
     visibility = request.form.get("visibility", "both")
     expires_at = request.form.get("expires_at", "").strip() or None
+    dismissible = 1 if request.form.get("dismissible") else 0
+    show_countdown = 1 if request.form.get("show_countdown") else 0
     user = get_current_user()
 
     if not content:
@@ -3170,7 +3172,8 @@ def admin_create_announcement():
             flash("Invalid expiration date format.", "error")
             return redirect(url_for("admin_announcements"))
 
-    db.create_announcement(content, color, text_size, visibility, expires_at, user["id"])
+    db.create_announcement(content, color, text_size, visibility, expires_at, user["id"],
+                           dismissible=dismissible, show_countdown=show_countdown)
     log_action("create_announcement", request, user=user)
     notify_change("announcement_create", "Announcement created")
     flash("Announcement created.", "success")
@@ -3190,6 +3193,8 @@ def admin_edit_announcement(ann_id):
     visibility = request.form.get("visibility", "both")
     expires_at = request.form.get("expires_at", "").strip() or None
     is_active = 1 if request.form.get("is_active") else 0
+    dismissible = 1 if request.form.get("dismissible") else 0
+    show_countdown = 1 if request.form.get("show_countdown") else 0
     user = get_current_user()
 
     if not content:
@@ -3215,7 +3220,8 @@ def admin_edit_announcement(ann_id):
             return redirect(url_for("admin_announcements"))
 
     db.update_announcement(ann_id, content=content, color=color, text_size=text_size,
-                           visibility=visibility, expires_at=expires_at, is_active=is_active)
+                           visibility=visibility, expires_at=expires_at, is_active=is_active,
+                           dismissible=dismissible, show_countdown=show_countdown)
     log_action("edit_announcement", request, user=user, ann_id=ann_id)
     notify_change("announcement_edit", f"Announcement {ann_id} updated")
     flash("Announcement updated.", "success")
