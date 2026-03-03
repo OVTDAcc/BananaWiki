@@ -7,7 +7,7 @@
             {% if profile and profile.avatar_filename %}
             <img src="{{ url_for('static', filename='uploads/' + profile.avatar_filename) }}" alt="{{ target.username }}" class="user-profile-avatar">
             {% else %}
-            <span class="user-profile-avatar-placeholder">{{ target.username[0].upper() }}</span>
+            <span class="user-profile-avatar-placeholder">{{ target.username[0].upper() if target.username else '?' }}</span>
             {% endif %}
         </div>
         <div class="user-profile-meta">
@@ -20,7 +20,8 @@
             {% endif %}
             <div class="user-profile-badges">
                 {% if target.created_at %}
-                <span class="badge badge-member-since" title="Joined {{ format_datetime(target.created_at) }}">Member since {{ format_datetime(target.created_at) }}</span>
+                {% set member_since = format_datetime(target.created_at) %}
+                <span class="badge badge-member-since" title="Joined {{ member_since }}">Member since {{ member_since }}</span>
                 {% endif %}
             </div>
             <div class="user-profile-badges">

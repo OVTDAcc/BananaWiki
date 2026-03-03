@@ -551,9 +551,13 @@ _ALLOWED_USER_COLUMNS = {"username", "password", "role", "suspended", "last_logi
 
 
 def update_user(user_id, **kwargs):
+    if not user_id:
+        raise ValueError("user_id is required")
     for k in kwargs:
         if k not in _ALLOWED_USER_COLUMNS:
             raise ValueError(f"Invalid column: {k}")
+    if not kwargs:
+        return
     conn = get_db()
     sets = ", ".join(f"{k}=?" for k in kwargs)
     vals = list(kwargs.values()) + [user_id]
@@ -563,6 +567,8 @@ def update_user(user_id, **kwargs):
 
 
 def delete_user(user_id):
+    if not user_id:
+        raise ValueError("user_id is required")
     conn = get_db()
     conn.execute("UPDATE invite_codes SET used_by=NULL WHERE used_by=?", (user_id,))
     conn.execute("DELETE FROM users WHERE id=?", (user_id,))

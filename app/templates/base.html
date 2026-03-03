@@ -58,7 +58,7 @@
                     {% if current_user_profile and current_user_profile.avatar_filename %}
                     <img src="{{ url_for('static', filename='uploads/' + current_user_profile.avatar_filename) }}" alt="{{ current_user.username }}" class="topbar-avatar-img">
                     {% else %}
-                    <span class="topbar-avatar-placeholder">{{ current_user.username[0].upper() }}</span>
+                    <span class="topbar-avatar-placeholder">{{ current_user.username[0].upper() if current_user.username else '?' }}</span>
                     {% endif %}
                 </a>
                 <span class="user-info">{{ current_user.username }}</span>
@@ -121,7 +121,7 @@
                         {% if p.avatar_filename %}
                         <img src="{{ url_for('static', filename='uploads/' + p.avatar_filename) }}" alt="{{ p.username }}" class="sidebar-person-img">
                         {% else %}
-                        <span class="sidebar-person-placeholder">{{ p.username[0].upper() }}</span>
+                        <span class="sidebar-person-placeholder">{{ p.username[0].upper() if p.username else '?' }}</span>
                         {% endif %}
                     </a>
                     {% endfor %}
