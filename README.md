@@ -211,6 +211,7 @@ BananaWiki/
 │       ├── auth/       # login.html, signup.html, setup.html, lockdown.html
 │       ├── wiki/       # page.html, edit.html, create_page.html, history.html,
 │       │               # history_entry.html, announcement.html, easter_egg.html,
+│       │               # _category.html (recursive sidebar partial),
 │       │               # 403.html, 404.html, 429.html, 500.html
 │       ├── account/    # settings.html
 │       ├── users/      # list.html, profile.html
@@ -220,7 +221,7 @@ BananaWiki/
 ├── docs/               # Detailed documentation
 ├── instance/           # Database, attachments, secret key — created at runtime (gitignored)
 ├── logs/               # Application logs — created at runtime (gitignored)
-└── tests/              # Test suite (598 tests across 8 files)
+└── tests/              # Test suite (606 tests across 8 files)
 ```
 
 ---

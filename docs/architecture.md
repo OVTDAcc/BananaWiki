@@ -146,7 +146,7 @@ Templates live in `app/templates/` and use Jinja2.
 | `base.html` | Main layout: sidebar with category tree, header, flash messages, announcement bar. All page templates extend this. |
 | `_announcements_bar.html` | Announcement banner partial — included in `base.html` and auth pages. |
 | `auth/` | `login.html`, `signup.html`, `setup.html`, `lockdown.html` |
-| `wiki/` | `page.html`, `edit.html`, `create_page.html`, `history.html`, `history_entry.html`, `announcement.html`, `easter_egg.html`, `403.html`, `404.html`, `429.html`, `500.html` |
+| `wiki/` | `page.html`, `edit.html`, `create_page.html`, `history.html`, `history_entry.html`, `announcement.html`, `easter_egg.html`, `_category.html` (recursive sidebar partial), `403.html`, `404.html`, `429.html`, `500.html` |
 | `account/settings.html` | Account settings page |
 | `admin/` | `users.html`, `codes.html`, `codes_expired.html`, `settings.html`, `announcements.html`, `audit.html`, `editor_access.html`, `migration.html` |
 | `users/` | `list.html` (People directory), `profile.html` (individual user profile with contribution heatmap) |
