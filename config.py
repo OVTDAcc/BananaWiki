@@ -86,6 +86,19 @@ ATTACHMENT_ALLOWED_EXTENSIONS = {
 }
 
 # =============================================================================
+# Chat Attachments
+# =============================================================================
+# Stored outside the static folder (authenticated download route).
+CHAT_ATTACHMENT_FOLDER = os.path.join(BASE_DIR, "instance", "chat_attachments")
+MAX_CHAT_ATTACHMENT_SIZE = 5 * 1024 * 1024   # 5 MB per file
+MAX_CHAT_ATTACHMENTS_PER_DAY = 10            # resets when messages are cleaned up
+CHAT_ALLOWED_EXTENSIONS = {
+    "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx",
+    "txt", "md", "csv", "json", "xml", "zip", "tar", "gz",
+    "png", "jpg", "jpeg", "gif", "webp",
+}
+
+# =============================================================================
 # Logging
 # =============================================================================
 # Enable or disable logging (default: on)

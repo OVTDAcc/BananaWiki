@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Chat Monitor – {{ settings.site_name }}{% endblock %}
+{% block content %}
+<h1>Chat Monitor</h1>
+
+<div style="margin-bottom:1rem">
+    <form method="GET" action="{{ url_for('admin_chats') }}" style="display:flex;gap:.5rem;align-items:flex-end;flex-wrap:wrap">
+        <div class="form-group" style="margin-bottom:0">
+            <label>Filter by user</label>
+            <select name="user_id" class="input input-sm" style="width:200px">
+                <option value="">All users</option>
+                {% for u in all_users %}
+                <option value="{{ u.id }}" {% if filter_user and filter_user.id == u.id %}selected{% endif %}>{{ u.username }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="btn btn-sm">Filter</button>
+        {% if filter_user %}
+        <a href="{{ url_for('admin_chats') }}" class="btn btn-sm btn-outline">Clear</a>
+        {% endif %}
+    </form>
+</div>
+
+{% if filter_user %}
+<p>Showing chats for <strong>{{ filter_user.username }}</strong></p>
+{% endif %}
+
+{% if chats %}
+<table class="admin-table">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Participants</th>
+            <th>Messages</th>
+            <th>Last Activity</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for chat in chats %}
+        <tr>
+            <td>{{ chat.id }}</td>
+            <td>{{ chat.user1_name }} ↔ {{ chat.user2_name }}</td>
+            <td>{{ chat.message_count }}</td>
+            <td>{{ time_ago(chat.last_message_at) if chat.last_message_at else '–' }}</td>
+            <td><a href="{{ url_for('admin_chat_view', chat_id=chat.id) }}" class="btn btn-sm">Read</a></td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>No chats found.</p>
+{% endif %}
+{% endblock %}

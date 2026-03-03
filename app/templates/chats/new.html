@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}New Chat – {{ settings.site_name }}{% endblock %}
+{% block content %}
+<h1>Start a New Chat</h1>
+
+<form method="POST" action="{{ url_for('chat_new') }}" style="max-width:400px">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-group">
+        <label>Username</label>
+        <input type="text" name="username" class="input" required placeholder="Enter a username" list="user-list" autocomplete="off">
+        <datalist id="user-list">
+            {% for u in all_users %}
+            {% if u.id != current_user.id %}
+            <option value="{{ u.username }}">
+            {% endif %}
+            {% endfor %}
+        </datalist>
+    </div>
+    <div class="form-actions">
+        <button type="submit" class="btn">Start Chat</button>
+        <a href="{{ url_for('chat_list') }}" class="btn btn-outline">Cancel</a>
+    </div>
+</form>
+{% endblock %}
