@@ -406,3 +406,30 @@ def test_db_get_all_messages_for_backup(alice_uid, bob_uid):
     assert len(msgs) == 1
     assert msgs[0]["sender_name"] == "alice"
     assert msgs[0]["receiver_name"] == "bob"
+
+
+def test_attachment_oversized_file(alice_client, bob_uid, monkeypatch):
+    monkeypatch.setattr(config, "MAX_CHAT_ATTACHMENT_SIZE", 10)  # 10 bytes
+    import db
+    alice = db.get_user_by_username("alice")
+    chat = db.get_or_create_chat(alice["id"], bob_uid)
+    data = {
+        "content": "Big file",
+        "attachment": (io.BytesIO(b"x" * 100), "big.txt"),
+    }
+    resp = alice_client.post(f"/chats/{chat['id']}/send",
+                             data=data,
+                             content_type="multipart/form-data",
+                             follow_redirects=True)
+    assert b"File exceeds the 5 MB limit" in resp.data
+    # The text message should still exist (sent before attachment)
+    msgs = db.get_chat_messages(chat["id"])
+    assert len(msgs) == 1
+    assert msgs[0]["content"] == "Big file"
+    assert msgs[0]["attachments"] == []
+
+
+def test_admin_chat_monitor_link_in_account(admin_client):
+    resp = admin_client.get("/account")
+    assert resp.status_code == 200
+    assert b"Chat Monitor" in resp.data

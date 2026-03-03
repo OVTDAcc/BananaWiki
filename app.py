@@ -3396,6 +3396,7 @@ def chat_send(chat_id):
             # Chunked write with size enforcement
             file_size = 0
             chunk_size = 64 * 1024
+            oversized = False
             with open(filepath, "wb") as out:
                 while True:
                     chunk = f.stream.read(chunk_size)
@@ -3403,11 +3404,13 @@ def chat_send(chat_id):
                         break
                     file_size += len(chunk)
                     if file_size > config.MAX_CHAT_ATTACHMENT_SIZE:
-                        out.close()
-                        os.remove(filepath)
-                        flash("File exceeds the 5 MB limit.", "error")
-                        return redirect(url_for("chat_view", chat_id=chat_id))
+                        oversized = True
+                        break
                     out.write(chunk)
+            if oversized:
+                os.remove(filepath)
+                flash("File exceeds the 5 MB limit.", "error")
+                return redirect(url_for("chat_view", chat_id=chat_id))
             db.add_chat_attachment(msg_id, stored_name, original_name, file_size)
 
     log_action("chat_send", request, user=user, chat_id=chat_id)

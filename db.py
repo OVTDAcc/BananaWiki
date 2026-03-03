@@ -1813,10 +1813,13 @@ def get_or_create_chat(user1_id, user2_id):
     if row:
         conn.close()
         return dict(row)
-    conn.execute(
-        "INSERT INTO chats (user1_id, user2_id) VALUES (?, ?)", (a, b)
-    )
-    conn.commit()
+    try:
+        conn.execute(
+            "INSERT INTO chats (user1_id, user2_id) VALUES (?, ?)", (a, b)
+        )
+        conn.commit()
+    except sqlite3.IntegrityError:
+        pass  # concurrent insert – row already exists
     row = conn.execute(
         "SELECT * FROM chats WHERE user1_id=? AND user2_id=?", (a, b)
     ).fetchone()
