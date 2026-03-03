@@ -138,55 +138,8 @@ class TestEmbedVideosInHtml:
 # ---------------------------------------------------------------------------
 
 class TestVideoEmbedSetting:
-    def test_video_embed_disabled_by_default(self):
+    def test_page_always_embeds_video(self, logged_in_admin, admin_user):
         import db
-        db.init_db()
-        settings = db.get_site_settings()
-        assert settings["video_embed_enabled"] == 0
-
-    def test_admin_can_enable_video_embed(self, logged_in_admin):
-        resp = logged_in_admin.post("/admin/settings", data={
-            "site_name": "BananaWiki",
-            "timezone": "UTC",
-            "primary_color": "#7c8dc6",
-            "secondary_color": "#151520",
-            "accent_color": "#6e8aca",
-            "text_color": "#b8bcc8",
-            "sidebar_color": "#111118",
-            "bg_color": "#0d0d14",
-            "video_embed_enabled": "1",
-        })
-        assert resp.status_code in (200, 302)
-        import db
-        settings = db.get_site_settings()
-        assert settings["video_embed_enabled"] == 1
-
-    def test_admin_can_disable_video_embed(self, logged_in_admin):
-        import db
-        db.update_site_settings(video_embed_enabled=1)
-        resp = logged_in_admin.post("/admin/settings", data={
-            "site_name": "BananaWiki",
-            "timezone": "UTC",
-            "primary_color": "#7c8dc6",
-            "secondary_color": "#151520",
-            "accent_color": "#6e8aca",
-            "text_color": "#b8bcc8",
-            "sidebar_color": "#111118",
-            "bg_color": "#0d0d14",
-            # video_embed_enabled absent → 0
-        })
-        assert resp.status_code in (200, 302)
-        settings = db.get_site_settings()
-        assert settings["video_embed_enabled"] == 0
-
-    def test_settings_page_has_video_embed_checkbox(self, logged_in_admin):
-        resp = logged_in_admin.get("/admin/settings")
-        assert resp.status_code == 200
-        assert b"video_embed_enabled" in resp.data
-
-    def test_page_embeds_video_when_setting_enabled(self, logged_in_admin, admin_user):
-        import db
-        db.update_site_settings(video_embed_enabled=1)
         home = db.get_home_page()
         db.update_page(
             home["id"],
@@ -200,20 +153,10 @@ class TestVideoEmbedSetting:
         assert b"video-embed" in resp.data
         assert b"youtube.com/embed/dQw4w9WgXcQ" in resp.data
 
-    def test_page_does_not_embed_video_when_setting_disabled(self, logged_in_admin, admin_user):
-        import db
-        db.update_site_settings(video_embed_enabled=0)
-        home = db.get_home_page()
-        db.update_page(
-            home["id"],
-            home["title"],
-            "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-            admin_user,
-            "test",
-        )
-        resp = logged_in_admin.get("/")
+    def test_settings_page_has_no_video_embed_checkbox(self, logged_in_admin):
+        resp = logged_in_admin.get("/admin/settings")
         assert resp.status_code == 200
-        assert b"video-embed" not in resp.data
+        assert b"video_embed_enabled" not in resp.data
 
 
 # ---------------------------------------------------------------------------
