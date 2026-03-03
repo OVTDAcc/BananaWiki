@@ -485,7 +485,7 @@ def backup_group_chats_before_cleanup() -> None:
     logger = _get_logger()
     chat_attach_dir = getattr(config, "CHAT_ATTACHMENT_FOLDER", "")
 
-    lines = ["\U0001f465 Group chat backup before cleanup", ""]
+    lines = ["\U0001f465 Group chat backup before cleanup", ""]  # 👥
     for msg in messages:
         att_names = ", ".join(a["original_name"] for a in msg.get("attachments", []))
         sender = msg.get("sender_name") or "System"
