@@ -929,22 +929,26 @@ document.addEventListener('DOMContentLoaded', initAnnouncements);
 
         // Listen for toggle clicks and persist state
         document.addEventListener('click', function(e) {
+            // Skip clicks on admin action buttons (reorder, settings)
+            if (e.target.closest('.cat-actions')) return;
+
             var toggle = e.target.closest('.cat-toggle');
-            if (!toggle) {
-                // Also allow clicking the section header title to toggle
-                var title = e.target.closest('.nav-section-title');
-                if (title && title.closest('.nav-section-header')) {
-                    var section = title.closest('.nav-section');
-                    if (section && section.dataset.catId) {
-                        section.classList.toggle('collapsed');
-                        persistState();
-                    }
-                }
+            if (toggle) {
+                // The toggle button already toggles via onclick in HTML;
+                // just persist state after the click
+                setTimeout(persistState, 0);
                 return;
             }
-            // The toggle button already toggles via onclick in HTML;
-            // just persist state after the click
-            setTimeout(persistState, 0);
+
+            // Allow clicking anywhere on the section header to toggle
+            var header = e.target.closest('.nav-section-header');
+            if (header) {
+                var section = header.closest('.nav-section');
+                if (section && section.dataset.catId) {
+                    section.classList.toggle('collapsed');
+                    persistState();
+                }
+            }
         });
 
         function persistState() {
@@ -1496,10 +1500,13 @@ function initResizableImages(previewEl, textareaEl) {
         if (embed.dataset.bwResizable) return;
         embed.dataset.bwResizable = '1';
 
+        // Ensure the iframe doesn't steal pointer events from the resize handle
+        var iframe = embed.querySelector('iframe');
         var handle = document.createElement('span');
         handle.className = 'preview-img-resize-handle';
         handle.title = 'Drag to resize video';
         handle.style.opacity = '0';
+        handle.style.zIndex = '10';
         embed.style.position = 'relative';
         embed.appendChild(handle);
         embed.addEventListener('mouseenter', function() { handle.style.opacity = '.85'; });
@@ -1512,6 +1519,8 @@ function initResizableImages(previewEl, textareaEl) {
             var startW = embed.getBoundingClientRect().width;
             document.body.style.userSelect = 'none';
             document.body.style.cursor = 'ew-resize';
+            // Disable iframe pointer events during drag to prevent stealing mousemove
+            if (iframe) iframe.style.pointerEvents = 'none';
 
             function onMove(ev) {
                 var newW = Math.max(200, Math.round(startW + (ev.clientX - startX)));
@@ -1525,6 +1534,7 @@ function initResizableImages(previewEl, textareaEl) {
                 document.removeEventListener('mouseup', onUp);
                 document.body.style.userSelect = '';
                 document.body.style.cursor = '';
+                if (iframe) iframe.style.pointerEvents = '';
             }
 
             document.addEventListener('mousemove', onMove);
