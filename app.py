@@ -1358,7 +1358,7 @@ def admin_manage_user_tags(user_id):
 
     elif action == "update_tag":
         tag_id = request.form.get("tag_id", type=int)
-        tag = db.get_user_custom_tag(tag_id) if tag_id else None
+        tag = db.get_user_custom_tag(tag_id) if tag_id is not None else None
         if not tag or tag["user_id"] != user_id:
             flash("Tag not found.", "error")
         else:
@@ -1376,7 +1376,7 @@ def admin_manage_user_tags(user_id):
 
     elif action == "delete_tag":
         tag_id = request.form.get("tag_id", type=int)
-        tag = db.get_user_custom_tag(tag_id) if tag_id else None
+        tag = db.get_user_custom_tag(tag_id) if tag_id is not None else None
         if not tag or tag["user_id"] != user_id:
             flash("Tag not found.", "error")
         else:
@@ -1392,8 +1392,14 @@ def admin_manage_user_tags(user_id):
         except ValueError:
             tag_ids = []
         if tag_ids:
-            db.reorder_user_custom_tags(user_id, tag_ids)
-            flash("Tag order updated.", "success")
+            # Validate all tag IDs belong to this user
+            user_tags = db.get_user_custom_tags(user_id)
+            valid_ids = {t["id"] for t in user_tags}
+            if all(tid in valid_ids for tid in tag_ids):
+                db.reorder_user_custom_tags(user_id, tag_ids)
+                flash("Tag order updated.", "success")
+            else:
+                flash("Invalid tag IDs.", "error")
 
     return redirect(url_for("user_profile", username=target["username"]))
 

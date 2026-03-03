@@ -812,3 +812,63 @@ def test_update_tag_wrong_user(admin_client, regular_uid, admin_uid):
     assert resp.status_code == 200
     tag = db.get_user_custom_tag(tag_id)
     assert tag["label"] == "Admin Tag"  # Unchanged
+
+
+def test_reorder_tags_invalid_ids_rejected(admin_client, regular_uid, admin_uid):
+    """Reordering with tag IDs from another user is rejected."""
+    import db
+    t1 = db.add_user_custom_tag(regular_uid, "Tag1", "#e74c3c")
+    foreign_tag = db.add_user_custom_tag(admin_uid, "Foreign", "#3498db")
+    resp = admin_client.post(
+        f"/admin/users/{regular_uid}/tags",
+        data={"action": "reorder_tags", "tag_order": f"{t1},{foreign_tag}"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"Invalid tag IDs" in resp.data
+
+
+def test_reorder_tags_valid_ids(admin_client, regular_uid):
+    """Reordering with valid tag IDs succeeds."""
+    import db
+    t1 = db.add_user_custom_tag(regular_uid, "A", "#e74c3c")
+    t2 = db.add_user_custom_tag(regular_uid, "B", "#3498db")
+    resp = admin_client.post(
+        f"/admin/users/{regular_uid}/tags",
+        data={"action": "reorder_tags", "tag_order": f"{t2},{t1}"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    tags = db.get_user_custom_tags(regular_uid)
+    assert [t["id"] for t in tags] == [t2, t1]
+
+
+def test_tag_id_none_does_not_crash(admin_client, regular_uid):
+    """Submitting update/delete without a tag_id doesn't crash."""
+    resp = admin_client.post(
+        f"/admin/users/{regular_uid}/tags",
+        data={"action": "update_tag", "tag_label": "X", "tag_color": "#aabbcc"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    resp = admin_client.post(
+        f"/admin/users/{regular_uid}/tags",
+        data={"action": "delete_tag"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+
+
+def test_role_change_recorded_on_protected_admin_toggle(client, admin_uid):
+    """Toggling protected admin records role change in history."""
+    import db
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    client.post(
+        "/account",
+        data={"action": "toggle_protected_admin", "password": "admin123"},
+        follow_redirects=True,
+    )
+    history = db.get_role_history(admin_uid)
+    assert len(history) >= 1
+    assert history[0]["old_role"] == "admin"
+    assert history[0]["new_role"] == "protected_admin"
