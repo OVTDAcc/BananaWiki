@@ -724,13 +724,14 @@ function initAnnouncements() {
     var allSlides = Array.from(bar.querySelectorAll('.announcement-slide'));
     if (!allSlides.length) return;
 
-    // Filter out session-dismissed announcements
+    // Filter out session-dismissed announcements (only for removable ones)
     var dismissed = [];
     try {
         dismissed = JSON.parse(sessionStorage.getItem('dismissed_announcements') || '[]');
     } catch (e) { dismissed = []; }
 
     var slides = allSlides.filter(function(s) {
+        if (s.dataset.notRemovable === '1') return true;
         return dismissed.indexOf(parseInt(s.dataset.annId, 10)) === -1;
     });
 
@@ -757,6 +758,70 @@ function initAnnouncements() {
     }
 
     showSlide(0);
+
+    // Countdown timer logic
+    function updateCountdowns() {
+        var anyExpired = false;
+        slides.forEach(function(s) {
+            if (s.dataset.showCountdown !== '1') return;
+            var cdEl = s.querySelector('.ann-countdown');
+            if (!cdEl) return;
+            var expiresAt = s.dataset.expiresAt;
+            if (!expiresAt) {
+                cdEl.style.display = 'inline';
+                cdEl.textContent = '⚠ no expiry set';
+                return;
+            }
+            // Strip any existing timezone offset (e.g. +00:00) or Z suffix so we can
+            // re-append 'Z' to force UTC interpretation by the Date constructor.
+            var normalized = expiresAt.replace(/[+-]\d{2}:\d{2}$/, '').replace(/Z$/, '');
+            var expDate = new Date(normalized + 'Z');
+            if (isNaN(expDate.getTime())) {
+                cdEl.style.display = 'inline';
+                cdEl.textContent = '⚠ invalid date';
+                return;
+            }
+            var now = new Date();
+            var diff = expDate.getTime() - now.getTime();
+            if (diff <= 0) {
+                // Timer expired – hide the announcement
+                s.style.display = 'none';
+                anyExpired = true;
+                return;
+            }
+            var totalSec = Math.floor(diff / 1000);
+            var days = Math.floor(totalSec / 86400);
+            var hours = Math.floor((totalSec % 86400) / 3600);
+            var minutes = Math.floor((totalSec % 3600) / 60);
+            var seconds = totalSec % 60;
+            var parts = [];
+            if (days > 0) parts.push(days + 'd');
+            if (hours > 0) parts.push(hours + 'h');
+            parts.push(minutes + 'm');
+            parts.push(seconds + 's');
+            cdEl.style.display = 'inline';
+            cdEl.textContent = parts.join(' ');
+        });
+
+        if (anyExpired) {
+            // Rebuild slides list excluding expired and dismissed ones
+            slides = Array.from(bar.querySelectorAll('.announcement-slide')).filter(function(s) {
+                if (s.dataset.showCountdown === '1' && s.dataset.expiresAt) {
+                    var norm = s.dataset.expiresAt.replace(/[+-]\d{2}:\d{2}$/, '').replace(/Z$/, '');
+                    var expDate = new Date(norm + 'Z');
+                    if (!isNaN(expDate.getTime()) && expDate.getTime() <= Date.now()) return false;
+                }
+                if (s.dataset.notRemovable === '1') return true;
+                return dismissed.indexOf(parseInt(s.dataset.annId, 10)) === -1;
+            });
+            if (!slides.length) { bar.style.display = 'none'; return; }
+            if (current >= slides.length) current = slides.length - 1;
+            showSlide(current);
+        }
+    }
+
+    updateCountdowns();
+    setInterval(updateCountdowns, 1000);
 
     bar.addEventListener('click', function(e) {
         var target = e.target;
