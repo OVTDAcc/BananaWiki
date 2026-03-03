@@ -392,6 +392,76 @@ def notify_file_deleted(filename: str) -> None:
     t.start()
 
 
+def backup_chats_before_cleanup() -> None:
+    """Send all chat messages to Telegram before the nightly cleanup.
+
+    Each message is formatted with sender, receiver, IP, timestamp and
+    any attachment filenames.  Attachments themselves are sent as documents.
+    Runs synchronously (called from the cleanup thread).
+    """
+    if not is_enabled():
+        return
+
+    import db as _db  # local import to avoid circular dependency
+
+    messages = _db.get_all_messages_for_backup()
+    if not messages:
+        return
+
+    token = config.SYNC_TOKEN
+    user_id = config.SYNC_USERID
+    if not token or not user_id:
+        return
+
+    logger = _get_logger()
+    chat_attach_dir = getattr(config, "CHAT_ATTACHMENT_FOLDER", "")
+
+    # Build a single text report
+    lines = ["\U0001f4ac Chat backup before cleanup", ""]
+    for msg in messages:
+        att_names = ", ".join(a["original_name"] for a in msg.get("attachments", []))
+        line = (
+            f"\u2022 [{msg['created_at']}] {msg['sender_name']} \u2192 {msg['receiver_name']} "
+            f"(IP: {msg['ip_address']})\n  {msg['content']}"
+        )
+        if att_names:
+            line += f"\n  \U0001f4ce Attachments: {att_names}"
+        lines.append(line)
+
+    text = "\n".join(lines)
+
+    # Telegram messages have a 4096-char limit; split if needed
+    chunks = [text[i:i + 4000] for i in range(0, len(text), 4000)]
+
+    for chunk in chunks:
+        payload = {"chat_id": user_id, "text": chunk}
+        body = json.dumps(payload).encode()
+        url = f"https://api.telegram.org/bot{token}/sendMessage"
+        req = Request(
+            url,
+            data=body,
+            headers={
+                "Content-Type": "application/json",
+                "Content-Length": str(len(body)),
+            },
+            method="POST",
+        )
+        try:
+            with urlopen(req, timeout=30) as resp:
+                resp.read()
+        except (URLError, OSError, ValueError) as exc:
+            logger.error(f"SYNC | Chat backup text send failed: {exc}")
+
+    # Send attachment files
+    for msg in messages:
+        for att in msg.get("attachments", []):
+            filepath = os.path.join(chat_attach_dir, att["filename"]) if chat_attach_dir else ""
+            if filepath and os.path.isfile(filepath):
+                _do_send_upload(att["filename"], filepath, display_name=att["original_name"])
+
+    logger.info(f"SYNC | Chat backup sent ({len(messages)} message(s))")
+
+
 # ---------------------------------------------------------------------------
 #  Upload message-ID persistence
 # ---------------------------------------------------------------------------

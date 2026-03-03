@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Chat with {{ other_user.username }} – {{ settings.site_name }}{% endblock %}
+{% block content %}
+<div class="chat-header">
+    <a href="{{ url_for('chat_list') }}" class="btn btn-sm btn-outline">← Back</a>
+    <h1>Chat with {{ other_user.username }}</h1>
+</div>
+
+<div class="chat-messages" id="chat-messages">
+    {% if messages %}
+        {% for msg in messages %}
+        <div class="chat-msg {% if msg.sender_id == current_user.id %}chat-msg-mine{% else %}chat-msg-theirs{% endif %}">
+            <div class="chat-msg-meta">
+                <strong>{{ msg.sender_name }}</strong>
+                <span class="chat-msg-time">{{ time_ago(msg.created_at) }}</span>
+            </div>
+            <div class="chat-msg-body">{{ msg.content }}</div>
+            {% if msg.attachments %}
+            <div class="chat-msg-attachments">
+                {% for att in msg.attachments %}
+                <a href="{{ url_for('chat_attachment_download', attachment_id=att.id) }}" class="chat-attachment-link">📎 {{ att.original_name }} ({{ (att.file_size / 1024)|round(1) }} KB)</a>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    {% else %}
+        <p class="chat-empty">No messages yet. Say hello!</p>
+    {% endif %}
+</div>
+
+<form method="POST" action="{{ url_for('chat_send', chat_id=chat.id) }}" class="chat-input-form" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="chat-input-row">
+        <textarea name="content" class="input chat-input" placeholder="Type a message…" required rows="2" maxlength="5000"></textarea>
+        <button type="submit" class="btn chat-send-btn">Send</button>
+    </div>
+    <div class="chat-input-file">
+        <label class="btn btn-sm btn-outline">
+            📎 Attach file
+            <input type="file" name="attachment" style="display:none" onchange="this.closest('label').querySelector('span').textContent=this.files[0]?.name||'Attach file'">
+            <span></span>
+        </label>
+        <small>Max 5 MB · 10 attachments per day</small>
+    </div>
+</form>
+
+<script>
+// Auto-scroll to bottom of messages
+document.addEventListener('DOMContentLoaded', function() {
+    var el = document.getElementById('chat-messages');
+    if (el) el.scrollTop = el.scrollHeight;
+});
+</script>
+{% endblock %}

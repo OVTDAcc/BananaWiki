@@ -32,7 +32,8 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError, available_timezones
 import config
 import db
 from wiki_logger import log_request, log_action, get_logger
-from sync import notify_change, notify_file_upload, notify_file_deleted
+from sync import (notify_change, notify_file_upload, notify_file_deleted,
+                  backup_chats_before_cleanup)
 
 app = Flask(
     __name__,
@@ -3293,6 +3294,236 @@ def view_announcement(ann_id):
     return render_template("wiki/announcement.html", ann=ann,
                            content_html=content_html,
                            categories=categories, uncategorized=uncategorized)
+
+
+# ---------------------------------------------------------------------------
+#  Chat feature
+# ---------------------------------------------------------------------------
+def _chat_allowed_file(filename):
+    """Return True if the extension is in CHAT_ALLOWED_EXTENSIONS."""
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in config.CHAT_ALLOWED_EXTENSIONS
+
+
+@app.route("/chats")
+@login_required
+def chat_list():
+    user = get_current_user()
+    chats = db.get_user_chats(user["id"])
+    categories, uncategorized = db.get_category_tree()
+    return render_template("chats/list.html", chats=chats,
+                           categories=categories, uncategorized=uncategorized)
+
+
+@app.route("/chats/new", methods=["GET", "POST"])
+@login_required
+def chat_new():
+    user = get_current_user()
+    if request.method == "POST":
+        target_username = request.form.get("username", "").strip()
+        if not target_username:
+            flash("Please enter a username.", "error")
+            return redirect(url_for("chat_new"))
+        target = db.get_user_by_username(target_username)
+        if not target:
+            flash("User not found.", "error")
+            return redirect(url_for("chat_new"))
+        if target["id"] == user["id"]:
+            flash("You cannot start a chat with yourself.", "error")
+            return redirect(url_for("chat_new"))
+        chat = db.get_or_create_chat(user["id"], target["id"])
+        return redirect(url_for("chat_view", chat_id=chat["id"]))
+    all_users = db.list_users()
+    categories, uncategorized = db.get_category_tree()
+    return render_template("chats/new.html", all_users=all_users,
+                           categories=categories, uncategorized=uncategorized)
+
+
+@app.route("/chats/<int:chat_id>")
+@login_required
+def chat_view(chat_id):
+    user = get_current_user()
+    if not db.is_chat_participant(chat_id, user["id"]):
+        flash("Access denied.", "error")
+        return redirect(url_for("chat_list"))
+    chat = db.get_chat_by_id(chat_id)
+    if not chat:
+        abort(404)
+    # Determine other user
+    other_id = chat["user2_id"] if chat["user1_id"] == user["id"] else chat["user1_id"]
+    other_user = db.get_user_by_id(other_id)
+    messages = db.get_chat_messages(chat_id)
+    categories, uncategorized = db.get_category_tree()
+    return render_template("chats/chat.html", chat=chat, messages=messages,
+                           other_user=other_user,
+                           categories=categories, uncategorized=uncategorized)
+
+
+@app.route("/chats/<int:chat_id>/send", methods=["POST"])
+@login_required
+@rate_limit(30, 60)
+def chat_send(chat_id):
+    user = get_current_user()
+    if not db.is_chat_participant(chat_id, user["id"]):
+        flash("Access denied.", "error")
+        return redirect(url_for("chat_list"))
+    content = request.form.get("content", "").strip()
+    if not content:
+        flash("Message cannot be empty.", "error")
+        return redirect(url_for("chat_view", chat_id=chat_id))
+    if len(content) > 5000:
+        flash("Message too long (max 5000 characters).", "error")
+        return redirect(url_for("chat_view", chat_id=chat_id))
+    ip_address = request.remote_addr or "unknown"
+    msg_id = db.send_chat_message(chat_id, user["id"], content, ip_address)
+
+    # Handle file attachment if present
+    if "attachment" in request.files:
+        f = request.files["attachment"]
+        if f.filename:
+            # Check daily limit
+            att_count = db.get_user_chat_attachment_count_today(user["id"])
+            if att_count >= config.MAX_CHAT_ATTACHMENTS_PER_DAY:
+                flash("Daily attachment limit reached (10 per day).", "error")
+                return redirect(url_for("chat_view", chat_id=chat_id))
+            if not _chat_allowed_file(f.filename):
+                flash("File type not allowed.", "error")
+                return redirect(url_for("chat_view", chat_id=chat_id))
+            original_name = secure_filename(f.filename) or "file"
+            ext = original_name.rsplit(".", 1)[1].lower() if "." in original_name else "bin"
+            stored_name = f"{uuid.uuid4().hex}.{ext}"
+            os.makedirs(config.CHAT_ATTACHMENT_FOLDER, exist_ok=True)
+            filepath = os.path.join(config.CHAT_ATTACHMENT_FOLDER, stored_name)
+            # Chunked write with size enforcement
+            file_size = 0
+            chunk_size = 64 * 1024
+            oversized = False
+            with open(filepath, "wb") as out:
+                while True:
+                    chunk = f.stream.read(chunk_size)
+                    if not chunk:
+                        break
+                    file_size += len(chunk)
+                    if file_size > config.MAX_CHAT_ATTACHMENT_SIZE:
+                        oversized = True
+                        break
+                    out.write(chunk)
+            if oversized:
+                try:
+                    os.remove(filepath)
+                except OSError:
+                    pass
+                flash("File exceeds the 5 MB limit.", "error")
+                return redirect(url_for("chat_view", chat_id=chat_id))
+            db.add_chat_attachment(msg_id, stored_name, original_name, file_size)
+
+    log_action("chat_send", request, user=user, chat_id=chat_id)
+    return redirect(url_for("chat_view", chat_id=chat_id))
+
+
+@app.route("/chats/attachments/<int:attachment_id>/download")
+@login_required
+def chat_attachment_download(attachment_id):
+    att = db.get_chat_attachment(attachment_id)
+    if not att:
+        abort(404)
+    user = get_current_user()
+    is_admin = user["role"] in ("admin", "protected_admin")
+    if not is_admin and not db.is_chat_participant(att["chat_id"], user["id"]):
+        abort(403)
+    att_dir = os.path.abspath(config.CHAT_ATTACHMENT_FOLDER)
+    filepath = os.path.abspath(os.path.join(att_dir, att["filename"]))
+    if os.path.commonpath([att_dir, filepath]) != att_dir:
+        abort(400)
+    if not os.path.isfile(filepath):
+        abort(404)
+    return send_from_directory(att_dir, att["filename"],
+                               as_attachment=True,
+                               download_name=att["original_name"])
+
+
+# ---------------------------------------------------------------------------
+#  Admin – Chat monitoring
+# ---------------------------------------------------------------------------
+@app.route("/admin/chats")
+@login_required
+@admin_required
+def admin_chats():
+    user_filter = request.args.get("user_id")
+    if user_filter:
+        chats = db.get_user_chats_admin(user_filter)
+        filter_user = db.get_user_by_id(user_filter)
+    else:
+        chats = db.get_all_chats_admin()
+        filter_user = None
+    all_users = db.list_users()
+    categories, uncategorized = db.get_category_tree()
+    return render_template("admin/chats.html", chats=chats,
+                           all_users=all_users, filter_user=filter_user,
+                           categories=categories, uncategorized=uncategorized)
+
+
+@app.route("/admin/chats/<int:chat_id>")
+@login_required
+@admin_required
+def admin_chat_view(chat_id):
+    chat = db.get_chat_by_id(chat_id)
+    if not chat:
+        abort(404)
+    messages = db.get_chat_messages(chat_id)
+    user1 = db.get_user_by_id(chat["user1_id"])
+    user2 = db.get_user_by_id(chat["user2_id"])
+    categories, uncategorized = db.get_category_tree()
+    return render_template("admin/chat_view.html", chat=chat, messages=messages,
+                           user1=user1, user2=user2,
+                           categories=categories, uncategorized=uncategorized)
+
+
+# ---------------------------------------------------------------------------
+#  Chat cleanup scheduler (runs at 3 AM in site timezone)
+# ---------------------------------------------------------------------------
+_cleanup_timer: threading.Timer | None = None
+
+
+def _schedule_chat_cleanup():
+    """Schedule the next chat cleanup at 3 AM in the configured timezone."""
+    global _cleanup_timer
+    try:
+        site_tz = get_site_timezone()
+        now = datetime.now(site_tz)
+        target = now.replace(hour=3, minute=0, second=0, microsecond=0)
+        if target <= now:
+            target += timedelta(days=1)
+        delay = (target - now).total_seconds()
+        _cleanup_timer = threading.Timer(delay, _run_chat_cleanup)
+        _cleanup_timer.daemon = True
+        _cleanup_timer.start()
+    except Exception:
+        pass
+
+
+def _run_chat_cleanup():
+    """Execute the nightly chat cleanup: backup to Telegram then delete."""
+    try:
+        backup_chats_before_cleanup()
+    except Exception:
+        pass
+    try:
+        files_to_delete = db.cleanup_old_chat_messages()
+        att_dir = config.CHAT_ATTACHMENT_FOLDER
+        for fname in files_to_delete:
+            try:
+                fpath = os.path.join(att_dir, fname)
+                if os.path.isfile(fpath):
+                    os.remove(fpath)
+            except OSError:
+                pass
+    except Exception:
+        pass
+    # Reschedule for next night
+    _schedule_chat_cleanup()
+
+
+_schedule_chat_cleanup()
 
 
 # ---------------------------------------------------------------------------

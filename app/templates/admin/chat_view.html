@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Chat #{{ chat.id }} – {{ settings.site_name }}{% endblock %}
+{% block content %}
+<div class="chat-header">
+    <a href="{{ url_for('admin_chats') }}" class="btn btn-sm btn-outline">← Back</a>
+    <h1>Chat: {{ user1.username }} ↔ {{ user2.username }}</h1>
+</div>
+
+<div class="chat-messages chat-messages-admin" id="chat-messages">
+    {% if messages %}
+        {% for msg in messages %}
+        <div class="chat-msg">
+            <div class="chat-msg-meta">
+                <strong>{{ msg.sender_name }}</strong>
+                <span class="chat-msg-time">{{ format_datetime(msg.created_at) }}</span>
+                <span class="chat-msg-ip">IP: {{ msg.ip_address }}</span>
+            </div>
+            <div class="chat-msg-body">{{ msg.content }}</div>
+            {% if msg.attachments %}
+            <div class="chat-msg-attachments">
+                {% for att in msg.attachments %}
+                <a href="{{ url_for('chat_attachment_download', attachment_id=att.id) }}" class="chat-attachment-link">📎 {{ att.original_name }} ({{ (att.file_size / 1024)|round(1) }} KB)</a>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    {% else %}
+        <p class="chat-empty">No messages in this chat.</p>
+    {% endif %}
+</div>
+{% endblock %}

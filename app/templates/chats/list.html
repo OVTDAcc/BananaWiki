@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Chats – {{ settings.site_name }}{% endblock %}
+{% block content %}
+<h1>💬 Chats</h1>
+
+<div style="margin-bottom:1rem">
+    <a href="{{ url_for('chat_new') }}" class="btn">New Chat</a>
+</div>
+
+{% if chats %}
+<div class="chat-list">
+    {% for chat in chats %}
+    <a href="{{ url_for('chat_view', chat_id=chat.id) }}" class="chat-list-item">
+        <div class="chat-list-name">{{ chat.other_username }}</div>
+        <div class="chat-list-preview">
+            {% if chat.last_message %}
+                {{ chat.last_message[:80] }}{% if chat.last_message|length > 80 %}…{% endif %}
+            {% else %}
+                <em>No messages yet</em>
+            {% endif %}
+        </div>
+        {% if chat.last_message_at %}
+        <div class="chat-list-time">{{ time_ago(chat.last_message_at) }}</div>
+        {% endif %}
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<p>No chats yet. Start a new conversation!</p>
+{% endif %}
+{% endblock %}
