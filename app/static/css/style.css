@@ -22,6 +22,14 @@ a:hover{text-decoration:underline}
 .sidebar-toggle{display:none;background:none;border:none;cursor:pointer;padding:.3rem;flex-direction:column;gap:4px;justify-content:center}
 .sidebar-toggle span{display:block;width:20px;height:2px;background:var(--text);border-radius:1px;transition:all .2s}
 
+/* Sidebar user actions (shown only on mobile via media query) */
+.sidebar-user-actions{display:none;padding:.6rem .8rem;border-top:1px solid rgba(255,255,255,.06)}
+.sidebar-user-link{display:flex;align-items:center;gap:.5rem;text-decoration:none;color:var(--text);margin-bottom:.5rem}
+.sidebar-user-avatar{width:28px;height:28px;border-radius:50%;object-fit:cover;border:2px solid rgba(255,255,255,.15)}
+.sidebar-user-avatar-placeholder{width:28px;height:28px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;border:2px solid rgba(255,255,255,.15);line-height:1}
+.sidebar-user-name{font-size:.85rem;font-weight:600;opacity:.85}
+.sidebar-user-btns{display:flex;gap:.4rem;flex-wrap:wrap}
+
 /* Layout */
 .layout{display:flex;flex:1;overflow:hidden;min-height:0}
 
@@ -270,8 +278,14 @@ select.input{appearance:auto}
     .editor-divider{width:100%;height:1px}
     .editor-area{min-height:250px}
     .topbar-right .user-info{display:none}
+    /* Hide action buttons from topbar on mobile – moved to sidebar */
+    .topbar-right .a11y-toggle{display:none}
+    .topbar-right .btn-sm:not(.a11y-toggle){display:none}
+    .topbar-right form{display:none}
     /* Tighten topbar-right gap so buttons don't overflow */
     .topbar-right{gap:.3rem;flex-shrink:1;min-width:0;overflow:hidden}
+    /* Show user actions in sidebar on mobile */
+    .sidebar-user-actions{display:block}
     .page-header{flex-wrap:wrap;gap:.4rem}
     .page-header h1{width:100%;font-size:1.4rem}
     /* Cap a11y panel width to the viewport on narrow screens */

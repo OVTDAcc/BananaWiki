@@ -1230,6 +1230,14 @@ function initAccessibility(prefs) {
         }
     });
 
+    // Sidebar customize button (mobile)
+    var sidebarToggleBtn = document.getElementById('sidebar-a11y-toggle-btn');
+    if (sidebarToggleBtn) {
+        sidebarToggleBtn.addEventListener('click', function() {
+            openPanel();
+        });
+    }
+
     if (closeBtn) closeBtn.addEventListener('click', closePanel);
     if (overlay) overlay.addEventListener('click', closePanel);
 
