@@ -576,3 +576,564 @@ def test_protected_admin_can_edit_own_profile_via_admin(client, protected_admin_
     assert resp.status_code == 200
     profile = db.get_user_profile(protected_admin_uid)
     assert profile["real_name"] == "Self Edit"
+
+
+# ---------------------------------------------------------------------------
+# Member since badge on profile
+# ---------------------------------------------------------------------------
+
+def test_member_since_badge_on_profile(admin_client):
+    """The 'Member since' purple badge should appear on the profile page."""
+    resp = admin_client.get("/users/admin")
+    assert resp.status_code == 200
+    assert b"Member since" in resp.data
+    assert b"badge-member-since" in resp.data
+
+
+# ---------------------------------------------------------------------------
+# Role history tracking
+# ---------------------------------------------------------------------------
+
+def test_role_change_recorded_on_admin_change(admin_client, regular_uid):
+    """Changing a user's role via admin records it in role_history."""
+    import db
+    resp = admin_client.post(
+        f"/admin/users/{regular_uid}/edit",
+        data={"action": "change_role", "role": "editor"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    history = db.get_role_history(regular_uid)
+    assert len(history) >= 1
+    assert history[0]["old_role"] == "user"
+    assert history[0]["new_role"] == "editor"
+
+
+def test_role_history_shown_to_admin(admin_client, regular_uid):
+    """Admin can see role history on a user's profile page."""
+    import db
+    db.record_role_change(regular_uid, "user", "editor", changed_by=None)
+    resp = admin_client.get("/users/alice")
+    assert resp.status_code == 200
+    assert b"Role History" in resp.data
+
+
+def test_role_history_shown_to_own_user(alice_client, regular_uid):
+    """A user can see their own role history on their profile page."""
+    import db
+    db.record_role_change(regular_uid, "user", "editor", changed_by=None)
+    db.upsert_user_profile(regular_uid, page_published=True)
+    resp = alice_client.get("/users/alice")
+    assert resp.status_code == 200
+    assert b"Role History" in resp.data
+
+
+def test_role_history_not_shown_when_empty(admin_client):
+    """No role history section when there are no role changes."""
+    resp = admin_client.get("/users/admin")
+    assert resp.status_code == 200
+    assert b"Role History" not in resp.data
+
+
+# ---------------------------------------------------------------------------
+# Custom user tags
+# ---------------------------------------------------------------------------
+
+def test_admin_add_custom_tag(admin_client, regular_uid):
+    """Admin can add a custom tag to a user."""
+    import db
+    resp = admin_client.post(
+        f"/admin/users/{regular_uid}/tags",
+        data={"action": "add_tag", "tag_label": "Founder", "tag_color": "#9b59b6"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    tags = db.get_user_custom_tags(regular_uid)
+    assert len(tags) == 1
+    assert tags[0]["label"] == "Founder"
+    assert tags[0]["color"] == "#9b59b6"
+
+
+def test_admin_update_custom_tag(admin_client, regular_uid):
+    """Admin can update a custom tag."""
+    import db
+    tag_id = db.add_user_custom_tag(regular_uid, "Old Label", "#e74c3c")
+    resp = admin_client.post(
+        f"/admin/users/{regular_uid}/tags",
+        data={"action": "update_tag", "tag_id": tag_id,
+              "tag_label": "New Label", "tag_color": "#3498db"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    tag = db.get_user_custom_tag(tag_id)
+    assert tag["label"] == "New Label"
+    assert tag["color"] == "#3498db"
+
+
+def test_admin_delete_custom_tag(admin_client, regular_uid):
+    """Admin can delete a custom tag."""
+    import db
+    tag_id = db.add_user_custom_tag(regular_uid, "Temp", "#e74c3c")
+    resp = admin_client.post(
+        f"/admin/users/{regular_uid}/tags",
+        data={"action": "delete_tag", "tag_id": tag_id},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert db.get_user_custom_tag(tag_id) is None
+
+
+def test_admin_reorder_custom_tags(admin_client, regular_uid):
+    """Admin can reorder custom tags."""
+    import db
+    t1 = db.add_user_custom_tag(regular_uid, "Tag1", "#e74c3c")
+    t2 = db.add_user_custom_tag(regular_uid, "Tag2", "#3498db")
+    t3 = db.add_user_custom_tag(regular_uid, "Tag3", "#2ecc71")
+    resp = admin_client.post(
+        f"/admin/users/{regular_uid}/tags",
+        data={"action": "reorder_tags", "tag_order": f"{t3},{t1},{t2}"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    tags = db.get_user_custom_tags(regular_uid)
+    assert [t["id"] for t in tags] == [t3, t1, t2]
+
+
+def test_custom_tags_shown_on_profile(admin_client, regular_uid):
+    """Custom tags are visible on the user's profile page."""
+    import db
+    db.add_user_custom_tag(regular_uid, "Founder", "#9b59b6")
+    resp = admin_client.get("/users/alice")
+    assert resp.status_code == 200
+    assert b"Founder" in resp.data
+
+
+def test_non_admin_cannot_manage_tags(alice_client, admin_uid):
+    """Non-admin cannot add tags via the admin endpoint."""
+    resp = alice_client.post(
+        f"/admin/users/{admin_uid}/tags",
+        data={"action": "add_tag", "tag_label": "Hacked", "tag_color": "#ff0000"},
+    )
+    # admin_required redirects non-admins
+    assert resp.status_code == 302
+
+
+def test_add_tag_empty_label_rejected(admin_client, regular_uid):
+    """Empty tag label is rejected."""
+    import db
+    resp = admin_client.post(
+        f"/admin/users/{regular_uid}/tags",
+        data={"action": "add_tag", "tag_label": "", "tag_color": "#9b59b6"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    tags = db.get_user_custom_tags(regular_uid)
+    assert len(tags) == 0
+
+
+def test_add_tag_invalid_color_rejected(admin_client, regular_uid):
+    """Invalid hex color is rejected."""
+    import db
+    resp = admin_client.post(
+        f"/admin/users/{regular_uid}/tags",
+        data={"action": "add_tag", "tag_label": "Test", "tag_color": "not-a-color"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    tags = db.get_user_custom_tags(regular_uid)
+    assert len(tags) == 0
+
+
+def test_cannot_manage_tags_on_protected_admin(second_admin_client, protected_admin_uid):
+    """Admin cannot add tags to a protected_admin's profile."""
+    import db
+    resp = second_admin_client.post(
+        f"/admin/users/{protected_admin_uid}/tags",
+        data={"action": "add_tag", "tag_label": "Hacked", "tag_color": "#ff0000"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    tags = db.get_user_custom_tags(protected_admin_uid)
+    assert len(tags) == 0
+
+
+def test_manage_custom_tags_section_visible_to_admin(admin_client, regular_uid):
+    """Admin sees the 'Manage Custom Tags' section on user profile."""
+    resp = admin_client.get("/users/alice")
+    assert resp.status_code == 200
+    assert b"Manage Custom Tags" in resp.data
+
+
+def test_manage_custom_tags_section_hidden_from_non_admin(alice_client, regular_uid):
+    """Non-admin does not see the 'Manage Custom Tags' section."""
+    import db
+    db.upsert_user_profile(regular_uid, page_published=True)
+    resp = alice_client.get("/users/alice")
+    assert resp.status_code == 200
+    assert b"Manage Custom Tags" not in resp.data
+
+
+# ---------------------------------------------------------------------------
+# Edge cases
+# ---------------------------------------------------------------------------
+
+def test_profile_with_no_created_at_does_not_crash(admin_client, admin_uid):
+    """Profile page renders even if created_at is missing or empty."""
+    import db
+    # Directly update to empty created_at to simulate edge case
+    conn = db.get_db()
+    conn.execute("UPDATE users SET created_at='' WHERE id=?", (admin_uid,))
+    conn.commit()
+    conn.close()
+    resp = admin_client.get("/users/admin")
+    assert resp.status_code == 200
+
+
+def test_delete_tag_wrong_id(admin_client, regular_uid):
+    """Deleting a nonexistent tag does not crash."""
+    resp = admin_client.post(
+        f"/admin/users/{regular_uid}/tags",
+        data={"action": "delete_tag", "tag_id": "99999"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+
+
+def test_update_tag_wrong_user(admin_client, regular_uid, admin_uid):
+    """Cannot update a tag belonging to another user via wrong user_id param."""
+    import db
+    tag_id = db.add_user_custom_tag(admin_uid, "Admin Tag", "#e74c3c")
+    resp = admin_client.post(
+        f"/admin/users/{regular_uid}/tags",
+        data={"action": "update_tag", "tag_id": tag_id,
+              "tag_label": "Hacked", "tag_color": "#ff0000"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    tag = db.get_user_custom_tag(tag_id)
+    assert tag["label"] == "Admin Tag"  # Unchanged
+
+
+def test_reorder_tags_invalid_ids_rejected(admin_client, regular_uid, admin_uid):
+    """Reordering with tag IDs from another user is rejected."""
+    import db
+    t1 = db.add_user_custom_tag(regular_uid, "Tag1", "#e74c3c")
+    foreign_tag = db.add_user_custom_tag(admin_uid, "Foreign", "#3498db")
+    resp = admin_client.post(
+        f"/admin/users/{regular_uid}/tags",
+        data={"action": "reorder_tags", "tag_order": f"{t1},{foreign_tag}"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"Invalid tag IDs" in resp.data
+
+
+def test_reorder_tags_valid_ids(admin_client, regular_uid):
+    """Reordering with valid tag IDs succeeds."""
+    import db
+    t1 = db.add_user_custom_tag(regular_uid, "A", "#e74c3c")
+    t2 = db.add_user_custom_tag(regular_uid, "B", "#3498db")
+    resp = admin_client.post(
+        f"/admin/users/{regular_uid}/tags",
+        data={"action": "reorder_tags", "tag_order": f"{t2},{t1}"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    tags = db.get_user_custom_tags(regular_uid)
+    assert [t["id"] for t in tags] == [t2, t1]
+
+
+def test_tag_id_none_does_not_crash(admin_client, regular_uid):
+    """Submitting update/delete without a tag_id doesn't crash."""
+    resp = admin_client.post(
+        f"/admin/users/{regular_uid}/tags",
+        data={"action": "update_tag", "tag_label": "X", "tag_color": "#aabbcc"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    resp = admin_client.post(
+        f"/admin/users/{regular_uid}/tags",
+        data={"action": "delete_tag"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+
+
+def test_role_change_recorded_on_protected_admin_toggle(client, admin_uid):
+    """Toggling protected admin records role change in history."""
+    import db
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    client.post(
+        "/account",
+        data={"action": "toggle_protected_admin", "password": "admin123"},
+        follow_redirects=True,
+    )
+    history = db.get_role_history(admin_uid)
+    assert len(history) >= 1
+    assert history[0]["old_role"] == "admin"
+    assert history[0]["new_role"] == "protected_admin"
+
+
+# ---------------------------------------------------------------------------
+# Admin attribution management
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def editor_uid(admin_uid):
+    """An editor user for attribution tests."""
+    from werkzeug.security import generate_password_hash
+    import db
+    return db.create_user("editor1", generate_password_hash("editor123"), role="editor")
+
+
+@pytest.fixture
+def editor_client(client, editor_uid):
+    client.post("/login", data={"username": "editor1", "password": "editor123"})
+    return client
+
+
+def _make_contribution(user_id):
+    """Helper: create a page edit attributed to user_id, return entry_id."""
+    import db
+    home = db.get_home_page()
+    db.update_page(home["id"], "Home", f"edit by {user_id}", user_id, "test edit")
+    history = db.get_page_history(home["id"])
+    return history[0]["id"]
+
+
+def test_admin_deattribute_single_contribution(admin_client, regular_uid):
+    """Admin can deattribute a single contribution from a user profile."""
+    import db
+    entry_id = _make_contribution(regular_uid)
+    resp = admin_client.post(
+        f"/admin/users/{regular_uid}/attributions",
+        data={"action": "deattribute_contribution", "entry_id": entry_id},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"Contribution deattributed" in resp.data
+    entry = db.get_history_entry(entry_id)
+    assert entry["edited_by"] is None
+    assert entry["username"] == "[removed]"
+
+
+def test_admin_deattribute_all_contributions(admin_client, regular_uid):
+    """Admin can deattribute all contributions for a user."""
+    import db
+    _make_contribution(regular_uid)
+    _make_contribution(regular_uid)
+    resp = admin_client.post(
+        f"/admin/users/{regular_uid}/attributions",
+        data={"action": "deattribute_all"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"Deattributed 2 contribution(s)" in resp.data
+    # Contributions should be empty for this user now
+    contribs = db.get_user_contributions(regular_uid)
+    assert len(contribs) == 0
+
+
+def test_admin_mass_reattribute_contributions(admin_client, regular_uid, editor_uid):
+    """Admin can mass reattribute all contributions from one user to another."""
+    import db
+    _make_contribution(regular_uid)
+    _make_contribution(regular_uid)
+    resp = admin_client.post(
+        f"/admin/users/{regular_uid}/attributions",
+        data={"action": "mass_reattribute", "to_user_id": editor_uid},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"Reattributed 2 contribution(s)" in resp.data
+    # Regular user has no contributions, editor has them
+    assert len(db.get_user_contributions(regular_uid)) == 0
+    assert len(db.get_user_contributions(editor_uid)) == 2
+
+
+def test_mass_reattribute_to_same_user_rejected(admin_client, regular_uid):
+    """Cannot reattribute contributions to the same user."""
+    _make_contribution(regular_uid)
+    resp = admin_client.post(
+        f"/admin/users/{regular_uid}/attributions",
+        data={"action": "mass_reattribute", "to_user_id": regular_uid},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"Cannot reattribute to the same user" in resp.data
+
+
+def test_mass_reattribute_invalid_target_rejected(admin_client, regular_uid):
+    """Mass reattribute with invalid target user shows error."""
+    _make_contribution(regular_uid)
+    resp = admin_client.post(
+        f"/admin/users/{regular_uid}/attributions",
+        data={"action": "mass_reattribute", "to_user_id": "nonexistent-id"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"Invalid target user" in resp.data
+
+
+def test_admin_delete_role_history_entry(admin_client, regular_uid, admin_uid):
+    """Admin can delete a single role history entry."""
+    import db
+    db.record_role_change(regular_uid, "user", "editor", changed_by=admin_uid)
+    history = db.get_role_history(regular_uid)
+    entry_id = history[0]["id"]
+    resp = admin_client.post(
+        f"/admin/users/{regular_uid}/attributions",
+        data={"action": "delete_role_history_entry", "entry_id": entry_id},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"Role history entry deleted" in resp.data
+    assert len(db.get_role_history(regular_uid)) == 0
+
+
+def test_admin_delete_all_role_history(admin_client, regular_uid, admin_uid):
+    """Admin can delete all role history entries for a user."""
+    import db
+    db.record_role_change(regular_uid, "user", "editor", changed_by=admin_uid)
+    db.record_role_change(regular_uid, "editor", "admin", changed_by=admin_uid)
+    resp = admin_client.post(
+        f"/admin/users/{regular_uid}/attributions",
+        data={"action": "delete_all_role_history"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"Deleted 2 role history entries" in resp.data
+    assert len(db.get_role_history(regular_uid)) == 0
+
+
+def test_delete_role_history_wrong_user_rejected(admin_client, regular_uid, admin_uid):
+    """Cannot delete a role history entry belonging to another user."""
+    import db
+    db.record_role_change(admin_uid, "admin", "protected_admin", changed_by=admin_uid)
+    history = db.get_role_history(admin_uid)
+    entry_id = history[0]["id"]
+    resp = admin_client.post(
+        f"/admin/users/{regular_uid}/attributions",
+        data={"action": "delete_role_history_entry", "entry_id": entry_id},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"Role history entry not found" in resp.data
+
+
+def test_non_admin_cannot_manage_attributions(alice_client, regular_uid):
+    """Non-admin users cannot access the attributions endpoint."""
+    resp = alice_client.post(
+        f"/admin/users/{regular_uid}/attributions",
+        data={"action": "deattribute_all"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"Admin access required" in resp.data
+    assert b"Deattributed" not in resp.data
+
+
+def test_attributions_protected_admin_restriction(admin_client, admin_uid):
+    """Cannot manage attributions on a protected admin (unless own account)."""
+    import db
+    # Make admin a protected_admin
+    db.update_user(admin_uid, role="protected_admin")
+    # Create another admin to try
+    from werkzeug.security import generate_password_hash
+    other_admin = db.create_user("otheradmin", generate_password_hash("otheradmin123"), role="admin")
+    # Login as other admin
+    admin_client.get("/logout")
+    admin_client.post("/login", data={"username": "otheradmin", "password": "otheradmin123"})
+    resp = admin_client.post(
+        f"/admin/users/{admin_uid}/attributions",
+        data={"action": "deattribute_all"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"Protected admin" in resp.data
+
+
+def test_deattribute_invalid_entry_id(admin_client, regular_uid):
+    """Deattributing with an invalid entry_id shows error."""
+    resp = admin_client.post(
+        f"/admin/users/{regular_uid}/attributions",
+        data={"action": "deattribute_contribution"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"Invalid entry" in resp.data
+
+
+def test_deattribute_entry_wrong_user(admin_client, regular_uid, editor_uid):
+    """Deattributing an entry belonging to another user is rejected."""
+    entry_id = _make_contribution(editor_uid)
+    resp = admin_client.post(
+        f"/admin/users/{regular_uid}/attributions",
+        data={"action": "deattribute_contribution", "entry_id": entry_id},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"does not belong to this user" in resp.data
+
+
+def test_page_history_deattribute_button(admin_client, regular_uid):
+    """Page history shows deattribute button for admins."""
+    import db
+    home = db.get_home_page()
+    db.update_page(home["id"], "Home", "edit", regular_uid, "msg")
+    resp = admin_client.get(f"/page/{home['slug']}/history")
+    assert resp.status_code == 200
+    assert b"Deattribute this entry" in resp.data
+
+
+def test_page_history_deattribute_entry(admin_client, regular_uid):
+    """Admin can deattribute an entry from the page history page."""
+    import db
+    home = db.get_home_page()
+    db.update_page(home["id"], "Home", "some edit", regular_uid, "test msg")
+    history = db.get_page_history(home["id"])
+    entry_id = history[0]["id"]
+    resp = admin_client.post(
+        f"/page/{home['slug']}/history/{entry_id}/deattribute",
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"Attribution removed" in resp.data
+    entry = db.get_history_entry(entry_id)
+    assert entry["edited_by"] is None
+
+
+def test_deattributed_entry_shows_removed_in_history(admin_client, regular_uid):
+    """A deattributed entry shows [removed] as editor in page history."""
+    import db
+    home = db.get_home_page()
+    db.update_page(home["id"], "Home", "some content", regular_uid, "test")
+    history = db.get_page_history(home["id"])
+    entry_id = history[0]["id"]
+    db.deattribute_contribution(entry_id)
+    resp = admin_client.get(f"/page/{home['slug']}/history")
+    assert resp.status_code == 200
+    assert b"[removed]" in resp.data
+
+
+def test_profile_shows_deattribute_buttons_to_admin(admin_client, regular_uid):
+    """Admin sees deattribute buttons on another user's profile."""
+    import db
+    _make_contribution(regular_uid)
+    db.upsert_user_profile(regular_uid, page_published=True)
+    resp = admin_client.get("/users/alice")
+    assert resp.status_code == 200
+    assert b"deattribute_contribution" in resp.data
+    assert b"Deattribute All Contributions" in resp.data
+    assert b"Mass Reattribute" in resp.data
+
+
+def test_non_admin_no_deattribute_buttons(alice_client, regular_uid):
+    """Non-admin users don't see deattribute buttons."""
+    import db
+    _make_contribution(regular_uid)
+    db.upsert_user_profile(regular_uid, page_published=True)
+    resp = alice_client.get("/users/alice")
+    assert resp.status_code == 200
+    assert b"deattribute_contribution" not in resp.data
+    assert b"Deattribute All" not in resp.data

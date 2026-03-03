@@ -7,7 +7,7 @@
             {% if profile and profile.avatar_filename %}
             <img src="{{ url_for('static', filename='uploads/' + profile.avatar_filename) }}" alt="{{ target.username }}" class="user-profile-avatar">
             {% else %}
-            <span class="user-profile-avatar-placeholder">{{ target.username[0].upper() }}</span>
+            <span class="user-profile-avatar-placeholder">{{ target.username[0].upper() if target.username else '?' }}</span>
             {% endif %}
         </div>
         <div class="user-profile-meta">
@@ -19,10 +19,19 @@
             <p class="user-profile-bio">{{ profile.bio }}</p>
             {% endif %}
             <div class="user-profile-badges">
+                {% if target.created_at %}
+                {% set member_since = format_datetime(target.created_at) %}
+                <span class="badge badge-member-since" title="Joined {{ member_since }}">Member since {{ member_since }}</span>
+                {% endif %}
+            </div>
+            <div class="user-profile-badges">
                 <span class="badge badge-{{ target.role }}" title="{{ target.role }}">{{ role_labels.get(target.role, target.role) }}</span>
                 {% if target.role == 'protected_admin' %}
                 <span class="badge badge-protected_admin" title="Protected admin — account hardened against modification">Protected</span>
                 {% endif %}
+                {% for tag in custom_tags %}
+                <span class="badge" style="background:{{ tag.color }}22;color:{{ tag.color }}" title="{{ tag.label }}">{{ tag.label }}</span>
+                {% endfor %}
                 {% if target.suspended %}
                 <span class="badge badge-suspended">Suspended</span>
                 {% endif %}
@@ -114,7 +123,7 @@
         {% if contribution_list %}
         <ul class="contribution-list">
             {% for c in contribution_list[:50] %}
-            <li class="contribution-item">
+            <li class="contribution-item" style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
                 <span class="contribution-date">{{ format_datetime(c.created_at) }}</span>
                 {% if c.page_slug %}
                 <a href="{{ url_for('view_page', slug=c.page_slug) }}" class="contribution-page">{{ c.page_title }}</a>
@@ -122,13 +131,77 @@
                 <span class="contribution-page deleted">{{ c.page_title }}</span>
                 {% endif %}
                 {% if c.edit_message %}<span class="contribution-msg">— {{ c.edit_message }}</span>{% endif %}
+                {% if is_admin and (is_own or target.role != 'protected_admin') %}
+                <form method="POST" action="{{ url_for('admin_manage_attributions', user_id=target.id) }}" style="display:inline;margin-left:auto" data-confirm="Remove this contribution from this user's profile?">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="action" value="deattribute_contribution">
+                    <input type="hidden" name="entry_id" value="{{ c.id }}">
+                    <button type="submit" class="btn btn-sm btn-danger" style="font-size:.75rem;padding:2px 6px">✕</button>
+                </form>
+                {% endif %}
             </li>
             {% endfor %}
         </ul>
+        {% if is_admin and (is_own or target.role != 'protected_admin') and contribution_list | length > 0 %}
+        <div style="margin-top:.8rem;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+            <form method="POST" action="{{ url_for('admin_manage_attributions', user_id=target.id) }}" style="display:inline" data-confirm="Remove ALL contributions from this user? This cannot be undone.">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="deattribute_all">
+                <button type="submit" class="btn btn-sm btn-danger">Deattribute All Contributions</button>
+            </form>
+            <form method="POST" action="{{ url_for('admin_manage_attributions', user_id=target.id) }}" style="display:inline-flex;gap:.4rem;align-items:center" data-confirm="Transfer ALL contributions from this user to the selected user?">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="mass_reattribute">
+                <select name="to_user_id" class="input input-sm" style="width:160px" required>
+                    <option value="">— select user —</option>
+                    {% for u in all_users %}
+                    {% if u.id != target.id %}
+                    <option value="{{ u.id }}">{{ u.username }}</option>
+                    {% endif %}
+                    {% endfor %}
+                </select>
+                <button type="submit" class="btn btn-sm">Mass Reattribute</button>
+            </form>
+        </div>
+        {% endif %}
         {% else %}
         <p style="opacity:.6">No contributions yet.</p>
         {% endif %}
     </div>
+
+    {# ----- Role history log ----- #}
+    {% if (is_own or is_admin) and role_history %}
+    <div class="settings-section" style="margin-top:2rem">
+        <h2>Role History</h2>
+        <ul class="contribution-list">
+            {% for rh in role_history %}
+            <li class="contribution-item" style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+                <span class="contribution-date">{{ format_datetime(rh.changed_at) }}</span>
+                <span class="badge badge-{{ rh.old_role }}">{{ role_labels.get(rh.old_role, rh.old_role) }}</span>
+                → <span class="badge badge-{{ rh.new_role }}">{{ role_labels.get(rh.new_role, rh.new_role) }}</span>
+                {% if rh.changed_by_username %}
+                <span style="opacity:.6;font-size:.85rem">by {{ rh.changed_by_username }}</span>
+                {% endif %}
+                {% if is_admin and (is_own or target.role != 'protected_admin') %}
+                <form method="POST" action="{{ url_for('admin_manage_attributions', user_id=target.id) }}" style="display:inline;margin-left:auto" data-confirm="Delete this role history entry?">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="action" value="delete_role_history_entry">
+                    <input type="hidden" name="entry_id" value="{{ rh.id }}">
+                    <button type="submit" class="btn btn-sm btn-danger" style="font-size:.75rem;padding:2px 6px">✕</button>
+                </form>
+                {% endif %}
+            </li>
+            {% endfor %}
+        </ul>
+        {% if is_admin and (is_own or target.role != 'protected_admin') and role_history | length > 0 %}
+        <form method="POST" action="{{ url_for('admin_manage_attributions', user_id=target.id) }}" style="margin-top:.5rem" data-confirm="Delete ALL role history entries for this user?">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="delete_all_role_history">
+            <button type="submit" class="btn btn-sm btn-danger">Delete All Role History</button>
+        </form>
+        {% endif %}
+    </div>
+    {% endif %}
 
     {# ----- Admin moderation tools ----- #}
     {% if is_admin and not is_own and target.role != 'protected_admin' %}
@@ -160,6 +233,70 @@
                     onclick="return confirm('Delete this user\'s profile page permanently?')">Delete Profile</button>
                 {% endif %}
             </div>
+        </form>
+    </div>
+    {% endif %}
+
+    {# ----- Admin custom tags management ----- #}
+    {% if is_admin and (is_own or target.role != 'protected_admin') %}
+    <div class="settings-section" style="margin-top:2rem">
+        <h2>Manage Custom Tags</h2>
+        {% if custom_tags %}
+        <div style="margin-bottom:1rem">
+            {% for tag in custom_tags %}
+            <div class="custom-tag-fields" style="display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem">
+                <span class="badge" style="background:{{ tag.color }}22;color:{{ tag.color }}">{{ tag.label }}</span>
+                <form method="POST" action="{{ url_for('admin_manage_user_tags', user_id=target.id) }}" style="display:inline-flex;gap:.35rem;align-items:center">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="action" value="update_tag">
+                    <input type="hidden" name="tag_id" value="{{ tag.id }}">
+                    <input type="text" name="tag_label" value="{{ tag.label }}" class="input input-sm" style="width:120px" maxlength="50" required>
+                    <div class="color-preset-grid">
+                        {% for pc in ['#9b59b6','#e74c3c','#3498db','#2ecc71','#f39c12','#1abc9c','#e67e22','#c45c6a'] %}
+                        <button type="button" class="color-swatch" style="background:{{ pc }}" onclick="this.closest('form').querySelector('[name=tag_color]').value='{{ pc }}'"></button>
+                        {% endfor %}
+                    </div>
+                    <input type="color" name="tag_color" value="{{ tag.color }}" class="color-hex-picker" title="Pick a custom color">
+                    <button type="submit" class="btn btn-sm">Update</button>
+                </form>
+                <form method="POST" action="{{ url_for('admin_manage_user_tags', user_id=target.id) }}" style="display:inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="action" value="delete_tag">
+                    <input type="hidden" name="tag_id" value="{{ tag.id }}">
+                    <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Delete this tag?')">✕</button>
+                </form>
+            </div>
+            {% endfor %}
+            {% if custom_tags | length > 1 %}
+            <form method="POST" action="{{ url_for('admin_manage_user_tags', user_id=target.id) }}" style="margin-top:.5rem">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="reorder_tags">
+                <label style="font-size:.82rem;opacity:.6">Reorder (comma-separated tag IDs):</label>
+                <input type="text" name="tag_order" class="input input-sm" style="width:200px" value="{{ custom_tags | map(attribute='id') | join(',') }}" placeholder="e.g. 3,1,2">
+                <button type="submit" class="btn btn-sm">Reorder</button>
+            </form>
+            {% endif %}
+        </div>
+        {% endif %}
+        <form method="POST" action="{{ url_for('admin_manage_user_tags', user_id=target.id) }}" style="display:flex;gap:.5rem;align-items:flex-end;flex-wrap:wrap">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="add_tag">
+            <div class="form-group" style="margin-bottom:0">
+                <label>New Tag Label</label>
+                <input type="text" name="tag_label" class="input input-sm" style="width:150px" maxlength="50" required placeholder="e.g. Founder">
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+                <label>Color</label>
+                <div style="display:flex;align-items:center;gap:.35rem">
+                    <div class="color-preset-grid">
+                        {% for pc in ['#9b59b6','#e74c3c','#3498db','#2ecc71','#f39c12','#1abc9c','#e67e22','#c45c6a'] %}
+                        <button type="button" class="color-swatch" style="background:{{ pc }}" onclick="this.closest('form').querySelector('[name=tag_color]').value='{{ pc }}'"></button>
+                        {% endfor %}
+                    </div>
+                    <input type="color" name="tag_color" value="#9b59b6" class="color-hex-picker" title="Pick a custom color">
+                </div>
+            </div>
+            <button type="submit" class="btn btn-sm">Add Tag</button>
         </form>
     </div>
     {% endif %}
