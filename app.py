@@ -33,7 +33,7 @@ import config
 import db
 from wiki_logger import log_request, log_action, get_logger
 from sync import (notify_change, notify_file_upload, notify_file_deleted,
-                  backup_chats_before_cleanup)
+                  backup_chats_before_cleanup, backup_group_chats_before_cleanup)
 
 app = Flask(
     __name__,
@@ -3700,9 +3700,25 @@ def _run_chat_cleanup():
     except Exception:
         pass
     try:
+        backup_group_chats_before_cleanup()
+    except Exception:
+        pass
+    try:
         files_to_delete = db.cleanup_old_chat_messages()
         att_dir = config.CHAT_ATTACHMENT_FOLDER
         for fname in files_to_delete:
+            try:
+                fpath = os.path.join(att_dir, fname)
+                if os.path.isfile(fpath):
+                    os.remove(fpath)
+            except OSError:
+                pass
+    except Exception:
+        pass
+    try:
+        group_files = db.cleanup_old_group_messages()
+        att_dir = config.CHAT_ATTACHMENT_FOLDER
+        for fname in group_files:
             try:
                 fpath = os.path.join(att_dir, fname)
                 if os.path.isfile(fpath):

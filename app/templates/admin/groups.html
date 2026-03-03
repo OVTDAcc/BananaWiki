@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Group Chat Monitor – {{ settings.site_name }}{% endblock %}
+{% block content %}
+<h1>Group Chat Monitor</h1>
+
+{% if groups %}
+<table class="admin-table">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Creator</th>
+            <th>Members</th>
+            <th>Messages</th>
+            <th>Last Activity</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for g in groups %}
+        <tr>
+            <td>{{ g.id }}</td>
+            <td>{% if g.is_global %}🌍{% endif %} {{ g.name }}</td>
+            <td>{{ g.creator_name or '–' }}</td>
+            <td>{{ g.member_count }}</td>
+            <td>{{ g.message_count }}</td>
+            <td>{{ time_ago(g.last_message_at) if g.last_message_at else '–' }}</td>
+            <td><a href="{{ url_for('admin_group_view', group_id=g.id) }}" class="btn btn-sm">Read</a></td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p>No group chats found.</p>
+{% endif %}
+{% endblock %}

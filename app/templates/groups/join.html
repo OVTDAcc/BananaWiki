@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Join Group – {{ settings.site_name }}{% endblock %}
+{% block content %}
+<h1>Join a Group</h1>
+
+<form method="POST" action="{{ url_for('group_join') }}" style="max-width:400px">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-group">
+        <label>Invite Code</label>
+        <input type="text" name="invite_code" class="input" required placeholder="Enter the invite code" autocomplete="off">
+    </div>
+    <div class="form-actions">
+        <button type="submit" class="btn">Join Group</button>
+        <a href="{{ url_for('group_list') }}" class="btn btn-outline">Cancel</a>
+    </div>
+</form>
+{% endblock %}

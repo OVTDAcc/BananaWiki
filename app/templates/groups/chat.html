@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+{% block title %}{{ group.name }} – {{ settings.site_name }}{% endblock %}
+{% block content %}
+<div class="chat-header">
+    <a href="{{ url_for('group_list') }}" class="btn btn-sm btn-outline">← Back</a>
+    <h1>{% if group.is_global %}🌍{% endif %} {{ group.name }}</h1>
+</div>
+
+{% set my_role = my_membership.role if my_membership else 'member' %}
+{% set is_mod = my_role in ('owner', 'moderator') %}
+{% set is_owner = my_role == 'owner' %}
+{% set is_site_admin = current_user.role in ('admin', 'protected_admin') %}
+
+{# Invite code & management panel #}
+<details class="group-panel" style="margin-bottom:1rem">
+    <summary class="btn btn-sm btn-outline">Group Info &amp; Members ({{ members|length }})</summary>
+    <div style="padding:.5rem 0">
+        {% if not group.is_global %}
+        <p><strong>Invite code:</strong> <code>{{ group.invite_code }}</code></p>
+        {% endif %}
+
+        {% if is_mod or (group.is_global and is_site_admin) %}
+        <form method="POST" action="{{ url_for('group_add_member', group_id=group.id) }}" style="display:flex;gap:.5rem;margin-bottom:.5rem;flex-wrap:wrap">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="text" name="username" class="input input-sm" placeholder="Add user by username" style="width:180px" autocomplete="off">
+            <button type="submit" class="btn btn-sm">Add</button>
+        </form>
+        {% endif %}
+
+        <table class="admin-table" style="font-size:.85rem">
+            <thead><tr><th>User</th><th>Role</th><th>Actions</th></tr></thead>
+            <tbody>
+            {% for m in members %}
+            <tr>
+                <td>{{ m.username }}</td>
+                <td>
+                    {{ m.role }}
+                    {% if m.timed_out_until %}
+                        <span style="color:var(--danger-color,red)" title="Timed out">⏳</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if m.user_id != current_user.id %}
+                        {# Owner controls #}
+                        {% if is_owner and not group.is_global %}
+                            {% if m.role == 'member' %}
+                            <form method="POST" action="{{ url_for('group_promote', group_id=group.id) }}" style="display:inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="user_id" value="{{ m.user_id }}">
+                                <button class="btn btn-sm btn-outline" title="Promote to moderator">⬆</button>
+                            </form>
+                            {% elif m.role == 'moderator' %}
+                            <form method="POST" action="{{ url_for('group_demote', group_id=group.id) }}" style="display:inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="user_id" value="{{ m.user_id }}">
+                                <button class="btn btn-sm btn-outline" title="Demote to member">⬇</button>
+                            </form>
+                            {% endif %}
+                            <form method="POST" action="{{ url_for('group_transfer', group_id=group.id) }}" style="display:inline"
+                                  onsubmit="return confirm('Transfer ownership to {{ m.username }}? You will become a moderator.')">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="user_id" value="{{ m.user_id }}">
+                                <button class="btn btn-sm btn-outline" title="Transfer ownership">👑</button>
+                            </form>
+                        {% endif %}
+
+                        {# Mod/Owner timeout controls (or site admin for global) #}
+                        {% if (is_mod and not group.is_global) or (group.is_global and is_site_admin) %}
+                            {% if not (my_role == 'moderator' and m.role in ('owner', 'moderator')) %}
+                                {% if m.timed_out_until %}
+                                <form method="POST" action="{{ url_for('group_untimeout', group_id=group.id) }}" style="display:inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <input type="hidden" name="user_id" value="{{ m.user_id }}">
+                                    <button class="btn btn-sm btn-outline" title="Remove timeout">✅</button>
+                                </form>
+                                {% else %}
+                                <form method="POST" action="{{ url_for('group_timeout', group_id=group.id) }}" style="display:inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <input type="hidden" name="user_id" value="{{ m.user_id }}">
+                                    <select name="duration" class="input input-sm" style="width:auto;display:inline-block">
+                                        <option value="5">5 min</option>
+                                        <option value="30">30 min</option>
+                                        <option value="60">1 hour</option>
+                                        <option value="1440">1 day</option>
+                                        <option value="indefinite">Indefinite</option>
+                                    </select>
+                                    <button class="btn btn-sm btn-outline" title="Timeout">⏳</button>
+                                </form>
+                                {% endif %}
+                            {% endif %}
+                        {% endif %}
+
+                        {# Kick (mod/owner for regular, site admin for global) #}
+                        {% if (is_mod and not group.is_global and not (my_role == 'moderator' and m.role in ('owner', 'moderator'))) or (group.is_global and is_site_admin) %}
+                        <form method="POST" action="{{ url_for('group_kick', group_id=group.id) }}" style="display:inline"
+                              onsubmit="return confirm('Remove {{ m.username }} from the group?')">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="user_id" value="{{ m.user_id }}">
+                            <button class="btn btn-sm btn-outline" title="Remove from group" style="color:var(--danger-color,red)">✕</button>
+                        </form>
+                        {% endif %}
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+
+        {% if not (is_owner and not group.is_global) %}
+        <form method="POST" action="{{ url_for('group_leave', group_id=group.id) }}" style="margin-top:.5rem"
+              onsubmit="return confirm('Leave this group?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn-sm" style="color:var(--danger-color,red)">Leave Group</button>
+        </form>
+        {% endif %}
+    </div>
+</details>
+
+<div class="chat-messages" id="chat-messages">
+    {% if messages %}
+        {% for msg in messages %}
+            {% if msg.is_system %}
+            <div class="chat-msg chat-msg-system">
+                <div class="chat-msg-body" style="text-align:center;opacity:.7;font-style:italic">
+                    ℹ️ {{ msg.content }}
+                    <span class="chat-msg-time">{{ time_ago(msg.created_at) }}</span>
+                </div>
+            </div>
+            {% else %}
+            <div class="chat-msg {% if msg.sender_id == current_user.id %}chat-msg-mine{% else %}chat-msg-theirs{% endif %}">
+                <div class="chat-msg-meta">
+                    <strong>{{ msg.sender_name or 'Unknown' }}</strong>
+                    <span class="chat-msg-time">{{ time_ago(msg.created_at) }}</span>
+                </div>
+                <div class="chat-msg-body">{{ msg.content }}</div>
+                {% if msg.attachments %}
+                <div class="chat-msg-attachments">
+                    {% for att in msg.attachments %}
+                    <a href="{{ url_for('group_attachment_download', attachment_id=att.id) }}" class="chat-attachment-link">📎 {{ att.original_name }} ({{ (att.file_size / 1024)|round(1) }} KB)</a>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                {% if (is_mod and not group.is_global) or (group.is_global and is_site_admin) %}
+                <form method="POST" action="{{ url_for('group_delete_message', group_id=group.id) }}" style="display:inline"
+                      onsubmit="return confirm('Delete this message?')">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="message_id" value="{{ msg.id }}">
+                    <button class="btn btn-sm btn-outline" style="font-size:.7rem;color:var(--danger-color,red)" title="Delete message">🗑</button>
+                </form>
+                {% endif %}
+            </div>
+            {% endif %}
+        {% endfor %}
+    {% else %}
+        <p class="chat-empty">No messages yet. Say hello!</p>
+    {% endif %}
+</div>
+
+<form method="POST" action="{{ url_for('group_send', group_id=group.id) }}" class="chat-input-form" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="chat-input-row">
+        <textarea name="content" class="input chat-input" placeholder="Type a message…" required rows="2" maxlength="5000"></textarea>
+        <button type="submit" class="btn chat-send-btn">Send</button>
+    </div>
+    <div class="chat-input-file">
+        <label class="btn btn-sm btn-outline">
+            📎 Attach file
+            <input type="file" name="attachment" style="display:none" onchange="this.closest('label').querySelector('span').textContent=this.files[0]?.name||'Attach file'">
+            <span></span>
+        </label>
+        <small>Max 5 MB · 10 attachments per day</small>
+    </div>
+</form>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var el = document.getElementById('chat-messages');
+    if (el) el.scrollTop = el.scrollHeight;
+});
+</script>
+{% endblock %}
