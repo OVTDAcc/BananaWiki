@@ -132,6 +132,24 @@
                 </div>
             </div>
             {% endif %}
+            <div class="sidebar-user-actions">
+                <a href="{{ url_for('user_profile', username=current_user.username) }}" class="sidebar-user-link">
+                    {% if current_user_profile and current_user_profile.avatar_filename %}
+                    <img src="{{ url_for('static', filename='uploads/' + current_user_profile.avatar_filename) }}" alt="{{ current_user.username }}" class="sidebar-user-avatar">
+                    {% else %}
+                    <span class="sidebar-user-avatar-placeholder">{{ current_user.username[0].upper() if current_user.username else '?' }}</span>
+                    {% endif %}
+                    <span class="sidebar-user-name">{{ current_user.username }}</span>
+                </a>
+                <div class="sidebar-user-btns">
+                    <button class="btn btn-sm btn-outline sidebar-a11y-toggle" id="sidebar-a11y-toggle-btn" aria-label="Customization options" title="Customization options">🎨 Customize</button>
+                    <a href="{{ url_for('account_settings') }}" class="btn btn-sm">Account</a>
+                    <form method="POST" action="{{ url_for('logout') }}" style="display:inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn btn-sm btn-outline">Logout</button>
+                    </form>
+                </div>
+            </div>
         </aside>
         <div class="sidebar-resize-handle" id="sidebar-resize-handle"></div>
         <div class="sidebar-overlay" id="sidebar-overlay"></div>
