@@ -1373,6 +1373,10 @@ def test_csp_header_present(logged_in_admin):
     assert "object-src 'none'" in csp
     assert "base-uri 'self'" in csp
     assert "form-action 'self'" in csp
+    # Video embeds require YouTube and Vimeo iframes to be allowed
+    assert "frame-src" in csp
+    assert "https://www.youtube.com" in csp
+    assert "https://player.vimeo.com" in csp
 
 
 # -----------------------------------------------------------------------
