@@ -556,9 +556,13 @@ function initImageUpload(contentEl) {
 
 // Image options modal
 var _imgModalUrl = '', _imgModalInsertPos = 0, _imgModalEl = null;
+// 'insert' = new image, 'edit' = update existing image properties
+var _imgModalMode = 'insert', _imgModalOrigSrc = '';
 
 function openImageOptionsModal(url, filename, contentEl) {
     _imgModalUrl = url;
+    _imgModalOrigSrc = '';
+    _imgModalMode = 'insert';
     _imgModalEl = contentEl;
     _imgModalInsertPos = contentEl ? (contentEl.selectionStart || contentEl.value.length) : 0;
     var preview = document.getElementById('img-preview');
@@ -574,7 +578,42 @@ function openImageOptionsModal(url, filename, contentEl) {
     var noneBtn = document.querySelector('.img-align-btn[data-align="none"]');
     if (noneBtn) { noneBtn.classList.add('active'); noneBtn.classList.remove('btn-outline'); }
     var modal = document.getElementById('image-options-modal');
-    if (modal) modal.style.display = 'flex';
+    if (modal) {
+        var h3 = modal.querySelector('h3');
+        if (h3) h3.textContent = 'Insert Image';
+        var insertBtn = modal.querySelector('#img-insert-btn');
+        if (insertBtn) insertBtn.textContent = 'Insert';
+        modal.style.display = 'flex';
+    }
+}
+
+function openEditImageModal(src, alt, width, align, textareaEl) {
+    _imgModalUrl = src;
+    _imgModalOrigSrc = src;
+    _imgModalMode = 'edit';
+    _imgModalEl = textareaEl;
+    _imgModalInsertPos = 0;
+    var preview = document.getElementById('img-preview');
+    if (preview) { preview.src = src; preview.style.display = ''; }
+    var altInput = document.getElementById('img-alt-input');
+    if (altInput) altInput.value = alt || '';
+    var widthInput = document.getElementById('img-width-input');
+    if (widthInput) widthInput.value = width || '';
+    document.querySelectorAll('.img-align-btn').forEach(function(b) {
+        b.classList.remove('active');
+        b.classList.add('btn-outline');
+    });
+    var alignBtn = document.querySelector('.img-align-btn[data-align="' + (align || 'none') + '"]');
+    if (!alignBtn) alignBtn = document.querySelector('.img-align-btn[data-align="none"]');
+    if (alignBtn) { alignBtn.classList.add('active'); alignBtn.classList.remove('btn-outline'); }
+    var modal = document.getElementById('image-options-modal');
+    if (modal) {
+        var h3 = modal.querySelector('h3');
+        if (h3) h3.textContent = 'Edit Image';
+        var insertBtn = modal.querySelector('#img-insert-btn');
+        if (insertBtn) insertBtn.textContent = 'Update';
+        modal.style.display = 'flex';
+    }
 }
 
 function closeImageOptionsModal() {
@@ -603,7 +642,11 @@ function confirmImageInsert() {
         var caption = alt ? '<figcaption>' + escapeHtml(alt) + '</figcaption>' : '';
         md = '\n<figure class="' + cls + '">' + imgTag + caption + '</figure>\n';
     }
-    ta.value = ta.value.substring(0, _imgModalInsertPos) + md + ta.value.substring(_imgModalInsertPos);
+    if (_imgModalMode === 'edit' && _imgModalOrigSrc) {
+        updateImageInEditor(ta, _imgModalOrigSrc, md.trim());
+    } else {
+        ta.value = ta.value.substring(0, _imgModalInsertPos) + md + ta.value.substring(_imgModalInsertPos);
+    }
     ta.dispatchEvent(new Event('input'));
     ta.focus();
     closeImageOptionsModal();
@@ -1276,6 +1319,25 @@ function initResizableImages(previewEl, textareaEl) {
         handle.title = 'Drag to resize image';
         container.appendChild(handle);
 
+        // Click-to-edit: clicking the image (not the resize handle) opens edit modal
+        img.style.cursor = 'pointer';
+        img.title = 'Click to edit image size / position';
+        img.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            var src = img.getAttribute('src') || '';
+            var alt = img.getAttribute('alt') || '';
+            var widthAttr = img.getAttribute('width') || '';
+            var align = 'none';
+            var fig = img.closest('figure');
+            if (fig) {
+                if (fig.classList.contains('wiki-img-left')) align = 'left';
+                else if (fig.classList.contains('wiki-img-right')) align = 'right';
+                else if (fig.classList.contains('wiki-img-center')) align = 'center';
+            }
+            openEditImageModal(src, alt, widthAttr, align, textareaEl);
+        });
+
         handle.addEventListener('mousedown', function(e) {
             e.preventDefault();
             e.stopPropagation();
@@ -1338,6 +1400,47 @@ function updateImageWidthInEditor(textarea, src, width) {
     }
 }
 
+// Replace an existing image/figure in the editor with new markup (for edit mode).
+// Searches for the image by src and replaces the surrounding figure (if any) or
+// the bare <img> / markdown ![...](src) token.
+function updateImageInEditor(textarea, src, newMarkdown) {
+    if (!textarea || !src) return;
+    var content = textarea.value;
+    var updated = content;
+    var escapedSrc = src.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+    // 1. <figure ...><img src="src"...>...</figure>  (only double- or single-quoted src)
+    var figRe = new RegExp('<figure[^>]*>\\s*<img[^>]+src=(?:"' + escapedSrc + '"|\''+escapedSrc+'\'\\b)[^>]*>(?:\\s*<figcaption>[^]*?</figcaption>)?\\s*</figure>', 'i');
+    if (figRe.test(updated)) {
+        updated = updated.replace(figRe, newMarkdown);
+    } else {
+        // 2. Plain <img src="src"...> (not inside a figure)
+        var imgRe = new RegExp('<img\\b([^>]*)>', 'gi');
+        var replaced = false;
+        updated = content.replace(imgRe, function(match, attrs) {
+            if (replaced) return match;
+            var srcMatch = attrs.match(/\bsrc=(?:"([^"]*)"|'([^']*)')/i);
+            if (!srcMatch) return match;
+            var tagSrc = srcMatch[1] !== undefined ? srcMatch[1] : srcMatch[2];
+            if (tagSrc !== src) return match;
+            replaced = true;
+            return newMarkdown;
+        });
+        // 3. Markdown: ![alt](src)
+        if (!replaced) {
+            updated = content.replace(
+                new RegExp('!\\[([^\\]]*)\\]\\(' + escapedSrc + '\\)', 'g'),
+                newMarkdown
+            );
+        }
+    }
+
+    if (updated !== content) {
+        textarea.value = updated;
+        textarea.dispatchEvent(new Event('input'));
+    }
+}
+
 // ---------------------------------------------------------------------------
 //  Editor pane resize (split editor/preview in edit mode)
 // ---------------------------------------------------------------------------
@@ -1350,7 +1453,37 @@ function initEditorResize() {
     var isResizingEditor = false;
     var container = divider.parentElement;
 
+    function isMobileLayout() {
+        return window.innerWidth <= 768;
+    }
+
+    function applyHorizSplit(clientX) {
+        var rect = container.getBoundingClientRect();
+        var offsetX = clientX - rect.left;
+        var totalW = rect.width;
+        var pct = Math.max(15, Math.min(85, (offsetX / totalW) * 100));
+        editorPane.style.flex = 'none';
+        editorPane.style.width = pct + '%';
+        previewPane.style.flex = 'none';
+        previewPane.style.width = (100 - pct) + '%';
+        return pct;
+    }
+
+    function applyVertSplit(clientY) {
+        var rect = container.getBoundingClientRect();
+        var offsetY = clientY - rect.top;
+        var totalH = rect.height;
+        var pct = Math.max(15, Math.min(85, (offsetY / totalH) * 100));
+        editorPane.style.flex = 'none';
+        editorPane.style.height = pct + '%';
+        previewPane.style.flex = 'none';
+        previewPane.style.height = (100 - pct) + '%';
+        return pct;
+    }
+
+    // Mouse events – horizontal split on desktop
     divider.addEventListener('mousedown', function(e) {
+        if (isMobileLayout()) return;
         isResizingEditor = true;
         divider.classList.add('resizing');
         document.body.style.userSelect = 'none';
@@ -1360,14 +1493,7 @@ function initEditorResize() {
 
     document.addEventListener('mousemove', function(e) {
         if (!isResizingEditor) return;
-        var rect = container.getBoundingClientRect();
-        var offsetX = e.clientX - rect.left;
-        var totalW = rect.width;
-        var pct = Math.max(15, Math.min(85, (offsetX / totalW) * 100));
-        editorPane.style.flex = 'none';
-        editorPane.style.width = pct + '%';
-        previewPane.style.flex = 'none';
-        previewPane.style.width = (100 - pct) + '%';
+        applyHorizSplit(e.clientX);
     });
 
     document.addEventListener('mouseup', function() {
@@ -1383,40 +1509,93 @@ function initEditorResize() {
         }
     });
 
+    // Touch events – horizontal on desktop, vertical on mobile (stacked layout)
+    divider.addEventListener('touchstart', function(e) {
+        if (e.touches.length !== 1) return;
+        isResizingEditor = true;
+        divider.classList.add('resizing');
+        e.preventDefault();
+    }, { passive: false });
+
+    divider.addEventListener('touchmove', function(e) {
+        if (!isResizingEditor || e.touches.length !== 1) return;
+        e.preventDefault();
+        var touch = e.touches[0];
+        if (isMobileLayout()) {
+            applyVertSplit(touch.clientY);
+        } else {
+            applyHorizSplit(touch.clientX);
+        }
+    }, { passive: false });
+
+    divider.addEventListener('touchend', function() {
+        if (!isResizingEditor) return;
+        isResizingEditor = false;
+        divider.classList.remove('resizing');
+        if (!isMobileLayout()) {
+            var pct = parseFloat(editorPane.style.width);
+            if (pct >= 15 && pct <= 85) {
+                saveA11ySetting('editor_pane_width', pct);
+            }
+        }
+    });
+
     // Vertical resize handle for editor container height
     var vertHandle = document.getElementById('editor-resize-handle');
     var editorContainer = document.querySelector('.editor-container');
     if (vertHandle && editorContainer) {
         var isResizingVert = false;
         var startY, startH;
-        vertHandle.addEventListener('mousedown', function(e) {
+
+        function startVertResize(clientY) {
             isResizingVert = true;
-            startY = e.clientY;
+            startY = clientY;
             startH = editorContainer.offsetHeight;
             vertHandle.classList.add('resizing');
             document.body.style.userSelect = 'none';
             document.body.style.cursor = 'row-resize';
-            e.preventDefault();
-        });
-        document.addEventListener('mousemove', function(e) {
-            if (!isResizingVert) return;
-            var newH = startH + (e.clientY - startY);
+        }
+
+        function moveVertResize(clientY) {
+            var newH = startH + (clientY - startY);
             if (newH >= 300 && newH <= 2000) {
                 editorContainer.style.minHeight = newH + 'px';
                 editorContainer.style.height = newH + 'px';
             }
-        });
-        document.addEventListener('mouseup', function() {
-            if (isResizingVert) {
-                isResizingVert = false;
-                vertHandle.classList.remove('resizing');
-                document.body.style.userSelect = '';
-                document.body.style.cursor = '';
-                var h = parseInt(editorContainer.style.height, 10);
-                if (h >= 300 && h <= 2000) {
-                    saveA11ySetting('editor_height', h);
-                }
+        }
+
+        function endVertResize() {
+            if (!isResizingVert) return;
+            isResizingVert = false;
+            vertHandle.classList.remove('resizing');
+            document.body.style.userSelect = '';
+            document.body.style.cursor = '';
+            var h = parseInt(editorContainer.style.height, 10);
+            if (h >= 300 && h <= 2000) {
+                saveA11ySetting('editor_height', h);
             }
+        }
+
+        vertHandle.addEventListener('mousedown', function(e) {
+            startVertResize(e.clientY);
+            e.preventDefault();
         });
+        document.addEventListener('mousemove', function(e) {
+            if (!isResizingVert) return;
+            moveVertResize(e.clientY);
+        });
+        document.addEventListener('mouseup', endVertResize);
+
+        vertHandle.addEventListener('touchstart', function(e) {
+            if (e.touches.length !== 1) return;
+            startVertResize(e.touches[0].clientY);
+            e.preventDefault();
+        }, { passive: false });
+        vertHandle.addEventListener('touchmove', function(e) {
+            if (!isResizingVert || e.touches.length !== 1) return;
+            e.preventDefault();
+            moveVertResize(e.touches[0].clientY);
+        }, { passive: false });
+        vertHandle.addEventListener('touchend', endVertResize);
     }
 }
