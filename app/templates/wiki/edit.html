@@ -276,7 +276,10 @@
             })
             .then(function(r) { return r.json(); })
             .then(function(d) {
-                if (d.html !== undefined) preview.innerHTML = d.html;
+                if (d.html !== undefined) {
+                    preview.innerHTML = d.html;
+                    initResizableImages(preview, content);
+                }
             });
         }
 

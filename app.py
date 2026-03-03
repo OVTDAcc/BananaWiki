@@ -1280,8 +1280,7 @@ def home():
     page = db.get_home_page()
     user = get_current_user()
     settings = db.get_site_settings()
-    embed_videos = bool(settings["video_embed_enabled"])
-    content_html = render_markdown(page["content"], embed_videos=embed_videos) if page else ""
+    content_html = render_markdown(page["content"], embed_videos=True) if page else ""
     categories, uncategorized = db.get_category_tree()
 
     editor_info = None
@@ -1313,8 +1312,7 @@ def view_page(slug):
         abort(404)
     user = get_current_user()
     settings = db.get_site_settings()
-    embed_videos = bool(settings["video_embed_enabled"])
-    content_html = render_markdown(page["content"], embed_videos=embed_videos)
+    content_html = render_markdown(page["content"], embed_videos=True)
     categories, uncategorized = db.get_category_tree()
 
     editor_info = None
@@ -2924,7 +2922,6 @@ def admin_settings():
             favicon_custom=favicon_custom,
             lockdown_mode=1 if request.form.get("lockdown_mode") else 0,
             lockdown_message=request.form.get("lockdown_message", "").strip()[:1000],
-            video_embed_enabled=1 if request.form.get("video_embed_enabled") else 0,
             session_limit_enabled=1 if request.form.get("session_limit_enabled") else 0,
             **color_fields,
         )
