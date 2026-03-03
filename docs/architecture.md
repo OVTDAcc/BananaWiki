@@ -219,7 +219,7 @@ For a typical page view (`GET /page/<slug>`):
 | `pages` | Wiki pages: title, slug, content, category, home flag, last editor, `difficulty_tag` (predefined level or `'custom'`), `tag_custom_label`, `tag_custom_color` (used when `difficulty_tag='custom'`), `is_deindexed` (hidden from sidebar and search for regular users) |
 | `page_history` | Every committed version of every page; never deleted |
 | `drafts` | One in-progress draft per (page, user) pair |
-| `site_settings` | Single-row table (id=1): site name, color palette, timezone, favicon, lockdown mode and message, video embed toggle, session limit toggle, setup flag |
+| `site_settings` | Single-row table (id=1): site name, color palette, timezone, favicon, lockdown mode and message, session limit toggle, setup flag |
 | `login_attempts` | Failed login records used for per-IP rate limiting across workers |
 | `announcements` | Site-wide banner content, color, visibility, expiry, active flag |
 | `username_history` | Every username change (old name, new name, timestamp) per user |

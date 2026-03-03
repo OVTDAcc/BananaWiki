@@ -626,6 +626,7 @@ def set_security_headers(response):
         "style-src 'self' 'unsafe-inline'; "
         "img-src 'self' data: https:; "
         "font-src 'self'; "
+        "frame-src https://www.youtube.com https://player.vimeo.com; "
         "object-src 'none'; "
         "base-uri 'self'; "
         "form-action 'self'"
@@ -1279,7 +1280,6 @@ def admin_moderate_profile(user_id):
 def home():
     page = db.get_home_page()
     user = get_current_user()
-    settings = db.get_site_settings()
     content_html = render_markdown(page["content"], embed_videos=True) if page else ""
     categories, uncategorized = db.get_category_tree()
 
@@ -1311,7 +1311,6 @@ def view_page(slug):
     if not page:
         abort(404)
     user = get_current_user()
-    settings = db.get_site_settings()
     content_html = render_markdown(page["content"], embed_videos=True)
     categories, uncategorized = db.get_category_tree()
 
