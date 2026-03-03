@@ -772,7 +772,8 @@ function initAnnouncements() {
                 cdEl.textContent = '⚠ no expiry set';
                 return;
             }
-            // expires_at is stored as UTC in the DB; normalize to ensure valid Date parsing
+            // Strip any existing timezone offset (e.g. +00:00) or Z suffix so we can
+            // re-append 'Z' to force UTC interpretation by the Date constructor.
             var normalized = expiresAt.replace(/[+-]\d{2}:\d{2}$/, '').replace(/Z$/, '');
             var expDate = new Date(normalized + 'Z');
             if (isNaN(expDate.getTime())) {
@@ -803,9 +804,7 @@ function initAnnouncements() {
         });
 
         if (anyExpired) {
-            // Rebuild slides list excluding expired ones
-            slides = slides.filter(function(s) { return s.style.display !== 'none' || s === slides[current]; });
-            // Re-filter properly: keep only visible or currently-not-expired
+            // Rebuild slides list excluding expired and dismissed ones
             slides = Array.from(bar.querySelectorAll('.announcement-slide')).filter(function(s) {
                 if (s.dataset.showCountdown === '1' && s.dataset.expiresAt) {
                     var norm = s.dataset.expiresAt.replace(/[+-]\d{2}:\d{2}$/, '').replace(/Z$/, '');
