@@ -364,25 +364,32 @@ def _migrate_user_id_to_text(conn, cur):
     cur.execute("ALTER TABLE invite_codes_new RENAME TO invite_codes")
 
     # ---- announcements ----
+    # Check which columns exist in the old table so we can preserve them
+    ann_old_cols = {r[1] for r in cur.execute("PRAGMA table_info(announcements)").fetchall()}
     cur.execute("""
         CREATE TABLE announcements_new (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            content     TEXT    NOT NULL DEFAULT '',
-            color       TEXT    NOT NULL DEFAULT 'orange'
-                                CHECK(color IN ('red','orange','yellow','blue','green')),
-            text_size   TEXT    NOT NULL DEFAULT 'normal'
-                                CHECK(text_size IN ('small','normal','large')),
-            visibility  TEXT    NOT NULL DEFAULT 'both'
-                                CHECK(visibility IN ('logged_in','logged_out','both')),
-            expires_at  TEXT,
-            is_active   INTEGER NOT NULL DEFAULT 1,
-            created_by  TEXT REFERENCES users(id) ON DELETE SET NULL,
-            created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            content         TEXT    NOT NULL DEFAULT '',
+            color           TEXT    NOT NULL DEFAULT 'orange'
+                                    CHECK(color IN ('red','orange','yellow','blue','green')),
+            text_size       TEXT    NOT NULL DEFAULT 'normal'
+                                    CHECK(text_size IN ('small','normal','large')),
+            visibility      TEXT    NOT NULL DEFAULT 'both'
+                                    CHECK(visibility IN ('logged_in','logged_out','both')),
+            expires_at      TEXT,
+            is_active       INTEGER NOT NULL DEFAULT 1,
+            not_removable   INTEGER NOT NULL DEFAULT 1,
+            show_countdown  INTEGER NOT NULL DEFAULT 1,
+            created_by      TEXT REFERENCES users(id) ON DELETE SET NULL,
+            created_at      TEXT    NOT NULL DEFAULT (datetime('now'))
         )
     """)
-    cur.execute("""
+    nr_expr = "not_removable" if "not_removable" in ann_old_cols else "1"
+    sc_expr = "show_countdown" if "show_countdown" in ann_old_cols else "1"
+    cur.execute(f"""
         INSERT INTO announcements_new
         SELECT id, content, color, text_size, visibility, expires_at, is_active,
+               {nr_expr}, {sc_expr},
                CAST(created_by AS TEXT), created_at
         FROM announcements
     """)
