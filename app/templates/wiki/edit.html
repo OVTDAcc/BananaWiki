@@ -102,6 +102,7 @@
                 <span class="sep"></span>
                 <button type="button" id="attach-btn" title="Attach image">Attach Image</button>
                 <button type="button" id="replace-img-btn" title="Replace an existing image in the content">Replace Image</button>
+                <button type="button" id="embed-video-btn" title="Embed a YouTube or Vimeo video">Embed Video</button>
             </div>
             <div class="drop-zone" id="drop-zone">Drop images here</div>
             <textarea name="content" id="edit-content" class="editor-area">{{ draft.content if draft and draft.content else page.content }}</textarea>
@@ -248,6 +249,21 @@
         <div class="form-actions">
             <button type="button" class="btn" id="replace-img-confirm-btn" disabled>Replace</button>
             <button type="button" class="btn btn-outline" id="replace-img-cancel-btn">Cancel</button>
+        </div>
+    </div>
+</div>
+<!-- Video Embed modal -->
+<div class="modal" id="video-embed-modal" style="display:none">
+    <div class="modal-content">
+        <h3>Embed Video</h3>
+        <div class="form-group">
+            <label>YouTube or Vimeo URL</label>
+            <input type="text" id="video-url-input" class="input" placeholder="https://www.youtube.com/watch?v=…">
+        </div>
+        <p style="font-size:.85rem;opacity:.65;margin:.2rem 0 .8rem">Paste a YouTube or Vimeo link. It will be embedded as a video player on the page.</p>
+        <div class="form-actions">
+            <button type="button" class="btn" id="video-insert-btn">Insert</button>
+            <button type="button" class="btn btn-outline" id="video-cancel-btn">Cancel</button>
         </div>
     </div>
 </div>
@@ -707,6 +723,48 @@
         replaceImgCancelBtn.addEventListener('click', closeReplaceModal);
         replaceImgModal.addEventListener('click', function(e) {
             if (e.target === this) closeReplaceModal();
+        });
+    });
+
+    // ----- Embed Video -----
+    document.addEventListener('DOMContentLoaded', function() {
+        var embedVideoBtn = document.getElementById('embed-video-btn');
+        var videoModal = document.getElementById('video-embed-modal');
+        var videoUrlInput = document.getElementById('video-url-input');
+        var videoInsertBtn = document.getElementById('video-insert-btn');
+        var videoCancelBtn = document.getElementById('video-cancel-btn');
+        if (!embedVideoBtn || !videoModal) return;
+
+        embedVideoBtn.addEventListener('click', function() {
+            videoUrlInput.value = '';
+            videoModal.style.display = 'flex';
+            videoUrlInput.focus();
+        });
+
+        function confirmVideoInsert() {
+            var url = videoUrlInput.value.trim();
+            if (!url) return;
+            var ta = document.getElementById('edit-content');
+            if (!ta) return;
+            var pos = ta.selectionStart || ta.value.length;
+            var before = ta.value.substring(0, pos);
+            var after = ta.value.substring(pos);
+            // Ensure the URL is on its own line
+            var prefix = (before.length && before[before.length - 1] !== '\n') ? '\n' : '';
+            var suffix = (after.length && after[0] !== '\n') ? '\n' : '';
+            ta.value = before + prefix + url + suffix + after;
+            ta.selectionStart = ta.selectionEnd = pos + prefix.length + url.length + suffix.length;
+            ta.focus();
+            ta.dispatchEvent(new Event('input'));
+            videoModal.style.display = 'none';
+        }
+
+        videoInsertBtn.addEventListener('click', confirmVideoInsert);
+        videoCancelBtn.addEventListener('click', function() { videoModal.style.display = 'none'; });
+        videoModal.addEventListener('click', function(e) { if (e.target === this) videoModal.style.display = 'none'; });
+        videoUrlInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') confirmVideoInsert();
+            if (e.key === 'Escape') videoModal.style.display = 'none';
         });
     });
 </script>

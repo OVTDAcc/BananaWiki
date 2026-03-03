@@ -247,3 +247,72 @@ class TestSessionLimitSetting:
             # First client's session should still be valid
             resp1 = client1.get("/")
             assert resp1.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Embed Video button and modal present in editor
+# ---------------------------------------------------------------------------
+
+class TestEmbedVideoEditorUI:
+    def test_embed_video_button_in_editor(self, logged_in_admin):
+        import db
+        home = db.get_home_page()
+        resp = logged_in_admin.get(f"/page/{home['slug']}/edit")
+        assert resp.status_code == 200
+        assert b"embed-video-btn" in resp.data
+
+    def test_embed_video_modal_in_editor(self, logged_in_admin):
+        import db
+        home = db.get_home_page()
+        resp = logged_in_admin.get(f"/page/{home['slug']}/edit")
+        assert resp.status_code == 200
+        assert b"video-embed-modal" in resp.data
+        assert b"video-url-input" in resp.data
+        assert b"video-insert-btn" in resp.data
+
+    def test_video_url_inserted_bare_renders_as_embed(self, logged_in_admin, admin_user):
+        import db
+        home = db.get_home_page()
+        db.update_page(
+            home["id"],
+            home["title"],
+            "https://www.youtube.com/watch?v=abc1234abcd",
+            admin_user,
+            "test",
+        )
+        resp = logged_in_admin.get("/")
+        assert resp.status_code == 200
+        assert b"video-embed" in resp.data
+        assert b"youtube.com/embed/abc1234abcd" in resp.data
+
+
+# ---------------------------------------------------------------------------
+# Edit image modal in editor (click-to-edit pre-population)
+# ---------------------------------------------------------------------------
+
+class TestEditImageModalUI:
+    def test_image_options_modal_in_editor(self, logged_in_admin):
+        import db
+        home = db.get_home_page()
+        resp = logged_in_admin.get(f"/page/{home['slug']}/edit")
+        assert resp.status_code == 200
+        assert b"image-options-modal" in resp.data
+        assert b"img-alt-input" in resp.data
+        assert b"img-width-input" in resp.data
+
+    def test_image_options_modal_has_alignment_buttons(self, logged_in_admin):
+        import db
+        home = db.get_home_page()
+        resp = logged_in_admin.get(f"/page/{home['slug']}/edit")
+        assert resp.status_code == 200
+        assert b'data-align="left"' in resp.data
+        assert b'data-align="right"' in resp.data
+        assert b'data-align="center"' in resp.data
+
+    def test_edit_image_js_function_exists(self, logged_in_admin):
+        from app import app
+        with app.test_client() as c:
+            resp = c.get("/static/js/main.js")
+            assert resp.status_code == 200
+            assert b"openEditImageModal" in resp.data
+            assert b"updateImageInEditor" in resp.data
