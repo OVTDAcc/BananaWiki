@@ -204,6 +204,7 @@ select.input{appearance:auto}
 .badge-user{background:rgba(100,180,100,.15);color:#7cc07c}
 .badge-protected_admin{background:rgba(196,92,106,.25);color:#e07080}
 .badge-suspended{background:rgba(210,170,90,.15);color:#d2aa5a}
+.badge-member-since{background:rgba(155,89,182,.15);color:#9b59b6}
 .difficulty-tag{display:inline-block;padding:.18rem .65rem;border-radius:4px;font-size:.75rem;font-weight:600;letter-spacing:.3px;text-transform:uppercase}
 .difficulty-tag-beginner{background:rgba(110,138,202,.18);color:#6e8aca}
 .difficulty-tag-easy{background:rgba(100,180,100,.18);color:#7cc07c}

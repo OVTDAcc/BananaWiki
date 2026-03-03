@@ -1032,11 +1032,13 @@ def account_settings():
             return redirect(url_for("account_settings"))
         if user["role"] == "admin":
             db.update_user(user["id"], role="protected_admin")
+            db.record_role_change(user["id"], "admin", "protected_admin", changed_by=user["id"])
             log_action("enable_protected_admin", request, user=user)
             notify_change("user_enable_protected_admin", f"User '{user['username']}' enabled protected admin status")
             flash("Protected admin status enabled.", "success")
         else:
             db.update_user(user["id"], role="admin")
+            db.record_role_change(user["id"], "protected_admin", "admin", changed_by=user["id"])
             log_action("disable_protected_admin", request, user=user)
             notify_change("user_disable_protected_admin", f"User '{user['username']}' disabled protected admin status")
             flash("Protected admin status disabled.", "success")
@@ -1231,6 +1233,8 @@ def user_profile(username):
             abort(404)
     contrib_year, contributions = db.get_contributions_by_day(target["id"])
     contribution_list = db.get_user_contributions(target["id"])
+    role_history = db.get_role_history(target["id"])
+    custom_tags = db.get_user_custom_tags(target["id"])
     categories, uncategorized = db.get_category_tree()
     return render_template(
         "users/profile.html",
@@ -1242,6 +1246,8 @@ def user_profile(username):
         is_own=is_own,
         is_admin=is_admin,
         role_labels=ROLE_LABELS,
+        role_history=role_history,
+        custom_tags=custom_tags,
         categories=categories,
         uncategorized=uncategorized,
     )
@@ -1316,6 +1322,80 @@ def admin_moderate_profile(user_id):
         flash("Profile deleted.", "success")
 
     return redirect(url_for("admin_users"))
+
+
+@app.route("/admin/users/<string:user_id>/tags", methods=["POST"])
+@login_required
+@admin_required
+def admin_manage_user_tags(user_id):
+    """Admin: add, update, delete, or reorder custom tags for a user."""
+    target = db.get_user_by_id(user_id)
+    if not target:
+        abort(404)
+    current_user = get_current_user()
+    action = request.form.get("action", "")
+
+    if target["is_superuser"]:
+        flash("This account is protected and cannot be modified.", "error")
+        return redirect(url_for("user_profile", username=target["username"]))
+
+    if target["role"] == "protected_admin" and user_id != current_user["id"]:
+        flash("Protected admin accounts can only be edited by their owner.", "error")
+        return redirect(url_for("user_profile", username=target["username"]))
+
+    if action == "add_tag":
+        label = request.form.get("tag_label", "").strip()[:50]
+        color = request.form.get("tag_color", "#9b59b6").strip()
+        if not label:
+            flash("Tag label is required.", "error")
+        elif not _is_valid_hex_color(color):
+            flash("Invalid tag color.", "error")
+        else:
+            db.add_user_custom_tag(user_id, label, color)
+            log_action("admin_add_user_tag", request, user=current_user,
+                       target_user=target["username"])
+            flash("Tag added.", "success")
+
+    elif action == "update_tag":
+        tag_id = request.form.get("tag_id", type=int)
+        tag = db.get_user_custom_tag(tag_id) if tag_id else None
+        if not tag or tag["user_id"] != user_id:
+            flash("Tag not found.", "error")
+        else:
+            label = request.form.get("tag_label", "").strip()[:50]
+            color = request.form.get("tag_color", "").strip()
+            if not label:
+                flash("Tag label is required.", "error")
+            elif not _is_valid_hex_color(color):
+                flash("Invalid tag color.", "error")
+            else:
+                db.update_user_custom_tag(tag_id, label=label, color=color)
+                log_action("admin_update_user_tag", request, user=current_user,
+                           target_user=target["username"])
+                flash("Tag updated.", "success")
+
+    elif action == "delete_tag":
+        tag_id = request.form.get("tag_id", type=int)
+        tag = db.get_user_custom_tag(tag_id) if tag_id else None
+        if not tag or tag["user_id"] != user_id:
+            flash("Tag not found.", "error")
+        else:
+            db.delete_user_custom_tag(tag_id)
+            log_action("admin_delete_user_tag", request, user=current_user,
+                       target_user=target["username"])
+            flash("Tag deleted.", "success")
+
+    elif action == "reorder_tags":
+        order_str = request.form.get("tag_order", "")
+        try:
+            tag_ids = [int(x) for x in order_str.split(",") if x.strip()]
+        except ValueError:
+            tag_ids = []
+        if tag_ids:
+            db.reorder_user_custom_tags(user_id, tag_ids)
+            flash("Tag order updated.", "success")
+
+    return redirect(url_for("user_profile", username=target["username"]))
 
 
 # ---------------------------------------------------------------------------
@@ -2686,6 +2766,7 @@ def admin_edit_user(user_id):
             flash("Cannot demote the last admin.", "error")
         else:
             db.update_user(user_id, role=new_role)
+            db.record_role_change(user_id, target["role"], new_role, changed_by=current_user["id"])
             log_action("admin_change_role", request, user=current_user,
                        target_user=target["username"], new_role=new_role)
             notify_change("admin_change_role", f"User '{target['username']}' role changed to '{new_role}'")
