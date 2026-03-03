@@ -5095,3 +5095,52 @@ def test_resize_dimensions_all_persist_together(logged_in_admin):
     assert prefs["content_max_width"] == 1100
     assert prefs["editor_pane_width"] == 55.0
     assert prefs["editor_height"] == 650
+
+
+# ---------------------------------------------------------------------------
+#  Resizable images in edit preview – server-side rendering tests
+# ---------------------------------------------------------------------------
+
+def test_preview_renders_img_with_width(logged_in_admin):
+    """api/preview keeps the width attribute on an HTML <img> tag."""
+    resp = logged_in_admin.post(
+        "/api/preview",
+        json={"content": '<img src="/static/uploads/test.png" alt="test" width="300">'},
+        content_type="application/json",
+    )
+    assert resp.status_code == 200
+    html = resp.get_json()["html"]
+    assert 'width="300"' in html
+    assert 'src="/static/uploads/test.png"' in html
+
+
+def test_preview_renders_markdown_image_with_src(logged_in_admin):
+    """api/preview renders a markdown image so it includes the src URL."""
+    resp = logged_in_admin.post(
+        "/api/preview",
+        json={"content": "![alt text](/static/uploads/photo.jpg)"},
+        content_type="application/json",
+    )
+    assert resp.status_code == 200
+    html = resp.get_json()["html"]
+    assert 'src="/static/uploads/photo.jpg"' in html
+    assert "<img" in html
+
+
+def test_preview_renders_figure_img_preserves_width(logged_in_admin):
+    """api/preview preserves width on an <img> inside a <figure>."""
+    content = (
+        '<figure class="wiki-img-left">'
+        '<img src="/static/uploads/fig.png" alt="fig" width="400">'
+        '<figcaption>fig</figcaption>'
+        '</figure>'
+    )
+    resp = logged_in_admin.post(
+        "/api/preview",
+        json={"content": content},
+        content_type="application/json",
+    )
+    assert resp.status_code == 200
+    html = resp.get_json()["html"]
+    assert 'width="400"' in html
+    assert 'src="/static/uploads/fig.png"' in html

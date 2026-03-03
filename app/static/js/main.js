@@ -1250,6 +1250,95 @@ function initAccessibility(prefs) {
 }
 
 // ---------------------------------------------------------------------------
+//  Resizable images in edit preview pane
+// ---------------------------------------------------------------------------
+function initResizableImages(previewEl, textareaEl) {
+    if (!previewEl || !textareaEl) return;
+    previewEl.querySelectorAll('img').forEach(function(img) {
+        if (img.dataset.bwResizable) return;
+        img.dataset.bwResizable = '1';
+
+        var container;
+        var parentFig = img.closest('figure');
+        if (parentFig) {
+            container = parentFig;
+            container.style.position = 'relative';
+        } else {
+            var wrap = document.createElement('div');
+            wrap.className = 'preview-img-wrap';
+            img.parentNode.insertBefore(wrap, img);
+            wrap.appendChild(img);
+            container = wrap;
+        }
+
+        var handle = document.createElement('span');
+        handle.className = 'preview-img-resize-handle';
+        handle.title = 'Drag to resize image';
+        container.appendChild(handle);
+
+        handle.addEventListener('mousedown', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            var startX = e.clientX;
+            var startW = img.getBoundingClientRect().width;
+            document.body.style.userSelect = 'none';
+            document.body.style.cursor = 'ew-resize';
+
+            function onMove(ev) {
+                var newW = Math.max(50, Math.round(startW + (ev.clientX - startX)));
+                img.style.width = newW + 'px';
+                img.style.maxWidth = 'none';
+            }
+
+            function onUp() {
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+                document.body.style.userSelect = '';
+                document.body.style.cursor = '';
+                var finalW = Math.round(img.getBoundingClientRect().width);
+                updateImageWidthInEditor(textareaEl, img.getAttribute('src'), finalW);
+            }
+
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+        });
+    });
+}
+
+function updateImageWidthInEditor(textarea, src, width) {
+    if (!textarea || !src || !width) return;
+    var content = textarea.value;
+    var updated;
+
+    // Update any existing HTML <img> tag whose src matches
+    updated = content.replace(/<img\b([^>]*)>/gi, function(match, attrs) {
+        var srcMatch = attrs.match(/\bsrc=(?:"([^"]*)"|'([^']*)')/i);
+        if (!srcMatch) return match;
+        var tagSrc = srcMatch[1] !== undefined ? srcMatch[1] : srcMatch[2];
+        if (tagSrc !== src) return match;
+        // Remove any existing width attribute and add the new one
+        var newAttrs = attrs.replace(/\s+width=(?:"[^"]*"|'[^']*'|\S+)/gi, '').replace(/\s+/g, ' ').trimEnd();
+        return '<img' + newAttrs + ' width="' + width + '">';
+    });
+
+    // If no HTML <img> was matched, the image may be in Markdown format: ![alt](src)
+    if (updated === content) {
+        var escapedSrc = src.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        updated = content.replace(
+            new RegExp('!\\[([^\\]]*)\\]\\(' + escapedSrc + '\\)', 'g'),
+            function(match, alt) {
+                return '<img src="' + escapeHtml(src) + '" alt="' + escapeHtml(alt) + '" width="' + width + '">';
+            }
+        );
+    }
+
+    if (updated !== content) {
+        textarea.value = updated;
+        textarea.dispatchEvent(new Event('input'));
+    }
+}
+
+// ---------------------------------------------------------------------------
 //  Editor pane resize (split editor/preview in edit mode)
 // ---------------------------------------------------------------------------
 function initEditorResize() {
