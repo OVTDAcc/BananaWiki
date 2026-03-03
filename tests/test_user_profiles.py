@@ -1064,6 +1064,18 @@ def test_deattribute_invalid_entry_id(admin_client, regular_uid):
     assert b"Invalid entry" in resp.data
 
 
+def test_deattribute_entry_wrong_user(admin_client, regular_uid, editor_uid):
+    """Deattributing an entry belonging to another user is rejected."""
+    entry_id = _make_contribution(editor_uid)
+    resp = admin_client.post(
+        f"/admin/users/{regular_uid}/attributions",
+        data={"action": "deattribute_contribution", "entry_id": entry_id},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"does not belong to this user" in resp.data
+
+
 def test_page_history_deattribute_button(admin_client, regular_uid):
     """Page history shows deattribute button for admins."""
     import db

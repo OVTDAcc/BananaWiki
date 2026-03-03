@@ -1430,10 +1430,14 @@ def admin_manage_attributions(user_id):
         if not entry_id or entry_id < 1:
             flash("Invalid entry.", "error")
         else:
-            db.deattribute_contribution(entry_id)
-            log_action("admin_deattribute_contribution", request, user=current_user,
-                       target_user=target["username"], entry_id=entry_id)
-            flash("Contribution deattributed.", "success")
+            entry = db.get_history_entry(entry_id)
+            if not entry or entry["edited_by"] != user_id:
+                flash("Entry not found or does not belong to this user.", "error")
+            else:
+                db.deattribute_contribution(entry_id)
+                log_action("admin_deattribute_contribution", request, user=current_user,
+                           target_user=target["username"], entry_id=entry_id)
+                flash("Contribution deattributed.", "success")
 
     elif action == "deattribute_all":
         count = db.deattribute_all_user_contributions(user_id)
