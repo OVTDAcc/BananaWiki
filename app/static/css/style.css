@@ -279,9 +279,7 @@ select.input{appearance:auto}
     .editor-area{min-height:250px}
     .topbar-right .user-info{display:none}
     /* Hide action buttons from topbar on mobile – moved to sidebar */
-    .topbar-right .a11y-toggle{display:none}
-    .topbar-right .btn-sm:not(.a11y-toggle){display:none}
-    .topbar-right form{display:none}
+    .topbar-right>:not(.topbar-avatar-link){display:none !important}
     /* Tighten topbar-right gap so buttons don't overflow */
     .topbar-right{gap:.3rem;flex-shrink:1;min-width:0;overflow:hidden}
     /* Show user actions in sidebar on mobile */
