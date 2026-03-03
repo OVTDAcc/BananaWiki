@@ -1237,7 +1237,10 @@ def delete_page(page_id):
 def get_page_history(page_id):
     conn = get_db()
     rows = conn.execute(
-        "SELECT ph.*, COALESCE(u.username, 'deleted user') AS username FROM page_history ph "
+        "SELECT ph.*, "
+        "CASE WHEN ph.edited_by IS NULL THEN '[removed]' "
+        "     ELSE COALESCE(u.username, '[deleted user]') END AS username "
+        "FROM page_history ph "
         "LEFT JOIN users u ON ph.edited_by=u.id "
         "WHERE ph.page_id=? ORDER BY ph.created_at DESC, ph.id DESC",
         (page_id,),
@@ -1249,7 +1252,9 @@ def get_page_history(page_id):
 def get_history_entry(entry_id):
     conn = get_db()
     row = conn.execute(
-        "SELECT ph.*, COALESCE(u.username, 'deleted user') AS username "
+        "SELECT ph.*, "
+        "CASE WHEN ph.edited_by IS NULL THEN '[removed]' "
+        "     ELSE COALESCE(u.username, '[deleted user]') END AS username "
         "FROM page_history ph LEFT JOIN users u ON ph.edited_by=u.id "
         "WHERE ph.id=?", (entry_id,)
     ).fetchone()
@@ -2192,3 +2197,95 @@ def get_user_custom_tag(tag_id):
     finally:
         conn.close()
     return row
+
+
+# ---------------------------------------------------------------------------
+#  Admin Attribution Management
+# ---------------------------------------------------------------------------
+
+def deattribute_contribution(entry_id):
+    """Remove attribution from a single page history entry (set edited_by to NULL)."""
+    conn = get_db()
+    try:
+        conn.execute(
+            "UPDATE page_history SET edited_by=NULL WHERE id=?",
+            (entry_id,),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def deattribute_all_user_contributions(user_id):
+    """Remove attribution from ALL page history entries by a user.
+
+    Returns the number of entries affected.
+    """
+    conn = get_db()
+    try:
+        cur = conn.execute(
+            "UPDATE page_history SET edited_by=NULL WHERE edited_by=?",
+            (user_id,),
+        )
+        count = cur.rowcount
+        conn.commit()
+    finally:
+        conn.close()
+    return count
+
+
+def delete_role_history_entry(entry_id):
+    """Delete a single role history entry by id."""
+    conn = get_db()
+    try:
+        conn.execute("DELETE FROM role_history WHERE id=?", (entry_id,))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def delete_all_role_history(user_id):
+    """Delete all role history entries for a user.
+
+    Returns the number of entries deleted.
+    """
+    conn = get_db()
+    try:
+        cur = conn.execute(
+            "DELETE FROM role_history WHERE user_id=?", (user_id,),
+        )
+        count = cur.rowcount
+        conn.commit()
+    finally:
+        conn.close()
+    return count
+
+
+def get_role_history_entry(entry_id):
+    """Return a single role history entry by id, or None."""
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT * FROM role_history WHERE id=?", (entry_id,)
+        ).fetchone()
+    finally:
+        conn.close()
+    return row
+
+
+def mass_reattribute_contributions(from_user_id, to_user_id):
+    """Transfer ALL page history entries from one user to another across all pages.
+
+    Returns the number of entries updated.
+    """
+    conn = get_db()
+    try:
+        cur = conn.execute(
+            "UPDATE page_history SET edited_by=? WHERE edited_by=?",
+            (to_user_id, from_user_id),
+        )
+        count = cur.rowcount
+        conn.commit()
+    finally:
+        conn.close()
+    return count

@@ -1236,6 +1236,7 @@ def user_profile(username):
     role_history = db.get_role_history(target["id"])
     custom_tags = db.get_user_custom_tags(target["id"])
     categories, uncategorized = db.get_category_tree()
+    all_users = db.list_users() if is_admin else []
     return render_template(
         "users/profile.html",
         target=target,
@@ -1248,6 +1249,7 @@ def user_profile(username):
         role_labels=ROLE_LABELS,
         role_history=role_history,
         custom_tags=custom_tags,
+        all_users=all_users,
         categories=categories,
         uncategorized=uncategorized,
     )
@@ -1400,6 +1402,81 @@ def admin_manage_user_tags(user_id):
                 flash("Tag order updated.", "success")
             else:
                 flash("Invalid tag IDs.", "error")
+
+    return redirect(url_for("user_profile", username=target["username"]))
+
+
+@app.route("/admin/users/<string:user_id>/attributions", methods=["POST"])
+@login_required
+@admin_required
+def admin_manage_attributions(user_id):
+    """Admin: deattribute contributions or delete role history entries for a user."""
+    target = db.get_user_by_id(user_id)
+    if not target:
+        abort(404)
+    current_user = get_current_user()
+    action = request.form.get("action", "")
+
+    if target["is_superuser"]:
+        flash("This account is protected and cannot be modified.", "error")
+        return redirect(url_for("user_profile", username=target["username"]))
+
+    if target["role"] == "protected_admin" and user_id != current_user["id"]:
+        flash("Protected admin accounts can only be edited by their owner.", "error")
+        return redirect(url_for("user_profile", username=target["username"]))
+
+    if action == "deattribute_contribution":
+        entry_id = request.form.get("entry_id", type=int)
+        if not entry_id or entry_id < 1:
+            flash("Invalid entry.", "error")
+        else:
+            db.deattribute_contribution(entry_id)
+            log_action("admin_deattribute_contribution", request, user=current_user,
+                       target_user=target["username"], entry_id=entry_id)
+            flash("Contribution deattributed.", "success")
+
+    elif action == "deattribute_all":
+        count = db.deattribute_all_user_contributions(user_id)
+        log_action("admin_deattribute_all", request, user=current_user,
+                   target_user=target["username"], count=count)
+        notify_change("admin_deattribute_all",
+                      f"All contributions ({count}) deattributed from '{target['username']}'")
+        flash(f"Deattributed {count} contribution(s).", "success")
+
+    elif action == "mass_reattribute":
+        to_user_id = request.form.get("to_user_id", "").strip()
+        to_user = db.get_user_by_id(to_user_id) if to_user_id else None
+        if not to_user:
+            flash("Invalid target user.", "error")
+        elif to_user_id == user_id:
+            flash("Cannot reattribute to the same user.", "error")
+        else:
+            count = db.mass_reattribute_contributions(user_id, to_user_id)
+            log_action("admin_mass_reattribute", request, user=current_user,
+                       from_user=target["username"], to_user=to_user["username"], count=count)
+            notify_change("admin_mass_reattribute",
+                          f"Mass reattribution: {count} entries from '{target['username']}' to '{to_user['username']}'")
+            flash(f"Reattributed {count} contribution(s) to {to_user['username']}.", "success")
+
+    elif action == "delete_role_history_entry":
+        entry_id = request.form.get("entry_id", type=int)
+        if not entry_id or entry_id < 1:
+            flash("Invalid entry.", "error")
+        else:
+            rh = db.get_role_history_entry(entry_id)
+            if not rh or rh["user_id"] != user_id:
+                flash("Role history entry not found.", "error")
+            else:
+                db.delete_role_history_entry(entry_id)
+                log_action("admin_delete_role_history_entry", request, user=current_user,
+                           target_user=target["username"], entry_id=entry_id)
+                flash("Role history entry deleted.", "success")
+
+    elif action == "delete_all_role_history":
+        count = db.delete_all_role_history(user_id)
+        log_action("admin_delete_all_role_history", request, user=current_user,
+                   target_user=target["username"], count=count)
+        flash(f"Deleted {count} role history entries.", "success")
 
     return redirect(url_for("user_profile", username=target["username"]))
 
@@ -1616,6 +1693,30 @@ def bulk_transfer_attribution(slug):
     notify_change("bulk_transfer_attribution",
                   f"Bulk attribution on '{slug}' transferred from '{from_user['username']}' to '{target_user['username']}'")
     flash(f"Transferred {count} contribution(s) to {target_user['username']}.", "success")
+    return redirect(url_for("page_history", slug=slug))
+
+
+@app.route("/page/<slug>/history/<int:entry_id>/deattribute", methods=["POST"])
+@login_required
+@admin_required
+@rate_limit(20, 60)
+def deattribute_entry(slug, entry_id):
+    """Admin: remove attribution from a single page history entry."""
+    if not config.PAGE_HISTORY_ENABLED:
+        abort(404)
+    page = db.get_page_by_slug(slug)
+    if not page:
+        abort(404)
+    entry = db.get_history_entry(entry_id)
+    if not entry or entry["page_id"] != page["id"]:
+        abort(404)
+    user = get_current_user()
+    db.deattribute_contribution(entry_id)
+    log_action("deattribute_entry", request, user=user, page=slug,
+               entry_id=entry_id)
+    notify_change("deattribute_entry",
+                  f"Attribution removed from entry {entry_id} on '{slug}'")
+    flash("Attribution removed from this entry.", "success")
     return redirect(url_for("page_history", slug=slug))
 
 

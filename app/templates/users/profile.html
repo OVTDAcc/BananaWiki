@@ -123,7 +123,7 @@
         {% if contribution_list %}
         <ul class="contribution-list">
             {% for c in contribution_list[:50] %}
-            <li class="contribution-item">
+            <li class="contribution-item" style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
                 <span class="contribution-date">{{ format_datetime(c.created_at) }}</span>
                 {% if c.page_slug %}
                 <a href="{{ url_for('view_page', slug=c.page_slug) }}" class="contribution-page">{{ c.page_title }}</a>
@@ -131,9 +131,39 @@
                 <span class="contribution-page deleted">{{ c.page_title }}</span>
                 {% endif %}
                 {% if c.edit_message %}<span class="contribution-msg">— {{ c.edit_message }}</span>{% endif %}
+                {% if is_admin and (is_own or target.role != 'protected_admin') %}
+                <form method="POST" action="{{ url_for('admin_manage_attributions', user_id=target.id) }}" style="display:inline;margin-left:auto" data-confirm="Remove this contribution from this user's profile?">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="action" value="deattribute_contribution">
+                    <input type="hidden" name="entry_id" value="{{ c.id }}">
+                    <button type="submit" class="btn btn-sm btn-danger" style="font-size:.75rem;padding:2px 6px">✕</button>
+                </form>
+                {% endif %}
             </li>
             {% endfor %}
         </ul>
+        {% if is_admin and (is_own or target.role != 'protected_admin') and contribution_list | length > 0 %}
+        <div style="margin-top:.8rem;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+            <form method="POST" action="{{ url_for('admin_manage_attributions', user_id=target.id) }}" style="display:inline" data-confirm="Remove ALL contributions from this user? This cannot be undone.">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="deattribute_all">
+                <button type="submit" class="btn btn-sm btn-danger">Deattribute All Contributions</button>
+            </form>
+            <form method="POST" action="{{ url_for('admin_manage_attributions', user_id=target.id) }}" style="display:inline-flex;gap:.4rem;align-items:center" data-confirm="Transfer ALL contributions from this user to the selected user?">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="mass_reattribute">
+                <select name="to_user_id" class="input input-sm" style="width:160px" required>
+                    <option value="">— select user —</option>
+                    {% for u in all_users %}
+                    {% if u.id != target.id %}
+                    <option value="{{ u.id }}">{{ u.username }}</option>
+                    {% endif %}
+                    {% endfor %}
+                </select>
+                <button type="submit" class="btn btn-sm">Mass Reattribute</button>
+            </form>
+        </div>
+        {% endif %}
         {% else %}
         <p style="opacity:.6">No contributions yet.</p>
         {% endif %}
@@ -145,16 +175,31 @@
         <h2>Role History</h2>
         <ul class="contribution-list">
             {% for rh in role_history %}
-            <li class="contribution-item">
+            <li class="contribution-item" style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
                 <span class="contribution-date">{{ format_datetime(rh.changed_at) }}</span>
                 <span class="badge badge-{{ rh.old_role }}">{{ role_labels.get(rh.old_role, rh.old_role) }}</span>
                 → <span class="badge badge-{{ rh.new_role }}">{{ role_labels.get(rh.new_role, rh.new_role) }}</span>
                 {% if rh.changed_by_username %}
                 <span style="opacity:.6;font-size:.85rem">by {{ rh.changed_by_username }}</span>
                 {% endif %}
+                {% if is_admin and (is_own or target.role != 'protected_admin') %}
+                <form method="POST" action="{{ url_for('admin_manage_attributions', user_id=target.id) }}" style="display:inline;margin-left:auto" data-confirm="Delete this role history entry?">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="action" value="delete_role_history_entry">
+                    <input type="hidden" name="entry_id" value="{{ rh.id }}">
+                    <button type="submit" class="btn btn-sm btn-danger" style="font-size:.75rem;padding:2px 6px">✕</button>
+                </form>
+                {% endif %}
             </li>
             {% endfor %}
         </ul>
+        {% if is_admin and (is_own or target.role != 'protected_admin') and role_history | length > 1 %}
+        <form method="POST" action="{{ url_for('admin_manage_attributions', user_id=target.id) }}" style="margin-top:.5rem" data-confirm="Delete ALL role history entries for this user?">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="delete_all_role_history">
+            <button type="submit" class="btn btn-sm btn-danger">Delete All Role History</button>
+        </form>
+        {% endif %}
     </div>
     {% endif %}
 

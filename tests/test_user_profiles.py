@@ -872,3 +872,256 @@ def test_role_change_recorded_on_protected_admin_toggle(client, admin_uid):
     assert len(history) >= 1
     assert history[0]["old_role"] == "admin"
     assert history[0]["new_role"] == "protected_admin"
+
+
+# ---------------------------------------------------------------------------
+# Admin attribution management
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def editor_uid(admin_uid):
+    """An editor user for attribution tests."""
+    from werkzeug.security import generate_password_hash
+    import db
+    return db.create_user("editor1", generate_password_hash("editor123"), role="editor")
+
+
+@pytest.fixture
+def editor_client(client, editor_uid):
+    client.post("/login", data={"username": "editor1", "password": "editor123"})
+    return client
+
+
+def _make_contribution(user_id):
+    """Helper: create a page edit attributed to user_id, return entry_id."""
+    import db
+    home = db.get_home_page()
+    db.update_page(home["id"], "Home", f"edit by {user_id}", user_id, "test edit")
+    history = db.get_page_history(home["id"])
+    return history[0]["id"]
+
+
+def test_admin_deattribute_single_contribution(admin_client, regular_uid):
+    """Admin can deattribute a single contribution from a user profile."""
+    import db
+    entry_id = _make_contribution(regular_uid)
+    resp = admin_client.post(
+        f"/admin/users/{regular_uid}/attributions",
+        data={"action": "deattribute_contribution", "entry_id": entry_id},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"Contribution deattributed" in resp.data
+    entry = db.get_history_entry(entry_id)
+    assert entry["edited_by"] is None
+    assert entry["username"] == "[removed]"
+
+
+def test_admin_deattribute_all_contributions(admin_client, regular_uid):
+    """Admin can deattribute all contributions for a user."""
+    import db
+    _make_contribution(regular_uid)
+    _make_contribution(regular_uid)
+    resp = admin_client.post(
+        f"/admin/users/{regular_uid}/attributions",
+        data={"action": "deattribute_all"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"Deattributed 2 contribution(s)" in resp.data
+    # Contributions should be empty for this user now
+    contribs = db.get_user_contributions(regular_uid)
+    assert len(contribs) == 0
+
+
+def test_admin_mass_reattribute_contributions(admin_client, regular_uid, editor_uid):
+    """Admin can mass reattribute all contributions from one user to another."""
+    import db
+    _make_contribution(regular_uid)
+    _make_contribution(regular_uid)
+    resp = admin_client.post(
+        f"/admin/users/{regular_uid}/attributions",
+        data={"action": "mass_reattribute", "to_user_id": editor_uid},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"Reattributed 2 contribution(s)" in resp.data
+    # Regular user has no contributions, editor has them
+    assert len(db.get_user_contributions(regular_uid)) == 0
+    assert len(db.get_user_contributions(editor_uid)) == 2
+
+
+def test_mass_reattribute_to_same_user_rejected(admin_client, regular_uid):
+    """Cannot reattribute contributions to the same user."""
+    _make_contribution(regular_uid)
+    resp = admin_client.post(
+        f"/admin/users/{regular_uid}/attributions",
+        data={"action": "mass_reattribute", "to_user_id": regular_uid},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"Cannot reattribute to the same user" in resp.data
+
+
+def test_mass_reattribute_invalid_target_rejected(admin_client, regular_uid):
+    """Mass reattribute with invalid target user shows error."""
+    _make_contribution(regular_uid)
+    resp = admin_client.post(
+        f"/admin/users/{regular_uid}/attributions",
+        data={"action": "mass_reattribute", "to_user_id": "nonexistent-id"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"Invalid target user" in resp.data
+
+
+def test_admin_delete_role_history_entry(admin_client, regular_uid, admin_uid):
+    """Admin can delete a single role history entry."""
+    import db
+    db.record_role_change(regular_uid, "user", "editor", changed_by=admin_uid)
+    history = db.get_role_history(regular_uid)
+    entry_id = history[0]["id"]
+    resp = admin_client.post(
+        f"/admin/users/{regular_uid}/attributions",
+        data={"action": "delete_role_history_entry", "entry_id": entry_id},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"Role history entry deleted" in resp.data
+    assert len(db.get_role_history(regular_uid)) == 0
+
+
+def test_admin_delete_all_role_history(admin_client, regular_uid, admin_uid):
+    """Admin can delete all role history entries for a user."""
+    import db
+    db.record_role_change(regular_uid, "user", "editor", changed_by=admin_uid)
+    db.record_role_change(regular_uid, "editor", "admin", changed_by=admin_uid)
+    resp = admin_client.post(
+        f"/admin/users/{regular_uid}/attributions",
+        data={"action": "delete_all_role_history"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"Deleted 2 role history entries" in resp.data
+    assert len(db.get_role_history(regular_uid)) == 0
+
+
+def test_delete_role_history_wrong_user_rejected(admin_client, regular_uid, admin_uid):
+    """Cannot delete a role history entry belonging to another user."""
+    import db
+    db.record_role_change(admin_uid, "admin", "protected_admin", changed_by=admin_uid)
+    history = db.get_role_history(admin_uid)
+    entry_id = history[0]["id"]
+    resp = admin_client.post(
+        f"/admin/users/{regular_uid}/attributions",
+        data={"action": "delete_role_history_entry", "entry_id": entry_id},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"Role history entry not found" in resp.data
+
+
+def test_non_admin_cannot_manage_attributions(alice_client, regular_uid):
+    """Non-admin users cannot access the attributions endpoint."""
+    resp = alice_client.post(
+        f"/admin/users/{regular_uid}/attributions",
+        data={"action": "deattribute_all"},
+        follow_redirects=True,
+    )
+    # Should redirect to login or show forbidden
+    assert resp.status_code in (200, 302, 403)
+    assert b"Deattributed" not in resp.data
+
+
+def test_attributions_protected_admin_restriction(admin_client, admin_uid):
+    """Cannot manage attributions on a protected admin (unless own account)."""
+    import db
+    # Make admin a protected_admin
+    db.update_user(admin_uid, role="protected_admin")
+    # Create another admin to try
+    from werkzeug.security import generate_password_hash
+    other_admin = db.create_user("otheradmin", generate_password_hash("otheradmin123"), role="admin")
+    # Login as other admin
+    admin_client.get("/logout")
+    admin_client.post("/login", data={"username": "otheradmin", "password": "otheradmin123"})
+    resp = admin_client.post(
+        f"/admin/users/{admin_uid}/attributions",
+        data={"action": "deattribute_all"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"Protected admin" in resp.data
+
+
+def test_deattribute_invalid_entry_id(admin_client, regular_uid):
+    """Deattributing with an invalid entry_id shows error."""
+    resp = admin_client.post(
+        f"/admin/users/{regular_uid}/attributions",
+        data={"action": "deattribute_contribution"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"Invalid entry" in resp.data
+
+
+def test_page_history_deattribute_button(admin_client, regular_uid):
+    """Page history shows deattribute button for admins."""
+    import db
+    home = db.get_home_page()
+    db.update_page(home["id"], "Home", "edit", regular_uid, "msg")
+    resp = admin_client.get(f"/page/{home['slug']}/history")
+    assert resp.status_code == 200
+    assert b"Deattribute this entry" in resp.data
+
+
+def test_page_history_deattribute_entry(admin_client, regular_uid):
+    """Admin can deattribute an entry from the page history page."""
+    import db
+    home = db.get_home_page()
+    db.update_page(home["id"], "Home", "some edit", regular_uid, "test msg")
+    history = db.get_page_history(home["id"])
+    entry_id = history[0]["id"]
+    resp = admin_client.post(
+        f"/page/{home['slug']}/history/{entry_id}/deattribute",
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"Attribution removed" in resp.data
+    entry = db.get_history_entry(entry_id)
+    assert entry["edited_by"] is None
+
+
+def test_deattributed_entry_shows_removed_in_history(admin_client, regular_uid):
+    """A deattributed entry shows [removed] as editor in page history."""
+    import db
+    home = db.get_home_page()
+    db.update_page(home["id"], "Home", "some content", regular_uid, "test")
+    history = db.get_page_history(home["id"])
+    entry_id = history[0]["id"]
+    db.deattribute_contribution(entry_id)
+    resp = admin_client.get(f"/page/{home['slug']}/history")
+    assert resp.status_code == 200
+    assert b"[removed]" in resp.data
+
+
+def test_profile_shows_deattribute_buttons_to_admin(admin_client, regular_uid):
+    """Admin sees deattribute buttons on another user's profile."""
+    import db
+    _make_contribution(regular_uid)
+    db.upsert_user_profile(regular_uid, page_published=True)
+    resp = admin_client.get("/users/alice")
+    assert resp.status_code == 200
+    assert b"deattribute_contribution" in resp.data
+    assert b"Deattribute All Contributions" in resp.data
+    assert b"Mass Reattribute" in resp.data
+
+
+def test_non_admin_no_deattribute_buttons(alice_client, regular_uid):
+    """Non-admin users don't see deattribute buttons."""
+    import db
+    _make_contribution(regular_uid)
+    db.upsert_user_profile(regular_uid, page_published=True)
+    resp = alice_client.get("/users/alice")
+    assert resp.status_code == 200
+    assert b"deattribute_contribution" not in resp.data
+    assert b"Deattribute All" not in resp.data

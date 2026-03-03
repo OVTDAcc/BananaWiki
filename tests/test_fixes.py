@@ -3813,8 +3813,8 @@ def test_get_history_entry_includes_username():
     assert entry["username"] == "histuser"
 
 
-def test_get_history_entry_shows_deleted_user_when_user_removed():
-    """db.get_history_entry() returns 'deleted user' when editor was deleted."""
+def test_get_history_entry_shows_removed_when_user_removed():
+    """db.get_history_entry() returns '[removed]' when editor's user_id is NULL."""
     import db
     from werkzeug.security import generate_password_hash
     uid = db.create_user("delhistuser", generate_password_hash("pw"), role="editor")
@@ -3826,7 +3826,7 @@ def test_get_history_entry_shows_deleted_user_when_user_removed():
     db.delete_user(uid)
     entry = db.get_history_entry(entry_id)
     assert entry is not None
-    assert entry["username"] == "deleted user"
+    assert entry["username"] == "[removed]"
 
 
 # ---------------------------------------------------------------------------

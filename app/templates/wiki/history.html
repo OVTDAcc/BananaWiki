@@ -19,7 +19,13 @@
         {% for entry in history %}
         <tr>
             <td><span title="{{ format_datetime(entry.created_at) }}">{{ time_ago(entry.created_at) }}</span></td>
-            <td><a href="{{ url_for('user_profile', username=entry.username) }}" class="text-link">{{ entry.username }}</a></td>
+            <td>
+                {% if entry.edited_by %}
+                <a href="{{ url_for('user_profile', username=entry.username) }}" class="text-link">{{ entry.username }}</a>
+                {% else %}
+                <span style="opacity:.5;font-style:italic">{{ entry.username }}</span>
+                {% endif %}
+            </td>
             <td>{{ entry.edit_message or '—' }}{% if entry.is_revert %} <span class="revert-badge">↩ Revert</span>{% endif %}</td>
             <td style="white-space:nowrap;font-family:monospace;font-size:.85rem">
                 {% set stats = diff_stats.get(entry.id) %}
@@ -53,6 +59,7 @@
                         </select>
                         <button class="btn btn-sm">Move this entry</button>
                     </form>
+                    {% if entry.edited_by %}
                     <form method="POST" action="{{ url_for('bulk_transfer_attribution', slug=page.slug) }}" style="display:flex;gap:.4rem;flex-wrap:wrap;align-items:center;margin-top:.3rem" data-confirm="Transfer ALL contributions by this user on this page to the selected user?">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="from_user_id" value="{{ entry.edited_by }}">
@@ -65,6 +72,11 @@
                             {% endfor %}
                         </select>
                         <button class="btn btn-sm">Move all from {{ entry.username }}</button>
+                    </form>
+                    {% endif %}
+                    <form method="POST" action="{{ url_for('deattribute_entry', slug=page.slug, entry_id=entry.id) }}" style="margin-top:.3rem" data-confirm="Remove attribution from this entry? The editor name will be hidden.">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button class="btn btn-sm btn-danger">Deattribute this entry</button>
                     </form>
                 </div>
                 {% endif %}
