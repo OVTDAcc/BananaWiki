@@ -3408,7 +3408,10 @@ def chat_send(chat_id):
                         break
                     out.write(chunk)
             if oversized:
-                os.remove(filepath)
+                try:
+                    os.remove(filepath)
+                except OSError:
+                    pass
                 flash("File exceeds the 5 MB limit.", "error")
                 return redirect(url_for("chat_view", chat_id=chat_id))
             db.add_chat_attachment(msg_id, stored_name, original_name, file_size)
