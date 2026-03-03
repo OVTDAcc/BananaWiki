@@ -3476,6 +3476,238 @@ def test_admin_announcements_list_expiry_uses_format_datetime(logged_in_admin, a
 
 
 # ---------------------------------------------------------------------------
+# Announcement improvements: not_removable, show_countdown, timezone handling
+# ---------------------------------------------------------------------------
+
+def test_announcement_not_removable_default(admin_user):
+    """Announcements should default to not_removable=1."""
+    import db
+    ann_id = db.create_announcement("Sticky", "orange", "normal", "both", None, admin_user)
+    ann = db.get_announcement(ann_id)
+    assert ann["not_removable"] == 1
+
+
+def test_announcement_show_countdown_default(admin_user):
+    """Announcements should default to show_countdown=1."""
+    import db
+    ann_id = db.create_announcement("Countdown", "orange", "normal", "both", None, admin_user)
+    ann = db.get_announcement(ann_id)
+    assert ann["show_countdown"] == 1
+
+
+def test_announcement_create_with_not_removable_off(admin_user):
+    """Announcements can be created with not_removable=0."""
+    import db
+    ann_id = db.create_announcement("Removable", "orange", "normal", "both", None, admin_user,
+                                     not_removable=0)
+    ann = db.get_announcement(ann_id)
+    assert ann["not_removable"] == 0
+
+
+def test_announcement_create_with_show_countdown_off(admin_user):
+    """Announcements can be created with show_countdown=0."""
+    import db
+    ann_id = db.create_announcement("No countdown", "orange", "normal", "both", None, admin_user,
+                                     show_countdown=0)
+    ann = db.get_announcement(ann_id)
+    assert ann["show_countdown"] == 0
+
+
+def test_announcement_update_not_removable(admin_user):
+    """not_removable can be toggled via update."""
+    import db
+    ann_id = db.create_announcement("Sticky", "orange", "normal", "both", None, admin_user)
+    db.update_announcement(ann_id, not_removable=0)
+    ann = db.get_announcement(ann_id)
+    assert ann["not_removable"] == 0
+
+
+def test_announcement_update_show_countdown(admin_user):
+    """show_countdown can be toggled via update."""
+    import db
+    ann_id = db.create_announcement("Timer", "orange", "normal", "both", None, admin_user)
+    db.update_announcement(ann_id, show_countdown=0)
+    ann = db.get_announcement(ann_id)
+    assert ann["show_countdown"] == 0
+
+
+def test_admin_create_announcement_with_flags(logged_in_admin):
+    """Admin route should accept not_removable and show_countdown flags."""
+    import db
+    resp = logged_in_admin.post("/admin/announcements/create", data={
+        "content": "Flagged announcement",
+        "color": "blue",
+        "text_size": "normal",
+        "visibility": "both",
+        "expires_at": "",
+        "not_removable": "1",
+        "show_countdown": "1",
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"Announcement created" in resp.data
+    anns = db.list_announcements()
+    created = [a for a in anns if a["content"] == "Flagged announcement"][0]
+    assert created["not_removable"] == 1
+    assert created["show_countdown"] == 1
+
+
+def test_admin_create_announcement_flags_unchecked(logged_in_admin):
+    """Admin route should set flags to 0 when checkboxes are unchecked."""
+    import db
+    resp = logged_in_admin.post("/admin/announcements/create", data={
+        "content": "No flags",
+        "color": "orange",
+        "text_size": "normal",
+        "visibility": "both",
+        "expires_at": "",
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    anns = db.list_announcements()
+    created = [a for a in anns if a["content"] == "No flags"][0]
+    assert created["not_removable"] == 0
+    assert created["show_countdown"] == 0
+
+
+def test_admin_edit_announcement_flags(logged_in_admin, admin_user):
+    """Admin edit route should update not_removable and show_countdown."""
+    import db
+    ann_id = db.create_announcement("Edit flags", "orange", "normal", "both", None, admin_user)
+    resp = logged_in_admin.post(f"/admin/announcements/{ann_id}/edit", data={
+        "content": "Edit flags",
+        "color": "orange",
+        "text_size": "normal",
+        "visibility": "both",
+        "expires_at": "",
+        "is_active": "1",
+        "not_removable": "1",
+        "show_countdown": "1",
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    ann = db.get_announcement(ann_id)
+    assert ann["not_removable"] == 1
+    assert ann["show_countdown"] == 1
+
+
+def test_announcement_bar_not_removable_hides_close_button(logged_in_admin, admin_user):
+    """Not-removable announcements should not have a close button in the bar HTML."""
+    import db
+    db.create_announcement("Sticky banner", "orange", "normal", "both", None, admin_user,
+                            not_removable=1)
+    resp = logged_in_admin.get("/")
+    assert resp.status_code == 200
+    assert b"Sticky banner" in resp.data
+    assert b'data-not-removable="1"' in resp.data
+    # The close button should not appear for not_removable announcements
+    html = resp.data.decode()
+    # Find the slide for this announcement
+    import re
+    slide_match = re.search(r'data-not-removable="1".*?</div>\s*</div>\s*</div>', html, re.DOTALL)
+    assert slide_match is not None
+    slide_html = slide_match.group(0)
+    assert 'ann-close' not in slide_html
+
+
+def test_announcement_bar_removable_has_close_button(logged_in_admin, admin_user):
+    """Removable announcements should have a close button in the bar HTML."""
+    import db
+    db.create_announcement("Removable banner", "orange", "normal", "both", None, admin_user,
+                            not_removable=0)
+    resp = logged_in_admin.get("/")
+    assert resp.status_code == 200
+    assert b"Removable banner" in resp.data
+    assert b'data-not-removable="0"' in resp.data
+    assert b'ann-close' in resp.data
+
+
+def test_announcement_bar_has_countdown_data(logged_in_admin, admin_user):
+    """Announcements with show_countdown=1 should have countdown data attributes."""
+    import db
+    from datetime import datetime, timezone, timedelta
+    future = (datetime.now(timezone.utc) + timedelta(days=1)).isoformat()
+    db.create_announcement("Countdown test", "orange", "normal", "both", future, admin_user,
+                            show_countdown=1)
+    resp = logged_in_admin.get("/")
+    assert resp.status_code == 200
+    assert b'data-show-countdown="1"' in resp.data
+    assert b'data-expires-at="' in resp.data
+
+
+def test_announcement_bar_no_countdown_data(logged_in_admin, admin_user):
+    """Announcements with show_countdown=0 should still have the data attribute set to 0."""
+    import db
+    db.create_announcement("No countdown", "orange", "normal", "both", None, admin_user,
+                            show_countdown=0)
+    resp = logged_in_admin.get("/")
+    assert resp.status_code == 200
+    assert b'data-show-countdown="0"' in resp.data
+
+
+def test_admin_announcements_page_shows_flags(logged_in_admin, admin_user):
+    """Admin announcements page should show not_removable and countdown status."""
+    import db
+    db.create_announcement("Flag display", "orange", "normal", "both", None, admin_user,
+                            not_removable=1, show_countdown=1)
+    resp = logged_in_admin.get("/admin/announcements")
+    assert resp.status_code == 200
+    assert b"not removable" in resp.data
+    assert b"countdown" in resp.data
+
+
+def test_create_announcement_converts_local_to_utc(logged_in_admin, admin_user):
+    """Creating an announcement via admin route should convert site-timezone datetime to UTC."""
+    import db
+    db.update_site_settings(timezone="Europe/Rome")
+    resp = logged_in_admin.post("/admin/announcements/create", data={
+        "content": "TZ conversion test",
+        "color": "orange",
+        "text_size": "normal",
+        "visibility": "both",
+        "expires_at": "2027-06-15T12:00",
+        "not_removable": "1",
+        "show_countdown": "1",
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    anns = db.list_announcements()
+    created = [a for a in anns if a["content"] == "TZ conversion test"][0]
+    # 2027-06-15T12:00 Europe/Rome (CEST=UTC+2) should be stored as 2027-06-15T10:00:00 UTC
+    assert created["expires_at"] == "2027-06-15T10:00:00"
+    db.update_site_settings(timezone="UTC")
+
+
+def test_edit_announcement_converts_local_to_utc(logged_in_admin, admin_user):
+    """Editing an announcement via admin route should convert site-timezone datetime to UTC."""
+    import db
+    db.update_site_settings(timezone="Europe/Rome")
+    ann_id = db.create_announcement("Edit TZ", "orange", "normal", "both", None, admin_user)
+    resp = logged_in_admin.post(f"/admin/announcements/{ann_id}/edit", data={
+        "content": "Edit TZ",
+        "color": "orange",
+        "text_size": "normal",
+        "visibility": "both",
+        "expires_at": "2027-06-15T14:00",
+        "is_active": "1",
+        "not_removable": "1",
+        "show_countdown": "1",
+    }, follow_redirects=True)
+    assert resp.status_code == 200
+    ann = db.get_announcement(ann_id)
+    # 2027-06-15T14:00 Europe/Rome (CEST=UTC+2) should be stored as 2027-06-15T12:00:00 UTC
+    assert ann["expires_at"] == "2027-06-15T12:00:00"
+    db.update_site_settings(timezone="UTC")
+
+
+def test_format_datetime_local_input(logged_in_admin, admin_user):
+    """format_datetime_local_input should convert UTC to site-timezone datetime-local format."""
+    import db
+    from app import format_datetime_local_input
+    db.update_site_settings(timezone="Europe/Rome")
+    # 2027-06-15T10:00:00 UTC → 2027-06-15T12:00 in CEST (UTC+2)
+    result = format_datetime_local_input("2027-06-15T10:00:00")
+    assert result == "2027-06-15T12:00"
+    db.update_site_settings(timezone="UTC")
+
+
+# ---------------------------------------------------------------------------
 # Fix: history entry detail view shows editor username
 # ---------------------------------------------------------------------------
 
