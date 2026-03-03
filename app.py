@@ -2068,7 +2068,7 @@ def api_preview():
     if not data:
         return jsonify({"error": "Invalid request: missing or malformed JSON"}), 400
     content = data.get("content", "")
-    html = render_markdown(content)
+    html = render_markdown(content, embed_videos=True)
     return jsonify({"html": html})
 
 

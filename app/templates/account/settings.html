@@ -105,9 +105,9 @@
 {% endif %}
 
 <div class="settings-section">
-    <h3>Accessibility Settings</h3>
-    <p style="font-size:.85rem;opacity:.7;margin-bottom:.8rem">Your current accessibility preferences (text size, contrast, colors). Use the <strong>Access</strong> button in the top bar to adjust these on any page.</p>
-    <button class="btn btn-outline" id="a11y-reset-account-btn">Reset Accessibility to Default</button>
+    <h3>Customization Settings</h3>
+    <p style="font-size:.85rem;opacity:.7;margin-bottom:.8rem">Your current customization preferences (text size, contrast, colors). Use the <strong>Customize</strong> button in the top bar to adjust these on any page.</p>
+    <button class="btn btn-outline" id="a11y-reset-account-btn">Reset Customization to Default</button>
     <p id="a11y-reset-status" style="font-size:.82rem;opacity:.7;margin-top:.4rem;display:none"></p>
 </div>
 
@@ -224,7 +224,7 @@
         var status = document.getElementById('a11y-reset-status');
         if (resetBtn) {
             resetBtn.addEventListener('click', function() {
-                bwConfirm('Reset all accessibility settings to default?', function() {
+                bwConfirm('Reset all customization settings to default?', function() {
                 fetch('/api/accessibility/reset', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
@@ -232,7 +232,7 @@
                 }).then(function(r) { return r.json(); })
                 .then(function(d) {
                     if (d.ok) {
-                        if (status) { status.textContent = 'Accessibility settings reset to default.'; status.style.display = ''; }
+                        if (status) { status.textContent = 'Customization settings reset to default.'; status.style.display = ''; }
                         // Apply defaults immediately if accessibility panel is loaded
                         if (typeof applyA11yPrefs === 'function' && d.defaults) {
                             _a11yPrefs = d.defaults;

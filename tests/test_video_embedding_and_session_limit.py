@@ -160,6 +160,32 @@ class TestVideoEmbedSetting:
 
 
 # ---------------------------------------------------------------------------
+# Preview API: video embedding in edit mode
+# ---------------------------------------------------------------------------
+
+class TestPreviewApiVideoEmbed:
+    def test_preview_api_embeds_youtube_video(self, logged_in_admin):
+        resp = logged_in_admin.post(
+            "/api/preview",
+            json={"content": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"},
+        )
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert "video-embed" in data["html"]
+        assert "youtube.com/embed/dQw4w9WgXcQ" in data["html"]
+
+    def test_preview_api_embeds_vimeo_video(self, logged_in_admin):
+        resp = logged_in_admin.post(
+            "/api/preview",
+            json={"content": "https://vimeo.com/123456789"},
+        )
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert "video-embed" in data["html"]
+        assert "player.vimeo.com/video/123456789" in data["html"]
+
+
+# ---------------------------------------------------------------------------
 # Session limit feature
 # ---------------------------------------------------------------------------
 
