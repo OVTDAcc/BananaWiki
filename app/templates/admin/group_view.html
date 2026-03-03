@@ -14,7 +14,7 @@
         {% for m in members %}
         <tr>
             <td>{{ m.username }}</td>
-            <td>{{ m.role }}{% if m.timed_out_until %} ⏳{% endif %}</td>
+            <td>{{ m.role }}{% if m.timed_out_until and m.timed_out_until > utcnow %} ⏳{% endif %}</td>
             <td>{{ format_datetime(m.joined_at) }}</td>
         </tr>
         {% endfor %}

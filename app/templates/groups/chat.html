@@ -35,7 +35,7 @@
                 <td>{{ m.username }}</td>
                 <td>
                     {{ m.role }}
-                    {% if m.timed_out_until %}
+                    {% if m.timed_out_until and m.timed_out_until > utcnow %}
                         <span style="color:var(--danger-color,red)" title="Timed out">⏳</span>
                     {% endif %}
                 </td>
@@ -57,7 +57,7 @@
                             </form>
                             {% endif %}
                             <form method="POST" action="{{ url_for('group_transfer', group_id=group.id) }}" style="display:inline"
-                                  onsubmit="return confirm('Transfer ownership to {{ m.username }}? You will become a moderator.')">
+                                  onsubmit="return confirm('Transfer ownership to ' + {{ m.username|tojson }} + '? You will become a moderator.')">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <input type="hidden" name="user_id" value="{{ m.user_id }}">
                                 <button class="btn btn-sm btn-outline" title="Transfer ownership">👑</button>
@@ -93,7 +93,7 @@
                         {# Kick (mod/owner for regular, site admin for global) #}
                         {% if (is_mod and not group.is_global and not (my_role == 'moderator' and m.role in ('owner', 'moderator'))) or (group.is_global and is_site_admin) %}
                         <form method="POST" action="{{ url_for('group_kick', group_id=group.id) }}" style="display:inline"
-                              onsubmit="return confirm('Remove {{ m.username }} from the group?')">
+                              onsubmit="return confirm('Remove ' + {{ m.username|tojson }} + ' from the group?')">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <input type="hidden" name="user_id" value="{{ m.user_id }}">
                             <button class="btn btn-sm btn-outline" title="Remove from group" style="color:var(--danger-color,red)">✕</button>

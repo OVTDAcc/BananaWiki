@@ -624,6 +624,7 @@ def inject_globals():
         "user_accessibility": user_accessibility,
         "sidebar_people": sidebar_people,
         "current_user_profile": current_user_profile,
+        "utcnow": datetime.now(timezone.utc).isoformat(),
     }
 
 
@@ -4150,10 +4151,14 @@ def group_untimeout(group_id):
             flash("Permission denied.", "error")
             return redirect(url_for("group_view", group_id=group_id))
     target_id = request.form.get("user_id", "")
+    target_membership = db.get_group_member(group_id, target_id)
+    if not target_membership:
+        flash("User is not a member.", "error")
+        return redirect(url_for("group_view", group_id=group_id))
     target_user = db.get_user_by_id(target_id)
     target_name = target_user["username"] if target_user else "Unknown"
     db.set_group_member_timeout(group_id, target_id, None)
-    db.send_group_system_message(group_id, f"{target_name} was untimeouted by {user['username']}")
+    db.send_group_system_message(group_id, f"{target_name}'s timeout was removed by {user['username']}")
     flash(f"{target_name}'s timeout has been removed.", "success")
     return redirect(url_for("group_view", group_id=group_id))
 

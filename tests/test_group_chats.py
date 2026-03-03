@@ -779,3 +779,57 @@ def test_non_admin_cannot_moderate_global(alice_uid, bob_uid):
                       data={"message_id": msg_id},
                       follow_redirects=True)
         assert b"Only site admins" in resp.data
+
+
+# ---------------------------------------------------------------------------
+# Edge cases (verification fixes)
+# ---------------------------------------------------------------------------
+
+def test_untimeout_non_member_rejected(alice_client, alice_uid, bob_uid):
+    """Untimeout should fail if target is not a member of the group."""
+    import db
+    group = db.create_group_chat("Test", alice_uid)
+    # bob is NOT a member
+    resp = alice_client.post(f"/groups/{group['id']}/untimeout",
+                             data={"user_id": bob_uid},
+                             follow_redirects=True)
+    assert b"User is not a member" in resp.data
+
+
+def test_expired_timeout_icon_not_shown(alice_client, alice_uid, bob_uid):
+    """Expired timeout should not show the ⏳ icon in the member list."""
+    import db
+    group = db.create_group_chat("Test", alice_uid)
+    db.add_group_member(group["id"], bob_uid)
+    # Set timeout in the past
+    db.set_group_member_timeout(group["id"], bob_uid, "2020-01-01T00:00:00+00:00")
+    resp = alice_client.get(f"/groups/{group['id']}")
+    assert resp.status_code == 200
+    # The ⏳ icon should NOT appear for expired timeouts
+    assert "⏳".encode() not in resp.data
+
+
+def test_active_timeout_icon_shown(alice_client, alice_uid, bob_uid):
+    """Active timeout should show the ⏳ icon in the member list."""
+    import db
+    group = db.create_group_chat("Test", alice_uid)
+    db.add_group_member(group["id"], bob_uid)
+    # Set timeout far in the future
+    db.set_group_member_timeout(group["id"], bob_uid, "9999-12-31T23:59:59+00:00")
+    resp = alice_client.get(f"/groups/{group['id']}")
+    assert resp.status_code == 200
+    assert "⏳".encode() in resp.data
+
+
+def test_untimeout_system_message_grammar(alice_client, alice_uid, bob_uid):
+    """System message for untimeout should use proper grammar."""
+    import db
+    group = db.create_group_chat("Test", alice_uid)
+    db.add_group_member(group["id"], bob_uid)
+    db.set_group_member_timeout(group["id"], bob_uid, "9999-12-31T23:59:59+00:00")
+    alice_client.post(f"/groups/{group['id']}/untimeout",
+                      data={"user_id": bob_uid},
+                      follow_redirects=True)
+    messages = db.get_group_messages(group["id"])
+    sys_msgs = [m for m in messages if m["is_system"]]
+    assert any("timeout was removed" in m["content"] for m in sys_msgs)
