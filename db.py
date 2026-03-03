@@ -204,7 +204,7 @@ def init_db():
     CREATE TABLE IF NOT EXISTS group_chats (
         id          INTEGER PRIMARY KEY AUTOINCREMENT,
         name        TEXT    NOT NULL,
-        creator_id  TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        creator_id  TEXT    REFERENCES users(id) ON DELETE SET NULL,
         invite_code TEXT    NOT NULL UNIQUE,
         is_global   INTEGER NOT NULL DEFAULT 0,
         created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
@@ -2374,7 +2374,7 @@ def get_or_create_global_chat():
     try:
         conn.execute(
             "INSERT INTO group_chats (name, creator_id, invite_code, is_global, created_at) "
-            "VALUES (?, '', ?, 1, ?)",
+            "VALUES (?, NULL, ?, 1, ?)",
             ("Global Chat", invite_code, now),
         )
         conn.commit()

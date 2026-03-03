@@ -3762,7 +3762,7 @@ def group_new():
             return redirect(url_for("group_new"))
         group = db.create_group_chat(name, user["id"])
         db.send_group_system_message(group["id"], f"{user['username']} created the group")
-        notify_change("group_create", group_name=name, user=user["username"])
+        notify_change("group_create", f"Group '{name}' created by {user['username']}")
         flash("Group created!", "success")
         return redirect(url_for("group_view", group_id=group["id"]))
     categories, uncategorized = db.get_category_tree()
@@ -3788,7 +3788,7 @@ def group_join():
             return redirect(url_for("group_view", group_id=group["id"]))
         db.add_group_member(group["id"], user["id"])
         db.send_group_system_message(group["id"], f"{user['username']} joined the group")
-        notify_change("group_join", group_name=group["name"], user=user["username"])
+        notify_change("group_join", f"{user['username']} joined group '{group['name']}'")
         flash(f"You joined {group['name']}!", "success")
         return redirect(url_for("group_view", group_id=group["id"]))
     categories, uncategorized = db.get_category_tree()
@@ -3939,7 +3939,7 @@ def group_add_member(group_id):
         return redirect(url_for("group_view", group_id=group_id))
     db.add_group_member(group_id, target["id"])
     db.send_group_system_message(group_id, f"{target['username']} was added by {user['username']}")
-    notify_change("group_add_member", group_name=group["name"], added=target["username"], by=user["username"])
+    notify_change("group_add_member", f"{target['username']} added to group '{group['name']}' by {user['username']}")
     flash(f"{target['username']} has been added to the group.", "success")
     return redirect(url_for("group_view", group_id=group_id))
 
@@ -3960,7 +3960,7 @@ def group_leave(group_id):
         return redirect(url_for("group_view", group_id=group_id))
     db.remove_group_member(group_id, user["id"])
     db.send_group_system_message(group_id, f"{user['username']} left the group")
-    notify_change("group_leave", group_name=group["name"], user=user["username"])
+    notify_change("group_leave", f"{user['username']} left group '{group['name']}'")
     flash("You left the group.", "success")
     return redirect(url_for("group_list"))
 
@@ -3989,7 +3989,7 @@ def group_kick(group_id):
     target_name = target_user["username"] if target_user else "Unknown"
     db.remove_group_member(group_id, target_id)
     db.send_group_system_message(group_id, f"{target_name} was removed by {user['username']}")
-    notify_change("group_kick", group_name=group["name"], kicked=target_name, by=user["username"])
+    notify_change("group_kick", f"{target_name} removed from group '{group['name']}' by {user['username']}")
     flash(f"{target_name} has been removed.", "success")
     return redirect(url_for("group_view", group_id=group_id))
 
@@ -4017,7 +4017,7 @@ def group_promote(group_id):
     target_name = target_user["username"] if target_user else "Unknown"
     db.set_group_member_role(group_id, target_id, "moderator")
     db.send_group_system_message(group_id, f"{target_name} was promoted to moderator by {user['username']}")
-    notify_change("group_promote", group_name=group["name"], promoted=target_name, by=user["username"])
+    notify_change("group_promote", f"{target_name} promoted to moderator in '{group['name']}' by {user['username']}")
     flash(f"{target_name} is now a moderator.", "success")
     return redirect(url_for("group_view", group_id=group_id))
 
@@ -4042,7 +4042,7 @@ def group_demote(group_id):
     target_name = target_user["username"] if target_user else "Unknown"
     db.set_group_member_role(group_id, target_id, "member")
     db.send_group_system_message(group_id, f"{target_name} was demoted to member by {user['username']}")
-    notify_change("group_demote", group_name=group["name"], demoted=target_name, by=user["username"])
+    notify_change("group_demote", f"{target_name} demoted in '{group['name']}' by {user['username']}")
     flash(f"{target_name} is no longer a moderator.", "success")
     return redirect(url_for("group_view", group_id=group_id))
 
@@ -4073,7 +4073,7 @@ def group_transfer(group_id):
     target_name = target_user["username"] if target_user else "Unknown"
     db.transfer_group_ownership(group_id, user["id"], target_id)
     db.send_group_system_message(group_id, f"{user['username']} transferred ownership to {target_name}")
-    notify_change("group_transfer", group_name=group["name"], new_owner=target_name, by=user["username"])
+    notify_change("group_transfer", f"Ownership of '{group['name']}' transferred to {target_name} by {user['username']}")
     flash(f"Ownership transferred to {target_name}. You are now a moderator.", "success")
     return redirect(url_for("group_view", group_id=group_id))
 
@@ -4127,7 +4127,7 @@ def group_timeout(group_id):
     else:
         flash("Please specify a duration.", "error")
         return redirect(url_for("group_view", group_id=group_id))
-    notify_change("group_timeout", group_name=group["name"], target=target_name, by=user["username"])
+    notify_change("group_timeout", f"{target_name} timed out in '{group['name']}' by {user['username']}")
     flash(f"{target_name} has been timed out.", "success")
     return redirect(url_for("group_view", group_id=group_id))
 
