@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Groups – {{ settings.site_name }}{% endblock %}
+{% block content %}
+<h1>👥 Groups</h1>
+
+<div style="margin-bottom:1rem;display:flex;gap:.5rem;flex-wrap:wrap">
+    <a href="{{ url_for('group_new') }}" class="btn">New Group</a>
+    <a href="{{ url_for('group_join') }}" class="btn btn-outline">Join with Code</a>
+    <a href="{{ url_for('group_global') }}" class="btn btn-outline">🌍 Global Chat</a>
+</div>
+
+{% if groups %}
+<div class="chat-list">
+    {% for g in groups %}
+    <a href="{{ url_for('group_view', group_id=g.id) }}" class="chat-list-item">
+        <div class="chat-list-name">
+            {% if g.is_global %}🌍{% endif %}
+            {{ g.name }}
+            <small style="opacity:.6">({{ g.member_count }} member{{ 's' if g.member_count != 1 }})</small>
+        </div>
+        <div class="chat-list-preview">
+            {% if g.last_message %}
+                {{ g.last_message[:80] }}{% if g.last_message|length > 80 %}…{% endif %}
+            {% else %}
+                <em>No messages yet</em>
+            {% endif %}
+        </div>
+        {% if g.last_message_at %}
+        <div class="chat-list-time">{{ time_ago(g.last_message_at) }}</div>
+        {% endif %}
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<p>No groups yet. Create one or join with an invite code!</p>
+{% endif %}
+{% endblock %}

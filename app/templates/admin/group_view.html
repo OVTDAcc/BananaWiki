@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Group #{{ group.id }} – {{ settings.site_name }}{% endblock %}
+{% block content %}
+<div class="chat-header">
+    <a href="{{ url_for('admin_groups') }}" class="btn btn-sm btn-outline">← Back</a>
+    <h1>{% if group.is_global %}🌍{% endif %} {{ group.name }}</h1>
+</div>
+
+<details style="margin-bottom:1rem">
+    <summary class="btn btn-sm btn-outline">Members ({{ members|length }})</summary>
+    <table class="admin-table" style="font-size:.85rem;margin-top:.5rem">
+        <thead><tr><th>User</th><th>Role</th><th>Joined</th></tr></thead>
+        <tbody>
+        {% for m in members %}
+        <tr>
+            <td>{{ m.username }}</td>
+            <td>{{ m.role }}{% if m.timed_out_until and m.timed_out_until > utcnow %} ⏳{% endif %}</td>
+            <td>{{ format_datetime(m.joined_at) }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</details>
+
+<div class="chat-messages chat-messages-admin" id="chat-messages">
+    {% if messages %}
+        {% for msg in messages %}
+            {% if msg.is_system %}
+            <div class="chat-msg chat-msg-system">
+                <div class="chat-msg-body" style="text-align:center;opacity:.7;font-style:italic">
+                    ℹ️ {{ msg.content }}
+                    <span class="chat-msg-time">{{ format_datetime(msg.created_at) }}</span>
+                </div>
+            </div>
+            {% else %}
+            <div class="chat-msg">
+                <div class="chat-msg-meta">
+                    <strong>{{ msg.sender_name or 'System' }}</strong>
+                    <span class="chat-msg-time">{{ format_datetime(msg.created_at) }}</span>
+                    <span class="chat-msg-ip">IP: {{ msg.ip_address }}</span>
+                </div>
+                <div class="chat-msg-body">{{ msg.content }}</div>
+                {% if msg.attachments %}
+                <div class="chat-msg-attachments">
+                    {% for att in msg.attachments %}
+                    <a href="{{ url_for('group_attachment_download', attachment_id=att.id) }}" class="chat-attachment-link">📎 {{ att.original_name }} ({{ (att.file_size / 1024)|round(1) }} KB)</a>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+        {% endfor %}
+    {% else %}
+        <p class="chat-empty">No messages in this group.</p>
+    {% endif %}
+</div>
+{% endblock %}

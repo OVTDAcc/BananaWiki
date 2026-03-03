@@ -462,6 +462,72 @@ def backup_chats_before_cleanup() -> None:
     logger.info(f"SYNC | Chat backup sent ({len(messages)} message(s))")
 
 
+def backup_group_chats_before_cleanup() -> None:
+    """Send all group chat messages to Telegram before the nightly cleanup.
+
+    Similar to backup_chats_before_cleanup but for group messages.
+    Runs synchronously (called from the cleanup thread).
+    """
+    if not is_enabled():
+        return
+
+    import db as _db  # local import to avoid circular dependency
+
+    messages = _db.get_all_group_messages_for_backup()
+    if not messages:
+        return
+
+    token = config.SYNC_TOKEN
+    user_id = config.SYNC_USERID
+    if not token or not user_id:
+        return
+
+    logger = _get_logger()
+    chat_attach_dir = getattr(config, "CHAT_ATTACHMENT_FOLDER", "")
+
+    lines = ["\U0001f465 Group chat backup before cleanup", ""]  # 👥
+    for msg in messages:
+        att_names = ", ".join(a["original_name"] for a in msg.get("attachments", []))
+        sender = msg.get("sender_name") or "System"
+        line = (
+            f"\u2022 [{msg['created_at']}] [{msg['group_name']}] {sender} "
+            f"(IP: {msg['ip_address']})\n  {msg['content']}"
+        )
+        if att_names:
+            line += f"\n  \U0001f4ce Attachments: {att_names}"
+        lines.append(line)
+
+    text = "\n".join(lines)
+    chunks = [text[i:i + 4000] for i in range(0, len(text), 4000)]
+
+    for chunk in chunks:
+        payload = {"chat_id": user_id, "text": chunk}
+        body = json.dumps(payload).encode()
+        url = f"https://api.telegram.org/bot{token}/sendMessage"
+        req = Request(
+            url,
+            data=body,
+            headers={
+                "Content-Type": "application/json",
+                "Content-Length": str(len(body)),
+            },
+            method="POST",
+        )
+        try:
+            with urlopen(req, timeout=30) as resp:
+                resp.read()
+        except (URLError, OSError, ValueError) as exc:
+            logger.error(f"SYNC | Group chat backup text send failed: {exc}")
+
+    for msg in messages:
+        for att in msg.get("attachments", []):
+            filepath = os.path.join(chat_attach_dir, att["filename"]) if chat_attach_dir else ""
+            if filepath and os.path.isfile(filepath):
+                _do_send_upload(att["filename"], filepath, display_name=att["original_name"])
+
+    logger.info(f"SYNC | Group chat backup sent ({len(messages)} message(s))")
+
+
 # ---------------------------------------------------------------------------
 #  Upload message-ID persistence
 # ---------------------------------------------------------------------------
