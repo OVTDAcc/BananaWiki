@@ -193,7 +193,7 @@
             </li>
             {% endfor %}
         </ul>
-        {% if is_admin and (is_own or target.role != 'protected_admin') and role_history | length > 1 %}
+        {% if is_admin and (is_own or target.role != 'protected_admin') and role_history | length > 0 %}
         <form method="POST" action="{{ url_for('admin_manage_attributions', user_id=target.id) }}" style="margin-top:.5rem" data-confirm="Delete ALL role history entries for this user?">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="action" value="delete_all_role_history">

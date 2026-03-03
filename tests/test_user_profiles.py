@@ -1028,8 +1028,8 @@ def test_non_admin_cannot_manage_attributions(alice_client, regular_uid):
         data={"action": "deattribute_all"},
         follow_redirects=True,
     )
-    # Should redirect to login or show forbidden
-    assert resp.status_code in (200, 302, 403)
+    assert resp.status_code == 200
+    assert b"Admin access required" in resp.data
     assert b"Deattributed" not in resp.data
 
 
