@@ -5457,11 +5457,16 @@ def test_delete_upload_nonexistent_file(logged_in_admin):
 def test_db_connection_has_timeout():
     """get_db() should return a connection with a timeout > default 5s."""
     import db
-    conn = db.get_db()
-    try:
-        # SQLite timeout is set at connect time; verify we can get a connection
-        assert conn is not None
-        row = conn.execute("SELECT 1").fetchone()
-        assert row[0] == 1
-    finally:
+    import unittest.mock as mock
+    original_connect = __import__("sqlite3").connect
+    captured = {}
+
+    def spy_connect(*args, **kwargs):
+        captured.update(kwargs)
+        return original_connect(*args, **kwargs)
+
+    with mock.patch("sqlite3.connect", side_effect=spy_connect):
+        conn = db.get_db()
         conn.close()
+
+    assert captured.get("timeout", 5) > 5

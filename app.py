@@ -2470,6 +2470,8 @@ def delete_upload():
     if os.path.isfile(filepath):
         try:
             os.remove(filepath)
+        except FileNotFoundError:
+            pass  # file was already removed (race condition)
         except OSError:
             return jsonify({"error": "failed to delete file"}), 500
         user = get_current_user()
