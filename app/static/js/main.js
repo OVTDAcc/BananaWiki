@@ -1453,7 +1453,37 @@ function initEditorResize() {
     var isResizingEditor = false;
     var container = divider.parentElement;
 
+    function isMobileLayout() {
+        return window.innerWidth <= 768;
+    }
+
+    function applyHorizSplit(clientX) {
+        var rect = container.getBoundingClientRect();
+        var offsetX = clientX - rect.left;
+        var totalW = rect.width;
+        var pct = Math.max(15, Math.min(85, (offsetX / totalW) * 100));
+        editorPane.style.flex = 'none';
+        editorPane.style.width = pct + '%';
+        previewPane.style.flex = 'none';
+        previewPane.style.width = (100 - pct) + '%';
+        return pct;
+    }
+
+    function applyVertSplit(clientY) {
+        var rect = container.getBoundingClientRect();
+        var offsetY = clientY - rect.top;
+        var totalH = rect.height;
+        var pct = Math.max(15, Math.min(85, (offsetY / totalH) * 100));
+        editorPane.style.flex = 'none';
+        editorPane.style.height = pct + '%';
+        previewPane.style.flex = 'none';
+        previewPane.style.height = (100 - pct) + '%';
+        return pct;
+    }
+
+    // Mouse events – horizontal split on desktop
     divider.addEventListener('mousedown', function(e) {
+        if (isMobileLayout()) return;
         isResizingEditor = true;
         divider.classList.add('resizing');
         document.body.style.userSelect = 'none';
@@ -1463,14 +1493,7 @@ function initEditorResize() {
 
     document.addEventListener('mousemove', function(e) {
         if (!isResizingEditor) return;
-        var rect = container.getBoundingClientRect();
-        var offsetX = e.clientX - rect.left;
-        var totalW = rect.width;
-        var pct = Math.max(15, Math.min(85, (offsetX / totalW) * 100));
-        editorPane.style.flex = 'none';
-        editorPane.style.width = pct + '%';
-        previewPane.style.flex = 'none';
-        previewPane.style.width = (100 - pct) + '%';
+        applyHorizSplit(e.clientX);
     });
 
     document.addEventListener('mouseup', function() {
@@ -1486,40 +1509,93 @@ function initEditorResize() {
         }
     });
 
+    // Touch events – horizontal on desktop, vertical on mobile (stacked layout)
+    divider.addEventListener('touchstart', function(e) {
+        if (e.touches.length !== 1) return;
+        isResizingEditor = true;
+        divider.classList.add('resizing');
+        e.preventDefault();
+    }, { passive: false });
+
+    divider.addEventListener('touchmove', function(e) {
+        if (!isResizingEditor || e.touches.length !== 1) return;
+        e.preventDefault();
+        var touch = e.touches[0];
+        if (isMobileLayout()) {
+            applyVertSplit(touch.clientY);
+        } else {
+            applyHorizSplit(touch.clientX);
+        }
+    }, { passive: false });
+
+    divider.addEventListener('touchend', function() {
+        if (!isResizingEditor) return;
+        isResizingEditor = false;
+        divider.classList.remove('resizing');
+        if (!isMobileLayout()) {
+            var pct = parseFloat(editorPane.style.width);
+            if (pct >= 15 && pct <= 85) {
+                saveA11ySetting('editor_pane_width', pct);
+            }
+        }
+    });
+
     // Vertical resize handle for editor container height
     var vertHandle = document.getElementById('editor-resize-handle');
     var editorContainer = document.querySelector('.editor-container');
     if (vertHandle && editorContainer) {
         var isResizingVert = false;
         var startY, startH;
-        vertHandle.addEventListener('mousedown', function(e) {
+
+        function startVertResize(clientY) {
             isResizingVert = true;
-            startY = e.clientY;
+            startY = clientY;
             startH = editorContainer.offsetHeight;
             vertHandle.classList.add('resizing');
             document.body.style.userSelect = 'none';
             document.body.style.cursor = 'row-resize';
-            e.preventDefault();
-        });
-        document.addEventListener('mousemove', function(e) {
-            if (!isResizingVert) return;
-            var newH = startH + (e.clientY - startY);
+        }
+
+        function moveVertResize(clientY) {
+            var newH = startH + (clientY - startY);
             if (newH >= 300 && newH <= 2000) {
                 editorContainer.style.minHeight = newH + 'px';
                 editorContainer.style.height = newH + 'px';
             }
-        });
-        document.addEventListener('mouseup', function() {
-            if (isResizingVert) {
-                isResizingVert = false;
-                vertHandle.classList.remove('resizing');
-                document.body.style.userSelect = '';
-                document.body.style.cursor = '';
-                var h = parseInt(editorContainer.style.height, 10);
-                if (h >= 300 && h <= 2000) {
-                    saveA11ySetting('editor_height', h);
-                }
+        }
+
+        function endVertResize() {
+            if (!isResizingVert) return;
+            isResizingVert = false;
+            vertHandle.classList.remove('resizing');
+            document.body.style.userSelect = '';
+            document.body.style.cursor = '';
+            var h = parseInt(editorContainer.style.height, 10);
+            if (h >= 300 && h <= 2000) {
+                saveA11ySetting('editor_height', h);
             }
+        }
+
+        vertHandle.addEventListener('mousedown', function(e) {
+            startVertResize(e.clientY);
+            e.preventDefault();
         });
+        document.addEventListener('mousemove', function(e) {
+            if (!isResizingVert) return;
+            moveVertResize(e.clientY);
+        });
+        document.addEventListener('mouseup', endVertResize);
+
+        vertHandle.addEventListener('touchstart', function(e) {
+            if (e.touches.length !== 1) return;
+            startVertResize(e.touches[0].clientY);
+            e.preventDefault();
+        }, { passive: false });
+        vertHandle.addEventListener('touchmove', function(e) {
+            if (!isResizingVert || e.touches.length !== 1) return;
+            e.preventDefault();
+            moveVertResize(e.touches[0].clientY);
+        }, { passive: false });
+        vertHandle.addEventListener('touchend', endVertResize);
     }
 }

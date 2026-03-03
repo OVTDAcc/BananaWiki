@@ -141,8 +141,8 @@ select.input{appearance:auto}
 .editor-divider{width:1px;background:rgba(255,255,255,.08)}
 .preview-pane{flex:1;display:flex;flex-direction:column;min-width:0;overflow:hidden}
 .preview-content{flex:1;padding:.8rem 1rem;overflow-y:auto;line-height:1.75}
-/* Vertical resize handle for editor container */
-.editor-resize-handle{height:6px;cursor:row-resize;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-top:none;border-radius:0 0 6px 6px;transition:background .15s;position:relative;z-index:10}
+/* Vertical resize handle for editor container; taller for easier touch targeting */
+.editor-resize-handle{height:10px;cursor:row-resize;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-top:none;border-radius:0 0 6px 6px;transition:background .15s;position:relative;z-index:10;touch-action:none}
 .editor-resize-handle:hover,.editor-resize-handle.resizing{background:var(--primary);opacity:.6}
 .preview-content h1{font-size:1.6rem;margin:.8rem 0 .5rem;font-weight:600}
 .preview-content h2{font-size:1.3rem;margin:.8rem 0 .4rem;padding-bottom:.2rem;border-bottom:1px solid rgba(255,255,255,.06)}
@@ -391,9 +391,10 @@ select.input{appearance:auto}
 .a11y-contrast-5{--bg:#000;--text:#fff;--primary:#ff0;--accent:#ff0;--secondary:#000;--sidebar:#000;filter:contrast(2.5) grayscale(0.2)}
 
 /* Editor pane resize handle */
-.editor-divider{width:5px;background:rgba(255,255,255,.06);cursor:col-resize;flex-shrink:0;transition:background .15s;position:relative;z-index:5}
+.editor-divider{width:5px;background:rgba(255,255,255,.06);cursor:col-resize;flex-shrink:0;transition:background .15s;position:relative;z-index:5;touch-action:none}
 .editor-divider:hover,.editor-divider.resizing{background:var(--primary);opacity:.7}
-@media(max-width:768px){.editor-divider{width:100%;height:5px;cursor:row-resize}}
+@media(max-width:768px){.editor-divider{width:100%;height:10px;cursor:row-resize;min-height:10px}}
+@media(hover:none){.editor-divider{opacity:.5}}
 
 /* Attachments section */
 .attachments-section{margin-top:1.5rem;padding:1rem;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:6px}

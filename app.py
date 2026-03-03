@@ -654,7 +654,7 @@ def before_request_hook():
 
     # Session limit: enforce one active session per user
     if settings["session_limit_enabled"] and request.endpoint not in (
-        "login", "logout", "setup", "static"
+        "login", "logout", "setup", "static", "session_conflict", "session_conflict_force"
     ):
         uid = session.get("user_id")
         if uid:
@@ -664,11 +664,7 @@ def before_request_hook():
                 session_token = session.get("session_token")
                 if stored_token and session_token != stored_token:
                     session.clear()
-                    flash(
-                        "Your session was ended because you signed in from another device or tab.",
-                        "error",
-                    )
-                    return redirect(url_for("login"))
+                    return redirect(url_for("session_conflict"))
 
     # Global rate limit (skip static files)
     if request.endpoint and request.endpoint != "static":
@@ -874,6 +870,41 @@ def logout():
     session.clear()
     flash("You have been logged out.", "info")
     return redirect(url_for("login"))
+
+
+@app.route("/session-conflict")
+def session_conflict():
+    settings = db.get_site_settings()
+    return render_template("auth/session_conflict.html", settings=settings)
+
+
+@app.route("/session-conflict/force", methods=["POST"])
+@rate_limit(10, 60)
+def session_conflict_force():
+    """Log out all other sessions by clearing the stored session token."""
+    settings = db.get_site_settings()
+    username = request.form.get("username", "").strip()
+    password = request.form.get("password", "").strip()
+    if not username or not password:
+        flash("Please enter your credentials to re-authenticate.", "error")
+        return redirect(url_for("session_conflict"))
+    user = db.get_user_by_username(username)
+    if not user or not check_password_hash(user["password"], password):
+        flash("Incorrect username or password.", "error")
+        return redirect(url_for("session_conflict"))
+    if user["suspended"]:
+        flash("Your account is suspended.", "error")
+        return redirect(url_for("session_conflict"))
+    # Issue a new session token so all other sessions are invalidated
+    token = uuid.uuid4().hex
+    db.update_user(user["id"], session_token=token)
+    session.clear()
+    session.permanent = True
+    session["user_id"] = user["id"]
+    session["session_token"] = token
+    log_action("session_conflict_force", request, user=user)
+    flash("Other sessions have been logged out. You are now signed in.", "info")
+    return redirect(url_for("home"))
 
 
 @app.route("/lockdown")

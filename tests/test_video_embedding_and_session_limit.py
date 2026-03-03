@@ -164,11 +164,11 @@ class TestVideoEmbedSetting:
 # ---------------------------------------------------------------------------
 
 class TestSessionLimitSetting:
-    def test_session_limit_disabled_by_default(self):
+    def test_session_limit_enabled_by_default(self):
         import db
         db.init_db()
         settings = db.get_site_settings()
-        assert settings["session_limit_enabled"] == 0
+        assert settings["session_limit_enabled"] == 1
 
     def test_admin_can_enable_session_limit(self, logged_in_admin):
         resp = logged_in_admin.post("/admin/settings", data={
@@ -227,10 +227,10 @@ class TestSessionLimitSetting:
             with app.test_client() as client2:
                 client2.post("/login", data={"username": "admin", "password": "admin123"})
 
-            # First client's next request should be redirected to login
+            # First client's next request should be redirected to session-conflict page
             resp1_after = client1.get("/")
             assert resp1_after.status_code == 302
-            assert "/login" in resp1_after.headers["Location"]
+            assert "/session-conflict" in resp1_after.headers["Location"]
 
     def test_session_limit_disabled_allows_multiple_sessions(self, client, admin_user):
         """When session_limit is off, multiple sessions are not invalidated."""
@@ -247,6 +247,50 @@ class TestSessionLimitSetting:
             # First client's session should still be valid
             resp1 = client1.get("/")
             assert resp1.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Session conflict page
+# ---------------------------------------------------------------------------
+
+class TestSessionConflictPage:
+    def test_session_conflict_page_loads(self, client, admin_user):
+        resp = client.get("/session-conflict")
+        assert resp.status_code == 200
+        assert b"Active Session Detected" in resp.data
+
+    def test_session_conflict_page_has_form(self, client, admin_user):
+        resp = client.get("/session-conflict")
+        assert resp.status_code == 200
+        assert b"session-conflict/force" in resp.data
+        assert b"Log Out Other Sessions" in resp.data
+
+    def test_session_conflict_force_with_wrong_password(self, client, admin_user):
+        resp = client.post("/session-conflict/force", data={
+            "username": "admin", "password": "wrongpassword"
+        })
+        assert resp.status_code in (200, 302)
+        # Should not redirect to home
+        if resp.status_code == 302:
+            assert "/session-conflict" in resp.headers["Location"]
+
+    def test_session_conflict_force_with_correct_credentials(self, client, admin_user):
+        resp = client.post("/session-conflict/force", data={
+            "username": "admin", "password": "admin123"
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+
+    def test_session_conflict_redirected_on_token_mismatch(self, client, admin_user):
+        import db
+        db.update_site_settings(session_limit_enabled=1)
+        from app import app
+        with app.test_client() as c1:
+            c1.post("/login", data={"username": "admin", "password": "admin123"})
+            with app.test_client() as c2:
+                c2.post("/login", data={"username": "admin", "password": "admin123"})
+            resp = c1.get("/")
+            assert resp.status_code == 302
+            assert "session-conflict" in resp.headers["Location"]
 
 
 # ---------------------------------------------------------------------------

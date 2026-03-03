@@ -107,7 +107,8 @@ def init_db():
         sidebar_color    TEXT NOT NULL DEFAULT '#111118',
         bg_color         TEXT NOT NULL DEFAULT '#0d0d14',
         setup_done  INTEGER NOT NULL DEFAULT 0,
-        timezone    TEXT    NOT NULL DEFAULT 'UTC'
+        timezone    TEXT    NOT NULL DEFAULT 'UTC',
+        session_limit_enabled INTEGER NOT NULL DEFAULT 1
     );
 
     CREATE TABLE IF NOT EXISTS login_attempts (
@@ -198,7 +199,7 @@ def init_db():
     if "lockdown_message" not in ss_cols:
         cur.execute("ALTER TABLE site_settings ADD COLUMN lockdown_message TEXT NOT NULL DEFAULT ''")
     if "session_limit_enabled" not in ss_cols:
-        cur.execute("ALTER TABLE site_settings ADD COLUMN session_limit_enabled INTEGER NOT NULL DEFAULT 0")
+        cur.execute("ALTER TABLE site_settings ADD COLUMN session_limit_enabled INTEGER NOT NULL DEFAULT 1")
 
     # Add session_token column to users if missing
     if "session_token" not in cols:
