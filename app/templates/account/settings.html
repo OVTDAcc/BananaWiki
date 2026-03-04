@@ -119,6 +119,52 @@
     <a href="{{ url_for('export_own_data') }}" class="btn btn-outline">⬇ Download My Data</a>
 </div>
 
+<div class="settings-section" id="api-tokens">
+    <h3>API Tokens</h3>
+    <p style="font-size:.85rem;opacity:.7;margin-bottom:.8rem">
+        Generate tokens to access the <a href="{{ url_for('view_page', slug='api-documentation') }}">read-only JSON API</a> from external tools or scripts.
+        Tokens are shown only once when created. You may have up to 10 tokens.
+    </p>
+    {% if api_tokens %}
+    <table style="width:100%;border-collapse:collapse;font-size:.88rem;margin-bottom:1rem">
+        <thead>
+            <tr style="opacity:.6;text-align:left">
+                <th style="padding:.3rem .5rem">Name</th>
+                <th style="padding:.3rem .5rem">Created</th>
+                <th style="padding:.3rem .5rem">Last used</th>
+                <th style="padding:.3rem .5rem"></th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for tok in api_tokens %}
+        <tr style="border-top:1px solid rgba(255,255,255,.08)">
+            <td style="padding:.4rem .5rem">{{ tok.name }}</td>
+            <td style="padding:.4rem .5rem;opacity:.7">{{ format_datetime(tok.created_at) }}</td>
+            <td style="padding:.4rem .5rem;opacity:.7">{{ format_datetime(tok.last_used_at) if tok.last_used_at else 'Never' }}</td>
+            <td style="padding:.4rem .5rem;text-align:right">
+                <form method="POST" action="{{ url_for('revoke_api_token') }}" style="display:inline" data-confirm="Revoke this API token?">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="token_id" value="{{ tok.id }}">
+                    <button type="submit" class="btn btn-danger" style="padding:.2rem .6rem;font-size:.8rem">Revoke</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="font-size:.85rem;opacity:.5;margin-bottom:.8rem">No tokens yet.</p>
+    {% endif %}
+    <form method="POST" action="{{ url_for('create_api_token') }}" style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:flex-end">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-group" style="margin:0;flex:1;min-width:200px">
+            <label style="font-size:.85rem">Token name</label>
+            <input type="text" name="name" class="input" maxlength="80" placeholder="e.g. My script" required>
+        </div>
+        <button type="submit" class="btn">Generate Token</button>
+    </form>
+</div>
+
 <div class="settings-section" id="profile">
     <h3>Profile Page</h3>
     <p style="font-size:.85rem;opacity:.7;margin-bottom:.8rem">Set up your public profile with a bio, real name and avatar. Max avatar size: 1 MB.</p>

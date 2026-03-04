@@ -2,7 +2,7 @@
 
 import functools
 
-from flask import session, redirect, url_for, flash
+from flask import session, redirect, url_for, flash, request, jsonify
 
 import db
 
@@ -12,6 +12,31 @@ def get_current_user():
     if uid:
         return db.get_user_by_id(uid)
     return None
+
+
+def get_user_from_api_token():
+    """Return the user row for the API token in the current request, or None.
+
+    The token is read from:
+    1. ``Authorization: Bearer <token>`` header
+    2. ``?token=<token>`` query parameter
+    """
+    token = None
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header[len("Bearer "):].strip()
+    if not token:
+        token = request.args.get("token", "").strip()
+    if not token:
+        return None
+    row = db.get_api_token_by_value(token)
+    if not row:
+        return None
+    user = db.get_user_by_id(row["user_id"])
+    if not user or user["suspended"]:
+        return None
+    db.update_token_last_used(row["id"])
+    return user
 
 
 def login_required(f):

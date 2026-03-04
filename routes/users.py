@@ -22,6 +22,8 @@ from helpers import (
 from wiki_logger import log_action
 from sync import notify_change, notify_file_upload, notify_file_deleted
 
+_MAX_TOKENS_PER_USER = 10
+
 
 def register_user_routes(app):
     """Register user account and profile routes on the Flask app."""
@@ -223,9 +225,10 @@ def register_user_routes(app):
 
         categories, uncategorized = db.get_category_tree()
         profile = db.get_user_profile(user["id"])
+        api_tokens = db.list_user_api_tokens(user["id"])
         return render_template("account/settings.html", user=user,
                                categories=categories, uncategorized=uncategorized,
-                               profile=profile)
+                               profile=profile, api_tokens=api_tokens)
 
     def _build_user_export_zip(user):
         """Build an in-memory ZIP file containing all exported data for a user.
@@ -341,3 +344,44 @@ def register_user_routes(app):
             categories=categories,
             uncategorized=uncategorized,
         )
+
+    # -----------------------------------------------------------------------
+    #  API token management
+    # -----------------------------------------------------------------------
+
+    @app.route("/account/tokens/create", methods=["POST"])
+    @login_required
+    @rate_limit(10, 60)
+    def create_api_token():
+        user = get_current_user()
+        name = request.form.get("name", "").strip()[:80]
+        if not name:
+            flash("Token name is required.", "error")
+            return redirect(url_for("account_settings") + "#api-tokens")
+        tokens = db.list_user_api_tokens(user["id"])
+        if len(tokens) >= _MAX_TOKENS_PER_USER:
+            flash(f"You may have at most {_MAX_TOKENS_PER_USER} API tokens.", "error")
+            return redirect(url_for("account_settings") + "#api-tokens")
+        token = db.create_api_token(user["id"], name)
+        log_action("create_api_token", request, user=user, name=name)
+        flash(f"Token created. Copy it now — it will not be shown again: {token}", "info")
+        return redirect(url_for("account_settings") + "#api-tokens")
+
+    @app.route("/account/tokens/revoke", methods=["POST"])
+    @login_required
+    @rate_limit(20, 60)
+    def revoke_api_token():
+        user = get_current_user()
+        token_id = request.form.get("token_id", "")
+        try:
+            token_id = int(token_id)
+        except (TypeError, ValueError):
+            flash("Invalid token.", "error")
+            return redirect(url_for("account_settings") + "#api-tokens")
+        deleted = db.revoke_api_token(token_id, user["id"])
+        if deleted:
+            log_action("revoke_api_token", request, user=user, token_id=token_id)
+            flash("API token revoked.", "success")
+        else:
+            flash("Token not found.", "error")
+        return redirect(url_for("account_settings") + "#api-tokens")

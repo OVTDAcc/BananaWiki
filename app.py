@@ -33,7 +33,7 @@ from helpers import (                                       # noqa: F401
     compute_char_diff, compute_diff_html, compute_formatted_diff_html,
     slugify, allowed_file, allowed_attachment,
     _is_valid_hex_color, _is_valid_username,
-    _safe_referrer, get_current_user,
+    _safe_referrer, get_current_user, get_user_from_api_token,
     login_required, editor_required, admin_required, editor_has_category_access,
     get_site_timezone, time_ago, format_datetime, format_datetime_local_input,
 )

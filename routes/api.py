@@ -9,6 +9,7 @@ import db
 import config
 from helpers import (
     login_required, editor_required, admin_required, get_current_user,
+    get_user_from_api_token,
     render_markdown, rate_limit, format_datetime,
 )
 import wiki_logger
@@ -333,3 +334,101 @@ def register_api_routes(app):
         wiki_logger.log_action("reorder_categories", request, user=user, count=len(ids))
         notify_change("categories_reorder", "Category order updated")
         return jsonify({"ok": True})
+
+    # -----------------------------------------------------------------------
+    #  Public API v1 – read-only, token auth optional
+    # -----------------------------------------------------------------------
+
+    def _resolve_api_user():
+        """Return user from session or API token, whichever is available."""
+        user = get_current_user()
+        if user:
+            return user
+        return get_user_from_api_token()
+
+    def _has_elevated_access(user):
+        """Return True if *user* has editor/admin access."""
+        return bool(user and user["role"] in ("editor", "admin", "protected_admin"))
+
+    @app.route("/api/v1/pages")
+    @rate_limit(120, 60)
+    def api_v1_pages():
+        """List all pages.
+
+        Authenticated editors and admins also see de-indexed pages.
+        No authentication required for public pages.
+        """
+        user = _resolve_api_user()
+        pages = db.list_pages(include_deindexed=_has_elevated_access(user))
+        return jsonify([
+            {
+                "id": p["id"],
+                "title": p["title"],
+                "slug": p["slug"],
+                "category_id": p["category_id"],
+                "last_edited_at": p["last_edited_at"],
+            }
+            for p in pages
+        ])
+
+    @app.route("/api/v1/pages/<slug>")
+    @rate_limit(120, 60)
+    def api_v1_page(slug):
+        """Get a single page by slug."""
+        page = db.get_page_by_slug(slug)
+        if not page:
+            return jsonify({"error": "page not found"}), 404
+        user = _resolve_api_user()
+        if page["is_deindexed"] and not _has_elevated_access(user):
+            return jsonify({"error": "page not found"}), 404
+        return jsonify({
+            "id": page["id"],
+            "title": page["title"],
+            "slug": page["slug"],
+            "content": page["content"],
+            "category_id": page["category_id"],
+            "last_edited_at": page["last_edited_at"],
+            "created_at": page["created_at"],
+        })
+
+    @app.route("/api/v1/search")
+    @rate_limit(60, 60)
+    def api_v1_search():
+        """Search pages by title/content."""
+        query = request.args.get("q", "").strip()
+        if not query:
+            return jsonify([])
+        user = _resolve_api_user()
+        results = db.search_pages(query, include_deindexed=_has_elevated_access(user))
+        return jsonify([{"title": r["title"], "slug": r["slug"]} for r in results])
+
+    @app.route("/api/v1/categories")
+    @rate_limit(120, 60)
+    def api_v1_categories():
+        """List all categories."""
+        cats = db.list_categories()
+        return jsonify([
+            {
+                "id": c["id"],
+                "name": c["name"],
+                "parent_id": c["parent_id"],
+                "sort_order": c["sort_order"],
+            }
+            for c in cats
+        ])
+
+    @app.route("/api/v1/me")
+    @rate_limit(60, 60)
+    def api_v1_me():
+        """Return the authenticated user's basic profile.
+
+        Requires a valid API token (or active session).
+        """
+        user = _resolve_api_user()
+        if not user:
+            return jsonify({"error": "authentication required"}), 401
+        return jsonify({
+            "id": user["id"],
+            "username": user["username"],
+            "role": user["role"],
+        })

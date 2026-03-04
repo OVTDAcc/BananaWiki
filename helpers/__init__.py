@@ -55,6 +55,7 @@ from helpers._validation import (        # noqa: F401
 
 from helpers._auth import (              # noqa: F401
     get_current_user,
+    get_user_from_api_token,
     login_required,
     editor_required,
     admin_required,

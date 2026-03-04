@@ -103,6 +103,22 @@ def search_pages(query, limit=15, include_deindexed=False):
     return rows
 
 
+def list_pages(include_deindexed=False):
+    """Return all pages (excluding the home page) ordered by sort_order.
+
+    Used by the public API.  De-indexed pages are excluded by default.
+    """
+    conn = get_db()
+    deindex_clause = "" if include_deindexed else " AND is_deindexed=0"
+    rows = conn.execute(
+        f"SELECT id, title, slug, category_id, last_edited_at, created_at"
+        f" FROM pages WHERE is_home=0{deindex_clause}"
+        " ORDER BY sort_order, title",
+    ).fetchall()
+    conn.close()
+    return rows
+
+
 def create_page(title, slug, content="", category_id=None, user_id=None):
     conn = get_db()
     try:

@@ -4,6 +4,195 @@ from ._connection import get_db
 
 
 # ---------------------------------------------------------------------------
+#  API documentation wiki page content (created once during init_db)
+# ---------------------------------------------------------------------------
+_API_DOC_CONTENT = """\
+# API Documentation
+
+This wiki provides a read-only JSON API that can be used with or without
+authentication.  Authenticated requests use **API tokens** which any logged-in
+user can generate from their [Account Settings](/account) page.
+
+---
+
+## Base URL
+
+All API v1 endpoints are available under:
+
+```
+/api/v1/
+```
+
+---
+
+## Authentication
+
+Authentication is **optional** for read-only public endpoints but required for
+endpoints that return private information (e.g. `/api/v1/me`).
+
+Include your token in **one** of the following ways:
+
+### Authorization header (recommended)
+
+```
+Authorization: Bearer <your-token>
+```
+
+### Query parameter
+
+```
+/api/v1/pages?token=<your-token>
+```
+
+---
+
+## Endpoints
+
+### List pages
+
+```
+GET /api/v1/pages
+```
+
+Returns a list of all published pages.  Editors and admins also see
+de-indexed pages when authenticated.
+
+**Example response**
+
+```json
+[
+  {
+    "id": 1,
+    "title": "Home",
+    "slug": "home",
+    "category_id": null,
+    "last_edited_at": "2024-01-15T10:30:00+00:00"
+  }
+]
+```
+
+---
+
+### Get a page
+
+```
+GET /api/v1/pages/<slug>
+```
+
+Returns the full content of a single page.
+
+**Example**
+
+```
+GET /api/v1/pages/home
+```
+
+**Example response**
+
+```json
+{
+  "id": 1,
+  "title": "Home",
+  "slug": "home",
+  "content": "# Welcome\\n\\nEdit this page to get started.",
+  "category_id": null,
+  "last_edited_at": "2024-01-15T10:30:00+00:00",
+  "created_at": "2024-01-01T00:00:00+00:00"
+}
+```
+
+Returns **404** with `{"error": "page not found"}` if the slug does not exist.
+
+---
+
+### Search pages
+
+```
+GET /api/v1/search?q=<query>
+```
+
+Returns pages whose title or content match *query*.
+
+**Example**
+
+```
+GET /api/v1/search?q=banana
+```
+
+**Example response**
+
+```json
+[
+  {"title": "Banana Facts", "slug": "banana-facts"}
+]
+```
+
+---
+
+### List categories
+
+```
+GET /api/v1/categories
+```
+
+Returns all categories.
+
+**Example response**
+
+```json
+[
+  {"id": 1, "name": "Getting Started", "parent_id": null, "sort_order": 0}
+]
+```
+
+---
+
+### Current user
+
+```
+GET /api/v1/me
+```
+
+*Requires authentication.*
+
+Returns the authenticated user's basic profile.
+
+**Example response**
+
+```json
+{
+  "id": "abc12345",
+  "username": "alice",
+  "role": "editor"
+}
+```
+
+Returns **401** if no valid token is provided.
+
+---
+
+## Rate limits
+
+API endpoints are rate-limited.  If you exceed the limit you will receive a
+**429** response:
+
+```json
+{"error": "Too many requests. Please slow down."}
+```
+
+---
+
+## Managing your API tokens
+
+1. Log in and go to [Account Settings](/account).
+2. Scroll to the **API Tokens** section.
+3. Give your token a name and click **Generate Token**.
+4. Copy the token immediately — it will not be shown again.
+5. To revoke a token, click **Revoke** next to it.
+"""
+
+
+# ---------------------------------------------------------------------------
 #  Schema initialisation
 # ---------------------------------------------------------------------------
 def init_db():
@@ -236,6 +425,15 @@ def init_db():
         color       TEXT    NOT NULL DEFAULT '#9b59b6',
         sort_order  INTEGER NOT NULL DEFAULT 0
     );
+
+    CREATE TABLE IF NOT EXISTS api_tokens (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id     TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        token       TEXT    NOT NULL UNIQUE,
+        name        TEXT    NOT NULL DEFAULT '',
+        created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+        last_used_at TEXT
+    );
     """)
 
     # -- Migrations: add columns to existing tables --
@@ -322,6 +520,14 @@ def init_db():
         cur.execute(
             "INSERT INTO pages (title, slug, content, is_home) VALUES (?, ?, ?, 1)",
             ("Home", "home", "# Welcome to your Wiki\n\nEdit this page to get started."),
+        )
+
+    # Ensure API documentation page exists
+    api_doc = cur.execute("SELECT id FROM pages WHERE slug='api-documentation'").fetchone()
+    if not api_doc:
+        cur.execute(
+            "INSERT INTO pages (title, slug, content) VALUES (?, ?, ?)",
+            ("API Documentation", "api-documentation", _API_DOC_CONTENT),
         )
 
     conn.commit()

@@ -9,7 +9,7 @@ before.
 from ._connection import get_db  # noqa: F401  (keep first – used by other sub-modules)
 
 # Schema
-from ._schema import init_db  # noqa: F401
+from ._schema import init_db, _API_DOC_CONTENT  # noqa: F401
 
 # Users & editor access
 from ._users import (  # noqa: F401
@@ -68,6 +68,7 @@ from ._pages import (  # noqa: F401
     get_adjacent_pages,
     update_page_slug,
     search_pages,
+    list_pages,
     create_page,
     get_page,
     get_page_by_slug,
@@ -203,4 +204,14 @@ from ._groups import (  # noqa: F401
     cleanup_old_group_messages,
     get_user_group_attachment_count_today,
     transfer_group_ownership,
+)
+
+# API tokens
+from ._api_tokens import (  # noqa: F401
+    create_api_token,
+    get_api_token_by_value,
+    list_user_api_tokens,
+    revoke_api_token,
+    update_token_last_used,
+    revoke_all_user_api_tokens,
 )
