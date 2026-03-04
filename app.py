@@ -6,8 +6,7 @@ routes, and re-exports key symbols for backward compatibility with the test
 suite and other consumers that ``import app`` or ``from app import …``.
 
 Utility functions live in :mod:`helpers`.  Route handlers are grouped in the
-:mod:`routes` package.  Database operations live in :mod:`db` (backed by the
-:mod:`database` package).
+:mod:`routes` package.  Database operations live in :mod:`db`.
 """
 
 from datetime import datetime, timedelta, timezone
