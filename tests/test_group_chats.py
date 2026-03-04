@@ -849,6 +849,10 @@ def test_owner_can_ban_member(alice_client, alice_uid, bob_uid):
                              follow_redirects=True)
     assert b"has been banned" in resp.data
     assert db.is_group_member_banned(group["id"], bob_uid)
+    # Banned user should not appear in the regular members list
+    members = db.get_group_members(group["id"])
+    member_ids = [m["user_id"] for m in members]
+    assert bob_uid not in member_ids
 
 
 def test_banned_user_cannot_rejoin_via_code(alice_uid, bob_uid):

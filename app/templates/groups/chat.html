@@ -179,7 +179,7 @@
 {% if my_membership and my_membership.timed_out_until and my_membership.timed_out_until > utcnow %}
 <div class="chat-timeout-banner" style="background:rgba(255,80,80,.15);border:1px solid rgba(255,80,80,.3);border-radius:6px;padding:.6rem 1rem;margin-bottom:1rem;text-align:center;font-size:.9rem">
     ⏳ You are timed out.
-    {% if my_membership.timed_out_until == '9999-12-31T23:59:59+00:00' %}
+    {% if my_membership.timed_out_until.startswith('9999') %}
         <strong>Duration: Indefinite</strong>
     {% else %}
         Time remaining: <strong><span id="timeout-countdown" data-until="{{ my_membership.timed_out_until }}"></span></strong>
