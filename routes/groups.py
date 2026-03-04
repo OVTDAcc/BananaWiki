@@ -39,6 +39,9 @@ def register_group_routes(app):
     @login_required
     def group_new():
         user = get_current_user()
+        if db.is_user_chat_disabled(user["id"]):
+            flash("Your chat privileges have been disabled.", "error")
+            return redirect(url_for("group_list"))
         if request.method == "POST":
             name = request.form.get("name", "").strip()
             if not name:
@@ -68,6 +71,9 @@ def register_group_routes(app):
             group = db.get_group_chat_by_invite(code)
             if not group:
                 flash("Invalid invite code.", "error")
+                return redirect(url_for("group_join"))
+            if db.is_group_member_banned(group["id"], user["id"]):
+                flash("You are banned from this group.", "error")
                 return redirect(url_for("group_join"))
             if db.is_group_member(group["id"], user["id"]):
                 flash("You are already a member of this group.", "info")
@@ -104,10 +110,13 @@ def register_group_routes(app):
             return redirect(url_for("group_list"))
         messages = db.get_group_messages(group_id)
         members = db.get_group_members(group_id)
+        banned_members = db.get_group_banned_members(group_id)
         my_membership = db.get_group_member(group_id, user["id"])
+        all_users = db.list_users()
         categories, uncategorized = db.get_category_tree()
         return render_template("groups/chat.html", group=group, messages=messages,
-                               members=members, my_membership=my_membership,
+                               members=members, banned_members=banned_members,
+                               my_membership=my_membership, all_users=all_users,
                                categories=categories, uncategorized=uncategorized)
 
     @app.route("/groups/<int:group_id>/send", methods=["POST"])
@@ -115,8 +124,14 @@ def register_group_routes(app):
     @rate_limit(30, 60)
     def group_send(group_id):
         user = get_current_user()
+        if db.is_user_chat_disabled(user["id"]):
+            flash("Your chat privileges have been disabled.", "error")
+            return redirect(url_for("group_view", group_id=group_id))
         if not db.is_group_member(group_id, user["id"]):
             flash("Access denied.", "error")
+            return redirect(url_for("group_list"))
+        if db.is_group_member_banned(group_id, user["id"]):
+            flash("You are banned from this group.", "error")
             return redirect(url_for("group_list"))
         if db.is_group_member_timed_out(group_id, user["id"]):
             flash("You are timed out and cannot send messages.", "error")
@@ -215,6 +230,9 @@ def register_group_routes(app):
         if not target:
             flash("User not found.", "error")
             return redirect(url_for("group_view", group_id=group_id))
+        if db.is_group_member_banned(group_id, target["id"]):
+            flash("User is banned from this group. Revoke the ban first.", "error")
+            return redirect(url_for("group_view", group_id=group_id))
         if db.is_group_member(group_id, target["id"]):
             flash("User is already a member.", "info")
             return redirect(url_for("group_view", group_id=group_id))
@@ -252,24 +270,37 @@ def register_group_routes(app):
         if not group:
             abort(404)
         my_role = db.get_group_member_role(group_id, user["id"])
-        if my_role not in ("owner", "moderator"):
-            flash("Permission denied.", "error")
-            return redirect(url_for("group_view", group_id=group_id))
+        is_site_admin = user["role"] in ("admin", "protected_admin")
+        if group["is_global"]:
+            if not is_site_admin:
+                flash("Permission denied.", "error")
+                return redirect(url_for("group_view", group_id=group_id))
+        else:
+            if my_role not in ("owner", "moderator"):
+                flash("Permission denied.", "error")
+                return redirect(url_for("group_view", group_id=group_id))
         target_id = request.form.get("user_id", "")
         target_membership = db.get_group_member(group_id, target_id)
         if not target_membership:
             flash("User is not a member.", "error")
             return redirect(url_for("group_view", group_id=group_id))
         # Moderators cannot kick other moderators or the owner
-        if my_role == "moderator" and target_membership["role"] in ("owner", "moderator"):
+        if not is_site_admin and my_role == "moderator" and target_membership["role"] in ("owner", "moderator"):
             flash("You cannot remove a moderator or owner.", "error")
             return redirect(url_for("group_view", group_id=group_id))
         target_user = db.get_user_by_id(target_id)
         target_name = target_user["username"] if target_user else "Unknown"
-        db.remove_group_member(group_id, target_id)
-        db.send_group_system_message(group_id, f"{target_name} was removed by {user['username']}")
-        notify_change("group_kick", f"{target_name} removed from group '{group['name']}' by {user['username']}")
-        flash(f"{target_name} has been removed.", "success")
+        permanent = request.form.get("permanent", "") == "1"
+        if permanent:
+            db.ban_group_member(group_id, target_id)
+            db.send_group_system_message(group_id, f"{target_name} was banned by {user['username']}")
+            notify_change("group_ban", f"{target_name} banned from group '{group['name']}' by {user['username']}")
+            flash(f"{target_name} has been banned.", "success")
+        else:
+            db.remove_group_member(group_id, target_id)
+            db.send_group_system_message(group_id, f"{target_name} was removed by {user['username']}")
+            notify_change("group_kick", f"{target_name} removed from group '{group['name']}' by {user['username']}")
+            flash(f"{target_name} has been removed.", "success")
         return redirect(url_for("group_view", group_id=group_id))
 
     @app.route("/groups/<int:group_id>/promote", methods=["POST"])
@@ -498,3 +529,89 @@ def register_group_routes(app):
         return render_template("admin/group_view.html", group=group,
                                messages=messages, members=members,
                                categories=categories, uncategorized=uncategorized)
+
+    # ---------------------------------------------------------------------------
+    #  Unban, Regenerate Code, Admin Takeover, Chat Disable
+    # ---------------------------------------------------------------------------
+
+    @app.route("/groups/<int:group_id>/unban", methods=["POST"])
+    @login_required
+    def group_unban(group_id):
+        user = get_current_user()
+        group = db.get_group_chat(group_id)
+        if not group:
+            abort(404)
+        my_role = db.get_group_member_role(group_id, user["id"])
+        is_site_admin = user["role"] in ("admin", "protected_admin")
+        if group["is_global"]:
+            if not is_site_admin:
+                flash("Only site admins can moderate the global chat.", "error")
+                return redirect(url_for("group_view", group_id=group_id))
+        else:
+            if my_role not in ("owner", "moderator"):
+                flash("Permission denied.", "error")
+                return redirect(url_for("group_view", group_id=group_id))
+        target_id = request.form.get("user_id", "")
+        if not db.is_group_member_banned(group_id, target_id):
+            flash("User is not banned.", "error")
+            return redirect(url_for("group_view", group_id=group_id))
+        target_user = db.get_user_by_id(target_id)
+        target_name = target_user["username"] if target_user else "Unknown"
+        db.unban_group_member(group_id, target_id)
+        db.send_group_system_message(group_id, f"{target_name}'s ban was revoked by {user['username']}")
+        flash(f"{target_name}'s ban has been revoked.", "success")
+        return redirect(url_for("group_view", group_id=group_id))
+
+    @app.route("/groups/<int:group_id>/regenerate_code", methods=["POST"])
+    @login_required
+    def group_regenerate_code(group_id):
+        user = get_current_user()
+        group = db.get_group_chat(group_id)
+        if not group:
+            abort(404)
+        my_role = db.get_group_member_role(group_id, user["id"])
+        if my_role != "owner":
+            flash("Only the group owner can regenerate the invite code.", "error")
+            return redirect(url_for("group_view", group_id=group_id))
+        new_code = db.regenerate_group_invite_code(group_id)
+        db.send_group_system_message(group_id, f"Invite code was regenerated by {user['username']}")
+        flash(f"Invite code regenerated: {new_code}", "success")
+        return redirect(url_for("group_view", group_id=group_id))
+
+    @app.route("/groups/<int:group_id>/admin_takeover", methods=["POST"])
+    @login_required
+    @admin_required
+    def group_admin_takeover(group_id):
+        """Allow a site admin to take ownership of any group."""
+        user = get_current_user()
+        group = db.get_group_chat(group_id)
+        if not group:
+            abort(404)
+        # Join the group if not already a member
+        if not db.is_group_member(group_id, user["id"]):
+            db.add_group_member(group_id, user["id"])
+        # Demote current owner if there is one
+        current_members = db.get_group_members(group_id)
+        for m in current_members:
+            if m["role"] == "owner" and m["user_id"] != user["id"]:
+                db.set_group_member_role(group_id, m["user_id"], "moderator")
+        # Set admin as owner
+        db.set_group_member_role(group_id, user["id"], "owner")
+        db.send_group_system_message(group_id, f"{user['username']} (admin) took ownership of the group")
+        notify_change("group_admin_takeover", f"{user['username']} took ownership of group '{group['name']}'")
+        flash("You are now the owner of this group.", "success")
+        return redirect(url_for("group_view", group_id=group_id))
+
+    @app.route("/admin/users/<user_id>/toggle_chat", methods=["POST"])
+    @login_required
+    @admin_required
+    def admin_toggle_chat(user_id):
+        """Toggle the chat disabled flag for a user."""
+        target = db.get_user_by_id(user_id)
+        if not target:
+            abort(404)
+        currently_disabled = db.is_user_chat_disabled(user_id)
+        db.set_user_chat_disabled(user_id, not currently_disabled)
+        status = "disabled" if not currently_disabled else "enabled"
+        flash(f"Chat {status} for {target['username']}.", "success")
+        return redirect(request.referrer or url_for("admin_chats"))

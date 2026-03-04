@@ -252,6 +252,27 @@ def get_editor_access(user_id):
     return {"restricted": restricted, "allowed_category_ids": allowed_ids}
 
 
+def set_user_chat_disabled(user_id, disabled):
+    """Enable or disable the chat feature for a user."""
+    conn = get_db()
+    conn.execute(
+        "UPDATE users SET chat_disabled=? WHERE id=?",
+        (1 if disabled else 0, user_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def is_user_chat_disabled(user_id):
+    """Return True if the user has been disabled from using chat."""
+    conn = get_db()
+    row = conn.execute("SELECT chat_disabled FROM users WHERE id=?", (user_id,)).fetchone()
+    conn.close()
+    if not row:
+        return False
+    return bool(row["chat_disabled"])
+
+
 def set_editor_access(user_id, restricted, category_ids=None):
     """Persist category access settings for an editor.
 

@@ -86,8 +86,6 @@
             </div>
             <nav class="sidebar-nav">
                 <a href="{{ url_for('home') }}" class="nav-item {% if page and page.is_home %}active{% endif %}">Home</a>
-                <a href="{{ url_for('chat_list') }}" class="nav-item {% if request.path.startswith('/chats') %}active{% endif %}">💬 Chats</a>
-                <a href="{{ url_for('group_list') }}" class="nav-item {% if request.path.startswith('/groups') %}active{% endif %}">👥 Groups</a>
                 {% for cat in categories %}
                     {% include "wiki/_category.html" %}
                 {% endfor %}
@@ -110,6 +108,10 @@
                 </div>
                 {% endif %}
             </nav>
+            <div class="sidebar-chat-links">
+                <a href="{{ url_for('chat_list') }}" class="nav-item {% if request.path.startswith('/chats') %}active{% endif %}">💬 Chats</a>
+                <a href="{{ url_for('group_list') }}" class="nav-item {% if request.path.startswith('/groups') %}active{% endif %}">👥 Groups</a>
+            </div>
             {% if sidebar_people %}
             <div class="sidebar-people">
                 <div class="sidebar-people-header">

@@ -25,7 +25,14 @@
             <td>{{ g.member_count }}</td>
             <td>{{ g.message_count }}</td>
             <td>{{ time_ago(g.last_message_at) if g.last_message_at else '–' }}</td>
-            <td><a href="{{ url_for('admin_group_view', group_id=g.id) }}" class="btn btn-sm">Read</a></td>
+            <td>
+                <a href="{{ url_for('admin_group_view', group_id=g.id) }}" class="btn btn-sm">Read</a>
+                <form method="POST" action="{{ url_for('group_admin_takeover', group_id=g.id) }}" style="display:inline"
+                      onsubmit="return confirm('Take ownership of this group?')">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-sm btn-outline" title="Take ownership">🛡️</button>
+                </form>
+            </td>
         </tr>
         {% endfor %}
     </tbody>

@@ -141,12 +141,12 @@ def remove_group_member(group_id, user_id):
 
 
 def get_group_members(group_id):
-    """Return all members of a group with their user info."""
+    """Return all non-banned members of a group with their user info."""
     conn = get_db()
     rows = conn.execute(
         "SELECT gm.*, u.username FROM group_members gm "
         "JOIN users u ON gm.user_id=u.id "
-        "WHERE gm.group_id=? "
+        "WHERE gm.group_id=? AND gm.banned=0 "
         "ORDER BY CASE gm.role WHEN 'owner' THEN 0 WHEN 'moderator' THEN 1 ELSE 2 END, gm.joined_at ASC",
         (group_id,),
     ).fetchall()
@@ -412,3 +412,65 @@ def transfer_group_ownership(group_id, old_owner_id, new_owner_id):
         conn.commit()
     finally:
         conn.close()
+
+
+def ban_group_member(group_id, user_id):
+    """Permanently ban a user from a group. The member row is kept with banned=1."""
+    conn = get_db()
+    conn.execute(
+        "UPDATE group_members SET banned=1 WHERE group_id=? AND user_id=?",
+        (group_id, user_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def unban_group_member(group_id, user_id):
+    """Revoke a ban and remove the user from the group so they can rejoin."""
+    conn = get_db()
+    conn.execute(
+        "DELETE FROM group_members WHERE group_id=? AND user_id=?",
+        (group_id, user_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def is_group_member_banned(group_id, user_id):
+    """Return True if the user is banned from the group."""
+    conn = get_db()
+    row = conn.execute(
+        "SELECT banned FROM group_members WHERE group_id=? AND user_id=?",
+        (group_id, user_id),
+    ).fetchone()
+    conn.close()
+    if not row:
+        return False
+    return bool(row["banned"])
+
+
+def get_group_banned_members(group_id):
+    """Return all banned members of a group with their user info."""
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT gm.*, u.username FROM group_members gm "
+        "JOIN users u ON gm.user_id=u.id "
+        "WHERE gm.group_id=? AND gm.banned=1 "
+        "ORDER BY gm.joined_at ASC",
+        (group_id,),
+    ).fetchall()
+    conn.close()
+    return rows
+
+
+def regenerate_group_invite_code(group_id):
+    """Generate a new invite code for a group, revoking the previous one. Returns the new code."""
+    conn = get_db()
+    new_code = generate_invite_code_for_group()
+    conn.execute(
+        "UPDATE group_chats SET invite_code=? WHERE id=?",
+        (new_code, group_id),
+    )
+    conn.commit()
+    conn.close()
+    return new_code
