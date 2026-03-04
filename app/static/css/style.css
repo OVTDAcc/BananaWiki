@@ -38,6 +38,18 @@ a:hover{text-decoration:underline}
 .sidebar{width:250px;min-width:180px;max-width:500px;background:var(--sidebar);border-right:1px solid rgba(255,255,255,.06);padding:.5rem 0;flex-shrink:0;transition:width 0s;display:flex;flex-direction:column;overflow:hidden}
 .sidebar-header{display:flex;justify-content:space-between;align-items:center;padding:.6rem .8rem;font-size:.85rem;font-weight:600;text-transform:uppercase;letter-spacing:.6px;opacity:.5;border-bottom:1px solid rgba(255,255,255,.06);margin-bottom:.3rem}
 .sidebar-actions{display:flex;gap:.3rem}
+.sidebar-search{padding:.3rem .6rem .4rem;border-bottom:1px solid rgba(255,255,255,.06);position:relative}
+.sidebar-search-input-wrap{display:flex;gap:.3rem;align-items:center}
+.sidebar-search-input-wrap .input{flex:1;padding:.28rem .5rem;font-size:.82rem;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:4px;color:var(--text);outline:none;min-width:0}
+.sidebar-search-input-wrap .input:focus{border-color:rgba(255,255,255,.25);background:rgba(255,255,255,.09)}
+.sidebar-search-scope-btn{font-size:.7rem;padding:.22rem .4rem;opacity:.5;transition:opacity .15s,background .15s;white-space:nowrap;flex-shrink:0}
+.sidebar-search-scope-btn.active{opacity:1;background:rgba(255,255,255,.12)}
+.sidebar-search-results{position:absolute;left:.6rem;right:.6rem;top:100%;z-index:200;background:var(--secondary,#1e1e2c);border:1px solid rgba(255,255,255,.12);border-radius:5px;max-height:320px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.4)}
+.sidebar-search-results[hidden]{display:none}
+.sidebar-search-result{display:block;padding:.4rem .7rem;font-size:.83rem;color:var(--text);text-decoration:none;line-height:1.4;transition:background .12s}
+.sidebar-search-result:hover{background:rgba(255,255,255,.07);text-decoration:none}
+.sidebar-search-result-type{font-size:.7rem;opacity:.45;text-transform:uppercase;letter-spacing:.4px;margin-right:.3rem}
+.sidebar-search-empty{padding:.5rem .7rem;font-size:.82rem;opacity:.5;font-style:italic}
 .sidebar-nav{display:flex;flex-direction:column;flex:1;overflow-y:auto}
 .nav-item{display:block;padding:.4rem .8rem .4rem 1.2rem;font-size:.87rem;color:var(--text);transition:background .15s;opacity:.8;line-height:1.5}
 .nav-item:hover{background:rgba(255,255,255,.04);text-decoration:none;opacity:1}

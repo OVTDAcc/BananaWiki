@@ -187,6 +187,7 @@ def init_db():
         creator_id  TEXT    REFERENCES users(id) ON DELETE SET NULL,
         invite_code TEXT    NOT NULL UNIQUE,
         is_global   INTEGER NOT NULL DEFAULT 0,
+        is_active   INTEGER NOT NULL DEFAULT 1,
         created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
     );
 
@@ -304,6 +305,11 @@ def init_db():
     gm_cols = [r[1] for r in cur.execute("PRAGMA table_info(group_members)").fetchall()]
     if "banned" not in gm_cols:
         cur.execute("ALTER TABLE group_members ADD COLUMN banned INTEGER NOT NULL DEFAULT 0")
+
+    # Add is_active column to group_chats if missing
+    gc_cols = [r[1] for r in cur.execute("PRAGMA table_info(group_chats)").fetchall()]
+    if "is_active" not in gc_cols:
+        cur.execute("ALTER TABLE group_chats ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1")
 
     # Add sequential_nav to categories if missing
     cat_cols = [r[1] for r in cur.execute("PRAGMA table_info(categories)").fetchall()]

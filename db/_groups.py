@@ -463,10 +463,14 @@ def get_group_banned_members(group_id):
     return rows
 
 
-def regenerate_group_invite_code(group_id):
-    """Generate a new invite code for a group, revoking the previous one. Returns the new code."""
+def regenerate_group_invite_code(group_id, custom_code=None):
+    """Generate a new invite code for a group, revoking the previous one. Returns the new code.
+
+    If *custom_code* is provided it is used directly (caller must validate format/uniqueness).
+    Otherwise a random 8-character code is generated.
+    """
     conn = get_db()
-    new_code = generate_invite_code_for_group()
+    new_code = custom_code if custom_code else generate_invite_code_for_group()
     conn.execute(
         "UPDATE group_chats SET invite_code=? WHERE id=?",
         (new_code, group_id),
@@ -474,3 +478,35 @@ def regenerate_group_invite_code(group_id):
     conn.commit()
     conn.close()
     return new_code
+
+
+def set_group_chat_active(group_id, is_active):
+    """Set the active/inactive state of a group chat (used to deactivate/reactivate the global chat)."""
+    conn = get_db()
+    conn.execute(
+        "UPDATE group_chats SET is_active=? WHERE id=?",
+        (1 if is_active else 0, group_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def delete_group_chat(group_id):
+    """Permanently delete a group chat and all its messages/members.
+
+    Returns a list of attachment filenames that need to be removed from disk.
+    The global chat cannot be deleted via this function – callers must enforce that.
+    """
+    conn = get_db()
+    filenames = conn.execute(
+        "SELECT ga.filename FROM group_attachments ga "
+        "JOIN group_messages gm ON ga.message_id=gm.id "
+        "WHERE gm.group_id=?",
+        (group_id,),
+    ).fetchall()
+    files = [r["filename"] for r in filenames]
+    # Cascade deletes messages, members, attachments via FK constraints
+    conn.execute("DELETE FROM group_chats WHERE id=?", (group_id,))
+    conn.commit()
+    conn.close()
+    return files

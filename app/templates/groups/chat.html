@@ -11,6 +11,13 @@
 {% set is_owner = my_role == 'owner' %}
 {% set is_site_admin = current_user.role in ('admin', 'protected_admin') %}
 
+{# Deactivated global chat banner #}
+{% if group.is_global and not group.is_active %}
+<div style="background:rgba(255,160,0,.15);border:1px solid rgba(255,160,0,.4);border-radius:6px;padding:.6rem 1rem;margin-bottom:1rem;text-align:center;font-size:.9rem">
+    ⚠️ The global chat is currently <strong>deactivated</strong>. Messages can be read but no new messages can be sent.
+</div>
+{% endif %}
+
 {# Invite code & management panel #}
 <details class="group-panel" style="margin-bottom:1rem">
     <summary class="btn btn-sm btn-outline">Group Info &amp; Members ({{ members|length }})</summary>
@@ -18,9 +25,10 @@
         {% if not group.is_global %}
         <p><strong>Invite code:</strong> <code>{{ group.invite_code }}</code></p>
         {% if is_owner %}
-        <form method="POST" action="{{ url_for('group_regenerate_code', group_id=group.id) }}" style="display:inline;margin-bottom:.5rem"
+        <form method="POST" action="{{ url_for('group_regenerate_code', group_id=group.id) }}" style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:.5rem"
               onsubmit="return confirm('Regenerate invite code? The old code will stop working.')">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="text" name="custom_code" class="input input-sm" placeholder="Custom code (optional)" style="width:180px" maxlength="32" pattern="[A-Za-z0-9]*" title="Letters and digits only, max 32 characters">
             <button class="btn btn-sm btn-outline" title="Regenerate invite code">🔄 Regenerate Code</button>
         </form>
         {% endif %}
@@ -46,6 +54,28 @@
               onsubmit="return confirm('Take ownership of this group? The current owner will become a moderator.')">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button class="btn btn-sm" title="Admin: Take ownership">🛡️ Take Ownership</button>
+        </form>
+        {% endif %}
+
+        {# Global chat deactivate/reactivate (site admins only) #}
+        {% if group.is_global and is_site_admin %}
+        <form method="POST" action="{{ url_for('group_toggle_active', group_id=group.id) }}" style="margin-bottom:.5rem"
+              onsubmit="return confirm('{{ 'Reactivate the global chat?' if not group.is_active else 'Deactivate the global chat? Members will still be able to read messages but cannot send new ones.' }}')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            {% if group.is_active %}
+            <button class="btn btn-sm btn-outline" style="color:var(--danger-color,orange)" title="Deactivate global chat">⏸ Deactivate Chat</button>
+            {% else %}
+            <button class="btn btn-sm" title="Reactivate global chat">▶ Reactivate Chat</button>
+            {% endif %}
+        </form>
+        {% endif %}
+
+        {# Delete group (owner or site admin, non-global only) #}
+        {% if not group.is_global and (is_owner or is_site_admin) %}
+        <form method="POST" action="{{ url_for('group_delete', group_id=group.id) }}" style="margin-bottom:.5rem"
+              onsubmit="return confirm('Permanently delete this group and all its messages? This cannot be undone.')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn-sm" style="color:var(--danger-color,red)" title="Delete group permanently">🗑 Delete Group</button>
         </form>
         {% endif %}
 
@@ -227,6 +257,7 @@
     {% endif %}
 </div>
 
+{% if not (group.is_global and not group.is_active) %}
 <form method="POST" action="{{ url_for('group_send', group_id=group.id) }}" class="chat-input-form" enctype="multipart/form-data">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="chat-input-row">
@@ -242,6 +273,7 @@
         <small>Max 5 MB · 10 attachments per day</small>
     </div>
 </form>
+{% endif %}
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
