@@ -4100,18 +4100,18 @@ def test_revert_page_rate_limited(logged_in_admin, admin_user, monkeypatch):
 
 def test_delete_upload_logs_action(logged_in_admin, tmp_path, monkeypatch):
     """delete_upload calls log_action when a file is actually removed."""
-    import app as app_mod
+    import wiki_logger
 
     logged_calls = []
 
-    original_log_action = app_mod.log_action
+    original_log_action = wiki_logger.log_action
 
     def capturing_log_action(action, *args, **kwargs):
         logged_calls.append(action)
         return original_log_action(action, *args, **kwargs)
 
-    monkeypatch.setattr(app_mod, "log_action", capturing_log_action)
-    monkeypatch.setattr(app_mod.config, "UPLOAD_FOLDER", str(tmp_path))
+    monkeypatch.setattr(wiki_logger, "log_action", capturing_log_action)
+    monkeypatch.setattr(config, "UPLOAD_FOLDER", str(tmp_path))
 
     # Create a dummy file to delete
     dummy = tmp_path / "testfile.png"
@@ -4133,17 +4133,17 @@ def test_delete_upload_logs_action(logged_in_admin, tmp_path, monkeypatch):
 
 def test_easter_egg_trigger_logs_action(logged_in_admin, monkeypatch):
     """easter_egg_trigger calls log_action after setting the flag."""
-    import app as app_mod
+    import wiki_logger
 
     logged_calls = []
 
-    original_log_action = app_mod.log_action
+    original_log_action = wiki_logger.log_action
 
     def capturing_log_action(action, *args, **kwargs):
         logged_calls.append(action)
         return original_log_action(action, *args, **kwargs)
 
-    monkeypatch.setattr(app_mod, "log_action", capturing_log_action)
+    monkeypatch.setattr(wiki_logger, "log_action", capturing_log_action)
 
     resp = logged_in_admin.post(
         "/api/easter-egg/trigger",
@@ -4294,18 +4294,18 @@ def test_account_settings_rate_limited(client, admin_user):
 
 def test_reorder_pages_logs_action(logged_in_admin, admin_user, monkeypatch):
     """api_reorder_pages calls log_action after updating sort order."""
-    import app as app_mod
+    import wiki_logger
     import db
 
     logged_calls = []
 
-    original_log_action = app_mod.log_action
+    original_log_action = wiki_logger.log_action
 
     def capturing_log_action(action, *args, **kwargs):
         logged_calls.append(action)
         return original_log_action(action, *args, **kwargs)
 
-    monkeypatch.setattr(app_mod, "log_action", capturing_log_action)
+    monkeypatch.setattr(wiki_logger, "log_action", capturing_log_action)
 
     home = db.get_home_page()
     page_id = db.create_page("ReorderTest", "reorder-test", "content", None, admin_user)
@@ -4322,18 +4322,18 @@ def test_reorder_pages_logs_action(logged_in_admin, admin_user, monkeypatch):
 
 def test_reorder_categories_logs_action(logged_in_admin, admin_user, monkeypatch):
     """api_reorder_categories calls log_action after updating sort order."""
-    import app as app_mod
+    import wiki_logger
     import db
 
     logged_calls = []
 
-    original_log_action = app_mod.log_action
+    original_log_action = wiki_logger.log_action
 
     def capturing_log_action(action, *args, **kwargs):
         logged_calls.append(action)
         return original_log_action(action, *args, **kwargs)
 
-    monkeypatch.setattr(app_mod, "log_action", capturing_log_action)
+    monkeypatch.setattr(wiki_logger, "log_action", capturing_log_action)
 
     cat1 = db.create_category("Cat1")
     cat2 = db.create_category("Cat2")

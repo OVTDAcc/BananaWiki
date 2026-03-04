@@ -1266,13 +1266,13 @@ def test_admin_delete_user_triggers_avatar_notify_file_deleted(
 def test_favicon_upload_triggers_notify_file_upload(logged_in_admin, monkeypatch, tmp_path):
     """Uploading a custom favicon should send it as an individual Telegram message."""
     from PIL import Image as PILImage
-    import app as app_mod
+    import routes.admin as admin_mod
     monkeypatch.setattr(config, "SYNC", True)
     monkeypatch.setattr(config, "SYNC_TOKEN", "123:ABC")
     monkeypatch.setattr(config, "SYNC_USERID", "999")
     favicon_dir = str(tmp_path / "favicons")
     os.makedirs(favicon_dir, exist_ok=True)
-    monkeypatch.setattr(app_mod, "FAVICON_UPLOAD_FOLDER", favicon_dir)
+    monkeypatch.setattr(admin_mod, "FAVICON_UPLOAD_FOLDER", favicon_dir)
 
     buf = io.BytesIO()
     PILImage.new("RGB", (16, 16), color=(0, 128, 0)).save(buf, format="PNG")
