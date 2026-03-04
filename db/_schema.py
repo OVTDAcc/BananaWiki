@@ -296,6 +296,15 @@ def init_db():
     if "accessibility" not in cols:
         cur.execute("ALTER TABLE users ADD COLUMN accessibility TEXT")
 
+    # Add chat_disabled column to users if missing
+    if "chat_disabled" not in cols:
+        cur.execute("ALTER TABLE users ADD COLUMN chat_disabled INTEGER NOT NULL DEFAULT 0")
+
+    # Add banned column to group_members if missing
+    gm_cols = [r[1] for r in cur.execute("PRAGMA table_info(group_members)").fetchall()]
+    if "banned" not in gm_cols:
+        cur.execute("ALTER TABLE group_members ADD COLUMN banned INTEGER NOT NULL DEFAULT 0")
+
     # Add sequential_nav to categories if missing
     cat_cols = [r[1] for r in cur.execute("PRAGMA table_info(categories)").fetchall()]
     if "sequential_nav" not in cat_cols:

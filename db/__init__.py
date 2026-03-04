@@ -34,6 +34,8 @@ from ._users import (  # noqa: F401
     count_admins,
     get_editor_access,
     set_editor_access,
+    set_user_chat_disabled,
+    is_user_chat_disabled,
 )
 
 # Invite codes
@@ -203,4 +205,9 @@ from ._groups import (  # noqa: F401
     cleanup_old_group_messages,
     get_user_group_attachment_count_today,
     transfer_group_ownership,
+    ban_group_member,
+    unban_group_member,
+    is_group_member_banned,
+    get_group_banned_members,
+    regenerate_group_invite_code,
 )

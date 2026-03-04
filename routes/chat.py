@@ -35,6 +35,9 @@ def register_chat_routes(app):
     @login_required
     def chat_new():
         user = get_current_user()
+        if db.is_user_chat_disabled(user["id"]):
+            flash("Your chat privileges have been disabled.", "error")
+            return redirect(url_for("chat_list"))
         if request.method == "POST":
             target_username = request.form.get("username", "").strip()
             if not target_username:
@@ -78,6 +81,9 @@ def register_chat_routes(app):
     @rate_limit(30, 60)
     def chat_send(chat_id):
         user = get_current_user()
+        if db.is_user_chat_disabled(user["id"]):
+            flash("Your chat privileges have been disabled.", "error")
+            return redirect(url_for("chat_view", chat_id=chat_id))
         if not db.is_chat_participant(chat_id, user["id"]):
             flash("Access denied.", "error")
             return redirect(url_for("chat_list"))

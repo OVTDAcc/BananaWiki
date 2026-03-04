@@ -17,13 +17,35 @@
     <div style="padding:.5rem 0">
         {% if not group.is_global %}
         <p><strong>Invite code:</strong> <code>{{ group.invite_code }}</code></p>
+        {% if is_owner %}
+        <form method="POST" action="{{ url_for('group_regenerate_code', group_id=group.id) }}" style="display:inline;margin-bottom:.5rem"
+              onsubmit="return confirm('Regenerate invite code? The old code will stop working.')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn-sm btn-outline" title="Regenerate invite code">🔄 Regenerate Code</button>
+        </form>
+        {% endif %}
         {% endif %}
 
         {% if is_mod or (group.is_global and is_site_admin) %}
         <form method="POST" action="{{ url_for('group_add_member', group_id=group.id) }}" style="display:flex;gap:.5rem;margin-bottom:.5rem;flex-wrap:wrap">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="text" name="username" class="input input-sm" placeholder="Add user by username" style="width:180px" autocomplete="off">
+            <input type="text" name="username" class="input input-sm" placeholder="Add user by username" style="width:180px" autocomplete="off" list="user-list-add">
+            <datalist id="user-list-add">
+                {% for u in all_users %}
+                {% if u.id != current_user.id %}
+                <option value="{{ u.username }}">
+                {% endif %}
+                {% endfor %}
+            </datalist>
             <button type="submit" class="btn btn-sm">Add</button>
+        </form>
+        {% endif %}
+
+        {% if is_site_admin and not is_owner %}
+        <form method="POST" action="{{ url_for('group_admin_takeover', group_id=group.id) }}" style="margin-bottom:.5rem"
+              onsubmit="return confirm('Take ownership of this group? The current owner will become a moderator.')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn-sm" title="Admin: Take ownership">🛡️ Take Ownership</button>
         </form>
         {% endif %}
 
@@ -36,7 +58,7 @@
                 <td>
                     {{ m.role }}
                     {% if m.timed_out_until and m.timed_out_until > utcnow %}
-                        <span style="color:var(--danger-color,red)" title="Timed out">⏳</span>
+                        <span style="color:var(--danger-color,red)" title="Timed out until {{ m.timed_out_until }}">⏳</span>
                     {% endif %}
                 </td>
                 <td>
@@ -90,14 +112,26 @@
                             {% endif %}
                         {% endif %}
 
-                        {# Kick (mod/owner for regular, site admin for global) #}
+                        {# Kick / Ban (mod/owner for regular, site admin for global) #}
                         {% if (is_mod and not group.is_global and not (my_role == 'moderator' and m.role in ('owner', 'moderator'))) or (group.is_global and is_site_admin) %}
-                        <form method="POST" action="{{ url_for('group_kick', group_id=group.id) }}" style="display:inline"
-                              onsubmit="return confirm('Remove ' + {{ m.username|tojson }} + ' from the group?')">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <input type="hidden" name="user_id" value="{{ m.user_id }}">
-                            <button class="btn btn-sm btn-outline" title="Remove from group" style="color:var(--danger-color,red)">✕</button>
-                        </form>
+                        <details style="display:inline-block;vertical-align:middle">
+                            <summary class="btn btn-sm btn-outline" style="color:var(--danger-color,red)" title="Remove options">✕</summary>
+                            <div style="display:flex;gap:.3rem;margin-top:.3rem">
+                                <form method="POST" action="{{ url_for('group_kick', group_id=group.id) }}" style="display:inline"
+                                      onsubmit="return confirm('Remove ' + {{ m.username|tojson }} + '? They can rejoin later.')">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <input type="hidden" name="user_id" value="{{ m.user_id }}">
+                                    <button class="btn btn-sm btn-outline" title="Remove (can rejoin)">Kick</button>
+                                </form>
+                                <form method="POST" action="{{ url_for('group_kick', group_id=group.id) }}" style="display:inline"
+                                      onsubmit="return confirm('Ban ' + {{ m.username|tojson }} + ' permanently? They cannot rejoin until unbanned.')">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <input type="hidden" name="user_id" value="{{ m.user_id }}">
+                                    <input type="hidden" name="permanent" value="1">
+                                    <button class="btn btn-sm" style="color:var(--danger-color,red)" title="Ban permanently">Ban</button>
+                                </form>
+                            </div>
+                        </details>
                         {% endif %}
                     {% endif %}
                 </td>
@@ -105,6 +139,31 @@
             {% endfor %}
             </tbody>
         </table>
+
+        {# Banned members section #}
+        {% if banned_members and (is_mod or (group.is_global and is_site_admin)) %}
+        <details style="margin-top:.75rem">
+            <summary class="btn btn-sm btn-outline" style="color:var(--danger-color,red)">🚫 Banned Users ({{ banned_members|length }})</summary>
+            <table class="admin-table" style="font-size:.85rem;margin-top:.3rem">
+                <thead><tr><th>User</th><th>Action</th></tr></thead>
+                <tbody>
+                {% for bm in banned_members %}
+                <tr>
+                    <td>{{ bm.username }}</td>
+                    <td>
+                        <form method="POST" action="{{ url_for('group_unban', group_id=group.id) }}" style="display:inline"
+                              onsubmit="return confirm('Revoke ban for ' + {{ bm.username|tojson }} + '?')">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="user_id" value="{{ bm.user_id }}">
+                            <button class="btn btn-sm btn-outline" title="Revoke ban">Revoke Ban</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </details>
+        {% endif %}
 
         {% if not (is_owner and not group.is_global) %}
         <form method="POST" action="{{ url_for('group_leave', group_id=group.id) }}" style="margin-top:.5rem"
@@ -115,6 +174,18 @@
         {% endif %}
     </div>
 </details>
+
+{# Timeout countdown for current user #}
+{% if my_membership and my_membership.timed_out_until and my_membership.timed_out_until > utcnow %}
+<div class="chat-timeout-banner" style="background:rgba(255,80,80,.15);border:1px solid rgba(255,80,80,.3);border-radius:6px;padding:.6rem 1rem;margin-bottom:1rem;text-align:center;font-size:.9rem">
+    ⏳ You are timed out.
+    {% if my_membership.timed_out_until.startswith('9999') %}
+        <strong>Duration: Indefinite</strong>
+    {% else %}
+        Time remaining: <strong><span id="timeout-countdown" data-until="{{ my_membership.timed_out_until }}"></span></strong>
+    {% endif %}
+</div>
+{% endif %}
 
 <div class="chat-messages" id="chat-messages">
     {% if messages %}
@@ -176,6 +247,30 @@
 document.addEventListener('DOMContentLoaded', function() {
     var el = document.getElementById('chat-messages');
     if (el) el.scrollTop = el.scrollHeight;
+
+    // Timeout countdown
+    var countdownEl = document.getElementById('timeout-countdown');
+    if (countdownEl) {
+        var until = new Date(countdownEl.getAttribute('data-until'));
+        function updateCountdown() {
+            var now = new Date();
+            var diff = until - now;
+            if (diff <= 0) {
+                countdownEl.textContent = 'Expired – refresh the page';
+                return;
+            }
+            var h = Math.floor(diff / 3600000);
+            var m = Math.floor((diff % 3600000) / 60000);
+            var s = Math.floor((diff % 60000) / 1000);
+            var parts = [];
+            if (h > 0) parts.push(h + 'h');
+            if (m > 0) parts.push(m + 'm');
+            parts.push(s + 's');
+            countdownEl.textContent = parts.join(' ');
+        }
+        updateCountdown();
+        setInterval(updateCountdown, 1000);
+    }
 });
 </script>
 {% endblock %}

@@ -66,6 +66,9 @@
                 {% else %}
                 Active
                 {% endif %}
+                {% if u.chat_disabled %}
+                <span class="badge badge-suspended" title="Chat disabled">🔇</span>
+                {% endif %}
             </td>
             <td style="font-size:.82rem">{% if u.last_login_at %}<span title="{{ format_datetime(u.last_login_at) }}">{{ time_ago(u.last_login_at) }}</span>{% else %}Never{% endif %}</td>
             <td>{{ time_ago(u.created_at) }}</td>
@@ -128,6 +131,15 @@
                         <button class="btn btn-sm btn-outline">Suspend</button>
                     </form>
                     {% endif %}
+                    <!-- Toggle chat -->
+                    <form method="POST" action="{{ url_for('admin_toggle_chat', user_id=u.id) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        {% if u.chat_disabled %}
+                        <button class="btn btn-sm" title="Enable chat for this user">🔊 Enable Chat</button>
+                        {% else %}
+                        <button class="btn btn-sm btn-outline" title="Disable chat for this user">🔇 Disable Chat</button>
+                        {% endif %}
+                    </form>
                     <!-- Delete -->
                     <form method="POST" action="{{ url_for('admin_edit_user', user_id=u.id) }}" data-confirm="Delete this user permanently?">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
