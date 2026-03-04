@@ -22,8 +22,12 @@ from wiki_logger import log_action, get_logger
 from sync import notify_change, notify_file_upload, notify_file_deleted
 
 
+FAVICON_UPLOAD_FOLDER = None  # Set during register_admin_routes()
+
+
 def register_admin_routes(app):
     """Register admin panel routes on the Flask app."""
+    global FAVICON_UPLOAD_FOLDER
 
     _VALID_FAVICON_TYPES = {'yellow', 'green', 'blue', 'red', 'orange', 'cyan', 'purple', 'lime', 'custom'}
     _FAVICON_ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "ico", "gif", "webp"}

@@ -13,7 +13,7 @@ from helpers import (
     login_required, editor_required, admin_required, get_current_user,
     allowed_file, allowed_attachment, rate_limit, editor_has_category_access,
 )
-from wiki_logger import log_action
+import wiki_logger
 from sync import notify_change, notify_file_upload, notify_file_deleted
 
 
@@ -71,7 +71,7 @@ def register_upload_routes(app):
             return jsonify({"error": "Invalid upload path"}), 400
         f.save(filepath)
         user = get_current_user()
-        log_action("upload_image", request, user=user, filename=filename)
+        wiki_logger.log_action("upload_image", request, user=user, filename=filename)
         notify_file_upload(filename, filepath)
         url = url_for("static", filename=f"uploads/{filename}")
         return jsonify({"url": url, "filename": filename})
@@ -101,7 +101,7 @@ def register_upload_routes(app):
             except OSError:
                 return jsonify({"error": "failed to delete file"}), 500
             user = get_current_user()
-            log_action("delete_upload", request, user=user, filename=safe_name)
+            wiki_logger.log_action("delete_upload", request, user=user, filename=safe_name)
             notify_file_deleted(safe_name)
         return jsonify({"ok": True})
 
@@ -154,7 +154,7 @@ def register_upload_routes(app):
             return jsonify({"error": "Failed to save file"}), 500
         original_name = secure_filename(f.filename)
         attachment_id = db.add_page_attachment(page_id, stored_name, original_name, file_size, user["id"])
-        log_action("upload_attachment", request, user=user, page=page["slug"], filename=original_name)
+        wiki_logger.log_action("upload_attachment", request, user=user, page=page["slug"], filename=original_name)
         notify_change("attachment_upload", f"Attachment '{original_name}' uploaded to page '{page['slug']}'")
         notify_file_upload(stored_name, filepath, display_name=original_name)
         return jsonify({"id": attachment_id, "name": original_name, "size": file_size})
@@ -178,7 +178,7 @@ def register_upload_routes(app):
         if os.path.commonpath([attach_root, filepath]) == attach_root and os.path.isfile(filepath):
             os.remove(filepath)
         db.delete_page_attachment(attachment_id)
-        log_action("delete_attachment", request, user=user, filename=attachment["original_name"])
+        wiki_logger.log_action("delete_attachment", request, user=user, filename=attachment["original_name"])
         notify_change("attachment_delete", f"Attachment '{attachment['original_name']}' deleted from page '{page['slug'] if page else 'unknown'}'")
         notify_file_deleted(attachment["filename"])
         return jsonify({"ok": True})
@@ -242,5 +242,5 @@ def register_upload_routes(app):
         """Record that the logged-in user has found the easter egg (one-way flag)."""
         user = get_current_user()
         db.set_easter_egg_found(user["id"])
-        log_action("easter_egg_triggered", request, user=user)
+        wiki_logger.log_action("easter_egg_triggered", request, user=user)
         return jsonify({"ok": True})

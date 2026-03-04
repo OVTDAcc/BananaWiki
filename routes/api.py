@@ -11,7 +11,7 @@ from helpers import (
     login_required, editor_required, admin_required, get_current_user,
     render_markdown, rate_limit, format_datetime,
 )
-from wiki_logger import log_action
+import wiki_logger
 from sync import notify_change
 from routes.uploads import cleanup_unused_uploads
 
@@ -122,7 +122,7 @@ def register_api_routes(app):
         if not source_draft:
             return jsonify({"error": "draft not found"}), 404
         db.transfer_draft(page_id, from_user, user["id"])
-        log_action("transfer_draft", request, user=user, page_id=page_id, from_user=from_user)
+        wiki_logger.log_action("transfer_draft", request, user=user, page_id=page_id, from_user=from_user)
         return jsonify({"ok": True})
 
     @app.route("/api/draft/delete", methods=["POST"])
@@ -311,7 +311,7 @@ def register_api_routes(app):
             return jsonify({"error": "invalid ids"}), 400
         db.update_pages_sort_order(ids)
         user = get_current_user()
-        log_action("reorder_pages", request, user=user, count=len(ids))
+        wiki_logger.log_action("reorder_pages", request, user=user, count=len(ids))
         notify_change("pages_reorder", "Page order updated")
         return jsonify({"ok": True})
 
@@ -330,6 +330,6 @@ def register_api_routes(app):
             return jsonify({"error": "invalid ids"}), 400
         db.update_categories_sort_order(ids)
         user = get_current_user()
-        log_action("reorder_categories", request, user=user, count=len(ids))
+        wiki_logger.log_action("reorder_categories", request, user=user, count=len(ids))
         notify_change("categories_reorder", "Category order updated")
         return jsonify({"ok": True})
