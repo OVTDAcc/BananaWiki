@@ -120,6 +120,84 @@ def test_rl_store_plain_dict_not_defaultdict(app_mod):
     )
 
 
+def test_rl_store_key_retained_when_blocked_with_live_timestamps(app_mod):
+    """When rate-limited with active timestamps, the key must stay in _RL_STORE."""
+    ip, bucket, max_req = "10.0.0.1", "bucket_retain", 3
+    for _ in range(max_req):
+        app_mod._rl_check(ip, bucket, max_req, 60)
+    key = (ip, bucket)
+    assert key in app_mod._RL_STORE
+    # Trigger the blocked path — key must still be in store afterwards
+    result = app_mod._rl_check(ip, bucket, max_req, 60)
+    assert result is False
+    assert key in app_mod._RL_STORE
+    assert len(app_mod._RL_STORE[key]) == max_req
+
+
+def test_rl_store_key_not_stored_when_max_requests_zero(app_mod):
+    """When max_requests=0 every call is immediately blocked; no key should linger."""
+    ip, bucket = "10.0.0.2", "bucket_zero"
+    key = (ip, bucket)
+    # Should be blocked on first call and key must NOT be stored
+    result = app_mod._rl_check(ip, bucket, 0, 60)
+    assert result is False
+    assert key not in app_mod._RL_STORE
+
+
+def test_rl_store_stale_timestamps_replaced_on_return(app_mod, monkeypatch):
+    """After the rate-limit window expires, returning IPs start a fresh counter."""
+    from datetime import datetime, timezone
+
+    ip, bucket, max_req, window = "10.0.0.3", "bucket_stale", 3, 60
+
+    # Record max_req requests at time T
+    fake_past = datetime(2000, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(
+        "helpers._rate_limiting.datetime",
+        type("FakeDT", (), {
+            "now": staticmethod(lambda tz=None: fake_past),
+        }),
+    )
+    for _ in range(max_req):
+        app_mod._rl_check(ip, bucket, max_req, window)
+
+    key = (ip, bucket)
+    assert key in app_mod._RL_STORE
+    assert len(app_mod._RL_STORE[key]) == max_req
+
+    # Advance time beyond the window — all stored timestamps are now expired
+    monkeypatch.undo()  # restore real datetime
+    # The IP makes a new request; pruning removes stale timestamps and adds the new one
+    result = app_mod._rl_check(ip, bucket, max_req, window)
+    assert result is True
+    assert key in app_mod._RL_STORE
+    # Only the new timestamp should remain (all old ones were outside the window)
+    assert len(app_mod._RL_STORE[key]) == 1
+
+
+def test_rl_store_lock_used_for_all_operations(app_mod):
+    """_rl_check acquires _RL_LOCK; concurrent calls must not corrupt _RL_STORE."""
+    import threading
+
+    results = []
+    ip, bucket, max_req, window = "10.0.0.4", "bucket_threads", 100, 60
+
+    def make_request():
+        results.append(app_mod._rl_check(ip, bucket, max_req, window))
+
+    threads = [threading.Thread(target=make_request) for _ in range(50)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    # All 50 requests should be allowed (well under max_req=100)
+    assert all(results)
+    key = (ip, bucket)
+    # Exactly 50 timestamps should be stored (no double-counting or lost writes)
+    assert len(app_mod._RL_STORE[key]) == 50
+
+
 # -----------------------------------------------------------------------
 # Signup rate limit
 # -----------------------------------------------------------------------
