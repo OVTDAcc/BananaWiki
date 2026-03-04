@@ -12,6 +12,7 @@ This guide covers all the ways to run BananaWiki in production.
 - [Caddy reverse proxy](#caddy-reverse-proxy)
 - [IP-only access (no domain)](#ip-only-access-no-domain)
 - [Multiple apps on one server](#multiple-apps-on-one-server)
+- [Pre-flight checklist](#pre-flight-checklist)
 
 ---
 
@@ -212,3 +213,15 @@ Each app needs its own port. Set `PORT` in each app's `config.py`:
 | Another app | 5002 | `app.example.com` |
 
 Set up nginx or Cloudflare to route each domain to the right port. Each app runs its own Gunicorn process and systemd service.
+
+---
+
+## Pre-flight checklist
+
+Before starting BananaWiki for the first time (or after a fresh install), verify the following:
+
+- [ ] **Reverse proxy is in place and serving HTTPS.** If `PROXY_MODE = True` (the default), a TLS-terminating proxy (nginx, Caddy, or Cloudflare) must sit in front of Gunicorn. If you are exposing Gunicorn directly, set `HOST = "0.0.0.0"` and `PROXY_MODE = False`.
+- [ ] **`SECRET_KEY` is not hard-coded.** The default auto-generates a key on first run and stores it in `instance/.secret_key` (mode 0600). You can also set it via the `SECRET_KEY` environment variable. Never commit a hard-coded secret to version control.
+- [ ] **`SYNC` is configured** if you want automatic Telegram backups. Set `SYNC = True`, `SYNC_TOKEN`, and `SYNC_USERID` in `config.py`. See [Telegram Sync / Backup](configuration.md#telegram-sync--backup) for details and the security note about credentials stored in the Telegram chat.
+- [ ] **Firewall is configured.** Only expose the ports and interfaces you intend. If using a reverse proxy, Gunicorn's bind address (`HOST = "127.0.0.1"`) should not be reachable from outside the server.
+- [ ] **`gunicorn.conf.py` `forwarded_allow_ips` matches your proxy IP.** The default is `"127.0.0.1"`, which is correct when the proxy runs on the same machine. If the proxy is on a different host, set this to that host's IP to prevent IP spoofing via `X-Forwarded-For`.

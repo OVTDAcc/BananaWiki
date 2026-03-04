@@ -63,7 +63,10 @@ def _rl_check(ip, bucket, max_requests, window):
     with _RL_LOCK:
         pruned = [t for t in _RL_STORE.get(key, []) if t > cutoff]
         if len(pruned) >= max_requests:
-            _RL_STORE[key] = pruned
+            if pruned:
+                _RL_STORE[key] = pruned
+            else:
+                _RL_STORE.pop(key, None)
             return False
         pruned.append(now)
         _RL_STORE[key] = pruned
