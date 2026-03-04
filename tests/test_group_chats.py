@@ -1128,3 +1128,429 @@ def test_site_admin_can_ban_in_global(admin_client, admin_uid, alice_uid):
                              follow_redirects=True)
     assert b"has been banned" in resp.data
     assert db.is_group_member_banned(group["id"], alice_uid)
+
+
+# ---------------------------------------------------------------------------
+# Group deletion (new feature)
+# ---------------------------------------------------------------------------
+
+def test_owner_can_delete_group(alice_client, alice_uid):
+    """Group owner should be able to permanently delete a non-global group."""
+    import db
+    group = db.create_group_chat("ToDelete", alice_uid)
+    group_id = group["id"]
+    resp = alice_client.post(f"/groups/{group_id}/delete", follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"has been deleted" in resp.data
+    assert db.get_group_chat(group_id) is None
+
+
+def test_non_owner_cannot_delete_group(alice_uid, bob_uid):
+    """Non-owners (regular members) must not be able to delete a group."""
+    import db
+    from app import app
+    group = db.create_group_chat("Protected", alice_uid)
+    db.add_group_member(group["id"], bob_uid)
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
+    with app.test_client() as c:
+        c.post("/login", data={"username": "bob", "password": "bob123"})
+        resp = c.post(f"/groups/{group['id']}/delete", follow_redirects=True)
+        assert b"Only the group owner" in resp.data
+    # Group still exists
+    assert db.get_group_chat(group["id"]) is not None
+
+
+def test_cannot_delete_global_chat(alice_client, alice_uid):
+    """The global chat must never be deletable via the regular delete route."""
+    import db
+    global_chat = db.get_or_create_global_chat()
+    db.add_group_member(global_chat["id"], alice_uid)
+    resp = alice_client.post(f"/groups/{global_chat['id']}/delete",
+                             follow_redirects=True)
+    assert b"cannot be deleted" in resp.data
+    assert db.get_group_chat(global_chat["id"]) is not None
+
+
+def test_admin_can_delete_group_via_owner_route(admin_client, admin_uid, alice_uid):
+    """Site admin should be able to delete any non-global group via the owner route."""
+    import db
+    group = db.create_group_chat("AdminDelete", alice_uid)
+    group_id = group["id"]
+    resp = admin_client.post(f"/groups/{group_id}/delete", follow_redirects=True)
+    assert b"has been deleted" in resp.data
+    assert db.get_group_chat(group_id) is None
+
+
+def test_admin_can_delete_group_via_admin_panel(admin_client, admin_uid, alice_uid):
+    """Admin panel delete route should permanently delete any non-global group."""
+    import db
+    group = db.create_group_chat("AdminPanelDelete", alice_uid)
+    group_id = group["id"]
+    resp = admin_client.post(f"/admin/groups/{group_id}/delete", follow_redirects=True)
+    assert b"has been deleted" in resp.data
+    assert db.get_group_chat(group_id) is None
+
+
+def test_admin_cannot_delete_global_via_admin_panel(admin_client, admin_uid):
+    """Admin panel delete route must refuse to delete the global chat."""
+    import db
+    global_chat = db.get_or_create_global_chat()
+    resp = admin_client.post(f"/admin/groups/{global_chat['id']}/delete",
+                             follow_redirects=True)
+    assert b"cannot be deleted" in resp.data
+    assert db.get_group_chat(global_chat["id"]) is not None
+
+
+def test_delete_group_removes_messages(alice_client, alice_uid):
+    """Deleting a group should cascade-delete all its messages."""
+    import db
+    group = db.create_group_chat("MsgClean", alice_uid)
+    db.send_group_message(group["id"], alice_uid, "hello")
+    db.send_group_message(group["id"], alice_uid, "world")
+    alice_client.post(f"/groups/{group['id']}/delete", follow_redirects=True)
+    assert db.get_group_chat(group["id"]) is None
+
+
+def test_db_delete_group_chat(alice_uid):
+    """DB helper delete_group_chat should remove the group and return attachment filenames."""
+    import db
+    group = db.create_group_chat("DBDelete", alice_uid)
+    group_id = group["id"]
+    db.send_group_message(group_id, alice_uid, "msg")
+    files = db.delete_group_chat(group_id)
+    assert isinstance(files, list)
+    assert db.get_group_chat(group_id) is None
+
+
+# ---------------------------------------------------------------------------
+# Global chat deactivation / reactivation (new feature)
+# ---------------------------------------------------------------------------
+
+def test_admin_can_deactivate_global_chat(admin_client, admin_uid):
+    """Site admin should be able to deactivate the global chat."""
+    import db
+    global_chat = db.get_or_create_global_chat()
+    db.add_group_member(global_chat["id"], admin_uid)
+    assert global_chat["is_active"] == 1
+    resp = admin_client.post(f"/groups/{global_chat['id']}/toggle_active",
+                             follow_redirects=True)
+    assert b"deactivated" in resp.data
+    updated = db.get_group_chat(global_chat["id"])
+    assert updated["is_active"] == 0
+
+
+def test_admin_can_reactivate_global_chat(admin_client, admin_uid):
+    """Site admin should be able to reactivate a deactivated global chat."""
+    import db
+    global_chat = db.get_or_create_global_chat()
+    db.set_group_chat_active(global_chat["id"], False)
+    db.add_group_member(global_chat["id"], admin_uid)
+    resp = admin_client.post(f"/groups/{global_chat['id']}/toggle_active",
+                             follow_redirects=True)
+    assert b"reactivated" in resp.data
+    updated = db.get_group_chat(global_chat["id"])
+    assert updated["is_active"] == 1
+
+
+def test_non_admin_cannot_toggle_global_active(alice_uid):
+    """Non-admins must not be able to deactivate/reactivate the global chat."""
+    import db
+    from app import app
+    global_chat = db.get_or_create_global_chat()
+    db.add_group_member(global_chat["id"], alice_uid)
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
+    with app.test_client() as c:
+        c.post("/login", data={"username": "alice", "password": "alice123"})
+        resp = c.post(f"/groups/{global_chat['id']}/toggle_active",
+                      follow_redirects=True)
+        # admin_required decorator should block this
+        assert resp.status_code in (200, 302, 403)
+    # State unchanged
+    assert db.get_group_chat(global_chat["id"])["is_active"] == 1
+
+
+def test_cannot_send_to_deactivated_global_chat(alice_uid):
+    """Members must not be able to send messages to a deactivated global chat."""
+    import db
+    from app import app
+    global_chat = db.get_or_create_global_chat()
+    db.add_group_member(global_chat["id"], alice_uid)
+    db.set_group_chat_active(global_chat["id"], False)
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
+    with app.test_client() as c:
+        c.post("/login", data={"username": "alice", "password": "alice123"})
+        resp = c.post(f"/groups/{global_chat['id']}/send",
+                      data={"content": "hello"},
+                      follow_redirects=True)
+        assert b"deactivated" in resp.data
+
+
+def test_cannot_toggle_active_on_non_global_group(admin_client, admin_uid, alice_uid):
+    """toggle_active route must reject non-global groups."""
+    import db
+    group = db.create_group_chat("Regular", alice_uid)
+    db.add_group_member(group["id"], admin_uid)
+    resp = admin_client.post(f"/groups/{group['id']}/toggle_active",
+                             follow_redirects=True)
+    assert b"Only the global chat" in resp.data
+
+
+def test_db_set_group_chat_active(alice_uid):
+    """DB helper set_group_chat_active should flip is_active correctly."""
+    import db
+    group = db.create_group_chat("ActiveTest", alice_uid)
+    assert db.get_group_chat(group["id"])["is_active"] == 1
+    db.set_group_chat_active(group["id"], False)
+    assert db.get_group_chat(group["id"])["is_active"] == 0
+    db.set_group_chat_active(group["id"], True)
+    assert db.get_group_chat(group["id"])["is_active"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Custom join codes (new feature)
+# ---------------------------------------------------------------------------
+
+def test_owner_can_set_custom_invite_code(alice_client, alice_uid):
+    """Owner should be able to set a custom alphanumeric invite code."""
+    import db
+    group = db.create_group_chat("CustomCode", alice_uid)
+    resp = alice_client.post(f"/groups/{group['id']}/regenerate_code",
+                             data={"custom_code": "myteam42"},
+                             follow_redirects=True)
+    assert b"myteam42" in resp.data
+    updated = db.get_group_chat(group["id"])
+    assert updated["invite_code"] == "myteam42"
+
+
+def test_custom_code_invalid_characters_rejected(alice_client, alice_uid):
+    """Custom code with non-alphanumeric characters must be rejected."""
+    import db
+    group = db.create_group_chat("BadCode", alice_uid)
+    old_code = group["invite_code"]
+    resp = alice_client.post(f"/groups/{group['id']}/regenerate_code",
+                             data={"custom_code": "bad-code!"},
+                             follow_redirects=True)
+    assert b"alphanumeric" in resp.data
+    # Code unchanged
+    assert db.get_group_chat(group["id"])["invite_code"] == old_code
+
+
+def test_custom_code_too_long_rejected(alice_client, alice_uid):
+    """Custom code longer than 32 characters must be rejected."""
+    import db
+    group = db.create_group_chat("LongCode", alice_uid)
+    old_code = group["invite_code"]
+    resp = alice_client.post(f"/groups/{group['id']}/regenerate_code",
+                             data={"custom_code": "A" * 33},
+                             follow_redirects=True)
+    assert b"alphanumeric" in resp.data
+    assert db.get_group_chat(group["id"])["invite_code"] == old_code
+
+
+def test_custom_code_duplicate_rejected(alice_client, alice_uid, bob_uid):
+    """Custom code already used by another group must be rejected."""
+    import db
+    group1 = db.create_group_chat("Group1", alice_uid)
+    group2 = db.create_group_chat("Group2", bob_uid)
+    # Set group2's code to something known
+    db.regenerate_group_invite_code(group2["id"], "takencode")
+    old_code = group1["invite_code"]
+    resp = alice_client.post(f"/groups/{group1['id']}/regenerate_code",
+                             data={"custom_code": "takencode"},
+                             follow_redirects=True)
+    assert b"already in use" in resp.data
+    assert db.get_group_chat(group1["id"])["invite_code"] == old_code
+
+
+def test_custom_code_same_group_allowed(alice_client, alice_uid):
+    """Setting the same custom code on the same group again should be allowed."""
+    import db
+    group = db.create_group_chat("SameCode", alice_uid)
+    db.regenerate_group_invite_code(group["id"], "mycode")
+    resp = alice_client.post(f"/groups/{group['id']}/regenerate_code",
+                             data={"custom_code": "mycode"},
+                             follow_redirects=True)
+    assert b"mycode" in resp.data
+    assert db.get_group_chat(group["id"])["invite_code"] == "mycode"
+
+
+def test_blank_custom_code_generates_random(alice_client, alice_uid):
+    """Submitting a blank custom_code field should fall back to random generation."""
+    import db
+    group = db.create_group_chat("RandomFallback", alice_uid)
+    old_code = group["invite_code"]
+    resp = alice_client.post(f"/groups/{group['id']}/regenerate_code",
+                             data={"custom_code": ""},
+                             follow_redirects=True)
+    assert b"Invite code regenerated" in resp.data
+    new_code = db.get_group_chat(group["id"])["invite_code"]
+    assert new_code != old_code
+
+
+def test_custom_code_join_works(alice_uid, bob_uid):
+    """A group set with a custom code should be joinable using that code."""
+    import db
+    from app import app
+    group = db.create_group_chat("JoinCustom", alice_uid)
+    db.regenerate_group_invite_code(group["id"], "joinme99")
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
+    with app.test_client() as c:
+        c.post("/login", data={"username": "bob", "password": "bob123"})
+        resp = c.post("/groups/join", data={"invite_code": "joinme99"},
+                      follow_redirects=True)
+        assert b"joined" in resp.data.lower()
+    assert db.is_group_member(group["id"], bob_uid)
+
+
+def test_db_custom_invite_code(alice_uid):
+    """DB helper regenerate_group_invite_code should accept and store a custom code."""
+    import db
+    group = db.create_group_chat("DBCustom", alice_uid)
+    result = db.regenerate_group_invite_code(group["id"], "customXYZ")
+    assert result == "customXYZ"
+    assert db.get_group_chat(group["id"])["invite_code"] == "customXYZ"
+    assert db.get_group_chat_by_invite("customXYZ") is not None
+
+
+# ---------------------------------------------------------------------------
+# Sidebar search API (new feature)
+# ---------------------------------------------------------------------------
+
+def test_sidebar_search_requires_login(client, admin_uid):
+    """Sidebar search API must require authentication."""
+    resp = client.get("/api/sidebar/search?q=test")
+    assert resp.status_code == 302  # redirect to login
+
+
+def test_sidebar_search_empty_query(admin_client, admin_uid):
+    """Empty query should return empty results without error."""
+    resp = admin_client.get("/api/sidebar/search?q=")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data == {"categories": [], "pages": []}
+
+
+def test_sidebar_search_finds_pages_by_title(admin_client, admin_uid):
+    """Sidebar search should return matching pages by title."""
+    import db
+    db.create_page("Python Guide", "python-guide", content="intro")
+    db.create_page("JavaScript Basics", "js-basics", content="intro")
+    resp = admin_client.get("/api/sidebar/search?q=Python")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    titles = [p["title"] for p in data["pages"]]
+    assert "Python Guide" in titles
+    assert "JavaScript Basics" not in titles
+
+
+def test_sidebar_search_finds_categories(admin_client, admin_uid):
+    """Sidebar search should return matching categories."""
+    import db
+    db.create_category("Engineering")
+    db.create_category("Marketing")
+    resp = admin_client.get("/api/sidebar/search?q=Engin")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    cat_names = [c["name"] for c in data["categories"]]
+    assert "Engineering" in cat_names
+    assert "Marketing" not in cat_names
+
+
+def test_sidebar_search_content_scope(admin_client, admin_uid):
+    """scope=content should also match pages whose body contains the query."""
+    import db
+    db.create_page("Unrelated Title", "unrelated", content="python scripting")
+    db.create_page("Python Title", "python-title", content="something else")
+    resp = admin_client.get("/api/sidebar/search?q=python&scope=content")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    slugs = [p["slug"] for p in data["pages"]]
+    # Both pages should appear: one by content, one by title
+    assert "unrelated" in slugs
+    assert "python-title" in slugs
+
+
+def test_sidebar_search_title_scope_excludes_content_only(admin_client, admin_uid):
+    """scope=title (default) must NOT match pages that only have the keyword in content."""
+    import db
+    db.create_page("Random Title", "random-title", content="secret keyword")
+    resp = admin_client.get("/api/sidebar/search?q=secret&scope=title")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    slugs = [p["slug"] for p in data["pages"]]
+    assert "random-title" not in slugs
+
+
+def test_sidebar_search_hides_deindexed_from_regular_user(alice_uid):
+    """Regular users should not see deindexed pages in sidebar search results."""
+    import db
+    from app import app
+    page_id = db.create_page("Secret Page", "secret-page", content="hidden")
+    db.set_page_deindexed(page_id, True)
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
+    with app.test_client() as c:
+        c.post("/login", data={"username": "alice", "password": "alice123"})
+        resp = c.get("/api/sidebar/search?q=Secret")
+        data = resp.get_json()
+        slugs = [p["slug"] for p in data["pages"]]
+        assert "secret-page" not in slugs
+
+
+def test_sidebar_search_shows_deindexed_to_editor(admin_uid):
+    """Editors/admins should see deindexed pages in sidebar search results."""
+    import db
+    from app import app
+    from werkzeug.security import generate_password_hash
+    editor_uid = db.create_user("editor1", generate_password_hash("editor123"),
+                                role="editor")
+    page_id = db.create_page("Hidden Page", "hidden-page", content="deindexed")
+    db.set_page_deindexed(page_id, True)
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
+    with app.test_client() as c:
+        c.post("/login", data={"username": "editor1", "password": "editor123"})
+        resp = c.get("/api/sidebar/search?q=Hidden")
+        data = resp.get_json()
+        slugs = [p["slug"] for p in data["pages"]]
+        assert "hidden-page" in slugs
+
+
+def test_sidebar_search_no_results(admin_client, admin_uid):
+    """Searching for a non-existent term should return empty lists."""
+    resp = admin_client.get("/api/sidebar/search?q=zzznoresults999")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["pages"] == []
+    assert data["categories"] == []
+
+
+def test_sidebar_search_returns_correct_structure(admin_client, admin_uid):
+    """Each page result must have id, title, slug, category_id fields."""
+    import db
+    db.create_page("Structured Result", "structured-result")
+    resp = admin_client.get("/api/sidebar/search?q=Structured")
+    data = resp.get_json()
+    assert len(data["pages"]) > 0
+    page = data["pages"][0]
+    assert "id" in page
+    assert "title" in page
+    assert "slug" in page
+    assert "category_id" in page
+
+
+def test_sidebar_search_category_returns_correct_structure(admin_client, admin_uid):
+    """Each category result must have id, name, parent_id fields."""
+    import db
+    db.create_category("StructuredCat")
+    resp = admin_client.get("/api/sidebar/search?q=StructuredCat")
+    data = resp.get_json()
+    assert len(data["categories"]) > 0
+    cat = data["categories"][0]
+    assert "id" in cat
+    assert "name" in cat
+    assert "parent_id" in cat
