@@ -34,7 +34,7 @@ worker_class = "sync"
 # ---------------------------------------------------------------------------
 # When behind nginx, Gunicorn trusts the X-Forwarded-* headers.
 # This is handled by ProxyFix in app.py when PROXY_MODE = True.
-forwarded_allow_ips = "*" if _bw_config.PROXY_MODE else "127.0.0.1"
+forwarded_allow_ips = "127.0.0.1"
 
 # ---------------------------------------------------------------------------
 #  Logging
