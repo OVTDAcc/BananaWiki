@@ -80,12 +80,12 @@ def init_db():
     CREATE TABLE IF NOT EXISTS site_settings (
         id          INTEGER PRIMARY KEY CHECK (id = 1),
         site_name   TEXT    NOT NULL DEFAULT 'BananaWiki',
-        primary_color    TEXT NOT NULL DEFAULT '#7c8dc6',
-        secondary_color  TEXT NOT NULL DEFAULT '#151520',
-        accent_color     TEXT NOT NULL DEFAULT '#6e8aca',
-        text_color       TEXT NOT NULL DEFAULT '#b8bcc8',
-        sidebar_color    TEXT NOT NULL DEFAULT '#111118',
-        bg_color         TEXT NOT NULL DEFAULT '#0d0d14',
+        primary_color    TEXT NOT NULL DEFAULT '#8fa0d4',
+        secondary_color  TEXT NOT NULL DEFAULT '#1e1e2c',
+        accent_color     TEXT NOT NULL DEFAULT '#7e9ada',
+        text_color       TEXT NOT NULL DEFAULT '#c8ccd8',
+        sidebar_color    TEXT NOT NULL DEFAULT '#1a1a24',
+        bg_color         TEXT NOT NULL DEFAULT '#16161f',
         setup_done  INTEGER NOT NULL DEFAULT 0,
         timezone    TEXT    NOT NULL DEFAULT 'UTC',
         session_limit_enabled INTEGER NOT NULL DEFAULT 1
@@ -264,6 +264,29 @@ def init_db():
         cur.execute("ALTER TABLE site_settings ADD COLUMN lockdown_message TEXT NOT NULL DEFAULT ''")
     if "session_limit_enabled" not in ss_cols:
         cur.execute("ALTER TABLE site_settings ADD COLUMN session_limit_enabled INTEGER NOT NULL DEFAULT 1")
+
+    # Migrate old default colors to improved, more readable defaults.
+    # Column names come from a hardcoded list – validated against the allowed
+    # settings columns before building the query to prevent SQL injection.
+    _ALLOWED_COLOR_COLS = {
+        "bg_color", "sidebar_color", "secondary_color",
+        "text_color", "primary_color", "accent_color",
+    }
+    color_migrations = [
+        ("bg_color",        "#0d0d14", "#16161f"),
+        ("sidebar_color",   "#111118", "#1a1a24"),
+        ("secondary_color", "#151520", "#1e1e2c"),
+        ("text_color",      "#b8bcc8", "#c8ccd8"),
+        ("primary_color",   "#7c8dc6", "#8fa0d4"),
+        ("accent_color",    "#6e8aca", "#7e9ada"),
+    ]
+    for col, old_val, new_val in color_migrations:
+        if col not in _ALLOWED_COLOR_COLS:
+            continue
+        cur.execute(
+            f"UPDATE site_settings SET {col}=? WHERE id=1 AND {col}=?",  # noqa: S608
+            (new_val, old_val),
+        )
 
     # Add session_token column to users if missing
     if "session_token" not in cols:
