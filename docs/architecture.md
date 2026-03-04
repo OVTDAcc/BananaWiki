@@ -5,9 +5,11 @@ This document explains how BananaWiki is structured and how the main pieces fit 
 ## Contents
 
 - [Tech stack](#tech-stack)
+- [Project structure](#project-structure)
 - [Entry points](#entry-points)
 - [app.py — routes and request handling](#apppy--routes-and-request-handling)
-- [db.py — database layer](#dbpy--database-layer)
+- [db/ — database layer](#db--database-layer)
+- [helpers/ — utility functions](#helpers--utility-functions)
 - [config.py — configuration](#configpy--configuration)
 - [sync.py — Telegram backup](#syncpy--telegram-backup)
 - [wiki_logger.py — logging](#wiki_loggerpy--logging)
@@ -34,6 +36,91 @@ This document explains how BananaWiki is structured and how the main pieces fit 
 
 ---
 
+## Project structure
+
+```
+BananaWiki/
+├── app.py                  # Flask application entry point
+├── wsgi.py                 # WSGI entry point for Gunicorn
+├── config.py               # Configuration settings
+├── gunicorn.conf.py        # Gunicorn server configuration
+├── sync.py                 # Telegram backup module
+├── wiki_logger.py          # Logging module
+├── reset_password.py       # CLI password-reset tool
+├── setup.py                # One-shot setup wizard
+│
+├── db/                     # Database layer (SQLite)
+│   ├── __init__.py         # Re-exports all public symbols
+│   ├── _connection.py      # get_db() — connection factory
+│   ├── _schema.py          # init_db() — table creation & migrations
+│   ├── _users.py           # User CRUD, accessibility, login attempts
+│   ├── _invites.py         # Invite code management
+│   ├── _categories.py      # Category CRUD, tree, ordering
+│   ├── _pages.py           # Page CRUD, history, search, attachments
+│   ├── _drafts.py          # Draft management
+│   ├── _settings.py        # Site settings
+│   ├── _announcements.py   # Announcements and contributions
+│   ├── _migration.py       # Site data import/export
+│   ├── _profiles.py        # User profiles, contribution heatmap
+│   ├── _chats.py           # Direct messaging
+│   ├── _groups.py          # Group chat
+│   └── _audit.py           # Role history, custom tags, contributions
+│
+├── helpers/                # Shared utility functions
+│   ├── __init__.py         # Re-exports all public symbols
+│   ├── _constants.py       # Shared constants (ALLOWED_TAGS, ROLE_LABELS, etc.)
+│   ├── _rate_limiting.py   # Login and general rate limiting
+│   ├── _markdown.py        # Markdown rendering, video embedding
+│   ├── _diff.py            # Diff computation utilities
+│   ├── _text.py            # Text processing (slugify)
+│   ├── _validation.py      # File, input, and URL validation
+│   ├── _auth.py            # Authentication decorators and helpers
+│   └── _time.py            # Timezone and datetime formatting
+│
+├── routes/                 # Route handlers grouped by feature
+│   ├── __init__.py         # register_all_routes()
+│   ├── auth.py             # Login, signup, logout, setup, lockdown
+│   ├── wiki.py             # Wiki pages and categories
+│   ├── users.py            # User accounts and profiles
+│   ├── admin.py            # Admin panel
+│   ├── chat.py             # Direct messaging
+│   ├── groups.py           # Group chat
+│   ├── api.py              # JSON API (search, preview, drafts, etc.)
+│   ├── uploads.py          # File uploads/downloads, easter egg
+│   └── errors.py           # HTTP error handlers
+│
+├── app/
+│   ├── templates/          # Jinja2 templates
+│   └── static/             # CSS, JS, uploads, favicons
+│
+├── tests/                  # Test suite
+├── docs/                   # Documentation
+└── requirements.txt        # Python dependencies
+```
+
+### Importing modules
+
+Both `db` and `helpers` are packages that re-export all public symbols from their sub-modules via `__init__.py`. Existing import patterns continue to work:
+
+```python
+import db
+db.get_user_by_id(uid)          # Works — re-exported from db._users
+
+from helpers import login_required, render_markdown
+```
+
+For internal cross-references within a package, sub-modules use relative imports:
+
+```python
+# Inside db/_pages.py
+from ._connection import get_db
+
+# Inside helpers/_diff.py
+from ._markdown import render_markdown
+```
+
+---
+
 ## Entry points
 
 | File | Purpose |
@@ -49,26 +136,12 @@ This document explains how BananaWiki is structured and how the main pieces fit 
 `app.py` is organized into clearly separated sections with comment banners. Reading it top-to-bottom:
 
 1. **Imports & app creation** — Flask app, secret key, session config, SSL/proxy setup, and CSRF initialization.
-2. **Bleach allowlists** — `ALLOWED_TAGS` and `ALLOWED_ATTRS` define which HTML is permitted after Markdown rendering.
-3. **Login rate limiting** — Per-IP login throttling backed by the `login_attempts` SQLite table so limits are shared across all Gunicorn workers.
-4. **General rate limiting** — In-memory per-worker throttling via `_RL_STORE`. A global limit (300 req/60 s per IP) applies to all routes, plus per-route `@rate_limit` decorators on sensitive endpoints.
-5. **Helpers** — `render_markdown()`, `slugify()`, `allowed_file()`, `time_ago()`, `format_datetime()`, and validation utilities used across routes.
-6. **Decorators** — `@login_required`, `@editor_required`, `@admin_required` wrap route functions to enforce access control.
-7. **Context processors** — `inject_globals()` runs before every template render and injects `current_user`, `settings`, `active_announcements`, `all_categories`, and the `time_ago`/`format_datetime` helpers.
-8. **Request hooks** — `before_request_hook` redirects to `/setup` until setup is complete, enforces lockdown mode (kicking out non-admin users), validates the per-user session token when session limiting is enabled, and applies the global rate limit. `set_security_headers` adds security headers to every response.
-9. **Routes** — grouped by area:
-   - `/setup`, `/login`, `/signup`, `/logout`, `/lockdown` — authentication and lockdown
-   - `/account`, `/account/export` — account settings and self-service data export
-   - `/users`, `/users/<username>` — People directory and individual profile pages
-   - `/`, `/page/<slug>`, `/page/<slug>/history`, etc. — wiki page viewing and editing
-   - `/create-page`, `/page/<slug>/delete`, `/page/<slug>/move`, `/page/<slug>/deindex` — page management
-   - `/category/*` — category CRUD, reordering, and sequential-nav toggle
-   - `/api/preview`, `/api/draft/*`, `/api/upload`, `/api/upload/delete`, `/api/accessibility`, `/api/accessibility/reset`, `/api/easter-egg/trigger` — internal JSON API
-   - `/api/pages/search` — autocomplete search for the internal link picker (login-required, rate-limited)
-   - `/api/page/<id>/attachments`, `/api/attachments/<id>`, `/page/<slug>/attachments/*` — page file attachments
-   - `/admin/users`, `/admin/users/<id>/export`, `/admin/users/<id>/audit`, `/admin/users/<id>/editor-access`, `/admin/users/<id>/profile`, `/admin/codes`, `/admin/settings`, `/admin/announcements`, `/admin/migration` — admin panel
-   - `/announcements/<id>` — public full-content announcement page
-   - `/easter-egg` — easter egg page
+2. **Re-exports** — Symbols from `helpers` and `routes.uploads` are re-exported for backward compatibility with the test suite.
+3. **Template filters** — `render_md` Jinja2 filter.
+4. **Context processors** — `inject_globals()` runs before every template render and injects `current_user`, `settings`, `active_announcements`, `all_categories`, and the `time_ago`/`format_datetime` helpers.
+5. **Request hooks** — `before_request_hook` redirects to `/setup` until setup is complete, enforces lockdown mode (kicking out non-admin users), validates the per-user session token when session limiting is enabled, and applies the global rate limit. `set_security_headers` adds security headers to every response.
+6. **Route registration** — Calls `register_all_routes(app)` from the `routes` package.
+7. **Initialisation** — `db.init_db()` and `get_logger()` run at import time.
 
 ### Decorators and permissions
 
@@ -94,17 +167,51 @@ If another user has an open draft on the same page, a conflict warning is shown.
 
 ---
 
-## db.py — database layer
+## db/ — database layer
 
-`db.py` is the only file that talks to SQLite. All other modules call functions here — nothing else runs raw SQL.
+The `db` package is the only code that talks to SQLite. All other modules call functions here — nothing else runs raw SQL. The package is split into domain-specific sub-modules:
 
-- `get_db()` — opens a connection with WAL mode and foreign keys enabled.
-- `init_db()` — called at startup. Creates all tables if they don't exist, then runs column-level migrations (ALTER TABLE ADD COLUMN) for new fields added in later versions. Also ensures a home page row exists.
-- Helper functions are grouped by area: users, login attempts, invite codes, categories, pages, page history, drafts, site settings, announcements, audit log.
+| Sub-module | Responsibility |
+|---|---|
+| `_connection.py` | `get_db()` — opens a connection with WAL mode and foreign keys enabled. |
+| `_schema.py` | `init_db()` — creates all tables if they don't exist, then runs column-level migrations. |
+| `_users.py` | User CRUD, accessibility preferences, login attempt tracking, editor access. |
+| `_invites.py` | Invite code generation, validation, and lifecycle. |
+| `_categories.py` | Category CRUD, hierarchical tree, sort ordering. |
+| `_pages.py` | Page CRUD, history, search, sequential navigation, attachments. |
+| `_drafts.py` | Draft save/load/transfer/delete. |
+| `_settings.py` | Site settings (single-row table). |
+| `_announcements.py` | Announcements, user contributions. |
+| `_migration.py` | Full site data import and export. |
+| `_profiles.py` | User profiles, contribution heatmap data. |
+| `_chats.py` | Direct messaging between users. |
+| `_groups.py` | Group chat rooms. |
+| `_audit.py` | Role history, custom tags, contribution management. |
+
+The `__init__.py` re-exports every public symbol so that `import db` and `db.function_name()` work as before.
 
 ### Schema migrations
 
 Migrations are simple: `init_db()` reads `PRAGMA table_info(table_name)` and adds missing columns with `ALTER TABLE ... ADD COLUMN`. There is no migration framework — the list of `if "column_name" not in cols` checks at the bottom of `init_db()` serves as the migration log.
+
+---
+
+## helpers/ — utility functions
+
+The `helpers` package contains shared utility functions, constants, and decorators used across route handlers and the application core. The package is split by concern:
+
+| Sub-module | Responsibility |
+|---|---|
+| `_constants.py` | Shared constants: `ALLOWED_TAGS`, `ALLOWED_ATTRS`, `_DUMMY_HASH`, `ROLE_LABELS`, `_USERNAME_RE`. |
+| `_rate_limiting.py` | Per-IP login throttling (backed by DB) and in-memory general rate limiting (`_RL_STORE`), plus the `@rate_limit` decorator. |
+| `_markdown.py` | `render_markdown()` — Markdown to sanitised HTML conversion, plus YouTube/Vimeo video embedding. |
+| `_diff.py` | `compute_char_diff()`, `compute_diff_html()`, `compute_formatted_diff_html()` — word-level diff utilities for page history. |
+| `_text.py` | `slugify()` — URL-safe slug generation. |
+| `_validation.py` | File extension validation (`allowed_file`, `allowed_attachment`), input validation (`_is_valid_hex_color`, `_is_valid_username`), and URL safety (`_safe_referrer`). |
+| `_auth.py` | `get_current_user()`, `@login_required`, `@editor_required`, `@admin_required`, `editor_has_category_access()`. |
+| `_time.py` | `get_site_timezone()`, `time_ago()`, `format_datetime()`, `format_datetime_local_input()`. |
+
+The `__init__.py` re-exports every public symbol so that `from helpers import login_required` works as before.
 
 ---
 
