@@ -315,6 +315,7 @@ For a typical page view (`GET /page/<slug>`):
 | Secure file uploads | `secure_filename()` + UUID rename + Pillow verify + path traversal check |
 | Security headers | `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Content-Security-Policy` on every response |
 | Invite-only signup | Valid, unexpired invite code required; codes are single-use with a race condition guard |
+| `is_superuser` flag | Per-account database flag (set by the operator directly in SQLite) that prevents username changes, password changes, and account deletion even by an admin — used to protect the primary admin account from being accidentally modified through the UI |
 
 ---
 
@@ -322,7 +323,7 @@ For a typical page view (`GET /page/<slug>`):
 
 | Table | Purpose |
 |---|---|
-| `users` | User accounts: username, hashed password, role, suspended flag, last login, session token, accessibility preferences (JSON), chat disabled flag |
+| `users` | User accounts: username, hashed password, role, suspended flag, last login, session token, accessibility preferences (JSON), chat disabled flag, `is_superuser` flag (operator-set; blocks username/password changes and account deletion) |
 | `invite_codes` | Single-use time-limited signup tokens |
 | `categories` | Hierarchical category tree; `parent_id` is self-referencing; `sequential_nav` enables Prev/Next navigation for pages in the category |
 | `pages` | Wiki pages: title, slug, content, category, home flag, last editor, `difficulty_tag` (predefined level or `'custom'`), `tag_custom_label`, `tag_custom_color` (used when `difficulty_tag='custom'`), `is_deindexed` (hidden from sidebar and search for regular users) |

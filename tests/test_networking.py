@@ -92,10 +92,10 @@ def test_gunicorn_conf_no_ssl_by_default():
 
 
 def test_gunicorn_conf_proxy_forwarded(monkeypatch):
-    """forwarded_allow_ips is '*' when PROXY_MODE is True."""
+    """forwarded_allow_ips is '127.0.0.1' regardless of PROXY_MODE (defense in depth)."""
     monkeypatch.setattr(config, "PROXY_MODE", True)
     mod = _load_gunicorn_conf()
-    assert mod.forwarded_allow_ips == "*"
+    assert mod.forwarded_allow_ips == "127.0.0.1"
 
 
 # -----------------------------------------------------------------------
