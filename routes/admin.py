@@ -20,6 +20,7 @@ from helpers import (
 )
 from wiki_logger import log_action, get_logger
 from sync import notify_change, notify_file_upload, notify_file_deleted
+from routes.users import build_user_export_zip
 
 
 FAVICON_UPLOAD_FOLDER = None  # Set during register_admin_routes()
@@ -57,47 +58,6 @@ def register_admin_routes(app):
             return entries[-max_entries:][::-1]
         except OSError:
             return []
-
-    def _build_user_export_zip(user):
-        """Build an in-memory ZIP file containing all exported data for a user.
-
-        ``user`` must be a valid user row (as returned by ``db.get_user_by_id``).
-        Returns a ``BytesIO`` object ready to be sent as a file download.
-        """
-        buf = io.BytesIO()
-        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-            # Account info (exclude password hash)
-            account_data = {
-                "id": user["id"],
-                "username": user["username"],
-                "role": user["role"],
-                "suspended": bool(user["suspended"]),
-                "invite_code": user["invite_code"],
-                "created_at": user["created_at"],
-                "last_login_at": user["last_login_at"],
-                "easter_egg_found": bool(user["easter_egg_found"]),
-                "is_superuser": bool(user["is_superuser"]),
-            }
-            zf.writestr("account.json", json.dumps(account_data, indent=2))
-
-            # Username history
-            username_history = [dict(r) for r in db.get_username_history(user["id"])]
-            zf.writestr("username_history.json", json.dumps(username_history, indent=2))
-
-            # Contributions (page edits)
-            contributions = [dict(r) for r in db.get_user_contributions(user["id"])]
-            zf.writestr("contributions.json", json.dumps(contributions, indent=2))
-
-            # Drafts
-            drafts = [dict(r) for r in db.list_user_drafts(user["id"])]
-            zf.writestr("drafts.json", json.dumps(drafts, indent=2))
-
-            # Accessibility preferences
-            accessibility = db.get_user_accessibility(user["id"])
-            zf.writestr("accessibility.json", json.dumps(accessibility, indent=2))
-
-        buf.seek(0)
-        return buf
 
     # -------------------------------------------------------------------
     #  Admin – Profile moderation
@@ -756,7 +716,7 @@ def register_admin_routes(app):
         target = db.get_user_by_id(user_id)
         if not target:
             abort(404)
-        buf = _build_user_export_zip(target)
+        buf = build_user_export_zip(target)
         current_user = get_current_user()
         log_action("admin_export_user_data", request, user=current_user,
                    target_user=target["username"])

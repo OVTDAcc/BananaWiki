@@ -23,6 +23,48 @@ from wiki_logger import log_action
 from sync import notify_change, notify_file_upload, notify_file_deleted
 
 
+def build_user_export_zip(user):
+    """Build an in-memory ZIP file containing all exported data for a user.
+
+    ``user`` must be a valid user row (as returned by ``db.get_user_by_id``).
+    Returns a ``BytesIO`` object ready to be sent as a file download.
+    """
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        # Account info (exclude password hash)
+        account_data = {
+            "id": user["id"],
+            "username": user["username"],
+            "role": user["role"],
+            "suspended": bool(user["suspended"]),
+            "invite_code": user["invite_code"],
+            "created_at": user["created_at"],
+            "last_login_at": user["last_login_at"],
+            "easter_egg_found": bool(user["easter_egg_found"]),
+            "is_superuser": bool(user["is_superuser"]),
+        }
+        zf.writestr("account.json", json.dumps(account_data, indent=2))
+
+        # Username history
+        username_history = [dict(r) for r in db.get_username_history(user["id"])]
+        zf.writestr("username_history.json", json.dumps(username_history, indent=2))
+
+        # Contributions (page edits)
+        contributions = [dict(r) for r in db.get_user_contributions(user["id"])]
+        zf.writestr("contributions.json", json.dumps(contributions, indent=2))
+
+        # Drafts
+        drafts = [dict(r) for r in db.list_user_drafts(user["id"])]
+        zf.writestr("drafts.json", json.dumps(drafts, indent=2))
+
+        # Accessibility preferences
+        accessibility = db.get_user_accessibility(user["id"])
+        zf.writestr("accessibility.json", json.dumps(accessibility, indent=2))
+
+    buf.seek(0)
+    return buf
+
+
 def register_user_routes(app):
     """Register user account and profile routes on the Flask app."""
 
@@ -228,53 +270,12 @@ def register_user_routes(app):
                                categories=categories, uncategorized=uncategorized,
                                profile=profile)
 
-    def _build_user_export_zip(user):
-        """Build an in-memory ZIP file containing all exported data for a user.
-
-        ``user`` must be a valid user row (as returned by ``db.get_user_by_id``).
-        Returns a ``BytesIO`` object ready to be sent as a file download.
-        """
-        buf = io.BytesIO()
-        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-            # Account info (exclude password hash)
-            account_data = {
-                "id": user["id"],
-                "username": user["username"],
-                "role": user["role"],
-                "suspended": bool(user["suspended"]),
-                "invite_code": user["invite_code"],
-                "created_at": user["created_at"],
-                "last_login_at": user["last_login_at"],
-                "easter_egg_found": bool(user["easter_egg_found"]),
-                "is_superuser": bool(user["is_superuser"]),
-            }
-            zf.writestr("account.json", json.dumps(account_data, indent=2))
-
-            # Username history
-            username_history = [dict(r) for r in db.get_username_history(user["id"])]
-            zf.writestr("username_history.json", json.dumps(username_history, indent=2))
-
-            # Contributions (page edits)
-            contributions = [dict(r) for r in db.get_user_contributions(user["id"])]
-            zf.writestr("contributions.json", json.dumps(contributions, indent=2))
-
-            # Drafts
-            drafts = [dict(r) for r in db.list_user_drafts(user["id"])]
-            zf.writestr("drafts.json", json.dumps(drafts, indent=2))
-
-            # Accessibility preferences
-            accessibility = db.get_user_accessibility(user["id"])
-            zf.writestr("accessibility.json", json.dumps(accessibility, indent=2))
-
-        buf.seek(0)
-        return buf
-
     @app.route("/account/export")
     @login_required
     def export_own_data():
         """Allow a logged-in user to download all their own data as a ZIP file."""
         user = get_current_user()
-        buf = _build_user_export_zip(user)
+        buf = build_user_export_zip(user)
         filename = f"userdata_{user['username']}.zip"
         log_action("export_own_data", request, user=user)
         return send_file(buf, mimetype="application/zip",

@@ -252,10 +252,12 @@ Templates live in `app/templates/` and use Jinja2.
 |---|---|
 | `base.html` | Main layout: sidebar with category tree, header, flash messages, announcement bar. All page templates extend this. |
 | `_announcements_bar.html` | Announcement banner partial — included in `base.html` and auth pages. |
-| `auth/` | `login.html`, `signup.html`, `setup.html`, `lockdown.html` |
+| `auth/` | `login.html`, `signup.html`, `setup.html`, `lockdown.html`, `session_conflict.html` |
 | `wiki/` | `page.html`, `edit.html`, `create_page.html`, `history.html`, `history_entry.html`, `announcement.html`, `easter_egg.html`, `_category.html` (recursive sidebar partial), `403.html`, `404.html`, `429.html`, `500.html` |
 | `account/settings.html` | Account settings page |
-| `admin/` | `users.html`, `codes.html`, `codes_expired.html`, `settings.html`, `announcements.html`, `audit.html`, `editor_access.html`, `migration.html` |
+| `admin/` | `users.html`, `codes.html`, `codes_expired.html`, `settings.html`, `announcements.html`, `audit.html`, `editor_access.html`, `migration.html`, `chats.html`, `chat_view.html`, `groups.html`, `group_view.html` |
+| `chats/` | `list.html` (DM conversation list), `new.html` (start new DM), `chat.html` (conversation view) |
+| `groups/` | `list.html` (group list), `new.html` (create group), `join.html` (join via invite code), `chat.html` (group conversation view) |
 | `users/` | `list.html` (People directory), `profile.html` (individual user profile with contribution heatmap) |
 
 Template variables injected on every request (via `inject_globals`):
@@ -320,7 +322,7 @@ For a typical page view (`GET /page/<slug>`):
 
 | Table | Purpose |
 |---|---|
-| `users` | User accounts: username, hashed password, role, suspended flag, last login, accessibility preferences (JSON) |
+| `users` | User accounts: username, hashed password, role, suspended flag, last login, session token, accessibility preferences (JSON), chat disabled flag |
 | `invite_codes` | Single-use time-limited signup tokens |
 | `categories` | Hierarchical category tree; `parent_id` is self-referencing; `sequential_nav` enables Prev/Next navigation for pages in the category |
 | `pages` | Wiki pages: title, slug, content, category, home flag, last editor, `difficulty_tag` (predefined level or `'custom'`), `tag_custom_label`, `tag_custom_color` (used when `difficulty_tag='custom'`), `is_deindexed` (hidden from sidebar and search for regular users) |
@@ -328,11 +330,20 @@ For a typical page view (`GET /page/<slug>`):
 | `drafts` | One in-progress draft per (page, user) pair |
 | `site_settings` | Single-row table (id=1): site name, color palette, timezone, favicon, lockdown mode and message, session limit toggle, setup flag |
 | `login_attempts` | Failed login records used for per-IP rate limiting across workers |
-| `announcements` | Site-wide banner content, color, visibility, expiry, active flag |
+| `announcements` | Site-wide banner content, color, text size, visibility, expiry, active flag, not-removable flag, countdown toggle |
 | `username_history` | Every username change (old name, new name, timestamp) per user |
 | `editor_category_access` | Per-editor restricted-access flag (one row per editor with category restrictions enabled) |
 | `editor_allowed_categories` | Category IDs an editor with restrictions is permitted to access |
 | `page_attachments` | Files attached to a page: stored filename (UUID), original name, size, uploader, upload time |
 | `user_profiles` | Optional public profile per user: `real_name`, `bio`, `avatar_filename`, `page_published` flag, `page_disabled_by_admin` flag |
+| `chats` | Direct message conversations between two users (unique pair) |
+| `chat_messages` | Messages in direct message conversations, with IP address tracking |
+| `chat_attachments` | File attachments on direct messages: stored filename (UUID), original name, file size |
+| `group_chats` | Group chat rooms: name, creator, invite code, global flag |
+| `group_members` | Group membership with role (`owner`, `moderator`, `member`), timeout, and ban tracking |
+| `group_messages` | Messages in group chats, with system message support and IP address tracking |
+| `group_attachments` | File attachments on group messages: stored filename (UUID), original name, file size |
+| `role_history` | Audit log of user role changes: old role, new role, who made the change, timestamp |
+| `user_custom_tags` | Admin-managed custom tags per user: label, color, sort order |
 
 All timestamps are stored as UTC ISO-8601 strings (`datetime.now(timezone.utc).isoformat()`). The `format_datetime()` helper converts them to the site's configured timezone for display.
