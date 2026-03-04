@@ -1,6 +1,7 @@
 /* BananaWiki – Dark Professional Theme */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{font-size:16px}
+:root{color-scheme:dark}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,Ubuntu,sans-serif;background:var(--bg);color:var(--text);height:100vh;overflow:hidden;display:flex;flex-direction:column;line-height:1.6}
 a{color:var(--accent);text-decoration:none}
 a:hover{text-decoration:underline}
@@ -396,13 +397,15 @@ select.input{appearance:auto}
 .a11y-switch input:checked + .a11y-switch-slider:before{transform:translateX(16px);opacity:1}
 .a11y-reduce-motion,.a11y-reduce-motion *{animation:none !important;transition:none !important}
 
-/* High contrast modes */
-.a11y-contrast-1{filter:contrast(1.15)}
-.a11y-contrast-2{filter:contrast(1.35)}
+/* High contrast modes – filter applied to content containers (not body) to
+   prevent GPU compositing failures on Mac/Linux in Firefox and Chrome that
+   would render the entire page black. */
+.a11y-contrast-1 .topbar,.a11y-contrast-1 .announcements-bar,.a11y-contrast-1 .layout{filter:contrast(1.15)}
+.a11y-contrast-2 .topbar,.a11y-contrast-2 .announcements-bar,.a11y-contrast-2 .layout{filter:contrast(1.35)}
 .a11y-contrast-3 .wiki-content,.a11y-contrast-3 .preview-content{color:#fff}
-.a11y-contrast-3{filter:contrast(1.6)}
-.a11y-contrast-4{--bg:#000;--text:#fff;--primary:#ff0;--accent:#ff0;--secondary:#0a0a0a;--sidebar:#050505;filter:contrast(2)}
-.a11y-contrast-5{--bg:#000;--text:#fff;--primary:#ff0;--accent:#ff0;--secondary:#000;--sidebar:#000;filter:contrast(2.5) grayscale(0.2)}
+.a11y-contrast-3 .topbar,.a11y-contrast-3 .announcements-bar,.a11y-contrast-3 .layout{filter:contrast(1.6)}
+.a11y-contrast-4{--bg:#000;--text:#fff;--primary:#ff0;--accent:#ff0;--secondary:#0a0a0a;--sidebar:#050505}
+.a11y-contrast-5{--bg:#000;--text:#fff;--primary:#ff0;--accent:#ff0;--secondary:#000;--sidebar:#000}
 
 /* Editor pane resize handle */
 .editor-divider{width:5px;background:rgba(255,255,255,.06);cursor:col-resize;flex-shrink:0;transition:background .15s;position:relative;z-index:5;touch-action:none}
