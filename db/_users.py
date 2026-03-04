@@ -1,0 +1,279 @@
+"""User CRUD, accessibility, login attempts, and editor access."""
+
+import json
+import string
+import secrets
+from datetime import datetime, timedelta, timezone
+
+from ._connection import get_db
+
+
+# ---------------------------------------------------------------------------
+#  User helpers
+# ---------------------------------------------------------------------------
+def _gen_user_id():
+    """Generate a random 8-character alphanumeric lowercase user ID."""
+    chars = string.ascii_lowercase + string.digits
+    return ''.join(secrets.choice(chars) for _ in range(8))
+
+
+def create_user(username, hashed_pw, role="user", invite_code=None):
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        uid = _gen_user_id()
+        while conn.execute("SELECT 1 FROM users WHERE id=?", (uid,)).fetchone():
+            uid = _gen_user_id()
+        cur.execute(
+            "INSERT INTO users (id, username, password, role, invite_code) VALUES (?, ?, ?, ?, ?)",
+            (uid, username, hashed_pw, role, invite_code),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return uid
+
+
+def get_user_by_id(user_id):
+    conn = get_db()
+    user = conn.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
+    conn.close()
+    return user
+
+
+def get_user_by_username(username):
+    conn = get_db()
+    user = conn.execute("SELECT * FROM users WHERE username=? COLLATE NOCASE", (username,)).fetchone()
+    conn.close()
+    return user
+
+
+_ALLOWED_USER_COLUMNS = {"username", "password", "role", "suspended", "last_login_at", "session_token"}
+
+
+def update_user(user_id, **kwargs):
+    if not user_id:
+        raise ValueError("user_id is required")
+    for k in kwargs:
+        if k not in _ALLOWED_USER_COLUMNS:
+            raise ValueError(f"Invalid column: {k}")
+    if not kwargs:
+        return
+    conn = get_db()
+    try:
+        sets = ", ".join(f"{k}=?" for k in kwargs)
+        vals = list(kwargs.values()) + [user_id]
+        conn.execute(f"UPDATE users SET {sets} WHERE id=?", vals)
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def delete_user(user_id):
+    if not user_id:
+        raise ValueError("user_id is required")
+    conn = get_db()
+    try:
+        conn.execute("UPDATE invite_codes SET used_by=NULL WHERE used_by=?", (user_id,))
+        conn.execute("DELETE FROM users WHERE id=?", (user_id,))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def record_username_change(user_id, old_username, new_username):
+    """Record a username change in the history table."""
+    conn = get_db()
+    now = datetime.now(timezone.utc).isoformat()
+    conn.execute(
+        "INSERT INTO username_history (user_id, old_username, new_username, changed_at) VALUES (?, ?, ?, ?)",
+        (user_id, old_username, new_username, now),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_username_history(user_id):
+    """Return all username changes for a user, newest first."""
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT * FROM username_history WHERE user_id=? ORDER BY changed_at DESC",
+        (user_id,),
+    ).fetchall()
+    conn.close()
+    return rows
+
+
+def set_easter_egg_found(user_id):
+    """Mark that the user has found the easter egg (one-way: 0 -> 1 only)."""
+    conn = get_db()
+    conn.execute(
+        "UPDATE users SET easter_egg_found=1 WHERE id=? AND easter_egg_found=0",
+        (user_id,),
+    )
+    conn.commit()
+    conn.close()
+
+
+# ---------------------------------------------------------------------------
+#  Accessibility / user preferences
+# ---------------------------------------------------------------------------
+_A11Y_DEFAULTS = {
+    "font_scale": 1.0,
+    "contrast": 0,
+    "sidebar_width": 250,
+    "content_max_width": 0,
+    "editor_pane_width": 0,
+    "editor_height": 0,
+    "custom_bg": "",
+    "custom_text": "",
+    "custom_primary": "",
+    "custom_secondary": "",
+    "custom_accent": "",
+    "custom_sidebar": "",
+    "line_height": 0,
+    "letter_spacing": 0,
+    "reduce_motion": 0,
+}
+
+
+def get_user_accessibility(user_id):
+    """Return the accessibility preferences dict for a user (merged with defaults)."""
+    conn = get_db()
+    row = conn.execute("SELECT accessibility FROM users WHERE id=?", (user_id,)).fetchone()
+    conn.close()
+    result = dict(_A11Y_DEFAULTS)
+    if row and row["accessibility"]:
+        try:
+            saved = json.loads(row["accessibility"])
+            result.update({k: v for k, v in saved.items() if k in _A11Y_DEFAULTS})
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return result
+
+
+def save_user_accessibility(user_id, prefs):
+    """Persist accessibility preferences for a user."""
+    cleaned = {k: prefs[k] for k in _A11Y_DEFAULTS if k in prefs}
+    conn = get_db()
+    conn.execute("UPDATE users SET accessibility=? WHERE id=?",
+                 (json.dumps(cleaned), user_id))
+    conn.commit()
+    conn.close()
+
+
+def record_login_attempt(ip):
+    conn = get_db()
+    now = datetime.now(timezone.utc).isoformat()
+    conn.execute("INSERT INTO login_attempts (ip, attempted_at) VALUES (?, ?)", (ip, now))
+    conn.commit()
+    conn.close()
+
+
+def count_recent_login_attempts(ip, window_seconds):
+    """Return count of attempts from IP within the last window_seconds."""
+    conn = get_db()
+    cutoff = (datetime.now(timezone.utc) - timedelta(seconds=window_seconds)).isoformat()
+    # Prune old entries to keep table small
+    conn.execute("DELETE FROM login_attempts WHERE attempted_at < ?", (cutoff,))
+    cnt = conn.execute(
+        "SELECT COUNT(*) FROM login_attempts WHERE ip=? AND attempted_at >= ?",
+        (ip, cutoff),
+    ).fetchone()[0]
+    conn.commit()
+    conn.close()
+    return cnt
+
+
+def clear_login_attempts(ip):
+    conn = get_db()
+    conn.execute("DELETE FROM login_attempts WHERE ip=?", (ip,))
+    conn.commit()
+    conn.close()
+
+
+def clear_all_login_attempts():
+    conn = get_db()
+    conn.execute("DELETE FROM login_attempts")
+    conn.commit()
+    conn.close()
+
+
+def list_users(role_filter=None, status_filter=None):
+    conn = get_db()
+    q = "SELECT * FROM users WHERE 1=1"
+    params = []
+    if role_filter:
+        q += " AND role=?"
+        params.append(role_filter)
+    if status_filter == "active":
+        q += " AND suspended=0"
+    elif status_filter == "suspended":
+        q += " AND suspended=1"
+    q += " ORDER BY created_at"
+    users = conn.execute(q, params).fetchall()
+    conn.close()
+    return users
+
+
+def count_admins():
+    conn = get_db()
+    cnt = conn.execute(
+        "SELECT COUNT(*) FROM users WHERE role IN ('admin', 'protected_admin') AND suspended=0"
+    ).fetchone()[0]
+    conn.close()
+    return cnt
+
+
+# ---------------------------------------------------------------------------
+#  Editor category access helpers
+# ---------------------------------------------------------------------------
+def get_editor_access(user_id):
+    """Return the category access settings for an editor.
+
+    Returns a dict with:
+      - ``restricted`` (bool): True if the editor is limited to specific categories.
+      - ``allowed_category_ids`` (list[int]): The IDs of categories the editor may access
+        (only meaningful when ``restricted`` is True).
+    """
+    conn = get_db()
+    row = conn.execute(
+        "SELECT restricted FROM editor_category_access WHERE user_id=?", (user_id,)
+    ).fetchone()
+    restricted = bool(row["restricted"]) if row else False
+    if restricted:
+        rows = conn.execute(
+            "SELECT category_id FROM editor_allowed_categories WHERE user_id=?", (user_id,)
+        ).fetchall()
+        allowed_ids = [r["category_id"] for r in rows]
+    else:
+        allowed_ids = []
+    conn.close()
+    return {"restricted": restricted, "allowed_category_ids": allowed_ids}
+
+
+def set_editor_access(user_id, restricted, category_ids=None):
+    """Persist category access settings for an editor.
+
+    Args:
+        user_id: The editor's user ID.
+        restricted: If True the editor can only access the specified categories.
+        category_ids: Iterable of category IDs to allow (ignored when restricted=False).
+    """
+    conn = get_db()
+    conn.execute(
+        "INSERT OR REPLACE INTO editor_category_access (user_id, restricted) VALUES (?, ?)",
+        (user_id, 1 if restricted else 0),
+    )
+    conn.execute(
+        "DELETE FROM editor_allowed_categories WHERE user_id=?", (user_id,)
+    )
+    if restricted and category_ids:
+        for cat_id in category_ids:
+            conn.execute(
+                "INSERT OR IGNORE INTO editor_allowed_categories (user_id, category_id) VALUES (?, ?)",
+                (user_id, cat_id),
+            )
+    conn.commit()
+    conn.close()
+

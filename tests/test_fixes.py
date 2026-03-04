@@ -1171,7 +1171,8 @@ def test_invite_code_not_using_random_module():
     """Verify db module imports secrets, not random."""
     import db as db_mod
     import inspect
-    source = inspect.getsource(db_mod)
+    # db may be a package; inspect the module that defines generate_invite_code
+    source = inspect.getsource(inspect.getmodule(db_mod.generate_invite_code))
     assert "secrets.choice" in source
     assert "random.choices" not in source
 
