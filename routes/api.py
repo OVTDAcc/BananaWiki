@@ -32,6 +32,35 @@ def register_api_routes(app):
         results = db.search_pages(query, include_deindexed=include_deindexed)
         return jsonify([{"title": r["title"], "slug": r["slug"]} for r in results])
 
+    @app.route("/api/sidebar/search")
+    @login_required
+    @rate_limit(60, 60)
+    def api_sidebar_search():
+        """Sidebar search: returns matching categories and pages as JSON.
+
+        Query parameters:
+          q             – search term (required, min 1 char)
+          scope         – "title" (default) or "content" (also searches page body)
+
+        Response::
+
+            {
+              "categories": [{"id": 1, "name": "...", "parent_id": null}, ...],
+              "pages":       [{"id": 1, "title": "...", "slug": "...", "category_id": null}, ...]
+            }
+        """
+        query = request.args.get("q", "").strip()
+        if not query:
+            return jsonify({"categories": [], "pages": []})
+        scope = request.args.get("scope", "title")
+        search_content = scope == "content"
+        user = get_current_user()
+        include_deindexed = user and user["role"] in ("editor", "admin", "protected_admin")
+        pages = db.search_pages_full(query, include_deindexed=include_deindexed,
+                                     search_content=search_content)
+        categories = db.search_categories(query)
+        return jsonify({"categories": categories, "pages": pages})
+
     # -----------------------------------------------------------------------
     #  Live preview API
     # -----------------------------------------------------------------------

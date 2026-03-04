@@ -146,3 +146,18 @@ def update_categories_sort_order(ordered_ids):
     conn.commit()
     conn.close()
 
+
+def search_categories(query, limit=10):
+    """Return categories whose name matches *query* (case-insensitive substring).
+
+    Returns a list of dicts with ``id``, ``name``, ``parent_id``.
+    """
+    conn = get_db()
+    pattern = f"%{query}%"
+    rows = conn.execute(
+        "SELECT id, name, parent_id FROM categories WHERE name LIKE ? ORDER BY name LIMIT ?",
+        (pattern, limit),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+

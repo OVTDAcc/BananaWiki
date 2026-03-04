@@ -84,6 +84,13 @@
                 </div>
                 {% endif %}
             </div>
+            <div class="sidebar-search">
+                <div class="sidebar-search-input-wrap">
+                    <input type="search" id="sidebar-search-input" class="input" placeholder="Search pages &amp; categories…" autocomplete="off" aria-label="Search pages and categories">
+                    <button class="sidebar-search-scope-btn btn-icon" id="sidebar-search-scope-btn" title="Search in content too">Aa</button>
+                </div>
+                <div class="sidebar-search-results" id="sidebar-search-results" hidden></div>
+            </div>
             <nav class="sidebar-nav">
                 <a href="{{ url_for('home') }}" class="nav-item {% if page and page.is_home %}active{% endif %}">Home</a>
                 {% for cat in categories %}

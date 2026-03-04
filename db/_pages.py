@@ -103,6 +103,47 @@ def search_pages(query, limit=15, include_deindexed=False):
     return rows
 
 
+def search_pages_full(query, limit=20, include_deindexed=False, search_content=False):
+    """Return pages matching *query* in title and optionally content.
+
+    Returns dicts with ``id``, ``title``, ``slug`` and ``category_id``.
+    Deindexed pages are excluded by default.
+    When ``search_content`` is True, also matches within page body text.
+    """
+    conn = get_db()
+    pattern = f"%{query}%"
+    if search_content:
+        if include_deindexed:
+            sql = (
+                "SELECT id, title, slug, category_id FROM pages "
+                "WHERE is_home=0 AND (title LIKE ? OR content LIKE ?) "
+                "ORDER BY CASE WHEN title LIKE ? THEN 0 ELSE 1 END, title LIMIT ?"
+            )
+        else:
+            sql = (
+                "SELECT id, title, slug, category_id FROM pages "
+                "WHERE is_home=0 AND is_deindexed=0 AND (title LIKE ? OR content LIKE ?) "
+                "ORDER BY CASE WHEN title LIKE ? THEN 0 ELSE 1 END, title LIMIT ?"
+            )
+        rows = conn.execute(sql, (pattern, pattern, pattern, limit)).fetchall()
+    else:
+        if include_deindexed:
+            sql = (
+                "SELECT id, title, slug, category_id FROM pages "
+                "WHERE is_home=0 AND title LIKE ? "
+                "ORDER BY title LIMIT ?"
+            )
+        else:
+            sql = (
+                "SELECT id, title, slug, category_id FROM pages "
+                "WHERE is_home=0 AND is_deindexed=0 AND title LIKE ? "
+                "ORDER BY title LIMIT ?"
+            )
+        rows = conn.execute(sql, (pattern, limit)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
 def create_page(title, slug, content="", category_id=None, user_id=None):
     """Create a new wiki page and record the initial history entry.  Returns the new page ID."""
     conn = get_db()

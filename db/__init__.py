@@ -62,6 +62,7 @@ from ._categories import (  # noqa: F401
     get_category_tree,
     update_pages_sort_order,
     update_categories_sort_order,
+    search_categories,
 )
 
 # Pages & attachments
@@ -70,6 +71,7 @@ from ._pages import (  # noqa: F401
     get_adjacent_pages,
     update_page_slug,
     search_pages,
+    search_pages_full,
     create_page,
     get_page,
     get_page_by_slug,
@@ -212,4 +214,6 @@ from ._groups import (  # noqa: F401
     is_group_member_banned,
     get_group_banned_members,
     regenerate_group_invite_code,
+    set_group_chat_active,
+    delete_group_chat,
 )

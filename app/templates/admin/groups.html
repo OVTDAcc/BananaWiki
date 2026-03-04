@@ -20,7 +20,7 @@
         {% for g in groups %}
         <tr>
             <td>{{ g.id }}</td>
-            <td>{% if g.is_global %}🌍{% endif %} {{ g.name }}</td>
+            <td>{% if g.is_global %}🌍{% endif %} {{ g.name }}{% if g.is_global and not g.is_active %} <span style="color:var(--danger-color,orange);font-size:.8rem">(deactivated)</span>{% endif %}</td>
             <td>{{ g.creator_name or '–' }}</td>
             <td>{{ g.member_count }}</td>
             <td>{{ g.message_count }}</td>
@@ -32,6 +32,13 @@
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button class="btn btn-sm btn-outline" title="Take ownership">🛡️</button>
                 </form>
+                {% if not g.is_global %}
+                <form method="POST" action="{{ url_for('admin_group_delete', group_id=g.id) }}" style="display:inline"
+                      onsubmit="return confirm('Permanently delete group \'' + {{ g.name|tojson }} + '\'? This cannot be undone.')">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-sm btn-danger" title="Delete group">🗑</button>
+                </form>
+                {% endif %}
             </td>
         </tr>
         {% endfor %}
