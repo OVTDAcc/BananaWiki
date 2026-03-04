@@ -846,20 +846,21 @@ function initAnnouncements() {
 }
 
 // ---------------------------------------------------------------------------
-//  Easter egg – Konami code → falling bananas
+//  Easter egg – Konami code → falling industrial metal gears
 // ---------------------------------------------------------------------------
 (function () {
     var KONAMI = [38, 38, 40, 40, 37, 39, 37, 39, 66, 65]; // ↑↑↓↓←→←→BA
     var pos = 0;
+    var METAL_ICONS = ['⚙️', '🤘', '🔩', '⛓️', '🔧'];
 
-    function launchBananas() {
+    function launchGears() {
         var count = 30;
         for (var i = 0; i < count; i++) {
             (function (delay) {
                 setTimeout(function () {
                     var el = document.createElement('div');
-                    el.className = 'banana-drop';
-                    el.textContent = '🍌';
+                    el.className = 'gear-drop';
+                    el.textContent = METAL_ICONS[Math.floor(Math.random() * METAL_ICONS.length)];
                     el.style.left = (Math.random() * 98) + 'vw';
                     el.style.animationDuration = (1.5 + Math.random() * 2) + 's';
                     el.style.fontSize = (1.2 + Math.random() * 1.5) + 'rem';
@@ -889,7 +890,7 @@ function initAnnouncements() {
             pos++;
             if (pos === KONAMI.length) {
                 pos = 0;
-                launchBananas();
+                launchGears();
             }
         } else {
             pos = (e.keyCode === KONAMI[0]) ? 1 : 0;

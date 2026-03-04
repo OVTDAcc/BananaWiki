@@ -353,9 +353,9 @@ select.input{appearance:auto}
 .announcement-full{padding:1rem;border-radius:6px;margin-bottom:1rem}
 /* Mobile */
 @media(max-width:600px){.ann-inner{flex-wrap:wrap;gap:.3rem}.ann-body{font-size:.82rem;width:100%}}
-/* Easter egg – falling bananas */
-@keyframes banana-fall{0%{transform:translateY(-60px) rotate(0deg);opacity:1}100%{transform:translateY(110vh) rotate(360deg);opacity:.6}}
-.banana-drop{position:fixed;top:-60px;pointer-events:none;z-index:99999;animation:banana-fall linear forwards;user-select:none}
+/* Easter egg – falling industrial metal gears */
+@keyframes gear-fall{0%{transform:translateY(-60px) rotate(0deg);opacity:1}100%{transform:translateY(110vh) rotate(720deg);opacity:.6}}
+.gear-drop{position:fixed;top:-60px;pointer-events:none;z-index:99999;animation:gear-fall linear forwards;user-select:none}
 
 /* ===== Accessibility panel ===== */
 :root{--a11y-font-scale:1;--a11y-line-height:1.8;--a11y-letter-spacing:normal}

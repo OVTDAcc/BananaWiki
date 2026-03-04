@@ -1,15 +1,15 @@
 {% extends "base.html" %}
-{% block title %}🍌 Easter Egg – {{ settings.site_name }}{% endblock %}
+{% block title %}🤘 Easter Egg – {{ settings.site_name }}{% endblock %}
 {% block content %}
 <div class="page-header">
-    <h1>🍌 Easter Egg</h1>
+    <h1>🤘 Easter Egg</h1>
 </div>
 
 {% if current_user.easter_egg_found %}
 <div class="settings-section" style="text-align:center;padding:2rem">
-    <div style="font-size:3rem;margin-bottom:1rem">🍌🍌🍌</div>
+    <div style="font-size:3rem;margin-bottom:1rem">⚙️🤘⚙️</div>
     <h2 style="margin-bottom:.5rem">You found it!</h2>
-    <p style="opacity:.7;margin-bottom:1.5rem">You discovered the secret Konami code. Impressive!</p>
+    <p style="opacity:.7;margin-bottom:1.5rem">You discovered the secret Konami code. Industrial metal rules!</p>
     <p style="font-size:.85rem;opacity:.5">↑ ↑ ↓ ↓ ← → ← → B A</p>
 </div>
 {% else %}
