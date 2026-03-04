@@ -18,6 +18,7 @@ class _RateLimitStore(dict):
     """Compatibility shim for tests; backing data lives in DB."""
 
     def clear(self):
+        """Clear both the in-memory dict and the DB login_attempts table."""
         super().clear()
         db.clear_all_login_attempts()
 
@@ -72,9 +73,11 @@ def _rl_check(ip, bucket, max_requests, window):
 def rate_limit(max_requests=60, window=60):
     """Route decorator that enforces a per-IP rate limit."""
     def decorator(f):
+        """Wrap the route function with the rate-limit enforcement logic."""
         bucket = f.__name__
         @functools.wraps(f)
         def wrapper(*args, **kwargs):
+            """Check the per-IP rate limit before calling the route handler."""
             ip = request.remote_addr or "unknown"
             if not _rl_check(ip, bucket, max_requests, window):
                 log_action("rate_limited", request, endpoint=bucket)

@@ -50,6 +50,7 @@ def register_upload_routes(app):
     @editor_required
     @rate_limit(10, 60)
     def upload_image():
+        """Upload an image file for use in wiki pages; returns the URL and filename as JSON."""
         if "file" not in request.files:
             return jsonify({"error": "No file provided"}), 400
         f = request.files["file"]
@@ -81,6 +82,7 @@ def register_upload_routes(app):
     @editor_required
     @rate_limit(10, 60)
     def delete_upload():
+        """Delete a previously uploaded image file by filename."""
         data = request.get_json(silent=True)
         if not data:
             return jsonify({"error": "invalid request"}), 400

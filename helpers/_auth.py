@@ -8,6 +8,7 @@ import db
 
 
 def get_current_user():
+    """Return the currently logged-in user row, or None if not authenticated."""
     uid = session.get("user_id")
     if uid:
         return db.get_user_by_id(uid)
@@ -15,8 +16,10 @@ def get_current_user():
 
 
 def login_required(f):
+    """Decorator: redirect to login if the request has no valid authenticated session."""
     @functools.wraps(f)
     def wrapper(*args, **kwargs):
+        """Inner wrapper that enforces the login check."""
         if "user_id" not in session:
             return redirect(url_for("login"))
         user = db.get_user_by_id(session["user_id"])
@@ -33,8 +36,10 @@ def login_required(f):
 
 
 def editor_required(f):
+    """Decorator: allow only editors and admins; redirect others to home."""
     @functools.wraps(f)
     def wrapper(*args, **kwargs):
+        """Inner wrapper that enforces the editor role check."""
         user = get_current_user()
         if not user or user["role"] not in ("editor", "admin", "protected_admin"):
             flash("You do not have permission to perform this action.", "error")
@@ -44,8 +49,10 @@ def editor_required(f):
 
 
 def admin_required(f):
+    """Decorator: allow only admins; redirect others to home."""
     @functools.wraps(f)
     def wrapper(*args, **kwargs):
+        """Inner wrapper that enforces the admin role check."""
         user = get_current_user()
         if not user or user["role"] not in ("admin", "protected_admin"):
             flash("Admin access required.", "error")

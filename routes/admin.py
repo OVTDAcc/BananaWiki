@@ -38,6 +38,7 @@ def register_admin_routes(app):
     _VALID_ANN_VISIBILITY = {"logged_in", "logged_out", "both"}
 
     def _allowed_favicon_file(filename):
+        """Return True if *filename* has a permitted favicon extension."""
         return "." in filename and filename.rsplit(".", 1)[1].lower() in _FAVICON_ALLOWED_EXTENSIONS
 
     def _read_user_audit_log(username, max_entries=200):
@@ -345,6 +346,7 @@ def register_admin_routes(app):
     @login_required
     @admin_required
     def admin_users():
+        """List all registered users with optional role and status filters."""
         role_filter = request.args.get("role")
         status_filter = request.args.get("status")
         users = db.list_users(role_filter=role_filter, status_filter=status_filter)
@@ -357,6 +359,7 @@ def register_admin_routes(app):
     @login_required
     @admin_required
     def admin_edit_user(user_id):
+        """Process all user-management actions (role change, suspend, password reset, etc.) for a single user."""
         target = db.get_user_by_id(user_id)
         if not target:
             abort(404)
@@ -528,6 +531,7 @@ def register_admin_routes(app):
     @login_required
     @admin_required
     def admin_create_user():
+        """Admin: create a new user account with the specified username, password, and role."""
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
         confirm = request.form.get("confirm_password", "")
@@ -572,6 +576,7 @@ def register_admin_routes(app):
     @login_required
     @admin_required
     def admin_codes():
+        """Display the active invite codes management page."""
         codes = db.list_invite_codes(active_only=True)
         categories, uncategorized = db.get_category_tree()
         return render_template("admin/codes.html", codes=codes,
@@ -581,6 +586,7 @@ def register_admin_routes(app):
     @login_required
     @admin_required
     def admin_codes_expired():
+        """Display the expired/used invite codes management page."""
         codes = db.list_expired_codes()
         categories, uncategorized = db.get_category_tree()
         return render_template("admin/codes_expired.html", codes=codes,
@@ -590,6 +596,7 @@ def register_admin_routes(app):
     @login_required
     @admin_required
     def admin_generate_code():
+        """Generate a new invite code and redirect to the codes list."""
         user = get_current_user()
         code = db.generate_invite_code(user["id"])
         log_action("generate_invite_code", request, user=user, code=code)
@@ -601,6 +608,7 @@ def register_admin_routes(app):
     @login_required
     @admin_required
     def admin_delete_code(code_id):
+        """Soft-delete (deactivate) an active invite code."""
         user = get_current_user()
         db.delete_invite_code(code_id)
         log_action("delete_invite_code", request, user=user, code_id=code_id)
@@ -612,6 +620,7 @@ def register_admin_routes(app):
     @login_required
     @admin_required
     def admin_hard_delete_code(code_id):
+        """Permanently remove an expired or used invite code from the database."""
         user = get_current_user()
         db.hard_delete_invite_code(code_id)
         log_action("hard_delete_invite_code", request, user=user, code_id=code_id)
@@ -627,6 +636,7 @@ def register_admin_routes(app):
     @login_required
     @admin_required
     def admin_settings():
+        """Admin site settings page: site name, colors, timezone, favicon, lockdown mode, and session limit."""
         if request.method == "POST":
             site_name = request.form.get("site_name", "").strip() or "BananaWiki"
             if len(site_name) > 100:
@@ -722,6 +732,7 @@ def register_admin_routes(app):
     @login_required
     @admin_required
     def admin_user_audit(user_id):
+        """Admin: view the activity audit log and username history for a specific user."""
         target = db.get_user_by_id(user_id)
         if not target:
             abort(404)
@@ -857,6 +868,7 @@ def register_admin_routes(app):
     @login_required
     @admin_required
     def admin_announcements():
+        """Display the admin announcement management page."""
         announcements = db.list_announcements()
         categories, uncategorized = db.get_category_tree()
         return render_template("admin/announcements.html",
@@ -867,6 +879,7 @@ def register_admin_routes(app):
     @login_required
     @admin_required
     def admin_create_announcement():
+        """Create a new site-wide announcement banner."""
         content = request.form.get("content", "").strip()
         color = request.form.get("color", "orange")
         text_size = request.form.get("text_size", "normal")
@@ -912,6 +925,7 @@ def register_admin_routes(app):
     @login_required
     @admin_required
     def admin_edit_announcement(ann_id):
+        """Edit an existing announcement's content, color, size, visibility, and expiry."""
         ann = db.get_announcement(ann_id)
         if not ann:
             abort(404)
@@ -962,6 +976,7 @@ def register_admin_routes(app):
     @login_required
     @admin_required
     def admin_delete_announcement(ann_id):
+        """Permanently delete an announcement by ID."""
         ann = db.get_announcement(ann_id)
         if not ann:
             abort(404)
@@ -978,6 +993,7 @@ def register_admin_routes(app):
 
     @app.route("/announcements/<int:ann_id>")
     def view_announcement(ann_id):
+        """Public route: display a single announcement's full content page."""
         ann = db.get_announcement(ann_id)
         if not ann:
             abort(404)

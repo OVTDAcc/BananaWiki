@@ -28,6 +28,7 @@ def register_wiki_routes(app):
     @app.route("/")
     @login_required
     def home():
+        """Render the wiki home page."""
         page = db.get_home_page()
         user = get_current_user()
         content_html = render_markdown(page["content"], embed_videos=True) if page else ""
@@ -56,6 +57,7 @@ def register_wiki_routes(app):
     @app.route("/page/<slug>")
     @login_required
     def view_page(slug):
+        """Render a wiki page identified by its URL slug."""
         page = db.get_page_by_slug(slug)
         if not page:
             abort(404)
@@ -91,6 +93,7 @@ def register_wiki_routes(app):
     @app.route("/page/<slug>/history")
     @login_required
     def page_history(slug):
+        """Display the revision history for a wiki page."""
         if not config.PAGE_HISTORY_ENABLED:
             abort(404)
         page = db.get_page_by_slug(slug)
@@ -120,6 +123,7 @@ def register_wiki_routes(app):
     @app.route("/page/<slug>/history/<int:entry_id>")
     @login_required
     def view_history_entry(slug, entry_id):
+        """Display a specific historical revision of a wiki page with diff view."""
         if not config.PAGE_HISTORY_ENABLED:
             abort(404)
         page = db.get_page_by_slug(slug)
@@ -161,6 +165,7 @@ def register_wiki_routes(app):
     @editor_required
     @rate_limit(20, 60)
     def revert_page(slug, entry_id):
+        """Revert a wiki page to a specific historical revision."""
         if not config.PAGE_HISTORY_ENABLED:
             abort(404)
         page = db.get_page_by_slug(slug)
@@ -182,6 +187,7 @@ def register_wiki_routes(app):
     @admin_required
     @rate_limit(20, 60)
     def transfer_attribution(slug, entry_id):
+        """Transfer authorship of a single history entry to a different user."""
         if not config.PAGE_HISTORY_ENABLED:
             abort(404)
         page = db.get_page_by_slug(slug)
@@ -209,6 +215,7 @@ def register_wiki_routes(app):
     @admin_required
     @rate_limit(20, 60)
     def bulk_transfer_attribution(slug):
+        """Transfer all history attributions on a page from one user to another."""
         if not config.PAGE_HISTORY_ENABLED:
             abort(404)
         page = db.get_page_by_slug(slug)
@@ -303,6 +310,7 @@ def register_wiki_routes(app):
     @editor_required
     @rate_limit(20, 60)
     def edit_page(slug):
+        """Display and handle submission of the page editing form."""
         page = db.get_page_by_slug(slug)
         if not page:
             abort(404)
@@ -404,6 +412,7 @@ def register_wiki_routes(app):
     @editor_required
     @rate_limit(20, 60)
     def edit_page_title(slug):
+        """Inline title edit: update the title of a page without opening the full editor."""
         page = db.get_page_by_slug(slug)
         if not page:
             abort(404)
@@ -435,6 +444,7 @@ def register_wiki_routes(app):
     @editor_required
     @rate_limit(20, 60)
     def create_page():
+        """Display the new-page form and handle page creation."""
         user = get_current_user()
         categories, uncategorized = db.get_category_tree()
 
@@ -505,6 +515,7 @@ def register_wiki_routes(app):
     @editor_required
     @rate_limit(10, 60)
     def delete_page_route(slug):
+        """Delete a wiki page (non-home pages only)."""
         page = db.get_page_by_slug(slug)
         if not page:
             abort(404)
@@ -527,6 +538,7 @@ def register_wiki_routes(app):
     @editor_required
     @rate_limit(20, 60)
     def move_page(slug):
+        """Move a wiki page to a different category."""
         page = db.get_page_by_slug(slug)
         if not page:
             abort(404)
@@ -557,6 +569,7 @@ def register_wiki_routes(app):
     @editor_required
     @rate_limit(20, 60)
     def update_page_tag(slug):
+        """Set or update the difficulty tag for a wiki page."""
         page = db.get_page_by_slug(slug)
         if not page:
             abort(404)
@@ -600,6 +613,7 @@ def register_wiki_routes(app):
     @editor_required
     @rate_limit(20, 60)
     def create_category():
+        """Create a new category, optionally nested under a parent category."""
         user = get_current_user()
         access = db.get_editor_access(user["id"])
         if access["restricted"]:
@@ -632,6 +646,7 @@ def register_wiki_routes(app):
     @editor_required
     @rate_limit(20, 60)
     def edit_category(cat_id):
+        """Rename an existing category."""
         cat = db.get_category(cat_id)
         if not cat:
             abort(404)
@@ -657,6 +672,7 @@ def register_wiki_routes(app):
     @editor_required
     @rate_limit(20, 60)
     def move_category(cat_id):
+        """Move a category under a different parent in the hierarchy."""
         cat = db.get_category(cat_id)
         if not cat:
             abort(404)
@@ -690,6 +706,7 @@ def register_wiki_routes(app):
     @editor_required
     @rate_limit(10, 60)
     def delete_category_route(cat_id):
+        """Delete a category and handle its pages according to the chosen action."""
         cat = db.get_category(cat_id)
         if not cat:
             abort(404)
@@ -719,6 +736,7 @@ def register_wiki_routes(app):
     @editor_required
     @rate_limit(10, 60)
     def rename_page_slug(slug):
+        """Rename the URL slug of a page and rewrite all internal links atomically."""
         page = db.get_page_by_slug(slug)
         if not page:
             abort(404)
@@ -754,6 +772,7 @@ def register_wiki_routes(app):
     @editor_required
     @rate_limit(20, 60)
     def toggle_page_deindex(slug):
+        """Toggle the deindexed flag on a wiki page (hide from sidebar and search)."""
         page = db.get_page_by_slug(slug)
         if not page:
             abort(404)
@@ -777,6 +796,7 @@ def register_wiki_routes(app):
     @editor_required
     @rate_limit(20, 60)
     def toggle_category_sequential_nav(cat_id):
+        """Toggle sequential (Prev/Next) navigation for pages in a category."""
         cat = db.get_category(cat_id)
         if not cat:
             abort(404)

@@ -25,6 +25,7 @@ def register_chat_routes(app):
     @app.route("/chats")
     @login_required
     def chat_list():
+        """List all direct message conversations for the current user."""
         user = get_current_user()
         chats = db.get_user_chats(user["id"])
         categories, uncategorized = db.get_category_tree()
@@ -34,6 +35,7 @@ def register_chat_routes(app):
     @app.route("/chats/new", methods=["GET", "POST"])
     @login_required
     def chat_new():
+        """Start a new direct message conversation with another user."""
         user = get_current_user()
         if db.is_user_chat_disabled(user["id"]):
             flash("Your chat privileges have been disabled.", "error")
@@ -60,6 +62,7 @@ def register_chat_routes(app):
     @app.route("/chats/<int:chat_id>")
     @login_required
     def chat_view(chat_id):
+        """View and load messages in a direct message conversation."""
         user = get_current_user()
         if not db.is_chat_participant(chat_id, user["id"]):
             flash("Access denied.", "error")
@@ -80,6 +83,7 @@ def register_chat_routes(app):
     @login_required
     @rate_limit(30, 60)
     def chat_send(chat_id):
+        """Send a message (and optional file attachment) in a direct message conversation."""
         user = get_current_user()
         if db.is_user_chat_disabled(user["id"]):
             flash("Your chat privileges have been disabled.", "error")
@@ -143,6 +147,7 @@ def register_chat_routes(app):
     @app.route("/chats/attachments/<int:attachment_id>/download")
     @login_required
     def chat_attachment_download(attachment_id):
+        """Download a file attachment from a direct message conversation."""
         att = db.get_chat_attachment(attachment_id)
         if not att:
             abort(404)
@@ -167,6 +172,7 @@ def register_chat_routes(app):
     @login_required
     @admin_required
     def admin_chats():
+        """Admin: browse all direct message conversations, optionally filtered by user."""
         user_filter = request.args.get("user_id")
         if user_filter:
             chats = db.get_user_chats_admin(user_filter)
@@ -184,6 +190,7 @@ def register_chat_routes(app):
     @login_required
     @admin_required
     def admin_chat_view(chat_id):
+        """Admin: view all messages within a specific direct message conversation."""
         chat = db.get_chat_by_id(chat_id)
         if not chat:
             abort(404)

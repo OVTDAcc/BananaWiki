@@ -38,6 +38,7 @@ def register_user_routes(app):
     @login_required
     @rate_limit(10, 60)
     def account_settings():
+        """Display and handle the user's account settings page (username, password, profile, avatar)."""
         user = get_current_user()
         action = request.form.get("action", "") if request.method == "POST" else ""
 
@@ -285,6 +286,7 @@ def register_user_routes(app):
     @app.route("/users")
     @login_required
     def users_list():
+        """Render the People directory; admins see all users, others see published profiles."""
         query = request.args.get("q", "").strip().lower()
         current_user = get_current_user()
         if current_user["role"] in ("admin", "protected_admin"):
@@ -308,6 +310,7 @@ def register_user_routes(app):
     @app.route("/users/<string:username>")
     @login_required
     def user_profile(username):
+        """Render a user's public profile page with contribution heatmap and role history."""
         target = db.get_user_by_username(username)
         if not target:
             abort(404)

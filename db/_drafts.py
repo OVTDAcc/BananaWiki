@@ -9,6 +9,7 @@ from ._connection import get_db
 #  Draft helpers
 # ---------------------------------------------------------------------------
 def save_draft(page_id, user_id, title, content):
+    """Insert or replace a draft for the given (page, user) pair."""
     conn = get_db()
     now = datetime.now(timezone.utc).isoformat()
     conn.execute(
@@ -22,6 +23,7 @@ def save_draft(page_id, user_id, title, content):
 
 
 def get_draft(page_id, user_id):
+    """Return the draft for a specific (page, user) pair, or None if none exists."""
     conn = get_db()
     row = conn.execute(
         "SELECT * FROM drafts WHERE page_id=? AND user_id=?", (page_id, user_id)
@@ -31,6 +33,7 @@ def get_draft(page_id, user_id):
 
 
 def get_drafts_for_page(page_id):
+    """Return all drafts for a given page, with editor usernames joined."""
     conn = get_db()
     rows = conn.execute(
         "SELECT d.*, u.username FROM drafts d JOIN users u ON d.user_id=u.id WHERE d.page_id=?",
@@ -41,6 +44,7 @@ def get_drafts_for_page(page_id):
 
 
 def delete_draft(page_id, user_id):
+    """Delete the draft for the given (page, user) pair."""
     conn = get_db()
     conn.execute("DELETE FROM drafts WHERE page_id=? AND user_id=?", (page_id, user_id))
     conn.commit()

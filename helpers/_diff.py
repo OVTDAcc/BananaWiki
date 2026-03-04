@@ -35,6 +35,7 @@ def compute_diff_html(old_text, new_text):
 
     # Tokenize preserving whitespace as separate tokens so spacing is retained
     def tokenize(text):
+        """Split *text* into word and whitespace tokens for diff matching."""
         return re.split(r"(\s+)", text)
 
     old_tokens = tokenize(old_text)
@@ -119,6 +120,7 @@ def compute_formatted_diff_html(old_text, new_text):
     # Text fragments from render_markdown() are already bleach-sanitized HTML,
     # so they do not need additional escaping.
     def tokenize_html(html):
+        """Split rendered HTML into alternating text chunks and tag chunks."""
         return re.split(r"(<[^>]+>)", html)
 
     old_tokens = tokenize_html(old_html)

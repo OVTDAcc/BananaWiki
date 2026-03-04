@@ -104,6 +104,7 @@ def search_pages(query, limit=15, include_deindexed=False):
 
 
 def create_page(title, slug, content="", category_id=None, user_id=None):
+    """Create a new wiki page and record the initial history entry.  Returns the new page ID."""
     conn = get_db()
     try:
         cur = conn.cursor()
@@ -135,6 +136,7 @@ def create_page(title, slug, content="", category_id=None, user_id=None):
 
 
 def get_page(page_id):
+    """Return the page row for the given *page_id*, or None if not found."""
     conn = get_db()
     row = conn.execute("SELECT * FROM pages WHERE id=?", (page_id,)).fetchone()
     conn.close()
@@ -142,6 +144,7 @@ def get_page(page_id):
 
 
 def get_page_by_slug(slug):
+    """Return the page row matching *slug*, or None if not found."""
     conn = get_db()
     row = conn.execute("SELECT * FROM pages WHERE slug=?", (slug,)).fetchone()
     conn.close()
@@ -149,6 +152,7 @@ def get_page_by_slug(slug):
 
 
 def get_home_page():
+    """Return the designated home page row, or None if none has been set."""
     conn = get_db()
     row = conn.execute("SELECT * FROM pages WHERE is_home=1").fetchone()
     conn.close()
@@ -156,6 +160,7 @@ def get_home_page():
 
 
 def update_page(page_id, title, content, user_id, edit_message="", is_revert=False):
+    """Update a page's title and content, recording a history snapshot."""
     conn = get_db()
     try:
         now = datetime.now(timezone.utc).isoformat()
@@ -174,6 +179,7 @@ def update_page(page_id, title, content, user_id, edit_message="", is_revert=Fal
 
 
 def update_page_title(page_id, title, user_id):
+    """Update only the title of a page, recording a history entry for the change."""
     conn = get_db()
     now = datetime.now(timezone.utc).isoformat()
     page = conn.execute("SELECT title, content FROM pages WHERE id=?", (page_id,)).fetchone()
@@ -190,6 +196,7 @@ def update_page_title(page_id, title, user_id):
 
 
 def update_page_category(page_id, category_id):
+    """Move a page into the given category (or uncategorized if *category_id* is None)."""
     conn = get_db()
     conn.execute("UPDATE pages SET category_id=? WHERE id=?", (category_id, page_id))
     conn.commit()
@@ -200,6 +207,12 @@ VALID_DIFFICULTY_TAGS = ("", "beginner", "easy", "intermediate", "expert", "extr
 
 
 def update_page_tag(page_id, difficulty_tag, custom_label="", custom_color=""):
+    """Set the difficulty tag for a page.
+
+    *difficulty_tag* must be one of :data:`VALID_DIFFICULTY_TAGS`.  Custom label
+    and color are only persisted when ``difficulty_tag == 'custom'``; they are
+    cleared otherwise.
+    """
     if difficulty_tag not in VALID_DIFFICULTY_TAGS:
         raise ValueError(f"Invalid difficulty tag: {difficulty_tag!r}")
     # Only persist custom fields when the custom tag type is chosen
@@ -224,6 +237,7 @@ def set_page_deindexed(page_id, is_deindexed):
 
 
 def delete_page(page_id):
+    """Delete a non-home page by ID.  Home pages are protected and cannot be deleted this way."""
     conn = get_db()
     conn.execute("DELETE FROM pages WHERE id=? AND is_home=0", (page_id,))
     conn.commit()
@@ -231,6 +245,7 @@ def delete_page(page_id):
 
 
 def get_page_history(page_id):
+    """Return all history entries for a page, newest first, with editor usernames joined."""
     conn = get_db()
     rows = conn.execute(
         "SELECT ph.*, "
@@ -246,6 +261,7 @@ def get_page_history(page_id):
 
 
 def get_history_entry(entry_id):
+    """Return a single page history entry by its *entry_id*, with editor username joined."""
     conn = get_db()
     row = conn.execute(
         "SELECT ph.*, "

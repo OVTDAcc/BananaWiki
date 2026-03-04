@@ -13,6 +13,7 @@ from ._connection import get_db
 #  Invite code helpers
 # ---------------------------------------------------------------------------
 def generate_invite_code(created_by):
+    """Generate and persist a new invite code for *created_by*.  Returns the code string."""
     chars = string.ascii_uppercase + string.digits
     code = "".join(secrets.choice(chars) for _ in range(4)) + "-" + "".join(secrets.choice(chars) for _ in range(4))
     now = datetime.now(timezone.utc)
@@ -44,6 +45,7 @@ def validate_invite_code(code):
 
 
 def use_invite_code(code, user_id):
+    """Mark an invite code as used by *user_id*.  Returns True if the update succeeded."""
     now = datetime.now(timezone.utc).isoformat()
     conn = get_db()
     cur = conn.execute(
@@ -57,6 +59,7 @@ def use_invite_code(code, user_id):
 
 
 def delete_invite_code(code_id):
+    """Soft-delete an invite code by setting its ``deleted`` flag."""
     now = datetime.now(timezone.utc).isoformat()
     conn = get_db()
     conn.execute("UPDATE invite_codes SET deleted=1, deleted_at=? WHERE id=?", (now, code_id))
@@ -73,6 +76,7 @@ def hard_delete_invite_code(code_id):
 
 
 def list_invite_codes(active_only=True):
+    """Return invite codes, optionally limited to active (unused, non-expired, non-deleted) ones."""
     conn = get_db()
     now = datetime.now(timezone.utc).isoformat()
     if active_only:
@@ -96,6 +100,7 @@ def list_invite_codes(active_only=True):
 
 
 def list_expired_codes():
+    """Return all invite codes that have been used, soft-deleted, or have expired."""
     conn = get_db()
     now = datetime.now(timezone.utc).isoformat()
     rows = conn.execute(

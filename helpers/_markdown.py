@@ -53,6 +53,7 @@ _VIMEO_BARE_RE = re.compile(
 
 
 def _make_video_iframe(embed_src):
+    """Return a responsive iframe HTML string for the given embed URL."""
     return (
         '<div class="video-embed" style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;margin:1rem 0">'
         f'<iframe src="{embed_src}" style="position:absolute;top:0;left:0;width:100%;height:100%;border:0" '
@@ -68,18 +69,21 @@ def _embed_videos_in_html(html):
     _vimeo_vid_re = re.compile(r'vimeo\.com/(\d+)', re.IGNORECASE)
 
     def _yt_watch_replace(m):
+        """Replace a YouTube watch-URL match with an iframe embed."""
         vid_m = _yt_vid_re.search(m.group(1))
         if not vid_m:
             return m.group(0)
         return _make_video_iframe(f"https://www.youtube.com/embed/{vid_m.group(1)}")
 
     def _yt_short_replace(m):
+        """Replace a youtu.be short-URL match with an iframe embed."""
         vid_m = _yt_short_re.search(m.group(1))
         if not vid_m:
             return m.group(0)
         return _make_video_iframe(f"https://www.youtube.com/embed/{vid_m.group(1)}")
 
     def _vimeo_replace(m):
+        """Replace a Vimeo URL match with an iframe embed."""
         vid_m = _vimeo_vid_re.search(m.group(1))
         if not vid_m:
             return m.group(0)

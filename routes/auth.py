@@ -26,6 +26,7 @@ def register_auth_routes(app):
 
     @app.route("/setup", methods=["GET", "POST"])
     def setup():
+        """Initial admin-account setup wizard (only accessible before setup is complete)."""
         settings = db.get_site_settings()
         if settings["setup_done"]:
             return redirect(url_for("home"))
@@ -75,6 +76,7 @@ def register_auth_routes(app):
 
     @app.route("/login", methods=["GET", "POST"])
     def login():
+        """Login page: authenticate the user and start a session."""
         settings = db.get_site_settings()
         if not settings["setup_done"]:
             return redirect(url_for("setup"))
@@ -133,6 +135,7 @@ def register_auth_routes(app):
     @app.route("/signup", methods=["GET", "POST"])
     @rate_limit(10, 60)
     def signup():
+        """Signup page: register a new account using a valid invite code."""
         settings = db.get_site_settings()
         if not settings["setup_done"]:
             return redirect(url_for("setup"))
@@ -195,6 +198,7 @@ def register_auth_routes(app):
 
     @app.route("/logout", methods=["POST"])
     def logout():
+        """Log out the current user by clearing the session."""
         user = get_current_user()
         if user:
             log_action("logout", request, user=user)
@@ -204,6 +208,7 @@ def register_auth_routes(app):
 
     @app.route("/session-conflict")
     def session_conflict():
+        """Inform the user that their session is active elsewhere."""
         settings = db.get_site_settings()
         return render_template("auth/session_conflict.html", settings=settings)
 
@@ -237,6 +242,7 @@ def register_auth_routes(app):
 
     @app.route("/lockdown")
     def lockdown():
+        """Display the lockdown page when the site is in lockdown mode."""
         settings = db.get_site_settings()
         if not settings["lockdown_mode"]:
             return redirect(url_for("login"))
