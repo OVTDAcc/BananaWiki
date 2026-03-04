@@ -35,6 +35,13 @@ def clear_rl_store():
 
 
 @pytest.fixture
+def app_mod():
+    """Return the app module (shared import for tests that need _RL_STORE)."""
+    import app as _app_mod
+    return _app_mod
+
+
+@pytest.fixture
 def client():
     from app import app
     app.config["TESTING"] = True
@@ -90,6 +97,27 @@ def test_rl_check_different_buckets_are_independent():
         _rl_check("1.2.3.4", "bucket_d1", 5, 60)
     # A different bucket for the same IP should be independent
     assert _rl_check("1.2.3.4", "bucket_d2", 5, 60) is True
+
+
+# -----------------------------------------------------------------------
+# Memory-leak fix: _RL_STORE should not accumulate stale keys
+# -----------------------------------------------------------------------
+def test_rl_store_no_key_created_on_first_read(app_mod):
+    """A new (ip, bucket) key must not appear in _RL_STORE just from checking."""
+    key = ("9.9.9.9", "bucket_new")
+    assert key not in app_mod._RL_STORE
+    # Record one real request; only then should the key be created
+    app_mod._rl_check("9.9.9.9", "bucket_new", 5, 60)
+    assert key in app_mod._RL_STORE
+    assert len(app_mod._RL_STORE[key]) == 1
+
+
+def test_rl_store_plain_dict_not_defaultdict(app_mod):
+    """_RL_STORE must be a plain dict so missing keys don't auto-create."""
+    from collections import defaultdict
+    assert not isinstance(app_mod._RL_STORE, defaultdict), (
+        "_RL_STORE should be a plain dict, not a defaultdict"
+    )
 
 
 # -----------------------------------------------------------------------

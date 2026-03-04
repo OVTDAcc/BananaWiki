@@ -98,6 +98,13 @@ def test_gunicorn_conf_proxy_forwarded(monkeypatch):
     assert mod.forwarded_allow_ips == "127.0.0.1"
 
 
+def test_gunicorn_conf_proxy_forwarded_false(monkeypatch):
+    """forwarded_allow_ips is '127.0.0.1' when PROXY_MODE is False."""
+    monkeypatch.setattr(config, "PROXY_MODE", False)
+    mod = _load_gunicorn_conf()
+    assert mod.forwarded_allow_ips == "127.0.0.1"
+
+
 # -----------------------------------------------------------------------
 # ProxyFix applied when PROXY_MODE is True
 # -----------------------------------------------------------------------
