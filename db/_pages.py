@@ -285,6 +285,32 @@ def bulk_transfer_history_attribution(page_id, from_user_id, to_user_id):
     return count
 
 
+def delete_history_entry(entry_id):
+    """Delete a single page history entry by ID.
+
+    Returns True if an entry was deleted, False if it did not exist.
+    """
+    conn = get_db()
+    cur = conn.execute("DELETE FROM page_history WHERE id=?", (entry_id,))
+    deleted = cur.rowcount > 0
+    conn.commit()
+    conn.close()
+    return deleted
+
+
+def clear_page_history(page_id):
+    """Delete all history entries for a page.
+
+    Returns the number of entries deleted.
+    """
+    conn = get_db()
+    cur = conn.execute("DELETE FROM page_history WHERE page_id=?", (page_id,))
+    count = cur.rowcount
+    conn.commit()
+    conn.close()
+    return count
+
+
 _UPLOAD_REF_RE = re.compile(r'/static/uploads/([^\s)"\']+)')
 
 

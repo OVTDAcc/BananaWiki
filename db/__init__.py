@@ -85,6 +85,8 @@ from ._pages import (  # noqa: F401
     get_history_entry,
     transfer_history_attribution,
     bulk_transfer_history_attribution,
+    delete_history_entry,
+    clear_page_history,
     _UPLOAD_REF_RE,
     get_all_referenced_image_filenames,
     add_page_attachment,

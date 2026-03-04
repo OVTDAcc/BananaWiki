@@ -4,6 +4,15 @@
 <h1>History: {{ page.title }}</h1>
 <p style="margin-bottom:1rem"><a href="{{ url_for('view_page', slug=page.slug) }}">← Back to page</a></p>
 
+{% if current_user and current_user.role in ('admin', 'protected_admin') and history %}
+<div style="margin-bottom:1rem">
+    <form method="POST" action="{{ url_for('clear_page_history', slug=page.slug) }}" data-confirm="Delete ALL history entries for this page? This cannot be undone.">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-sm btn-danger">Clear All History</button>
+    </form>
+</div>
+{% endif %}
+
 {% if history %}
 <table class="admin-table">
     <thead>
@@ -45,6 +54,10 @@
                 </form>
                 {% endif %}
                 {% if current_user and current_user.role in ('admin', 'protected_admin') %}
+                <form method="POST" action="{{ url_for('delete_history_entry', slug=page.slug, entry_id=entry.id) }}" style="display:inline" data-confirm="Delete this history entry? This cannot be undone.">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-sm btn-danger">Delete</button>
+                </form>
                 <button class="btn btn-sm btn-outline" onclick="document.getElementById('transfer-{{ entry.id }}').style.display=document.getElementById('transfer-{{ entry.id }}').style.display==='none'?'block':'none'">Transfer</button>
                 <div id="transfer-{{ entry.id }}" style="display:none;margin-top:.4rem">
                     <form method="POST" action="{{ url_for('transfer_attribution', slug=page.slug, entry_id=entry.id) }}" style="display:flex;gap:.4rem;flex-wrap:wrap;align-items:center" data-confirm="Transfer this contribution to the selected user?">
