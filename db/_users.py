@@ -18,6 +18,7 @@ def _gen_user_id():
 
 
 def create_user(username, hashed_pw, role="user", invite_code=None):
+    """Create a new user and return its generated ID."""
     conn = get_db()
     try:
         cur = conn.cursor()
@@ -35,6 +36,7 @@ def create_user(username, hashed_pw, role="user", invite_code=None):
 
 
 def get_user_by_id(user_id):
+    """Return the user row for the given *user_id*, or None if not found."""
     conn = get_db()
     user = conn.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
     conn.close()
@@ -42,6 +44,7 @@ def get_user_by_id(user_id):
 
 
 def get_user_by_username(username):
+    """Return the user row for the given *username* (case-insensitive), or None."""
     conn = get_db()
     user = conn.execute("SELECT * FROM users WHERE username=? COLLATE NOCASE", (username,)).fetchone()
     conn.close()
@@ -52,6 +55,11 @@ _ALLOWED_USER_COLUMNS = {"username", "password", "role", "suspended", "last_logi
 
 
 def update_user(user_id, **kwargs):
+    """Update one or more user columns for the given *user_id*.
+
+    Only columns listed in ``_ALLOWED_USER_COLUMNS`` may be changed;
+    any unknown column name raises :exc:`ValueError`.
+    """
     if not user_id:
         raise ValueError("user_id is required")
     for k in kwargs:
@@ -70,6 +78,7 @@ def update_user(user_id, **kwargs):
 
 
 def delete_user(user_id):
+    """Delete a user and nullify any invite codes they used."""
     if not user_id:
         raise ValueError("user_id is required")
     conn = get_db()
@@ -163,6 +172,7 @@ def save_user_accessibility(user_id, prefs):
 
 
 def record_login_attempt(ip):
+    """Insert a failed login attempt record for the given *ip* address."""
     conn = get_db()
     now = datetime.now(timezone.utc).isoformat()
     conn.execute("INSERT INTO login_attempts (ip, attempted_at) VALUES (?, ?)", (ip, now))
@@ -186,6 +196,7 @@ def count_recent_login_attempts(ip, window_seconds):
 
 
 def clear_login_attempts(ip):
+    """Remove all failed login attempt records for the given *ip* address."""
     conn = get_db()
     conn.execute("DELETE FROM login_attempts WHERE ip=?", (ip,))
     conn.commit()
@@ -193,6 +204,7 @@ def clear_login_attempts(ip):
 
 
 def clear_all_login_attempts():
+    """Remove all failed login attempt records from the database."""
     conn = get_db()
     conn.execute("DELETE FROM login_attempts")
     conn.commit()
@@ -200,6 +212,10 @@ def clear_all_login_attempts():
 
 
 def list_users(role_filter=None, status_filter=None):
+    """Return a list of all users, optionally filtered by *role_filter* and/or *status_filter*.
+
+    *status_filter* accepts ``'active'`` or ``'suspended'``.
+    """
     conn = get_db()
     q = "SELECT * FROM users WHERE 1=1"
     params = []
@@ -217,6 +233,7 @@ def list_users(role_filter=None, status_filter=None):
 
 
 def count_admins():
+    """Return the number of active (non-suspended) admin or protected_admin accounts."""
     conn = get_db()
     cnt = conn.execute(
         "SELECT COUNT(*) FROM users WHERE role IN ('admin', 'protected_admin') AND suspended=0"

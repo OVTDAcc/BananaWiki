@@ -10,10 +10,12 @@ from ._constants import _USERNAME_RE
 
 
 def allowed_file(filename):
+    """Return True if *filename* has an extension permitted for image uploads."""
     return "." in filename and filename.rsplit(".", 1)[1].lower() in config.ALLOWED_EXTENSIONS
 
 
 def allowed_attachment(filename):
+    """Return True if *filename* has an extension permitted for page attachments."""
     return "." in filename and filename.rsplit(".", 1)[1].lower() in config.ATTACHMENT_ALLOWED_EXTENSIONS
 
 

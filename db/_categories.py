@@ -7,6 +7,7 @@ from ._connection import get_db
 #  Category helpers
 # ---------------------------------------------------------------------------
 def create_category(name, parent_id=None):
+    """Create a new category with the given *name* and optional *parent_id*.  Returns the new row ID."""
     conn = get_db()
     cur = conn.cursor()
     cur.execute("INSERT INTO categories (name, parent_id) VALUES (?, ?)", (name, parent_id))
@@ -17,6 +18,7 @@ def create_category(name, parent_id=None):
 
 
 def get_category(cat_id):
+    """Return the category row for the given *cat_id*, or None if not found."""
     conn = get_db()
     row = conn.execute("SELECT * FROM categories WHERE id=?", (cat_id,)).fetchone()
     conn.close()
@@ -24,6 +26,7 @@ def get_category(cat_id):
 
 
 def update_category(cat_id, name):
+    """Rename the category identified by *cat_id* to *name*."""
     conn = get_db()
     conn.execute("UPDATE categories SET name=? WHERE id=?", (name, cat_id))
     conn.commit()
@@ -81,6 +84,7 @@ def delete_category(cat_id, page_action="uncategorize", target_category_id=None)
 
 
 def count_pages_in_category(cat_id):
+    """Return the number of non-home pages in the given category."""
     conn = get_db()
     cnt = conn.execute("SELECT COUNT(*) FROM pages WHERE category_id=? AND is_home=0",
                        (cat_id,)).fetchone()[0]
@@ -89,6 +93,7 @@ def count_pages_in_category(cat_id):
 
 
 def list_categories():
+    """Return all categories ordered by sort_order then name."""
     conn = get_db()
     rows = conn.execute("SELECT * FROM categories ORDER BY sort_order, name").fetchall()
     conn.close()

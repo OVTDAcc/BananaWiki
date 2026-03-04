@@ -7,6 +7,7 @@ from ._connection import get_db
 #  Site settings helpers
 # ---------------------------------------------------------------------------
 def get_site_settings():
+    """Return the single site_settings row (id=1), or None if not initialised."""
     conn = get_db()
     row = conn.execute("SELECT * FROM site_settings WHERE id=1").fetchone()
     conn.close()
@@ -23,6 +24,11 @@ _ALLOWED_SETTINGS_COLUMNS = {
 
 
 def update_site_settings(**kwargs):
+    """Update one or more site settings columns by keyword argument.
+
+    Only columns listed in ``_ALLOWED_SETTINGS_COLUMNS`` may be changed;
+    any unknown column name raises :exc:`ValueError`.
+    """
     for k in kwargs:
         if k not in _ALLOWED_SETTINGS_COLUMNS:
             raise ValueError(f"Invalid column: {k}")

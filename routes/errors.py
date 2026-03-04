@@ -13,23 +13,27 @@ def register_error_handlers(app):
 
     @app.errorhandler(404)
     def not_found(e):
+        """Render the 404 Not Found page."""
         categories, uncategorized = db.get_category_tree()
         return render_template("wiki/404.html", categories=categories,
                                uncategorized=uncategorized), 404
 
     @app.errorhandler(403)
     def forbidden(e):
+        """Render the 403 Forbidden page."""
         categories, uncategorized = db.get_category_tree()
         return render_template("wiki/403.html", categories=categories,
                                uncategorized=uncategorized), 403
 
     @app.errorhandler(413)
     def request_entity_too_large(e):
+        """Redirect back with a flash message when the upload exceeds the size limit."""
         flash("File too large. Maximum upload size is 16 MB.", "error")
         return redirect(_safe_referrer() or url_for("home"))
 
     @app.errorhandler(429)
     def too_many_requests(e):
+        """Render the 429 Too Many Requests page."""
         try:
             categories, uncategorized = db.get_category_tree()
         except Exception:
@@ -39,6 +43,7 @@ def register_error_handlers(app):
 
     @app.errorhandler(500)
     def internal_error(e):
+        """Render the 500 Internal Server Error page."""
         try:
             categories, uncategorized = db.get_category_tree()
         except Exception:

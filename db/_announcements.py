@@ -10,6 +10,7 @@ from ._connection import get_db
 # ---------------------------------------------------------------------------
 def create_announcement(content, color, text_size, visibility, expires_at, user_id,
                         not_removable=1, show_countdown=1):
+    """Create and persist a new announcement.  Returns the new announcement ID."""
     conn = get_db()
     try:
         cur = conn.cursor()
@@ -27,6 +28,7 @@ def create_announcement(content, color, text_size, visibility, expires_at, user_
 
 
 def get_announcement(ann_id):
+    """Return the announcement row for the given *ann_id*, or None if not found."""
     conn = get_db()
     row = conn.execute("SELECT * FROM announcements WHERE id=?", (ann_id,)).fetchone()
     conn.close()
@@ -34,6 +36,7 @@ def get_announcement(ann_id):
 
 
 def list_announcements():
+    """Return all announcements ordered by creation date (newest first), with creator names joined."""
     conn = get_db()
     rows = conn.execute(
         "SELECT a.*, COALESCE(u.username, 'deleted user') AS creator_name "
@@ -48,6 +51,7 @@ _ALLOWED_ANN_COLUMNS = {"content", "color", "text_size", "visibility", "expires_
 
 
 def update_announcement(ann_id, **kwargs):
+    """Update one or more announcement columns.  Only columns in ``_ALLOWED_ANN_COLUMNS`` are permitted."""
     for k in kwargs:
         if k not in _ALLOWED_ANN_COLUMNS:
             raise ValueError(f"Invalid column: {k}")
@@ -62,6 +66,7 @@ def update_announcement(ann_id, **kwargs):
 
 
 def delete_announcement(ann_id):
+    """Permanently delete the announcement identified by *ann_id*."""
     conn = get_db()
     conn.execute("DELETE FROM announcements WHERE id=?", (ann_id,))
     conn.commit()

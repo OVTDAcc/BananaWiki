@@ -23,6 +23,7 @@ def register_api_routes(app):
     @login_required
     @rate_limit(60, 60)
     def api_pages_search():
+        """Search wiki pages by title; returns JSON list of ``{title, slug}`` objects."""
         query = request.args.get("q", "").strip()
         if not query:
             return jsonify([])
@@ -38,6 +39,7 @@ def register_api_routes(app):
     @login_required
     @rate_limit(30, 60)
     def api_preview():
+        """Render a Markdown string and return the sanitised HTML as JSON."""
         data = request.get_json(silent=True)
         if not data:
             return jsonify({"error": "Invalid request: missing or malformed JSON"}), 400
@@ -53,6 +55,7 @@ def register_api_routes(app):
     @editor_required
     @rate_limit(30, 60)
     def api_save_draft():
+        """Autosave: insert or update the current user's draft for a page."""
         data = request.get_json(silent=True)
         if not data:
             return jsonify({"error": "invalid request"}), 400
@@ -76,6 +79,7 @@ def register_api_routes(app):
     @login_required
     @editor_required
     def api_load_draft(page_id):
+        """Return the current user's saved draft for *page_id*, or nulls if none exists."""
         user = get_current_user()
         draft = db.get_draft(page_id, user["id"])
         if draft:
@@ -87,6 +91,7 @@ def register_api_routes(app):
     @login_required
     @editor_required
     def api_other_drafts(page_id):
+        """Return a list of other editors' drafts for *page_id* (conflict detection)."""
         user = get_current_user()
         page = db.get_page(page_id)
         if not page:
@@ -101,6 +106,7 @@ def register_api_routes(app):
     @editor_required
     @rate_limit(30, 60)
     def api_transfer_draft():
+        """Admin: transfer another editor's draft to the current user."""
         data = request.get_json(silent=True)
         if not data:
             return jsonify({"error": "invalid request"}), 400
@@ -130,6 +136,7 @@ def register_api_routes(app):
     @editor_required
     @rate_limit(30, 60)
     def api_delete_draft():
+        """Delete the current user's draft for the given page."""
         data = request.get_json(silent=True)
         if not data:
             return jsonify({"error": "invalid request"}), 400
@@ -175,6 +182,7 @@ def register_api_routes(app):
     @app.route("/api/accessibility", methods=["GET"])
     @login_required
     def api_get_accessibility():
+        """Return the current user's accessibility preferences as JSON."""
         user = get_current_user()
         return jsonify(db.get_user_accessibility(user["id"]))
 
@@ -182,6 +190,7 @@ def register_api_routes(app):
     @login_required
     @rate_limit(60, 60)
     def api_save_accessibility():
+        """Save the current user's accessibility preferences from a JSON body."""
         data = request.get_json(silent=True)
         if not data:
             return jsonify({"error": "invalid request"}), 400
@@ -234,6 +243,7 @@ def register_api_routes(app):
             editor_height = 0
 
         def _clean_color(val):
+            """Return *val* unchanged if it is a valid CSS hex or rgb() color; otherwise return empty string."""
             val = str(val).strip()
             if not val:
                 return ""
@@ -289,6 +299,7 @@ def register_api_routes(app):
     @login_required
     @rate_limit(10, 60)
     def api_reset_accessibility():
+        """Reset the current user's accessibility preferences to the system defaults."""
         user = get_current_user()
         db.save_user_accessibility(user["id"], dict(db._A11Y_DEFAULTS))
         return jsonify({"ok": True, "defaults": db._A11Y_DEFAULTS})
