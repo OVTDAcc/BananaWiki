@@ -1849,7 +1849,7 @@ function initEditorResize() {
                   + '</a>';
         });
         pages.forEach(function(p) {
-            html += '<a class="sidebar-search-result" href="' + escHtml('/wiki/' + p.slug) + '">'
+            html += '<a class="sidebar-search-result" href="' + escHtml('/page/' + p.slug) + '">'
                   + '<span class="sidebar-search-result-type">page</span>'
                   + escHtml(p.title)
                   + '</a>';
