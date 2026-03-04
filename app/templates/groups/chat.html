@@ -63,7 +63,7 @@
               onsubmit="return confirm('{{ 'Reactivate the global chat?' if not group.is_active else 'Deactivate the global chat? Members will still be able to read messages but cannot send new ones.' }}')">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             {% if group.is_active %}
-            <button class="btn btn-sm btn-outline" style="color:var(--danger-color,orange)" title="Deactivate global chat">⏸ Deactivate Chat</button>
+            <button class="btn btn-sm btn-danger-outline" title="Deactivate global chat">⏸ Deactivate Chat</button>
             {% else %}
             <button class="btn btn-sm" title="Reactivate global chat">▶ Reactivate Chat</button>
             {% endif %}
@@ -75,7 +75,7 @@
         <form method="POST" action="{{ url_for('group_delete', group_id=group.id) }}" style="margin-bottom:.5rem"
               onsubmit="return confirm('Permanently delete this group and all its messages? This cannot be undone.')">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button class="btn btn-sm" style="color:var(--danger-color,red)" title="Delete group permanently">🗑 Delete Group</button>
+            <button class="btn btn-sm btn-danger" title="Delete group permanently">🗑 Delete Group</button>
         </form>
         {% endif %}
 
@@ -145,7 +145,7 @@
                         {# Kick / Ban (mod/owner for regular, site admin for global) #}
                         {% if (is_mod and not group.is_global and not (my_role == 'moderator' and m.role in ('owner', 'moderator'))) or (group.is_global and is_site_admin) %}
                         <details style="display:inline-block;vertical-align:middle">
-                            <summary class="btn btn-sm btn-outline" style="color:var(--danger-color,red)" title="Remove options">✕</summary>
+                            <summary class="btn btn-sm btn-danger-outline" title="Remove options">✕</summary>
                             <div style="display:flex;gap:.3rem;margin-top:.3rem">
                                 <form method="POST" action="{{ url_for('group_kick', group_id=group.id) }}" style="display:inline"
                                       onsubmit="return confirm('Remove ' + {{ m.username|tojson }} + '? They can rejoin later.')">
@@ -158,7 +158,7 @@
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                     <input type="hidden" name="user_id" value="{{ m.user_id }}">
                                     <input type="hidden" name="permanent" value="1">
-                                    <button class="btn btn-sm" style="color:var(--danger-color,red)" title="Ban permanently">Ban</button>
+                                    <button class="btn btn-sm btn-danger" title="Ban permanently">Ban</button>
                                 </form>
                             </div>
                         </details>
@@ -173,7 +173,7 @@
         {# Banned members section #}
         {% if banned_members and (is_mod or (group.is_global and is_site_admin)) %}
         <details style="margin-top:.75rem">
-            <summary class="btn btn-sm btn-outline" style="color:var(--danger-color,red)">🚫 Banned Users ({{ banned_members|length }})</summary>
+            <summary class="btn btn-sm btn-danger-outline">🚫 Banned Users ({{ banned_members|length }})</summary>
             <table class="admin-table" style="font-size:.85rem;margin-top:.3rem">
                 <thead><tr><th>User</th><th>Action</th></tr></thead>
                 <tbody>
@@ -199,7 +199,7 @@
         <form method="POST" action="{{ url_for('group_leave', group_id=group.id) }}" style="margin-top:.5rem"
               onsubmit="return confirm('Leave this group?')">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button class="btn btn-sm" style="color:var(--danger-color,red)">Leave Group</button>
+            <button class="btn btn-sm btn-danger">Leave Group</button>
         </form>
         {% endif %}
     </div>
@@ -246,7 +246,7 @@
                       onsubmit="return confirm('Delete this message?')">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="message_id" value="{{ msg.id }}">
-                    <button class="btn btn-sm btn-outline" style="font-size:.7rem;color:var(--danger-color,red)" title="Delete message">🗑</button>
+                    <button class="btn btn-sm btn-danger-outline" style="font-size:.7rem" title="Delete message">🗑</button>
                 </form>
                 {% endif %}
             </div>

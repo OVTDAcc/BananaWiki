@@ -36,7 +36,7 @@
                 <form method="POST" action="{{ url_for('admin_group_delete', group_id=g.id) }}" style="display:inline"
                       onsubmit="return confirm('Permanently delete group \'' + {{ g.name|tojson }} + '\'? This cannot be undone.')">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <button class="btn btn-sm" style="color:var(--danger-color,red)" title="Delete group">🗑</button>
+                    <button class="btn btn-sm btn-danger" title="Delete group">🗑</button>
                 </form>
                 {% endif %}
             </td>
