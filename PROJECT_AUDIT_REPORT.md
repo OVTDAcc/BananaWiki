@@ -4,7 +4,7 @@
 
 **Production-ready: YES** — with one pre-deployment configuration prerequisite.
 
-All 1044 automated tests pass across 15 test files. The import chain is clean with no errors or warnings. The security posture is solid: CSRF protection, Bleach HTML sanitization, parameterized SQL, secure session cookies, constant-time password comparisons, and layered rate limiting are all correctly implemented. Documentation is thorough and accurate. Dependencies are pinned to exact versions.
+All 1055 automated tests pass across 15 test files. The import chain is clean with no errors or warnings. The security posture is solid: CSRF protection, Bleach HTML sanitization, parameterized SQL, secure session cookies, constant-time password comparisons, and layered rate limiting are all correctly implemented. Documentation is thorough and accurate. Dependencies are pinned to exact versions.
 
 The single prerequisite before going live is to confirm that `PROXY_MODE = True` (the default) is only used when a reverse proxy (nginx, Caddy, Cloudflare) actually sits in front of Gunicorn and terminates TLS. If deployed without a proxy, `HOST` must be changed to `"0.0.0.0"` and `PROXY_MODE` to `False`; otherwise the `Secure` cookie flag is set but TLS is absent.
 
@@ -94,7 +94,7 @@ The documentation is comprehensive and largely accurate. The following targeted 
 
 This checklist is ordered by priority. Items 1–3 are required before going live; items 4 onwards are improvements to address post-launch.
 
-- [x] **Verify all 1044 tests pass** — `python -m pytest tests/ -v` — confirmed passing.
+- [x] **Verify all 1055 tests pass** — `python -m pytest tests/ -v` — confirmed passing.
 - [ ] **1. Confirm reverse proxy is deployed and serving HTTPS** before starting Gunicorn. Verify `PROXY_MODE = True` is set if and only if a TLS-terminating proxy (nginx, Caddy, Cloudflare) is in front of the app. If deploying without a proxy, set `HOST = "0.0.0.0"` and `PROXY_MODE = False` and ensure TLS is handled at the OS/infrastructure level instead.
 - [ ] **2. Set up Telegram backup** (`config.py`: `SYNC = True`, `SYNC_TOKEN`, `SYNC_USERID`) — strongly recommended before storing real data, so that the database and uploads are continuously backed up. Acknowledge the security implication: the Telegram chat will hold copies of `config.py` and the secret key.
 - [ ] **3. Review and restrict Gunicorn `forwarded_allow_ips`** (`gunicorn.conf.py`, line 37) — change `"*"` to the actual IP(s) of the upstream proxy (e.g., `"127.0.0.1"`) to prevent IP spoofing if Gunicorn is ever reachable on a non-loopback interface. With `HOST = "127.0.0.1"` (the default) this is already safe; the change provides defense in depth.

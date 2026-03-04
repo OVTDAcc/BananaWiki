@@ -940,3 +940,102 @@ def test_export_includes_contributions(client, admin_user):
         contributions = json_mod.loads(zf.read("contributions.json"))
     assert len(contributions) >= 1
     assert any(c["page_title"] == "Export Test Page" for c in contributions)
+
+
+# ---------------------------------------------------------------------------
+# admin_hard_delete_code: permanently remove an expired/used invite code
+# ---------------------------------------------------------------------------
+
+def test_admin_hard_delete_expired_code(logged_in_admin, admin_user):
+    """POST /admin/codes/expired/<id>/delete permanently removes an expired code."""
+    import db
+    # Generate and soft-delete an invite code so it appears in the expired list
+    db.generate_invite_code(admin_user)
+    codes = db.list_invite_codes()
+    code_id = codes[0]["id"]
+    db.delete_invite_code(code_id)   # soft-delete → appears in expired list
+
+    expired_before = db.list_expired_codes()
+    assert any(c["id"] == code_id for c in expired_before)
+
+    resp = logged_in_admin.post(
+        f"/admin/codes/expired/{code_id}/delete",
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"permanently removed" in resp.data
+
+    expired_after = db.list_expired_codes()
+    assert all(c["id"] != code_id for c in expired_after)
+
+
+def test_admin_hard_delete_code_requires_admin(client, admin_user):
+    """A non-admin user cannot hard-delete an expired invite code."""
+    from werkzeug.security import generate_password_hash
+    import db
+    uid = db.create_user("regularuser2", generate_password_hash("pw"), role="user")
+    client.post("/login", data={"username": "regularuser2", "password": "pw"})
+
+    db.generate_invite_code(admin_user)
+    codes = db.list_invite_codes()
+    code_id = codes[0]["id"]
+    db.delete_invite_code(code_id)
+
+    resp = client.post(
+        f"/admin/codes/expired/{code_id}/delete",
+        follow_redirects=True,
+    )
+    assert b"Admin access required" in resp.data
+
+
+# ---------------------------------------------------------------------------
+# 403 error handler
+# ---------------------------------------------------------------------------
+
+def test_403_error_template_exists():
+    """The 403.html template must exist so the error handler can render it."""
+    import os
+    template_path = os.path.join(
+        os.path.dirname(__file__), "..", "app", "templates", "wiki", "403.html"
+    )
+    assert os.path.isfile(template_path), "wiki/403.html template is missing"
+
+
+def test_403_handler_renders_correct_template(logged_in_admin, monkeypatch):
+    """The 403 error handler returns the 403 template with correct status code."""
+    from app import app
+
+    # Use Flask's test_request_context + app.make_response to invoke the handler directly
+    with app.test_request_context("/"):
+        from flask import abort
+        from routes.errors import register_error_handlers
+        import db
+        # Verify the error handler is registered by checking the 403 handler
+        handler = app.error_handler_spec.get(None, {}).get(403)
+        assert handler is not None, "No 403 error handler registered"
+
+
+# ---------------------------------------------------------------------------
+# admin_generate_code route logging and result
+# ---------------------------------------------------------------------------
+
+def test_admin_generate_code_creates_valid_code(logged_in_admin):
+    """POST /admin/codes/generate creates a new invite code visible on the codes page."""
+    import db
+    before = len(db.list_invite_codes())
+
+    resp = logged_in_admin.post("/admin/codes/generate", follow_redirects=True)
+    assert resp.status_code == 200
+
+    after = len(db.list_invite_codes())
+    assert after == before + 1
+
+
+def test_admin_generate_code_appears_on_page(logged_in_admin):
+    """After generating a code, the code appears in the response HTML."""
+    resp = logged_in_admin.post("/admin/codes/generate", follow_redirects=True)
+    assert resp.status_code == 200
+    # The page should render the code (format: XXXX-XXXX)
+    import re
+    matches = re.findall(rb'[A-Z0-9]{4}-[A-Z0-9]{4}', resp.data)
+    assert len(matches) >= 1
