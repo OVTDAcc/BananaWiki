@@ -2,14 +2,16 @@
 BananaWiki – Group chat routes.
 """
 
+import os
+import re
+import uuid
+from datetime import datetime, timezone, timedelta
+from werkzeug.utils import secure_filename
+
 from flask import (
     render_template, request, redirect, url_for, session, flash,
     send_file, send_from_directory, abort,
 )
-import os
-import uuid
-from datetime import datetime, timezone, timedelta
-from werkzeug.utils import secure_filename
 
 import db
 import config
@@ -605,8 +607,7 @@ def register_group_routes(app):
             return redirect(url_for("group_view", group_id=group_id))
         custom_code = request.form.get("custom_code", "").strip()
         if custom_code:
-            import re as _re
-            if not _re.match(r'^[A-Za-z0-9]{1,32}$', custom_code):
+            if not re.match(r'^[A-Za-z0-9]{1,32}$', custom_code):
                 flash("Custom code must be 1–32 alphanumeric characters.", "error")
                 return redirect(url_for("group_view", group_id=group_id))
             # Check uniqueness

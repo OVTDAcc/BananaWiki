@@ -112,21 +112,34 @@ def search_pages_full(query, limit=20, include_deindexed=False, search_content=F
     """
     conn = get_db()
     pattern = f"%{query}%"
-    deindex_clause = "" if include_deindexed else " AND is_deindexed=0"
     if search_content:
-        rows = conn.execute(
-            f"SELECT id, title, slug, category_id FROM pages "
-            f"WHERE is_home=0{deindex_clause} AND (title LIKE ? OR content LIKE ?) "
-            "ORDER BY CASE WHEN title LIKE ? THEN 0 ELSE 1 END, title LIMIT ?",
-            (pattern, pattern, pattern, limit),
-        ).fetchall()
+        if include_deindexed:
+            sql = (
+                "SELECT id, title, slug, category_id FROM pages "
+                "WHERE is_home=0 AND (title LIKE ? OR content LIKE ?) "
+                "ORDER BY CASE WHEN title LIKE ? THEN 0 ELSE 1 END, title LIMIT ?"
+            )
+        else:
+            sql = (
+                "SELECT id, title, slug, category_id FROM pages "
+                "WHERE is_home=0 AND is_deindexed=0 AND (title LIKE ? OR content LIKE ?) "
+                "ORDER BY CASE WHEN title LIKE ? THEN 0 ELSE 1 END, title LIMIT ?"
+            )
+        rows = conn.execute(sql, (pattern, pattern, pattern, limit)).fetchall()
     else:
-        rows = conn.execute(
-            f"SELECT id, title, slug, category_id FROM pages "
-            f"WHERE is_home=0{deindex_clause} AND title LIKE ? "
-            "ORDER BY title LIMIT ?",
-            (pattern, limit),
-        ).fetchall()
+        if include_deindexed:
+            sql = (
+                "SELECT id, title, slug, category_id FROM pages "
+                "WHERE is_home=0 AND title LIKE ? "
+                "ORDER BY title LIMIT ?"
+            )
+        else:
+            sql = (
+                "SELECT id, title, slug, category_id FROM pages "
+                "WHERE is_home=0 AND is_deindexed=0 AND title LIKE ? "
+                "ORDER BY title LIMIT ?"
+            )
+        rows = conn.execute(sql, (pattern, limit)).fetchall()
     conn.close()
     return [dict(r) for r in rows]
 
