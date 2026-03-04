@@ -833,3 +833,294 @@ def test_untimeout_system_message_grammar(alice_client, alice_uid, bob_uid):
     messages = db.get_group_messages(group["id"])
     sys_msgs = [m for m in messages if m["is_system"]]
     assert any("timeout was removed" in m["content"] for m in sys_msgs)
+
+
+# ---------------------------------------------------------------------------
+# Ban / Unban
+# ---------------------------------------------------------------------------
+
+def test_owner_can_ban_member(alice_client, alice_uid, bob_uid):
+    """Owner can permanently ban a member from the group."""
+    import db
+    group = db.create_group_chat("Test", alice_uid)
+    db.add_group_member(group["id"], bob_uid)
+    resp = alice_client.post(f"/groups/{group['id']}/kick",
+                             data={"user_id": bob_uid, "permanent": "1"},
+                             follow_redirects=True)
+    assert b"has been banned" in resp.data
+    assert db.is_group_member_banned(group["id"], bob_uid)
+
+
+def test_banned_user_cannot_rejoin_via_code(alice_uid, bob_uid):
+    """A banned user should not be able to rejoin via invite code."""
+    import db
+    from app import app
+    group = db.create_group_chat("Test", alice_uid)
+    db.add_group_member(group["id"], bob_uid)
+    db.ban_group_member(group["id"], bob_uid)
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
+    with app.test_client() as c:
+        c.post("/login", data={"username": "bob", "password": "bob123"})
+        resp = c.post("/groups/join",
+                      data={"invite_code": group["invite_code"]},
+                      follow_redirects=True)
+        assert b"banned" in resp.data
+
+
+def test_unban_member(alice_client, alice_uid, bob_uid):
+    """Owner/mod can revoke a ban, allowing the user to rejoin."""
+    import db
+    group = db.create_group_chat("Test", alice_uid)
+    db.add_group_member(group["id"], bob_uid)
+    db.ban_group_member(group["id"], bob_uid)
+    assert db.is_group_member_banned(group["id"], bob_uid)
+    resp = alice_client.post(f"/groups/{group['id']}/unban",
+                             data={"user_id": bob_uid},
+                             follow_redirects=True)
+    assert b"ban has been revoked" in resp.data
+    assert not db.is_group_member_banned(group["id"], bob_uid)
+
+
+def test_unban_non_banned_member(alice_client, alice_uid, bob_uid):
+    """Unbanning a non-banned user should show an error."""
+    import db
+    group = db.create_group_chat("Test", alice_uid)
+    db.add_group_member(group["id"], bob_uid)
+    resp = alice_client.post(f"/groups/{group['id']}/unban",
+                             data={"user_id": bob_uid},
+                             follow_redirects=True)
+    assert b"not banned" in resp.data
+
+
+def test_banned_user_not_in_members_list(alice_client, alice_uid, bob_uid):
+    """Banned users should not appear in the regular members list."""
+    import db
+    group = db.create_group_chat("Test", alice_uid)
+    db.add_group_member(group["id"], bob_uid)
+    db.ban_group_member(group["id"], bob_uid)
+    members = db.get_group_members(group["id"])
+    member_ids = [m["user_id"] for m in members]
+    assert bob_uid not in member_ids
+
+
+def test_banned_members_in_banned_list(alice_client, alice_uid, bob_uid):
+    """Banned users should appear in the banned members list."""
+    import db
+    group = db.create_group_chat("Test", alice_uid)
+    db.add_group_member(group["id"], bob_uid)
+    db.ban_group_member(group["id"], bob_uid)
+    banned = db.get_group_banned_members(group["id"])
+    banned_ids = [m["user_id"] for m in banned]
+    assert bob_uid in banned_ids
+
+
+def test_cannot_add_banned_user(alice_client, alice_uid, bob_uid):
+    """Adding a banned user should fail with an appropriate message."""
+    import db
+    group = db.create_group_chat("Test", alice_uid)
+    db.add_group_member(group["id"], bob_uid)
+    db.ban_group_member(group["id"], bob_uid)
+    resp = alice_client.post(f"/groups/{group['id']}/members/add",
+                             data={"username": "bob"},
+                             follow_redirects=True)
+    assert b"banned" in resp.data
+
+
+def test_kick_without_ban_allows_rejoin(alice_uid, bob_uid):
+    """Kicked (non-banned) user can rejoin the group via invite code."""
+    import db
+    from app import app
+    group = db.create_group_chat("Test", alice_uid)
+    db.add_group_member(group["id"], bob_uid)
+    db.remove_group_member(group["id"], bob_uid)
+    assert not db.is_group_member(group["id"], bob_uid)
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
+    with app.test_client() as c:
+        c.post("/login", data={"username": "bob", "password": "bob123"})
+        resp = c.post("/groups/join",
+                      data={"invite_code": group["invite_code"]},
+                      follow_redirects=True)
+        assert resp.status_code == 200
+        assert db.is_group_member(group["id"], bob_uid)
+
+
+# ---------------------------------------------------------------------------
+# Regenerate invite code
+# ---------------------------------------------------------------------------
+
+def test_owner_can_regenerate_invite_code(alice_client, alice_uid):
+    """Owner should be able to regenerate the invite code."""
+    import db
+    group = db.create_group_chat("Test", alice_uid)
+    old_code = group["invite_code"]
+    resp = alice_client.post(f"/groups/{group['id']}/regenerate_code",
+                             follow_redirects=True)
+    assert b"Invite code regenerated" in resp.data
+    updated = db.get_group_chat(group["id"])
+    assert updated["invite_code"] != old_code
+
+
+def test_non_owner_cannot_regenerate_code(alice_uid, bob_uid):
+    """Non-owners should not be able to regenerate the invite code."""
+    import db
+    from app import app
+    group = db.create_group_chat("Test", alice_uid)
+    db.add_group_member(group["id"], bob_uid, role="moderator")
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
+    with app.test_client() as c:
+        c.post("/login", data={"username": "bob", "password": "bob123"})
+        resp = c.post(f"/groups/{group['id']}/regenerate_code",
+                      follow_redirects=True)
+        assert b"Only the group owner" in resp.data
+
+
+def test_old_code_invalidated_after_regenerate(alice_client, alice_uid, bob_uid):
+    """After regeneration, the old invite code should no longer work."""
+    import db
+    group = db.create_group_chat("Test", alice_uid)
+    old_code = group["invite_code"]
+    alice_client.post(f"/groups/{group['id']}/regenerate_code")
+    found = db.get_group_chat_by_invite(old_code)
+    assert found is None
+
+
+def test_db_regenerate_invite_code(alice_uid):
+    """DB helper should generate a new code and invalidate the old one."""
+    import db
+    group = db.create_group_chat("Test", alice_uid)
+    old_code = group["invite_code"]
+    new_code = db.regenerate_group_invite_code(group["id"])
+    assert new_code != old_code
+    assert len(new_code) == 8
+    assert db.get_group_chat_by_invite(old_code) is None
+    assert db.get_group_chat_by_invite(new_code) is not None
+
+
+# ---------------------------------------------------------------------------
+# Admin take ownership
+# ---------------------------------------------------------------------------
+
+def test_admin_can_take_ownership(admin_client, admin_uid, alice_uid):
+    """Admin should be able to take ownership of any group."""
+    import db
+    group = db.create_group_chat("Test", alice_uid)
+    resp = admin_client.post(f"/groups/{group['id']}/admin_takeover",
+                             follow_redirects=True)
+    assert b"now the owner" in resp.data
+    assert db.get_group_member_role(group["id"], admin_uid) == "owner"
+    assert db.get_group_member_role(group["id"], alice_uid) == "moderator"
+
+
+def test_admin_can_take_ownership_of_global(admin_client, admin_uid):
+    """Admin should be able to take ownership of the global chat."""
+    import db
+    group = db.get_or_create_global_chat()
+    db.add_group_member(group["id"], admin_uid)
+    resp = admin_client.post(f"/groups/{group['id']}/admin_takeover",
+                             follow_redirects=True)
+    assert b"now the owner" in resp.data
+    assert db.get_group_member_role(group["id"], admin_uid) == "owner"
+
+
+def test_non_admin_cannot_take_ownership(alice_uid, bob_uid):
+    """Non-admin users should not be able to take ownership."""
+    import db
+    from app import app
+    group = db.create_group_chat("Test", alice_uid)
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
+    with app.test_client() as c:
+        c.post("/login", data={"username": "bob", "password": "bob123"})
+        resp = c.post(f"/groups/{group['id']}/admin_takeover",
+                      follow_redirects=True)
+        assert b"Admin access required" in resp.data
+
+
+# ---------------------------------------------------------------------------
+# Chat disabled feature
+# ---------------------------------------------------------------------------
+
+def test_chat_disabled_user_cannot_create_group(alice_uid):
+    """A user with chat disabled should not be able to create a group."""
+    import db
+    from app import app
+    db.set_user_chat_disabled(alice_uid, True)
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
+    with app.test_client() as c:
+        c.post("/login", data={"username": "alice", "password": "alice123"})
+        resp = c.get("/groups/new", follow_redirects=True)
+        assert b"chat privileges have been disabled" in resp.data
+
+
+def test_chat_disabled_user_cannot_send_group_message(alice_uid, bob_uid):
+    """A user with chat disabled should not be able to send group messages."""
+    import db
+    from app import app
+    group = db.create_group_chat("Test", alice_uid)
+    db.add_group_member(group["id"], bob_uid)
+    db.set_user_chat_disabled(bob_uid, True)
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
+    with app.test_client() as c:
+        c.post("/login", data={"username": "bob", "password": "bob123"})
+        resp = c.post(f"/groups/{group['id']}/send",
+                      data={"content": "test message"},
+                      follow_redirects=True)
+        assert b"chat privileges have been disabled" in resp.data
+
+
+def test_admin_can_toggle_chat(admin_client, admin_uid, alice_uid):
+    """Admin should be able to disable and re-enable chat for a user."""
+    import db
+    assert not db.is_user_chat_disabled(alice_uid)
+    # Disable
+    resp = admin_client.post(f"/admin/users/{alice_uid}/toggle_chat",
+                             follow_redirects=True)
+    assert db.is_user_chat_disabled(alice_uid)
+    # Re-enable
+    resp = admin_client.post(f"/admin/users/{alice_uid}/toggle_chat",
+                             follow_redirects=True)
+    assert not db.is_user_chat_disabled(alice_uid)
+
+
+def test_db_chat_disabled_helpers(alice_uid):
+    """DB helpers for chat disable should work correctly."""
+    import db
+    assert not db.is_user_chat_disabled(alice_uid)
+    db.set_user_chat_disabled(alice_uid, True)
+    assert db.is_user_chat_disabled(alice_uid)
+    db.set_user_chat_disabled(alice_uid, False)
+    assert not db.is_user_chat_disabled(alice_uid)
+
+
+# ---------------------------------------------------------------------------
+# Global chat – site admin kick in global
+# ---------------------------------------------------------------------------
+
+def test_site_admin_can_kick_in_global(admin_client, admin_uid, alice_uid):
+    """Site admin should be able to kick users from the global chat."""
+    import db
+    group = db.get_or_create_global_chat()
+    db.add_group_member(group["id"], admin_uid)
+    db.add_group_member(group["id"], alice_uid)
+    resp = admin_client.post(f"/groups/{group['id']}/kick",
+                             data={"user_id": alice_uid},
+                             follow_redirects=True)
+    assert b"has been removed" in resp.data
+
+
+def test_site_admin_can_ban_in_global(admin_client, admin_uid, alice_uid):
+    """Site admin should be able to ban users from the global chat."""
+    import db
+    group = db.get_or_create_global_chat()
+    db.add_group_member(group["id"], admin_uid)
+    db.add_group_member(group["id"], alice_uid)
+    resp = admin_client.post(f"/groups/{group['id']}/kick",
+                             data={"user_id": alice_uid, "permanent": "1"},
+                             follow_redirects=True)
+    assert b"has been banned" in resp.data
+    assert db.is_group_member_banned(group["id"], alice_uid)
