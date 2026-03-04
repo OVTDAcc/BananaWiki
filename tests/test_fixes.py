@@ -5225,6 +5225,46 @@ def test_base_html_has_color_scheme_dark(logged_in_admin):
     assert b'<meta name="color-scheme" content="dark">' in resp.data
 
 
+def test_css_no_body_level_contrast_filter():
+    """The CSS must not apply filter:contrast() directly on the body via
+    a11y-contrast-N classes.  Doing so triggers a GPU compositing bug in
+    Firefox and Chrome on Mac/Linux that turns the whole page black.
+
+    The filter must only be scoped to content containers (.topbar, .layout,
+    etc.) and must be absent from levels 4-5 (which use explicit colour
+    overrides instead).
+    """
+    import re
+    css_path = os.path.join(os.path.dirname(__file__), "..", "app", "static", "css", "style.css")
+    with open(css_path) as f:
+        css = f.read()
+
+    # Patterns like ".a11y-contrast-N{filter:..." or ".a11y-contrast-N {filter:..."
+    # (i.e. the class selector alone without a descendant combinator) must not exist.
+    body_level_filter = re.compile(
+        r'\.a11y-contrast-\d\s*\{[^}]*filter\s*:', re.IGNORECASE
+    )
+    assert not body_level_filter.search(css), (
+        "a11y-contrast-N class must not apply filter: directly on the body element"
+    )
+
+    # Levels 4 and 5 must not include any filter at all (colour overrides suffice).
+    for level in (4, 5):
+        pattern = re.compile(
+            rf'\.a11y-contrast-{level}[^{{]*\{{[^}}]*filter\s*:',
+            re.IGNORECASE
+        )
+        assert not pattern.search(css), (
+            f"a11y-contrast-{level} must not use filter: (colour overrides are sufficient)"
+        )
+
+    # The CSS :root rule must declare color-scheme:dark so browsers default to
+    # dark colours even before the inline theme variables are applied.
+    assert re.search(r':root\s*\{[^}]*color-scheme\s*:\s*dark', css, re.IGNORECASE), (
+        "style.css :root must declare color-scheme:dark"
+    )
+
+
 # Fix: remember resized dimensions (both vertical and horizontal)
 # -----------------------------------------------------------------------
 
