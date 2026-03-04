@@ -320,3 +320,60 @@ def test_429_error_handler(client, admin_user, monkeypatch):
     resp = client.get("/login")
     assert resp.status_code == 429
     assert b"429" in resp.data
+
+
+# -----------------------------------------------------------------------
+# Stale key cleanup: expired timestamps are evicted from _RL_STORE
+# -----------------------------------------------------------------------
+def test_rl_store_stale_key_cleaned_up_when_all_timestamps_expired(
+    app_mod, monkeypatch
+):
+    """After the window expires, a new request removes the old key then re-adds it.
+
+    _rl_check must pop the stale key before re-inserting so that memory is
+    not permanently accumulated by IPs that get rate-limited and go quiet.
+    """
+    from datetime import datetime, timezone
+
+    ip, bucket, max_req, window = "10.0.1.1", "bucket_cleanup", 3, 60
+
+    # Fill the bucket to the limit at time T in the past.
+    fake_past = datetime(2000, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(
+        "helpers._rate_limiting.datetime",
+        type("FakeDT", (), {
+            "now": staticmethod(lambda tz=None: fake_past),
+        }),
+    )
+    for _ in range(max_req):
+        app_mod._rl_check(ip, bucket, max_req, window)
+
+    key = (ip, bucket)
+    assert key in app_mod._RL_STORE
+    stale_timestamps = list(app_mod._RL_STORE[key])
+
+    # Advance time so all timestamps have expired.
+    monkeypatch.undo()
+    # First new request: stale key is evicted, fresh counter starts with just 1.
+    result = app_mod._rl_check(ip, bucket, max_req, window)
+    assert result is True
+    # The stored timestamps must NOT contain any of the old stale ones.
+    fresh_timestamps = app_mod._RL_STORE[key]
+    assert not any(t in stale_timestamps for t in fresh_timestamps), (
+        "Stale timestamps should have been pruned and not remain in _RL_STORE"
+    )
+    assert len(fresh_timestamps) == 1
+
+
+def test_rl_store_key_removed_after_window_expiry_on_blocked_path(
+    app_mod, monkeypatch
+):
+    """When max_requests=0 a request blocked with empty pruned list does not
+    leave an empty list in _RL_STORE (verifies the dead-code fix)."""
+    ip, bucket = "10.0.1.2", "bucket_dead_code"
+    key = (ip, bucket)
+    # Calling with max_requests=0 means every request is immediately blocked.
+    result = app_mod._rl_check(ip, bucket, 0, 60)
+    assert result is False
+    # No entry (not even an empty list) must be stored.
+    assert key not in app_mod._RL_STORE

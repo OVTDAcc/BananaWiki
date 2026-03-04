@@ -5643,3 +5643,51 @@ def test_search_result_url_resolves(logged_in_admin, admin_user):
     resp = logged_in_admin.get("/wiki/findable-page")
     assert resp.status_code == 404
 
+
+
+# -----------------------------------------------------------------------
+# Fix: api_reset_accessibility endpoint
+# -----------------------------------------------------------------------
+
+def test_api_reset_accessibility_restores_defaults(logged_in_admin):
+    """/api/accessibility/reset returns the system defaults and persists them."""
+    import db
+
+    # Save non-default preferences first (use a valid font_scale value)
+    setup_resp = logged_in_admin.post("/api/accessibility",
+                         json={"font_scale": 1.35, "contrast": 2, "custom_bg": "#aabbcc"},
+                         content_type="application/json")
+    assert setup_resp.status_code == 200
+    prefs = logged_in_admin.get("/api/accessibility").get_json()
+    assert prefs["font_scale"] == 1.35
+
+    # Reset
+    resp = logged_in_admin.post("/api/accessibility/reset")
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert body["ok"] is True
+    assert "defaults" in body
+
+    # Verify preferences match the DB defaults
+    prefs_after = logged_in_admin.get("/api/accessibility").get_json()
+    for key, val in db._A11Y_DEFAULTS.items():
+        assert prefs_after[key] == val, f"Default mismatch for '{key}'"
+
+
+def test_api_reset_accessibility_requires_login(client, admin_user):
+    """/api/accessibility/reset redirects unauthenticated requests to login."""
+    resp = client.post("/api/accessibility/reset")
+    assert resp.status_code == 302
+    assert "/login" in resp.headers["Location"]
+
+
+def test_api_reset_accessibility_returns_defaults_in_response(logged_in_admin):
+    """/api/accessibility/reset response body contains the system defaults dict."""
+    import db
+    resp = logged_in_admin.post("/api/accessibility/reset")
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert body["ok"] is True
+    returned_defaults = body["defaults"]
+    for key in db._A11Y_DEFAULTS:
+        assert key in returned_defaults
