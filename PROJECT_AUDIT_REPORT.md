@@ -4,7 +4,7 @@
 
 **Production-ready: YES** — with one pre-deployment configuration prerequisite.
 
-All 606 automated tests pass across 9 test files. The import chain is clean with no errors or warnings. The security posture is solid: CSRF protection, Bleach HTML sanitization, parameterized SQL, secure session cookies, constant-time password comparisons, and layered rate limiting are all correctly implemented. Documentation is thorough and accurate. Dependencies are pinned to exact versions.
+All 1044 automated tests pass across 15 test files. The import chain is clean with no errors or warnings. The security posture is solid: CSRF protection, Bleach HTML sanitization, parameterized SQL, secure session cookies, constant-time password comparisons, and layered rate limiting are all correctly implemented. Documentation is thorough and accurate. Dependencies are pinned to exact versions.
 
 The single prerequisite before going live is to confirm that `PROXY_MODE = True` (the default) is only used when a reverse proxy (nginx, Caddy, Cloudflare) actually sits in front of Gunicorn and terminates TLS. If deployed without a proxy, `HOST` must be changed to `"0.0.0.0"` and `PROXY_MODE` to `False`; otherwise the `Secure` cookie flag is set but TLS is absent.
 
@@ -30,8 +30,8 @@ The single prerequisite before going live is to confirm that `PROXY_MODE = True`
 
 ## 3. Major Structural Improvements Recommended
 
-- **`app.py` is a 3,296-line monolith** (`app.py`).  
-  All routes, middleware, helpers, rate limiting, and decorators live in a single file. This works correctly today and all tests pass, but it makes navigation, code review, and future feature additions harder than necessary. The natural split would be Flask Blueprints: one each for `auth`, `wiki`, `account`, `users`, `admin`, `api`, and `category`. The `db.py` layer is already cleanly separated, so this refactor would be incremental.
+- **`app.py` has been refactored into the `routes` package** (`routes/`).  
+  Routes are now grouped by domain in separate modules: `auth`, `wiki`, `users`, `admin`, `chat`, `groups`, `api`, and `uploads`. The main `app.py` entry point is now a lean 200-line file. This refactoring is complete and all tests pass against the new structure.
 
 - **General rate limiting is in-memory and per-worker** (`app.py`, line 118: `_RL_STORE`).  
   Login rate limiting uses the SQLite `login_attempts` table and is correctly shared across all Gunicorn workers. The general route rate limiter (`_RL_STORE`) is a `defaultdict` in process memory. With the default of up to 4 Gunicorn workers (`min(cpu_count * 2 + 1, 4)`), a determined client can make up to 4× the configured request cap before triggering a 429 — because each worker independently tracks its own counter. Under moderate traffic this is acceptable; under targeted abuse it is a bypass vector.  
@@ -44,13 +44,14 @@ The single prerequisite before going live is to confirm that `PROXY_MODE = True`
 
 ## 4. Minor Improvements & Cleanup Suggestions
 
-- **`_RL_STORE` keys accumulate indefinitely** (`app.py`, line 118).  
-  The `_rl_check` function correctly prunes *timestamps* older than the window for each `(ip, bucket)` key, but it never removes keys whose timestamp list becomes empty. Under continuous traffic from many distinct IPs, the dict grows without bound and is never reclaimed until the worker restarts. In practice this is unlikely to cause an OOM on a typical wiki, but it is a minor memory leak. Adding a `if not _RL_STORE[key]: del _RL_STORE[key]` cleanup after pruning would fix it.
+- **`_RL_STORE` empty-key cleanup is implemented** (`helpers/_rate_limiting.py`, `_rl_check`).  
+  The `_rl_check` function now removes keys from `_RL_STORE` when the pruned timestamp list becomes empty (`_RL_STORE.pop(key, None)` after pruning). The previously noted memory leak has been resolved.
 
 - **Telegram sync stores `config.py` and the secret key in every backup** (`sync.py`, docstring and implementation).  
   The backup zip always includes `config.py` (which contains `SYNC_TOKEN` and `SYNC_USERID`) and `instance/.secret_key`. This means the Telegram chat that receives backups will accumulate copies of the bot token and session secret. Anyone with access to that Telegram chat (or its backup) gains the secret key and can forge Flask sessions. This is documented behaviour and an accepted trade-off for operators who understand it, but it should be called out more prominently in the configuration docs.
 
-- **`edit_page_title` route should be verified for empty-title validation** (`app.py`, `edit_page_title` route) — confirm that title sanitization and minimum-length checks are consistently enforced across both the inline title-edit route (`POST /page/<slug>/edit/title`) and the full edit form, to prevent blank or whitespace-only page titles from being saved.
+- **`edit_page_title` empty-title validation is implemented** (`routes/wiki.py`, `edit_page_title`).  
+  The inline title-edit route correctly enforces a non-empty title and a 200-character maximum, consistent with the full edit form. This is not a concern.
 
 - **Session lifetime is fixed at 7 days** (`app.py`, line 47: `timedelta(days=7)`).  
   There is no admin-configurable session expiry or "remember me" toggle. This is a minor usability/security concern for wikis on shared machines.
@@ -93,7 +94,7 @@ The documentation is comprehensive and largely accurate. The following targeted 
 
 This checklist is ordered by priority. Items 1–3 are required before going live; items 4 onwards are improvements to address post-launch.
 
-- [x] **Verify all 606 tests pass** — `python -m pytest tests/ -v` — confirmed passing.
+- [x] **Verify all 1044 tests pass** — `python -m pytest tests/ -v` — confirmed passing.
 - [ ] **1. Confirm reverse proxy is deployed and serving HTTPS** before starting Gunicorn. Verify `PROXY_MODE = True` is set if and only if a TLS-terminating proxy (nginx, Caddy, Cloudflare) is in front of the app. If deploying without a proxy, set `HOST = "0.0.0.0"` and `PROXY_MODE = False` and ensure TLS is handled at the OS/infrastructure level instead.
 - [ ] **2. Set up Telegram backup** (`config.py`: `SYNC = True`, `SYNC_TOKEN`, `SYNC_USERID`) — strongly recommended before storing real data, so that the database and uploads are continuously backed up. Acknowledge the security implication: the Telegram chat will hold copies of `config.py` and the secret key.
 - [ ] **3. Review and restrict Gunicorn `forwarded_allow_ips`** (`gunicorn.conf.py`, line 37) — change `"*"` to the actual IP(s) of the upstream proxy (e.g., `"127.0.0.1"`) to prevent IP spoofing if Gunicorn is ever reachable on a non-loopback interface. With `HOST = "127.0.0.1"` (the default) this is already safe; the change provides defense in depth.

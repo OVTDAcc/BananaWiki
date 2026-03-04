@@ -1137,3 +1137,70 @@ def test_non_admin_no_deattribute_buttons(alice_client, regular_uid):
     assert resp.status_code == 200
     assert b"deattribute_contribution" not in resp.data
     assert b"Deattribute All" not in resp.data
+
+
+# ---------------------------------------------------------------------------
+# Security: _profile_next open-redirect protection
+# ---------------------------------------------------------------------------
+
+def test_profile_next_accepts_valid_same_site_path(admin_client):
+    """A safe same-site next_url is honoured after update_profile."""
+    resp = admin_client.post(
+        "/account",
+        data={"action": "update_profile", "real_name": "Admin", "bio": "",
+              "next_url": "/users/admin"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 302
+    assert resp.headers["Location"].endswith("/users/admin")
+
+
+def test_profile_next_rejects_external_url(admin_client):
+    """An external URL in next_url falls back to account settings."""
+    resp = admin_client.post(
+        "/account",
+        data={"action": "update_profile", "real_name": "Admin", "bio": "",
+              "next_url": "http://evil.example.com/steal"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 302
+    location = resp.headers["Location"]
+    assert "evil.example.com" not in location
+
+
+def test_profile_next_rejects_protocol_relative_url(admin_client):
+    """A protocol-relative URL (//...) in next_url falls back to account settings."""
+    resp = admin_client.post(
+        "/account",
+        data={"action": "update_profile", "real_name": "Admin", "bio": "",
+              "next_url": "//evil.example.com/"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 302
+    location = resp.headers["Location"]
+    assert "evil.example.com" not in location
+
+
+def test_profile_next_rejects_backslash_url(admin_client):
+    """A path with a backslash in next_url falls back to account settings."""
+    resp = admin_client.post(
+        "/account",
+        data={"action": "update_profile", "real_name": "Admin", "bio": "",
+              "next_url": "/\\evil.example.com"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 302
+    location = resp.headers["Location"]
+    assert "evil.example.com" not in location
+
+
+def test_profile_next_empty_uses_fallback(admin_client):
+    """An empty next_url redirects to the default account settings page."""
+    resp = admin_client.post(
+        "/account",
+        data={"action": "update_profile", "real_name": "Admin", "bio": "",
+              "next_url": ""},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 302
+    assert "/account" in resp.headers["Location"]
