@@ -27,6 +27,9 @@ from helpers._rate_limiting import (      # noqa: F401
     _RL_STORE,
     _RL_GLOBAL_MAX,
     _RL_GLOBAL_WINDOW,
+    _RL_SWEEP_COUNTER,
+    _RL_SWEEP_INTERVAL,
+    _rl_sweep,
     _rl_check,
     rate_limit,
 )

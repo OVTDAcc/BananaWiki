@@ -53,14 +53,31 @@ _RL_LOCK = threading.Lock()
 _RL_STORE: dict = {}            # (ip, bucket) → list of UTC timestamps
 _RL_GLOBAL_MAX = 300            # max requests per window for all endpoints
 _RL_GLOBAL_WINDOW = 60          # window size in seconds
+_RL_SWEEP_COUNTER = 0           # counts _rl_check calls; triggers periodic sweep
+_RL_SWEEP_INTERVAL = 1000       # sweep stale keys every N calls
+
+
+def _rl_sweep(cutoff):
+    """Remove keys whose timestamp lists are entirely outside the current window.
+
+    Must be called with *_RL_LOCK* already held.
+    """
+    stale = [k for k, v in _RL_STORE.items() if not any(t > cutoff for t in v)]
+    for k in stale:
+        del _RL_STORE[k]
 
 
 def _rl_check(ip, bucket, max_requests, window):
     """Return True if the request is within the rate limit, and record it."""
+    global _RL_SWEEP_COUNTER
     key = (ip, bucket)
     now = datetime.now(timezone.utc).timestamp()
     cutoff = now - window
     with _RL_LOCK:
+        _RL_SWEEP_COUNTER += 1
+        if _RL_SWEEP_COUNTER >= _RL_SWEEP_INTERVAL:
+            _RL_SWEEP_COUNTER = 0
+            _rl_sweep(cutoff)
         pruned = [t for t in _RL_STORE.get(key, []) if t > cutoff]
         if len(pruned) >= max_requests:
             if pruned:

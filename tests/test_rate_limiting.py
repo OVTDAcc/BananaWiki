@@ -320,3 +320,65 @@ def test_429_error_handler(client, admin_user, monkeypatch):
     resp = client.get("/login")
     assert resp.status_code == 429
     assert b"429" in resp.data
+
+
+# -----------------------------------------------------------------------
+# Periodic stale-key sweep (_rl_sweep)
+# -----------------------------------------------------------------------
+def test_rl_sweep_removes_fully_expired_keys(app_mod):
+    """_rl_sweep removes keys whose entire timestamp list is outside the window."""
+    from helpers._rate_limiting import _rl_sweep
+
+    # Plant a stale key directly (timestamps well in the past, all before cutoff=100)
+    stale_key = ("192.0.2.1", "sweep_test")
+    with app_mod._RL_LOCK:
+        app_mod._RL_STORE[stale_key] = [1.0, 2.0, 3.0]
+        _rl_sweep(cutoff=100.0)
+        assert stale_key not in app_mod._RL_STORE
+
+
+def test_rl_sweep_retains_keys_with_live_timestamps(app_mod):
+    """_rl_sweep does NOT remove keys that still have timestamps within the window."""
+    from helpers._rate_limiting import _rl_sweep
+    from datetime import datetime, timezone
+
+    now = datetime.now(timezone.utc).timestamp()
+    live_key = ("192.0.2.2", "sweep_live")
+    cutoff = now - 60
+    with app_mod._RL_LOCK:
+        # Add one current timestamp (within window) alongside a stale one
+        app_mod._RL_STORE[live_key] = [cutoff - 10, now]  # one stale, one live
+        _rl_sweep(cutoff=cutoff)
+        assert live_key in app_mod._RL_STORE
+
+
+def test_rl_sweep_counter_resets_and_triggers(app_mod, monkeypatch):
+    """_RL_SWEEP_COUNTER resets after _RL_SWEEP_INTERVAL calls to _rl_check."""
+    import helpers._rate_limiting as rl_mod
+
+    monkeypatch.setattr(rl_mod, "_RL_SWEEP_INTERVAL", 5)
+    monkeypatch.setattr(rl_mod, "_RL_SWEEP_COUNTER", 0)
+
+    # Plant a stale key so we can verify it gets removed by the sweep
+    stale_key = ("192.0.2.3", "sweep_counter")
+    with app_mod._RL_LOCK:
+        app_mod._RL_STORE[stale_key] = [1.0, 2.0]  # far in the past
+
+    # Make exactly _RL_SWEEP_INTERVAL calls — the 5th call should trigger sweep
+    for _ in range(5):
+        rl_mod._rl_check("192.0.2.3", "sweep_counter_caller", 100, 60)
+
+    # Counter should have been reset to 0 after the sweep
+    with app_mod._RL_LOCK:
+        assert rl_mod._RL_SWEEP_COUNTER == 0
+    # The stale key should have been removed
+    assert stale_key not in app_mod._RL_STORE
+
+
+def test_rl_sweep_empty_store_is_safe(app_mod):
+    """_rl_sweep on an empty store does not raise."""
+    from helpers._rate_limiting import _rl_sweep
+    with app_mod._RL_LOCK:
+        app_mod._RL_STORE.clear()
+        _rl_sweep(cutoff=9999999999.0)  # everything is "stale"
+        assert app_mod._RL_STORE == {}
