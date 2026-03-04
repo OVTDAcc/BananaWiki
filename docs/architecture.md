@@ -151,6 +151,29 @@ from ._markdown import render_markdown
 | `@editor_required` | Role must be `editor`, `admin`, or `protected_admin`. |
 | `@admin_required` | Role must be `admin` or `protected_admin`. |
 
+### Roles and the `is_superuser` flag
+
+The `role` column on the `users` table accepts four values:
+
+| Role | Capabilities |
+|---|---|
+| `user` | Read-only access to the wiki. |
+| `editor` | Create and edit pages; may be restricted to specific categories by an admin. |
+| `admin` | Full access: user management, site settings, announcements, invites. |
+| `protected_admin` | Same as `admin`, but cannot be demoted, deleted, or suspended through the admin UI. |
+
+In addition to the role, users have an `is_superuser` boolean flag (default `0`). This flag is **never set through the UI** — it can only be enabled directly in the database by the server operator:
+
+```sql
+UPDATE users SET is_superuser=1 WHERE username='your_admin';
+```
+
+When `is_superuser=1`:
+- The account cannot change its own username or password through the account settings UI.
+- Admins cannot delete the account or change its role from the admin panel.
+
+This provides an additional layer of operator-level protection for the primary admin account, independent of the `protected_admin` role. Use it if you want a specific account to be entirely locked against modification from within the application.
+
 ### Draft system
 
 When an editor opens a page for editing, any unsaved content is stored as a draft (`/api/draft/save`). Drafts auto-save every few seconds from the browser. On page load, the editor checks for the user's own draft and loads it automatically.

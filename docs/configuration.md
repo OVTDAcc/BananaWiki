@@ -80,6 +80,8 @@ Changes are **debounced**: after a change occurs, the system waits 60 seconds fo
 
 Every backup zip contains the database, `config.py`, the secret key, log files, and a manifest listing the changes that triggered the backup. The only reason a file is excluded is if it would push the archive over Telegram's 50 MB limit.
 
+> **Security notice:** Every backup zip includes `config.py` (which contains `SYNC_TOKEN` and `SYNC_USERID`) and `instance/.secret_key` (the Flask session secret). Anyone with access to the Telegram chat that receives backups can read these values. Guard access to that chat accordingly, and treat the session secret as compromised if the chat is ever exposed.
+
 Uploaded image files are sent as individual Telegram messages (not bundled in the zip archive) so they can be easily retrieved. Message IDs are tracked in `sync_upload_msgs.json` for deletion threading.
 
 ### Triggering events

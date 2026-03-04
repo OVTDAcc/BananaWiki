@@ -212,3 +212,18 @@ Each app needs its own port. Set `PORT` in each app's `config.py`:
 | Another app | 5002 | `app.example.com` |
 
 Set up nginx or Cloudflare to route each domain to the right port. Each app runs its own Gunicorn process and systemd service.
+
+---
+
+## Pre-flight checklist
+
+Before starting BananaWiki for the first time, verify each item:
+
+- [ ] **Reverse proxy is running and serving HTTPS.** Confirm that nginx, Caddy, or Cloudflare is in front of Gunicorn and terminates TLS. `PROXY_MODE = True` (the default) must only be set when this is the case — without a proxy, `SESSION_COOKIE_SECURE` will be set but no TLS is present.
+- [ ] **`PROXY_MODE` matches your environment.** Set to `True` with a reverse proxy, `False` for direct (IP-only) access.
+- [ ] **`SECRET_KEY` is not hard-coded.** The default auto-generation (stored in `instance/.secret_key`) is correct. If you supply it via the `SECRET_KEY` environment variable, confirm the value is long and random.
+- [ ] **`forwarded_allow_ips` in `gunicorn.conf.py` is locked down.** The default `"*"` is safe only when `HOST = "127.0.0.1"` (Gunicorn is not reachable on a public interface). For defense-in-depth, restrict it to the upstream proxy IP (e.g., `"127.0.0.1"`).
+- [ ] **Telegram backup is configured** (`SYNC = True`, valid `SYNC_TOKEN`, `SYNC_USERID`). Strongly recommended before storing real data. See `docs/configuration.md` for the security implications of enabling backups.
+- [ ] **`debug=False`** is already enforced by the code and by Gunicorn. Do not pass `--debug` to Gunicorn in production.
+- [ ] **Firewall rules** allow only port 80/443 from the public internet; block direct access to the Gunicorn port (default 5001).
+- [ ] **`instance/` is excluded from version control.** Check that `.gitignore` lists `instance/` so the database, secret key, and attachments are never committed.

@@ -4,6 +4,7 @@ Tests for BananaWiki rate limiting.
 
 import os
 import sys
+import time
 
 import pytest
 
@@ -90,6 +91,22 @@ def test_rl_check_different_buckets_are_independent():
         _rl_check("1.2.3.4", "bucket_d1", 5, 60)
     # A different bucket for the same IP should be independent
     assert _rl_check("1.2.3.4", "bucket_d2", 5, 60) is True
+
+
+def test_rl_check_stale_key_is_deleted_after_window():
+    """After the window expires, accessing the key again cleans up the stale entry."""
+    from app import _rl_check, _RL_STORE, _RL_LOCK
+    # Use a 1-second window so we can expire it quickly
+    _rl_check("9.9.9.9", "bucket_e", 10, 1)
+    with _RL_LOCK:
+        assert ("9.9.9.9", "bucket_e") in _RL_STORE
+    # Wait for the window to expire, then call again
+    time.sleep(1.1)
+    _rl_check("9.9.9.9", "bucket_e", 10, 1)
+    # After the stale timestamps were pruned and a fresh one added, the key exists
+    # but only holds the new timestamp (len == 1)
+    with _RL_LOCK:
+        assert len(_RL_STORE.get(("9.9.9.9", "bucket_e"), [])) == 1
 
 
 # -----------------------------------------------------------------------

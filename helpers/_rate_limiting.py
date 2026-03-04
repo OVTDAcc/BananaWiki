@@ -61,11 +61,12 @@ def _rl_check(ip, bucket, max_requests, window):
     now = datetime.now(timezone.utc).timestamp()
     cutoff = now - window
     with _RL_LOCK:
-        timestamps = _RL_STORE[key]
-        _RL_STORE[key] = [t for t in timestamps if t > cutoff]
-        if len(_RL_STORE[key]) >= max_requests:
+        pruned = [t for t in _RL_STORE[key] if t > cutoff]
+        if len(pruned) >= max_requests:
+            _RL_STORE[key] = pruned
             return False
-        _RL_STORE[key].append(now)
+        pruned.append(now)
+        _RL_STORE[key] = pruned
         return True
 
 
