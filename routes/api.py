@@ -13,7 +13,7 @@ from helpers import (
 )
 from wiki_logger import log_action
 from sync import notify_change
-from routes.wiki import cleanup_unused_uploads
+from routes.uploads import cleanup_unused_uploads
 
 
 def register_api_routes(app):

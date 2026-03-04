@@ -19,31 +19,7 @@ from helpers import (
 )
 from wiki_logger import log_action
 from sync import notify_change, notify_file_deleted
-
-
-def cleanup_unused_uploads():
-    """Delete uploaded image files that are not referenced in any page or history.
-
-    Called after draft deletion, page commit, page creation, and page deletion
-    so that images uploaded but never committed (or removed before committing)
-    are automatically purged.  Images still present in the revision history are
-    preserved because :func:`db.get_all_referenced_image_filenames` scans
-    both ``pages.content`` and ``page_history.content``.
-    """
-    if not os.path.isdir(config.UPLOAD_FOLDER):
-        return
-    referenced = db.get_all_referenced_image_filenames()
-    for fname in os.listdir(config.UPLOAD_FOLDER):
-        if fname.startswith("."):
-            continue
-        if fname not in referenced:
-            fpath = os.path.join(config.UPLOAD_FOLDER, fname)
-            if os.path.isfile(fpath):
-                try:
-                    os.remove(fpath)
-                    notify_file_deleted(fname)
-                except OSError:
-                    pass
+from routes.uploads import cleanup_unused_uploads
 
 
 def register_wiki_routes(app):
