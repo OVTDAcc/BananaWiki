@@ -253,6 +253,48 @@ def register_wiki_routes(app):
         flash("Attribution removed from this entry.", "success")
         return redirect(url_for("page_history", slug=slug))
 
+    @app.route("/page/<slug>/history/<int:entry_id>/delete", methods=["POST"])
+    @login_required
+    @admin_required
+    @rate_limit(20, 60)
+    def delete_history_entry(slug, entry_id):
+        """Admin: delete a single page history entry."""
+        if not config.PAGE_HISTORY_ENABLED:
+            abort(404)
+        page = db.get_page_by_slug(slug)
+        if not page:
+            abort(404)
+        entry = db.get_history_entry(entry_id)
+        if not entry or entry["page_id"] != page["id"]:
+            abort(404)
+        user = get_current_user()
+        db.delete_history_entry(entry_id)
+        log_action("delete_history_entry", request, user=user, page=slug,
+                   entry_id=entry_id)
+        notify_change("delete_history_entry",
+                      f"History entry {entry_id} deleted from '{slug}'")
+        flash("History entry deleted.", "success")
+        return redirect(url_for("page_history", slug=slug))
+
+    @app.route("/page/<slug>/history/clear", methods=["POST"])
+    @login_required
+    @admin_required
+    @rate_limit(20, 60)
+    def clear_page_history(slug):
+        """Admin: delete all history entries for a page."""
+        if not config.PAGE_HISTORY_ENABLED:
+            abort(404)
+        page = db.get_page_by_slug(slug)
+        if not page:
+            abort(404)
+        user = get_current_user()
+        count = db.clear_page_history(page["id"])
+        log_action("clear_page_history", request, user=user, page=slug, count=count)
+        notify_change("clear_page_history",
+                      f"All history ({count} entries) cleared for '{slug}'")
+        flash(f"All history cleared ({count} entries removed).", "success")
+        return redirect(url_for("page_history", slug=slug))
+
     # ---------------------------------------------------------------------------
     #  Page editing
     # ---------------------------------------------------------------------------

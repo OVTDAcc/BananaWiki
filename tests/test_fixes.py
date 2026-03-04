@@ -5511,3 +5511,112 @@ def test_db_connection_has_timeout():
         conn.close()
 
     assert captured.get("timeout", 5) > 5
+
+
+# ---------------------------------------------------------------------------
+# Feature: Admin can delete individual history entries and clear all history
+# ---------------------------------------------------------------------------
+
+def test_delete_single_history_entry(logged_in_admin, admin_user):
+    """Admin can delete a single history entry via POST."""
+    import db
+    page_id = db.create_page("Delete Entry Test", "delete-entry-test", "Content", user_id=admin_user)
+    db.update_page(page_id, "Delete Entry Test", "Updated content", admin_user, "Edit 1")
+    history = db.get_page_history(page_id)
+    assert len(history) >= 1
+    entry = history[0]
+    resp = logged_in_admin.post(
+        f"/page/delete-entry-test/history/{entry['id']}/delete"
+    )
+    assert resp.status_code in (200, 302)
+    # Verify the entry is gone
+    updated_history = db.get_page_history(page_id)
+    assert all(h["id"] != entry["id"] for h in updated_history)
+
+
+def test_delete_history_entry_returns_404_for_wrong_page(logged_in_admin, admin_user):
+    """Deleting a history entry that doesn't belong to the page returns 404."""
+    import db
+    page_id = db.create_page("Page A", "page-a-del", "Content", user_id=admin_user)
+    page_b_id = db.create_page("Page B", "page-b-del", "Content", user_id=admin_user)
+    db.update_page(page_b_id, "Page B", "Edit", admin_user, "edit")
+    history_b = db.get_page_history(page_b_id)
+    entry_b = history_b[0]
+    # Try to delete page B's entry via page A's route
+    resp = logged_in_admin.post(
+        f"/page/page-a-del/history/{entry_b['id']}/delete"
+    )
+    assert resp.status_code == 404
+
+
+def test_delete_history_entry_returns_404_when_history_disabled(logged_in_admin, admin_user, monkeypatch):
+    """Delete history entry returns 404 when PAGE_HISTORY_ENABLED is False."""
+    import config
+    monkeypatch.setattr(config, "PAGE_HISTORY_ENABLED", False)
+    resp = logged_in_admin.post("/page/home/history/1/delete")
+    assert resp.status_code == 404
+
+
+def test_clear_page_history(logged_in_admin, admin_user):
+    """Admin can clear all history for a page via POST."""
+    import db
+    page_id = db.create_page("Clear History Test", "clear-history-test", "Content", user_id=admin_user)
+    db.update_page(page_id, "Clear History Test", "Edit A", admin_user, "Edit A")
+    db.update_page(page_id, "Clear History Test", "Edit B", admin_user, "Edit B")
+    history = db.get_page_history(page_id)
+    assert len(history) >= 2
+    resp = logged_in_admin.post("/page/clear-history-test/history/clear")
+    assert resp.status_code in (200, 302)
+    # All history entries should be gone
+    assert db.get_page_history(page_id) == []
+
+
+def test_clear_page_history_returns_404_when_history_disabled(logged_in_admin, admin_user, monkeypatch):
+    """Clear history returns 404 when PAGE_HISTORY_ENABLED is False."""
+    import config
+    monkeypatch.setattr(config, "PAGE_HISTORY_ENABLED", False)
+    resp = logged_in_admin.post("/page/home/history/clear")
+    assert resp.status_code == 404
+
+
+def test_history_page_shows_delete_buttons_for_admin(logged_in_admin, admin_user):
+    """History page shows Delete and Clear All History buttons for admins."""
+    import db
+    db.update_page(db.get_home_page()["id"], "Home", "Updated content", admin_user, "Edit")
+    resp = logged_in_admin.get("/page/home/history")
+    assert resp.status_code == 200
+    assert b"Clear All History" in resp.data
+    assert b"Delete" in resp.data
+
+
+def test_delete_history_entry_requires_admin(client, admin_user):
+    """Non-admin editor cannot delete history entries (redirected to home)."""
+    from werkzeug.security import generate_password_hash
+    import db
+    editor_id = db.create_user("editor_del", generate_password_hash("pass123"), role="editor")
+    page_id = db.create_page("Editor Del Test", "editor-del-test", "Content", user_id=admin_user)
+    db.update_page(page_id, "Editor Del Test", "Edit", admin_user, "edit")
+    history = db.get_page_history(page_id)
+    entry = history[0]
+    client.post("/login", data={"username": "editor_del", "password": "pass123"})
+    resp = client.post(f"/page/editor-del-test/history/{entry['id']}/delete")
+    # admin_required redirects non-admins to home
+    assert resp.status_code == 302
+    # Entry should still exist
+    assert db.get_history_entry(entry["id"]) is not None
+
+
+def test_clear_page_history_requires_admin(client, admin_user):
+    """Non-admin editor cannot clear page history (redirected to home)."""
+    from werkzeug.security import generate_password_hash
+    import db
+    editor_id = db.create_user("editor_clr", generate_password_hash("pass123"), role="editor")
+    page_id = db.create_page("Editor Clr Test", "editor-clr-test", "Content", user_id=admin_user)
+    db.update_page(page_id, "Editor Clr Test", "Edit", admin_user, "edit")
+    client.post("/login", data={"username": "editor_clr", "password": "pass123"})
+    resp = client.post("/page/editor-clr-test/history/clear")
+    # admin_required redirects non-admins to home
+    assert resp.status_code == 302
+    # History should still exist
+    assert len(db.get_page_history(page_id)) > 0
+
