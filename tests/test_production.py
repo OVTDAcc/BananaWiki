@@ -973,7 +973,7 @@ def test_admin_hard_delete_code_requires_admin(client, admin_user):
     """A non-admin user cannot hard-delete an expired invite code."""
     from werkzeug.security import generate_password_hash
     import db
-    uid = db.create_user("regularuser2", generate_password_hash("pw"), role="user")
+    db.create_user("regularuser2", generate_password_hash("pw"), role="user")
     client.post("/login", data={"username": "regularuser2", "password": "pw"})
 
     db.generate_invite_code(admin_user)
@@ -1001,18 +1001,25 @@ def test_403_error_template_exists():
     assert os.path.isfile(template_path), "wiki/403.html template is missing"
 
 
-def test_403_handler_renders_correct_template(logged_in_admin, monkeypatch):
-    """The 403 error handler returns the 403 template with correct status code."""
+def test_403_handler_renders_correct_template(logged_in_admin):
+    """The 403 error handler renders the 403 template with status code 403."""
     from app import app
+    from werkzeug.exceptions import Forbidden
 
-    # Use Flask's test_request_context + app.make_response to invoke the handler directly
     with app.test_request_context("/"):
-        from flask import abort
-        from routes.errors import register_error_handlers
-        import db
-        # Verify the error handler is registered by checking the 403 handler
-        handler = app.error_handler_spec.get(None, {}).get(403)
+        handler_dict = app.error_handler_spec.get(None, {}).get(403, {})
+        handler = handler_dict.get(Forbidden)
         assert handler is not None, "No 403 error handler registered"
+        result = handler(Forbidden())
+        # Handler returns (html_string, status_code) tuple
+        if isinstance(result, tuple):
+            html, status_code = result
+            assert status_code == 403
+            assert "403" in html
+        else:
+            # Flask Response object
+            assert result.status_code == 403
+            assert b"403" in result.data
 
 
 # ---------------------------------------------------------------------------
@@ -1032,10 +1039,13 @@ def test_admin_generate_code_creates_valid_code(logged_in_admin):
 
 
 def test_admin_generate_code_appears_on_page(logged_in_admin):
-    """After generating a code, the code appears in the response HTML."""
+    """After generating a code, the actual generated code appears in the response HTML."""
+    import db
     resp = logged_in_admin.post("/admin/codes/generate", follow_redirects=True)
     assert resp.status_code == 200
-    # The page should render the code (format: XXXX-XXXX)
-    import re
-    matches = re.findall(rb'[A-Z0-9]{4}-[A-Z0-9]{4}', resp.data)
-    assert len(matches) >= 1
+
+    # Get the code from the database and verify it appears in the response
+    codes = db.list_invite_codes()
+    assert codes, "No invite codes found after generate"
+    code_str = codes[0]["code"]
+    assert code_str.encode() in resp.data, f"Generated code '{code_str}' not found in response"
