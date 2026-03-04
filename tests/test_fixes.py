@@ -5620,3 +5620,26 @@ def test_clear_page_history_requires_admin(client, admin_user):
     # History should still exist
     assert len(db.get_page_history(page_id)) > 0
 
+
+# -----------------------------------------------------------------------
+# Fix: Sidebar search results link to /page/<slug>, not /wiki/<slug>
+# -----------------------------------------------------------------------
+def test_search_result_url_resolves(logged_in_admin, admin_user):
+    """Pages returned by the search API are accessible via /page/<slug> (not 404)."""
+    import db
+    db.create_page("Findable Page", "findable-page", "some content", user_id=admin_user)
+
+    # Confirm the search API returns the page
+    resp = logged_in_admin.get("/api/pages/search?q=findable")
+    assert resp.status_code == 200
+    results = resp.get_json()
+    assert any(r["slug"] == "findable-page" for r in results)
+
+    # Verify the URL the JS constructs (/page/<slug>) actually resolves
+    resp = logged_in_admin.get("/page/findable-page")
+    assert resp.status_code == 200
+
+    # Verify the old incorrect URL (/wiki/<slug>) returns 404
+    resp = logged_in_admin.get("/wiki/findable-page")
+    assert resp.status_code == 404
+
