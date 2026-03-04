@@ -80,12 +80,12 @@ def init_db():
     CREATE TABLE IF NOT EXISTS site_settings (
         id          INTEGER PRIMARY KEY CHECK (id = 1),
         site_name   TEXT    NOT NULL DEFAULT 'BananaWiki',
-        primary_color    TEXT NOT NULL DEFAULT '#7c8dc6',
-        secondary_color  TEXT NOT NULL DEFAULT '#151520',
-        accent_color     TEXT NOT NULL DEFAULT '#6e8aca',
-        text_color       TEXT NOT NULL DEFAULT '#b8bcc8',
-        sidebar_color    TEXT NOT NULL DEFAULT '#111118',
-        bg_color         TEXT NOT NULL DEFAULT '#0d0d14',
+        primary_color    TEXT NOT NULL DEFAULT '#8b9bd4',
+        secondary_color  TEXT NOT NULL DEFAULT '#1a1a28',
+        accent_color     TEXT NOT NULL DEFAULT '#7e9ad8',
+        text_color       TEXT NOT NULL DEFAULT '#cdd1dd',
+        sidebar_color    TEXT NOT NULL DEFAULT '#161621',
+        bg_color         TEXT NOT NULL DEFAULT '#111119',
         setup_done  INTEGER NOT NULL DEFAULT 0,
         timezone    TEXT    NOT NULL DEFAULT 'UTC',
         session_limit_enabled INTEGER NOT NULL DEFAULT 1

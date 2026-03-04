@@ -633,12 +633,12 @@ def register_admin_routes(app):
                 flash("Site name must be 100 characters or fewer.", "error")
                 return redirect(url_for("admin_settings"))
             color_fields = {
-                "primary_color": request.form.get("primary_color", "#7c8dc6"),
-                "secondary_color": request.form.get("secondary_color", "#151520"),
-                "accent_color": request.form.get("accent_color", "#6e8aca"),
-                "text_color": request.form.get("text_color", "#b8bcc8"),
-                "sidebar_color": request.form.get("sidebar_color", "#111118"),
-                "bg_color": request.form.get("bg_color", "#0d0d14"),
+                "primary_color": request.form.get("primary_color", "#8b9bd4"),
+                "secondary_color": request.form.get("secondary_color", "#1a1a28"),
+                "accent_color": request.form.get("accent_color", "#7e9ad8"),
+                "text_color": request.form.get("text_color", "#cdd1dd"),
+                "sidebar_color": request.form.get("sidebar_color", "#161621"),
+                "bg_color": request.form.get("bg_color", "#111119"),
             }
             for name, val in color_fields.items():
                 if not _is_valid_hex_color(val):
