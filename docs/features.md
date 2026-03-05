@@ -11,7 +11,11 @@ This document catalogues every feature in BananaWiki, ordered from the most visi
 - [Image uploads](#image-uploads)
 - [Page attachments](#page-attachments)
 - [User accounts and roles](#user-accounts-and-roles)
+- [Editor category restrictions](#editor-category-restrictions)
+- [User custom tags](#user-custom-tags)
 - [User profiles and People page](#user-profiles-and-people-page)
+- [Direct messaging](#direct-messaging)
+- [Group chats](#group-chats)
 - [Protected admin mode](#protected-admin-mode)
 - [Invite codes](#invite-codes)
 - [Announcements](#announcements)
@@ -332,6 +336,60 @@ Any logged-in user can download all their own data as a ZIP file from the Accoun
 
 ---
 
+## Editor category restrictions
+
+### Category-based access control for editors
+Admins can restrict which categories an editor account is allowed to access. When an editor has category restrictions enabled:
+
+- The editor can only view and edit pages in their allowed categories
+- The editor cannot create pages in restricted categories
+- The editor cannot move pages into restricted categories
+- The editor cannot attach files to pages in restricted categories
+- All other categories and their pages are hidden from the editor's sidebar and search results
+
+This feature is useful for delegating editing responsibilities to specific subject areas while maintaining control over sensitive or specialized content.
+
+> `routes/admin.py` → `admin_editor_access`, `db/_users.py` → `editor_category_access`, `editor_allowed_categories` tables, `get_editor_access()`, `set_editor_access()`, `helpers/_auth.py` → `editor_has_category_access()`
+
+### Managing editor restrictions
+The category access settings are managed from **Admin → Manage Users → [select editor] → Editor Access**. Admins can:
+
+- Enable or disable category restrictions for an editor account
+- Select which specific categories the editor is permitted to access
+- View a summary of the editor's current access permissions
+
+When restrictions are enabled for an editor, the system enforces access checks on all page and attachment operations.
+
+> `routes/admin.py` → `admin_editor_access`, `app/templates/admin/editor_access.html`
+
+---
+
+## User custom tags
+
+### Admin-defined user labels
+Admins can create custom colored tags that can be assigned to any user account. These tags appear as badges on the user's profile page, in the user directory, and in the admin user management panel.
+
+Each custom tag has:
+- A label (e.g., "Team Lead", "Content Specialist", "External Contributor")
+- A color (any hex value)
+- A sort order (determines the display order when multiple tags are assigned to a user)
+
+> `routes/admin.py` → `admin_manage_user_tags`, `db/_users.py` → `user_custom_tags` table, `get_user_custom_tags()`, `add_user_custom_tag()`, `update_user_custom_tag()`, `delete_user_custom_tag()`
+
+### Tag management
+Custom tags are managed from **Admin → Manage Users → [select user] → Custom Tags**. Available operations:
+
+- **Add tag**: Create a new tag with a label and color
+- **Edit tag**: Change the label or color of an existing tag
+- **Delete tag**: Remove a tag from the user's profile
+- **Reorder tags**: Drag-and-drop to change the display order of multiple tags
+
+The same tag can be assigned to multiple users, and users can have multiple tags assigned to them.
+
+> `routes/admin.py` → `admin_manage_user_tags` (actions: `add`, `edit`, `delete`, `reorder`), `app/templates/admin/tags.html`
+
+---
+
 ## User profiles and People page
 
 ### Public profile pages
@@ -394,8 +452,140 @@ Admins can access a profile moderation panel from a user's profile page (`/users
 - Re-enable a previously disabled profile
 - Delete the profile entirely
 
-> `routes/admin.py` → `admin_moderate_profile`  
+> `routes/admin.py` → `admin_moderate_profile`
 > `app/templates/users/profile.html` (admin moderation form section)
+
+---
+
+## Direct messaging
+
+### One-on-one conversations
+Users can send direct messages to other users through a private messaging system. Each conversation is between exactly two users and appears in both users' chat lists.
+
+> `routes/chat.py` → `chat_list`, `chat_new`, `chat_view`, `db/_chats.py` → `chats`, `chat_messages` tables
+
+### Starting a conversation
+From `/chats/new`, a user can start a new conversation by entering another user's username. If a conversation between the two users already exists, they are redirected to the existing chat. A user can only start conversations if their chat privileges are enabled.
+
+> `routes/chat.py` → `chat_new`, `db/_chats.py` → `create_or_get_chat()`, `get_chat_by_users()`
+
+### Sending messages
+Messages are sent via POST to `/chats/<chat_id>/send`. Each message records:
+- Message content (text, up to 5,000 characters)
+- Sender ID
+- Timestamp
+- Read status (currently not implemented in UI but tracked in database)
+
+> `routes/chat.py` → `chat_send`, `db/_chats.py` → `add_chat_message()`, `get_chat_messages()`
+
+### File attachments in direct messages
+Users can attach files to direct messages (PDF, documents, images, archives). Each attachment:
+- Has a maximum size of 5 MB
+- Is stored in the `CHAT_ATTACHMENT_FOLDER` with a UUID-based filename
+- Retains its original filename for display
+- Is accessible only to the two conversation participants via an authenticated download route
+
+Users have a daily attachment limit (default: 10 files per day) to prevent abuse.
+
+> `routes/chat.py` → `chat_send` (file upload), `chat_attachment_download`, `config.py` → `MAX_CHAT_ATTACHMENT_SIZE`, `CHAT_ATTACHMENT_FOLDER`, `CHAT_DAILY_ATTACHMENT_LIMIT`, `db/_chats.py` → `chat_attachments` table, `count_user_chat_attachments_today()`
+
+### Admin chat oversight
+Admins can view a list of all direct message conversations and access any conversation's message history from **Admin → Chats**. This is for moderation purposes.
+
+> `routes/chat.py` → `admin_chats`, `admin_chat_view`, `app/templates/chats/admin_list.html`, `app/templates/chats/admin_view.html`
+
+### Chat privilege toggle
+Admins can disable chat privileges for any user from **Admin → Manage Users → [user] → Toggle Chat**. When disabled:
+- The user cannot start new direct message conversations
+- The user cannot join or create group chats
+- Existing conversations remain accessible in read-only mode
+
+> `routes/groups.py` → `admin_toggle_chat`, `db/_users.py` → `users.chat_disabled` column, `is_user_chat_disabled()`
+
+---
+
+## Group chats
+
+### Group creation and membership
+Any user with chat privileges can create a group chat. Each group has:
+- A name (3-50 characters)
+- A unique 8-character alphanumeric invite code
+- Member roles: `owner`, `moderator`, `member`
+- An optional description
+- Active/inactive status
+
+> `routes/groups.py` → `group_new`, `db/_groups.py` → `group_chats`, `group_members` tables, `create_group()`, `generate_random_id()`
+
+### Invite codes for joining
+Users join groups via invite codes at `/groups/join`. Each group has a regenerable invite code that grants access. The code can be regenerated by the owner to revoke the old code.
+
+> `routes/groups.py` → `group_join`, `group_regenerate_code`, `db/_groups.py` → `get_group_by_code()`, `regenerate_group_code()`
+
+### Global chat
+A special "Global" chat is automatically created during database initialization. All users are automatically added as members when they first access `/groups/global`. It cannot be deleted and serves as a site-wide chat room.
+
+> `routes/groups.py` → `group_global`, `db/_schema.py` → `init_db()` (Global chat creation), `db/_groups.py` → `auto_add_to_global_chat()`
+
+### Group member roles and permissions
+Each member has one of three roles:
+
+| Role | Permissions |
+|---|---|
+| **member** | Send messages, view message history, leave group |
+| **moderator** | All member permissions + add members, kick members, delete messages, timeout/untimeout members |
+| **owner** | All moderator permissions + promote/demote moderators, transfer ownership, regenerate invite code, delete group, activate/deactivate group |
+
+> `db/_groups.py` → `group_members.role` column, `routes/groups.py` → role checks in all group management routes
+
+### Sending group messages
+Messages are sent via POST to `/groups/<group_id>/send`. System messages (e.g., "Alice joined the chat") are automatically generated for certain events. Messages can include text content and file attachments.
+
+> `routes/groups.py` → `group_send`, `db/_groups.py` → `add_group_message()`, `add_group_system_message()`
+
+### Group message attachments
+Like direct messages, group chats support file attachments with the same constraints (5 MB limit, 10 files per user per day). Attachments are accessible to all group members.
+
+> `routes/groups.py` → `group_send`, `group_attachment_download`, `db/_groups.py` → `group_attachments` table
+
+### Member management
+Owners and moderators can:
+- **Add members** by username (`/groups/<id>/members/add`)
+- **Kick members** from the group (`/groups/<id>/kick`)
+- **Promote members** to moderator (`/groups/<id>/promote`)
+- **Demote moderators** to member (`/groups/<id>/demote`)
+- **Timeout/mute members** temporarily (`/groups/<id>/timeout`) — sets a `timed_out_until` timestamp
+- **Untimeout members** to restore their posting privileges (`/groups/<id>/untimeout`)
+- **Unban members** who were previously kicked with the banned flag (`/groups/<id>/unban`)
+
+Owners have exclusive ability to:
+- **Transfer ownership** to another member (`/groups/<id>/transfer`)
+- **Delete the group** entirely (`/groups/<id>/delete`)
+
+> `routes/groups.py` → `group_add_member`, `group_kick`, `group_promote`, `group_demote`, `group_timeout`, `group_untimeout`, `group_unban`, `group_transfer`, `group_delete`
+
+### Self-downgrade for moderators
+Moderators can voluntarily step down to member role via `/groups/<id>/self-downgrade`. Owners must transfer ownership before they can downgrade. This action is rate-limited and logged.
+
+> `routes/groups.py` → `group_self_downgrade`, `wiki_logger.py` → `log_action` (audit logging), `sync.py` → `notify_change`
+
+### Message deletion
+Moderators and owners can delete any message in the group via POST to `/groups/<id>/delete_message`. The message is removed from the database.
+
+> `routes/groups.py` → `group_delete_message`, `db/_groups.py` → `delete_group_message()`
+
+### Group activation/deactivation
+Owners can deactivate a group, which hides it from member lists and prevents new messages. It can be reactivated later without data loss.
+
+> `routes/groups.py` → `group_toggle_active`, `db/_groups.py` → `group_chats.is_active` column
+
+### Admin group oversight
+Admins can:
+- View all groups at `/admin/groups`
+- View any group's message history
+- Take over ownership of a group (`/groups/<id>/admin_takeover`)
+- Delete any group (including non-empty ones)
+
+> `routes/groups.py` → `admin_groups`, `admin_group_view`, `group_admin_takeover`, `admin_group_delete`, `app/templates/groups/admin_list.html`
 
 ---
 
@@ -503,6 +693,16 @@ Admins can create, edit, toggle active state, and delete announcements from a de
 Admins can view a filtered list of log file entries for a specific user (up to 200 most recent), along with their full username change history.
 
 > `routes/admin.py` → `admin_user_audit`, `_read_user_audit_log()`
+
+### Role change history
+Every time a user's role is changed (whether by an admin or self-toggled for protected_admin), the change is recorded in the `role_history` table. The history shows:
+- Old role and new role
+- Who made the change (admin username)
+- Timestamp of the change
+
+Users can view their own role history on their profile page. Admins can view any user's role history and can delete individual entries or clear all history for a user from the attribution management page.
+
+> `db/_audit.py` → `role_history` table, `record_role_change()`, `get_role_history()`, `delete_role_history_entry()`, `delete_all_role_history()`, `routes/users.py` → `user_profile` (displays history), `routes/admin.py` → `admin_manage_attributions` (delete actions)
 
 ### Export any user's data
 Admins can download a ZIP archive of any user's data directly from the user management table (`/admin/users/<id>/export`). The ZIP has the same structure as the self-service export (account info, contributions, drafts, username history, accessibility preferences) but password hashes are always excluded.
