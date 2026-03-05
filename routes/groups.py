@@ -373,6 +373,38 @@ def register_group_routes(app):
         flash(f"{target_name} is no longer a moderator.", "success")
         return redirect(url_for("group_view", group_id=group_id))
 
+    @app.route("/groups/<int:group_id>/self-downgrade", methods=["POST"])
+    @login_required
+    @rate_limit(10, 60)
+    def group_self_downgrade(group_id):
+        """Allow a moderator to voluntarily downgrade themselves to member."""
+        user = get_current_user()
+        group = db.get_group_chat(group_id)
+        if not group:
+            abort(404)
+        my_role = db.get_group_member_role(group_id, user["id"])
+
+        # Check if user is a member of the group
+        if my_role is None:
+            flash("You are not a member of this group.", "error")
+            return redirect(url_for("group_view", group_id=group_id))
+
+        # Check if user is a moderator (only moderators can self-downgrade)
+        if my_role != "moderator":
+            if my_role == "owner":
+                flash("Owners cannot self-downgrade. Transfer ownership first.", "error")
+            else:
+                flash("You are already a member.", "info")
+            return redirect(url_for("group_view", group_id=group_id))
+
+        # Perform the downgrade
+        db.set_group_member_role(group_id, user["id"], "member")
+        db.send_group_system_message(group_id, f"{user['username']} downgraded to member")
+        notify_change("group_self_downgrade", f"{user['username']} self-downgraded in '{group['name']}'")
+        log_action(user["id"], "group_self_downgrade", f"Self-downgraded in group '{group['name']}'")
+        flash("You are now a regular member.", "success")
+        return redirect(url_for("group_view", group_id=group_id))
+
     @app.route("/groups/<int:group_id>/transfer", methods=["POST"])
     @login_required
     def group_transfer(group_id):

@@ -163,6 +163,15 @@
                             </div>
                         </details>
                         {% endif %}
+                    {% else %}
+                        {# Self-actions: allow moderators to downgrade themselves #}
+                        {% if m.role == 'moderator' %}
+                        <form method="POST" action="{{ url_for('group_self_downgrade', group_id=group.id) }}" style="display:inline"
+                              onsubmit="return confirm('Downgrade yourself to member? You will lose moderator privileges.')">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button class="btn btn-sm btn-outline" title="Downgrade to member">⬇ Step Down</button>
+                        </form>
+                        {% endif %}
                     {% endif %}
                 </td>
             </tr>

@@ -524,6 +524,71 @@ def test_non_owner_cannot_promote(alice_uid, bob_uid):
 
 
 # ---------------------------------------------------------------------------
+# Self-Downgrade
+# ---------------------------------------------------------------------------
+
+def test_moderator_can_self_downgrade(alice_uid, bob_uid):
+    """Test that a moderator can voluntarily downgrade themselves to member."""
+    import db
+    from app import app
+    group = db.create_group_chat("Test", alice_uid)
+    db.add_group_member(group["id"], bob_uid, role="moderator")
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
+    with app.test_client() as c:
+        c.post("/login", data={"username": "bob", "password": "bob123"})
+        resp = c.post(f"/groups/{group['id']}/self-downgrade",
+                      follow_redirects=True)
+        assert b"You are now a regular member" in resp.data
+    assert db.get_group_member_role(group["id"], bob_uid) == "member"
+
+
+def test_owner_cannot_self_downgrade(alice_client, alice_uid):
+    """Test that owners cannot use self-downgrade (must transfer ownership first)."""
+    import db
+    group = db.create_group_chat("Test", alice_uid)
+    resp = alice_client.post(f"/groups/{group['id']}/self-downgrade",
+                             follow_redirects=True)
+    assert b"Owners cannot self-downgrade" in resp.data
+    # Owner role should be unchanged
+    assert db.get_group_member_role(group["id"], alice_uid) == "owner"
+
+
+def test_member_cannot_self_downgrade(alice_uid, bob_uid):
+    """Test that regular members cannot self-downgrade (already member)."""
+    import db
+    from app import app
+    group = db.create_group_chat("Test", alice_uid)
+    db.add_group_member(group["id"], bob_uid)  # Bob joins as member
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
+    with app.test_client() as c:
+        c.post("/login", data={"username": "bob", "password": "bob123"})
+        resp = c.post(f"/groups/{group['id']}/self-downgrade",
+                      follow_redirects=True)
+        assert b"already a member" in resp.data
+    # Member role should be unchanged
+    assert db.get_group_member_role(group["id"], bob_uid) == "member"
+
+
+def test_non_member_cannot_self_downgrade(alice_uid, bob_uid):
+    """Test that non-members cannot access self-downgrade endpoint."""
+    import db
+    from app import app
+    group = db.create_group_chat("Test", alice_uid)
+    # Bob is not added to the group
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
+    with app.test_client() as c:
+        c.post("/login", data={"username": "bob", "password": "bob123"})
+        resp = c.post(f"/groups/{group['id']}/self-downgrade",
+                      follow_redirects=True)
+        assert b"not a member" in resp.data
+    # Verify Bob is still not a member
+    assert db.get_group_member_role(group["id"], bob_uid) is None
+
+
+# ---------------------------------------------------------------------------
 # Ownership – Transfer
 # ---------------------------------------------------------------------------
 
