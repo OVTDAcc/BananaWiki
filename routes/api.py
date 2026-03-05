@@ -19,6 +19,20 @@ from routes.uploads import cleanup_unused_uploads
 def register_api_routes(app):
     """Register JSON API routes on the Flask app."""
 
+    def _serialize_checkout(checkout):
+        """Return a JSON-serialisable dict for a checkout row."""
+        if not checkout:
+            return None
+        return {
+            "page_id": checkout["page_id"],
+            "page_slug": checkout.get("page_slug"),
+            "page_title": checkout.get("page_title"),
+            "user_id": checkout["user_id"],
+            "username": checkout.get("username"),
+            "acquired_at": checkout["acquired_at"],
+            "last_seen": checkout["last_seen"],
+        }
+
     @app.route("/api/pages/search")
     @login_required
     @rate_limit(60, 60)
@@ -199,6 +213,74 @@ def register_api_routes(app):
             }
             for d in drafts
         ])
+
+    # -----------------------------------------------------------------------
+    #  Page checkout API
+    # -----------------------------------------------------------------------
+    @app.route("/api/checkout/status/<int:page_id>")
+    @login_required
+    @editor_required
+    @rate_limit(30, 60)
+    def api_checkout_status(page_id):
+        """Return the active checkout for a page, or null if none."""
+        page = db.get_page(page_id)
+        if not page:
+            return jsonify({"error": "page not found"}), 404
+        db.cleanup_expired_checkouts()
+        checkout = db.get_checkout(page_id)
+        return jsonify({"checkout": _serialize_checkout(checkout), "timeout_seconds": db.CHECKOUT_TIMEOUT_SECONDS})
+
+    @app.route("/api/checkout/heartbeat", methods=["POST"])
+    @login_required
+    @editor_required
+    @rate_limit(30, 60)
+    def api_checkout_heartbeat():
+        """Refresh or acquire a checkout while editing."""
+        data = request.get_json(silent=True)
+        if not data:
+            return jsonify({"error": "invalid request"}), 400
+        page_id = data.get("page_id")
+        try:
+            page_id = int(page_id)
+        except (TypeError, ValueError):
+            return jsonify({"error": "invalid page_id"}), 400
+        page = db.get_page(page_id)
+        if not page:
+            return jsonify({"error": "page not found"}), 404
+        user = get_current_user()
+        db.cleanup_expired_checkouts()
+        checkout, refreshed = db.refresh_checkout(page_id, user["id"])
+        if not checkout or checkout["user_id"] == user["id"]:
+            checkout, _ = db.acquire_checkout(page_id, user["id"])
+        status = "acquired" if checkout and checkout["user_id"] == user["id"] else "blocked"
+        return jsonify({
+            "status": status,
+            "checkout": _serialize_checkout(checkout),
+            "timeout_seconds": db.CHECKOUT_TIMEOUT_SECONDS,
+            "refreshed": refreshed and status == "acquired",
+        })
+
+    @app.route("/api/checkout/release", methods=["POST"])
+    @login_required
+    @editor_required
+    @rate_limit(30, 60)
+    def api_checkout_release():
+        """Release the current checkout for a page."""
+        data = request.get_json(silent=True)
+        if not data:
+            return jsonify({"error": "invalid request"}), 400
+        page_id = data.get("page_id")
+        try:
+            page_id = int(page_id)
+        except (TypeError, ValueError):
+            return jsonify({"error": "invalid page_id"}), 400
+        page = db.get_page(page_id)
+        if not page:
+            return jsonify({"error": "page not found"}), 404
+        user = get_current_user()
+        force = bool(data.get("force")) and user["role"] in ("admin", "protected_admin")
+        released = db.release_checkout(page_id, user["id"], force=force)
+        return jsonify({"ok": True, "released": released})
 
     # -----------------------------------------------------------------------
     #  Accessibility settings API

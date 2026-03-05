@@ -25,6 +25,21 @@ from routes.uploads import cleanup_unused_uploads
 def register_wiki_routes(app):
     """Register wiki page and category routes on the Flask app."""
 
+    def _checkout_context(page_id):
+        """Return checkout info dict for templates, or None if not checked out."""
+        checkout = db.get_checkout(page_id)
+        if not checkout:
+            return None
+        return {
+            "user_id": checkout["user_id"],
+            "username": checkout["username"],
+            "last_seen": checkout["last_seen"],
+            "time_ago": time_ago(checkout["last_seen"]) if checkout["last_seen"] else None,
+            "last_seen_formatted": format_datetime(checkout["last_seen"]) if checkout["last_seen"] else None,
+            "page_slug": checkout["page_slug"],
+            "page_title": checkout["page_title"],
+        }
+
     @app.route("/")
     @login_required
     def home():
@@ -45,6 +60,7 @@ def register_wiki_routes(app):
                 }
 
         log_action("view_page", request, user=user, page="home")
+        checkout_info = _checkout_context(page["id"]) if page else None
         return render_template(
             "wiki/page.html",
             page=page,
@@ -52,6 +68,7 @@ def register_wiki_routes(app):
             categories=categories,
             uncategorized=uncategorized,
             editor_info=editor_info,
+            checkout=checkout_info,
         )
 
     @app.route("/page/<slug>")
@@ -78,6 +95,7 @@ def register_wiki_routes(app):
         log_action("view_page", request, user=user, page=slug)
         attachments = db.get_page_attachments(page["id"])
         prev_page, next_page = db.get_adjacent_pages(page["id"])
+        checkout_info = _checkout_context(page["id"])
         return render_template(
             "wiki/page.html",
             page=page,
@@ -88,6 +106,7 @@ def register_wiki_routes(app):
             attachments=attachments,
             prev_page=prev_page,
             next_page=next_page,
+            checkout=checkout_info,
         )
 
     @app.route("/page/<slug>/history")
@@ -319,6 +338,14 @@ def register_wiki_routes(app):
             flash("You do not have permission to edit pages in this category.", "error")
             return redirect(url_for("view_page", slug=slug))
         categories, uncategorized = db.get_category_tree()
+        # Enforce single-editor checkout
+        db.cleanup_expired_checkouts()
+        checkout_row, acquired = db.acquire_checkout(page["id"], user["id"])
+        if not acquired and checkout_row and checkout_row["user_id"] != user["id"]:
+            holder = checkout_row["username"] or "another editor"
+            flash(f"This page is currently checked out by {holder}. Try again later.", "error")
+            return redirect(url_for("view_page", slug=slug))
+        checkout_info = _checkout_context(page["id"])
 
         # Check for existing drafts from other users
         other_drafts = [
@@ -389,6 +416,7 @@ def register_wiki_routes(app):
             cleanup_unused_uploads()
             log_action("edit_page", request, user=user, page=slug, message=edit_message)
             notify_change("page_edit", f"Page '{slug}' edited")
+            db.release_checkout(page["id"], user["id"])
             flash("Page updated.", "success")
             if page["is_home"]:
                 return redirect(url_for("home"))
@@ -405,6 +433,8 @@ def register_wiki_routes(app):
             categories=categories,
             uncategorized=uncategorized,
             attachments=attachments,
+            checkout=checkout_info,
+            checkout_timeout=db.CHECKOUT_TIMEOUT_SECONDS,
         )
 
     @app.route("/page/<slug>/edit/title", methods=["POST"])

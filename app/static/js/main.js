@@ -239,6 +239,77 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
+// Page checkout heartbeat
+function initCheckout(pageId, timeoutSeconds) {
+    var notice = document.getElementById('checkout-notice');
+    if (!pageId || !notice) return;
+
+    var statusEl = notice.querySelector('.checkout-status') || notice;
+    var metaEl = notice.querySelector('.checkout-meta');
+
+    function setStatus(message, isWarning) {
+        if (statusEl) statusEl.textContent = message;
+        if (isWarning) {
+            notice.classList.add('checkout-warning');
+        } else {
+            notice.classList.remove('checkout-warning');
+        }
+    }
+
+    function updateMeta(text) {
+        if (metaEl) {
+            metaEl.textContent = text;
+        } else if (!notice.querySelector('.checkout-meta')) {
+            var span = document.createElement('span');
+            span.className = 'checkout-meta';
+            span.style.marginLeft = '.4rem';
+            span.style.opacity = '.8';
+            span.textContent = text;
+            notice.appendChild(span);
+            metaEl = span;
+        }
+    }
+
+    function heartbeat() {
+        fetch('/api/checkout/heartbeat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+            body: JSON.stringify({ page_id: pageId })
+        }).then(function(r) {
+            return r.json();
+        }).then(function(resp) {
+            if (!resp || resp.status === 'blocked') {
+                setStatus('Another editor has this page checked out. Edits are locked.', true);
+                if (metaEl) metaEl.textContent = '';
+                return;
+            }
+            setStatus('Checkout active. This lock expires after ' + Math.round((timeoutSeconds || 900) / 60) + ' minutes of inactivity.', false);
+            if (resp.checkout && resp.checkout.last_seen) {
+                updateMeta('Last heartbeat just now.');
+            }
+        }).catch(function() {
+            /* ignore heartbeat errors */
+        });
+    }
+
+    // Heartbeat every ~1/3 of timeout, bounded between 30s and 3m
+    var intervalMs = Math.min(Math.max((timeoutSeconds || 900) * 1000 / 3, 30000), 180000);
+    heartbeat();
+    var heartbeatTimer = setInterval(heartbeat, intervalMs);
+
+    // Release checkout when leaving the page (best-effort)
+    var release = function() {
+        fetch('/api/checkout/release', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+            body: JSON.stringify({ page_id: pageId }),
+            keepalive: true
+        }).catch(function() { /* ignore */ });
+    };
+    window.addEventListener('pagehide', release);
+    window.addEventListener('beforeunload', release);
+}
+
 // Autosave for editor
 function initAutosave(pageId) {
     var titleEl = document.getElementById('edit-title');
@@ -1872,4 +1943,3 @@ function sidebarSearchScrollToCategory(catId) {
     var results = document.getElementById('sidebar-search-results');
     if (results) results.hidden = true;
 }
-

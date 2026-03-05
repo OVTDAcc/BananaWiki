@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Page Checkouts – {{ settings.site_name }}{% endblock %}
+{% block content %}
+<h1>Page Checkouts</h1>
+<p style="font-size:.9rem;opacity:.8;margin-bottom:1rem">
+    Active edit locks are shown below. Checkouts expire automatically after {{ checkout_timeout_minutes }} minutes of inactivity.
+</p>
+
+{% if checkouts %}
+<table class="admin-table">
+    <thead>
+        <tr>
+            <th>Page</th>
+            <th>Checked out by</th>
+            <th>Held since</th>
+            <th>Last heartbeat</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for c in checkouts %}
+        <tr>
+            <td>
+                <a href="{{ url_for('view_page', slug=c.page_slug) }}">{{ c.page_title }}</a>
+                <div style="font-size:.8rem;opacity:.7">{{ c.page_slug }}</div>
+            </td>
+            <td>
+                {% if c.username %}
+                <a href="{{ url_for('user_profile', username=c.username) }}" style="color:inherit">{{ c.username }}</a>
+                {% else %}
+                <span style="opacity:.7">Unknown user</span>
+                {% endif %}
+                <div style="font-size:.8rem;opacity:.65">{{ c.user_id }}</div>
+            </td>
+            <td title="{{ format_datetime(c.acquired_at) }}">{{ time_ago(c.acquired_at) }}</td>
+            <td title="{{ format_datetime(c.last_seen) }}">{{ time_ago(c.last_seen) }}</td>
+            <td>
+                <form method="POST" action="{{ url_for('admin_release_checkout') }}" style="display:inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="page_id" value="{{ c.page_id }}">
+                    <button class="btn btn-sm btn-outline">Release</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p style="opacity:.7">No pages are currently checked out.</p>
+{% endif %}
+{% endblock %}

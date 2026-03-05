@@ -16,6 +16,7 @@ _EXPORT_TABLES = [
     "invite_codes",
     "categories",
     "pages",
+    "page_checkouts",
     "page_history",
     "drafts",
     "announcements",
@@ -143,4 +144,3 @@ def import_site_data(data, mode):
     finally:
         conn.execute("PRAGMA foreign_keys=ON")
         conn.close()
-

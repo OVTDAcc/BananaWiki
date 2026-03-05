@@ -77,6 +77,13 @@ def init_db():
         UNIQUE(page_id, user_id)
     );
 
+    CREATE TABLE IF NOT EXISTS page_checkouts (
+        page_id     INTEGER PRIMARY KEY REFERENCES pages(id) ON DELETE CASCADE,
+        user_id     TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        acquired_at TEXT    NOT NULL DEFAULT (datetime('now')),
+        last_seen   TEXT    NOT NULL DEFAULT (datetime('now'))
+    );
+
     CREATE TABLE IF NOT EXISTS site_settings (
         id          INTEGER PRIMARY KEY CHECK (id = 1),
         site_name   TEXT    NOT NULL DEFAULT 'BananaWiki',
@@ -339,6 +346,20 @@ def init_db():
     if "is_revert" not in hist_cols:
         cur.execute("ALTER TABLE page_history ADD COLUMN is_revert INTEGER NOT NULL DEFAULT 0")
 
+    # Add page_checkouts table if missing
+    has_checkouts = cur.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='page_checkouts'"
+    ).fetchone()
+    if not has_checkouts:
+        cur.execute("""
+            CREATE TABLE page_checkouts (
+                page_id     INTEGER PRIMARY KEY REFERENCES pages(id) ON DELETE CASCADE,
+                user_id     TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                acquired_at TEXT    NOT NULL DEFAULT (datetime('now')),
+                last_seen   TEXT    NOT NULL DEFAULT (datetime('now'))
+            )
+        """)
+
     # Migrate users.id from INTEGER to TEXT if needed
     user_id_type = next(
         (r[2] for r in cur.execute("PRAGMA table_info(users)").fetchall() if r[1] == 'id'),
@@ -564,4 +585,3 @@ def _migrate_user_id_to_text(conn, cur):
     cur.execute("ALTER TABLE drafts_new RENAME TO drafts")
 
     conn.execute("PRAGMA foreign_keys=ON")
-

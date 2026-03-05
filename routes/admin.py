@@ -948,6 +948,43 @@ def register_admin_routes(app):
         return redirect(url_for("admin_announcements"))
 
     # -------------------------------------------------------------------
+    #  Admin – Page checkouts monitor
+    # -------------------------------------------------------------------
+    @app.route("/admin/checkouts")
+    @login_required
+    @admin_required
+    def admin_checkouts():
+        """List active page checkouts and allow admins to release them."""
+        db.cleanup_expired_checkouts()
+        checkouts = db.list_active_checkouts()
+        categories, uncategorized = db.get_category_tree()
+        return render_template("admin/checkouts.html", checkouts=checkouts,
+                               categories=categories, uncategorized=uncategorized,
+                               checkout_timeout_minutes=db.CHECKOUT_TIMEOUT_SECONDS // 60)
+
+    @app.route("/admin/checkouts/release", methods=["POST"])
+    @login_required
+    @admin_required
+    @rate_limit(10, 60)
+    def admin_release_checkout():
+        """Force release a checkout for a page."""
+        page_id = request.form.get("page_id", type=int)
+        if not page_id:
+            flash("Invalid page id.", "error")
+            return redirect(url_for("admin_checkouts"))
+        page = db.get_page(page_id)
+        user = get_current_user()
+        released = db.release_checkout(page_id, force=True)
+        if released:
+            slug = page["slug"] if page else page_id
+            log_action("admin_release_checkout", request, user=user, page=slug)
+            notify_change("admin_release_checkout", f"Checkout released for page '{slug}'")
+            flash("Checkout released.", "success")
+        else:
+            flash("No checkout found for that page.", "error")
+        return redirect(url_for("admin_checkouts"))
+
+    # -------------------------------------------------------------------
     #  Public – Announcement full view
     # -------------------------------------------------------------------
 

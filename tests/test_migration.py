@@ -72,7 +72,7 @@ def test_export_site_data_structure(admin_user):
     assert data["_meta"]["version"] == 1
     assert "exported_at" in data["_meta"]
     for table in ("users", "invite_codes", "categories", "pages",
-                  "page_history", "drafts", "announcements",
+                  "page_checkouts", "page_history", "drafts", "announcements",
                   "username_history", "site_settings"):
         assert table in data, f"Missing table: {table}"
 

@@ -33,6 +33,13 @@
 </div>
 {% endif %}
 
+{% if checkout %}
+<div class="draft-notice checkout-notice" id="checkout-notice">
+    <span class="checkout-status">You have this page checked out. This lock expires after {{ (checkout_timeout // 60)|int }} minutes of inactivity.</span>
+    {% if checkout.time_ago %}<span class="checkout-meta">Last heartbeat {{ checkout.time_ago }} ago.</span>{% endif %}
+</div>
+{% endif %}
+
 <form method="POST" id="editForm">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="form-group">
@@ -272,6 +279,7 @@
 {% block scripts %}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
+        initCheckout({{ page.id }}, {{ checkout_timeout }});
         initAutosave({{ page.id }});
         initImageUpload(document.getElementById('edit-content'));
         initPreview();

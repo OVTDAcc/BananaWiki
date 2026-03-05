@@ -32,6 +32,17 @@
     {% endif %}
 </div>
 
+{% if checkout %}
+<div class="checkout-banner{% if current_user and checkout.user_id == current_user.id %} checkout-own{% endif %}">
+    {% if current_user and checkout.user_id == current_user.id %}
+    You have this page checked out for editing. Others will be blocked while you are active. Last heartbeat {{ checkout.time_ago }} ago.
+    {% else %}
+    This page is currently being edited by <strong>{{ checkout.username or 'another user' }}</strong>.
+    {% if checkout.last_seen_formatted %}<span style="opacity:.8">Last activity {{ checkout.time_ago }} ago ({{ checkout.last_seen_formatted }}).</span>{% endif %}
+    {% endif %}
+</div>
+{% endif %}
+
 <div class="wiki-content">
     {{ content_html|safe }}
 </div>

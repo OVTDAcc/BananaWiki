@@ -173,6 +173,11 @@ When an editor opens a page that another user already has an open draft for, a c
 
 > `routes/api.py` → `api_other_drafts`, `routes/wiki.py` → `edit_page`
 
+### Page checkouts (edit locks)
+Opening the editor acquires a checkout lock on the page so only one editor can commit changes at a time. Locks refresh periodically via heartbeat calls, expire automatically after inactivity, and can be force-released by admins from the Checkouts panel.
+
+> `db/_checkouts.py` → `acquire_checkout()`, `refresh_checkout()`, `routes/wiki.py` → `edit_page`, `routes/api.py` → `api_checkout_heartbeat`, `routes/admin.py` → `admin_checkouts`
+
 ### Draft transfer (take over another user's draft)
 An editor can silently absorb another user's open draft into their own. The merge is recorded by appending the original author's username to the commit message as a contributor.
 

@@ -202,6 +202,13 @@ class TestDbPackageImports:
                      "update_page_tag", "delete_page", "get_page_history", "get_history_entry"):
             assert hasattr(db, name), f"db.{name} is missing"
 
+    def test_db_reexports_checkouts(self):
+        """db package re-exports checkout helpers."""
+        import db
+        for name in ("acquire_checkout", "refresh_checkout", "release_checkout",
+                     "get_checkout", "list_active_checkouts", "cleanup_expired_checkouts"):
+            assert hasattr(db, name), f"db.{name} is missing"
+
     def test_db_reexports_drafts(self):
         """db package re-exports draft management functions."""
         import db

@@ -197,6 +197,10 @@ select.input{appearance:auto}
 .draft-notice{padding:.5rem .8rem;background:rgba(210,170,90,.08);border:1px solid rgba(210,170,90,.25);border-radius:4px;margin-bottom:.8rem;font-size:.85rem}
 .draft-notice .btn{margin-left:.5rem}
 .draft-notice-warning{background:rgba(196,92,106,.08);border-color:rgba(196,92,106,.25)}
+.checkout-notice{background:rgba(118,160,235,.08);border-color:rgba(118,160,235,.35)}
+.checkout-warning{background:rgba(200,120,120,.1)!important;border-color:rgba(200,120,120,.35)!important}
+.checkout-banner{padding:.6rem .8rem;background:rgba(118,160,235,.08);border:1px solid rgba(118,160,235,.35);border-radius:4px;margin-bottom:1rem;font-size:.9rem}
+.checkout-banner.checkout-own{background:rgba(120,210,150,.08);border-color:rgba(120,210,150,.35)}
 .btn-danger-outline{border-color:rgba(196,92,106,.4);color:#e88898}
 .btn-danger-outline:hover{border-color:#c45c6a;background:rgba(196,92,106,.12)}
 .draft-manager-table{width:100%;border-collapse:collapse;font-size:.88rem}
