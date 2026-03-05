@@ -6,6 +6,12 @@
     <span class="save-indicator" id="save-indicator"></span>
 </div>
 
+{% if checkout %}
+<div class="draft-notice" style="background:var(--accent);color:var(--bg)">
+    🔒 You have exclusive editing access to this page. The lock will automatically release after {{ timeout_minutes }} minutes of inactivity or when you save your changes.
+</div>
+{% endif %}
+
 {% if draft and page.last_edited_at and page.last_edited_at > draft.updated_at %}
 <div class="draft-notice draft-notice-warning" id="stale-draft-notice">
     ⚠ This page was updated by another user after your draft was saved. Your draft may be based on outdated content.

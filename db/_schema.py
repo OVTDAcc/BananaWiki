@@ -237,6 +237,12 @@ def init_db():
         color       TEXT    NOT NULL DEFAULT '#9b59b6',
         sort_order  INTEGER NOT NULL DEFAULT 0
     );
+
+    CREATE TABLE IF NOT EXISTS page_checkouts (
+        page_id         INTEGER PRIMARY KEY REFERENCES pages(id) ON DELETE CASCADE,
+        user_id         TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        checked_out_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+    );
     """)
 
     # -- Migrations: add columns to existing tables --

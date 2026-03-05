@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Page Checkouts – {{ settings.site_name }}{% endblock %}
+{% block content %}
+<h1>Active Page Checkouts</h1>
+
+<p style="margin-bottom:1rem;opacity:.8">
+    Pages are automatically released after {{ timeout_minutes }} minutes of inactivity.
+</p>
+
+{% if checkouts %}
+<table class="admin-table">
+    <thead>
+        <tr>
+            <th>Page</th>
+            <th>Checked Out By</th>
+            <th>Checked Out</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for co in checkouts %}
+        <tr>
+            <td>
+                <a href="{{ url_for('view_page', slug=co.page_slug) }}">{{ co.page_title }}</a>
+            </td>
+            <td>{{ co.username }}</td>
+            <td>{{ time_ago(co.checked_out_at) }}</td>
+            <td>
+                <form method="POST" action="{{ url_for('admin_release_checkout', page_id=co.page_id) }}" style="display:inline" data-confirm="Force release this checkout?">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-sm btn-danger">Release</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p style="opacity:.5">No active checkouts.</p>
+{% endif %}
+{% endblock %}

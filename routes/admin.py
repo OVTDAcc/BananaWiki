@@ -979,3 +979,29 @@ def register_admin_routes(app):
         return render_template("wiki/announcement.html", ann=ann,
                                content_html=content_html,
                                categories=categories, uncategorized=uncategorized)
+
+    # -------------------------------------------------------------------
+    #  Admin – Checkout management
+    # -------------------------------------------------------------------
+
+    @app.route("/admin/checkouts")
+    @login_required
+    @admin_required
+    def admin_checkouts():
+        """Display all active page checkouts."""
+        checkouts = db.list_all_checkouts()
+        return render_template("admin/checkouts.html",
+                               checkouts=checkouts,
+                               timeout_minutes=db.CHECKOUT_TIMEOUT_MINUTES)
+
+    @app.route("/admin/checkouts/<int:page_id>/release", methods=["POST"])
+    @login_required
+    @admin_required
+    @rate_limit(20, 60)
+    def admin_release_checkout(page_id):
+        """Force release a checkout (admin only)."""
+        user = get_current_user()
+        db.release_checkout(page_id)
+        log_action("release_checkout", request, user=user, page_id=page_id)
+        flash("Checkout released.", "success")
+        return redirect(url_for("admin_checkouts"))

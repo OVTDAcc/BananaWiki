@@ -325,6 +325,17 @@ def register_wiki_routes(app):
             d for d in db.get_drafts_for_page(page["id"]) if d["user_id"] != user["id"]
         ]
 
+        # Check for checkout
+        checkout = db.get_checkout(page["id"])
+        if checkout and checkout["user_id"] != user["id"]:
+            # Page is checked out by another user
+            flash(
+                f"This page is currently being edited by {checkout['username']}. "
+                f"Please try again later.",
+                "error"
+            )
+            return redirect(url_for("view_page", slug=slug))
+
         if request.method == "POST":
             title = request.form.get("title", page["title"]).strip()
             content = request.form.get("content", "")
@@ -386,12 +397,22 @@ def register_wiki_routes(app):
                 if d["user_id"] != user["id"]:
                     db.delete_draft(page["id"], d["user_id"])
 
+            # Release checkout
+            db.release_checkout(page["id"], user["id"])
+
             cleanup_unused_uploads()
             log_action("edit_page", request, user=user, page=slug, message=edit_message)
             notify_change("page_edit", f"Page '{slug}' edited")
             flash("Page updated.", "success")
             if page["is_home"]:
                 return redirect(url_for("home"))
+            return redirect(url_for("view_page", slug=slug))
+
+        # Acquire checkout for GET request
+        checkout_result = db.acquire_checkout(page["id"], user["id"])
+        if not checkout_result:
+            # This shouldn't happen since we checked above, but handle it
+            flash("Unable to acquire page lock. Please try again.", "error")
             return redirect(url_for("view_page", slug=slug))
 
         # Load draft if exists
@@ -405,6 +426,8 @@ def register_wiki_routes(app):
             categories=categories,
             uncategorized=uncategorized,
             attachments=attachments,
+            checkout=checkout_result,
+            timeout_minutes=db.CHECKOUT_TIMEOUT_MINUTES,
         )
 
     @app.route("/page/<slug>/edit/title", methods=["POST"])

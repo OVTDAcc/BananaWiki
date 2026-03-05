@@ -201,6 +201,69 @@ def register_api_routes(app):
         ])
 
     # -----------------------------------------------------------------------
+    #  Checkout API
+    # -----------------------------------------------------------------------
+    @app.route("/api/checkout/refresh", methods=["POST"])
+    @login_required
+    @editor_required
+    @rate_limit(60, 60)
+    def api_refresh_checkout():
+        """Refresh the checkout timestamp for the current user on a page."""
+        data = request.get_json(silent=True)
+        if not data:
+            return jsonify({"error": "invalid request"}), 400
+        page_id = data.get("page_id")
+        if page_id is None:
+            return jsonify({"error": "missing page_id"}), 400
+        try:
+            page_id = int(page_id)
+        except (TypeError, ValueError):
+            return jsonify({"error": "invalid page_id"}), 400
+
+        user = get_current_user()
+        success = db.refresh_checkout(page_id, user["id"])
+        if success:
+            return jsonify({"ok": True})
+        else:
+            return jsonify({"error": "checkout not found or expired"}), 404
+
+    @app.route("/api/checkout/release", methods=["POST"])
+    @login_required
+    @editor_required
+    @rate_limit(30, 60)
+    def api_release_checkout():
+        """Release a checkout lock on a page."""
+        data = request.get_json(silent=True)
+        if not data:
+            return jsonify({"error": "invalid request"}), 400
+        page_id = data.get("page_id")
+        if page_id is None:
+            return jsonify({"error": "missing page_id"}), 400
+        try:
+            page_id = int(page_id)
+        except (TypeError, ValueError):
+            return jsonify({"error": "invalid page_id"}), 400
+
+        user = get_current_user()
+        db.release_checkout(page_id, user["id"])
+        return jsonify({"ok": True})
+
+    @app.route("/api/checkout/status/<int:page_id>")
+    @login_required
+    def api_checkout_status(page_id):
+        """Get the current checkout status for a page."""
+        checkout = db.get_checkout(page_id)
+        if checkout:
+            return jsonify({
+                "checked_out": True,
+                "user_id": checkout["user_id"],
+                "username": checkout["username"],
+                "checked_out_at": checkout["checked_out_at"],
+            })
+        else:
+            return jsonify({"checked_out": False})
+
+    # -----------------------------------------------------------------------
     #  Accessibility settings API
     # -----------------------------------------------------------------------
     _VALID_FONT_SCALES = {0.85, 0.9, 1.0, 1.1, 1.2, 1.35}
