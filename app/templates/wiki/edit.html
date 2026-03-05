@@ -4,7 +4,17 @@
 <div class="page-header">
     <h1>Editing: {{ page.title }}</h1>
     <span class="save-indicator" id="save-indicator"></span>
+    <form method="POST" action="{{ url_for('release_page_checkout', slug=page.slug) }}" style="display:inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-sm btn-outline" title="Release your edit lock and return to the page">Release checkout</button>
+    </form>
 </div>
+
+{% if checkout %}
+<div class="draft-notice draft-notice-warning">
+    ⚠ <strong>{{ checkout.username }}</strong> is already editing this page. You may still edit, but your changes may conflict.
+</div>
+{% endif %}
 
 {% if draft and page.last_edited_at and page.last_edited_at > draft.updated_at %}
 <div class="draft-notice draft-notice-warning" id="stale-draft-notice">

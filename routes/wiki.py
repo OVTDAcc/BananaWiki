@@ -45,6 +45,7 @@ def register_wiki_routes(app):
                 }
 
         log_action("view_page", request, user=user, page="home")
+        page_checkout = db.get_page_checkout(page["id"]) if page else None
         return render_template(
             "wiki/page.html",
             page=page,
@@ -52,6 +53,7 @@ def register_wiki_routes(app):
             categories=categories,
             uncategorized=uncategorized,
             editor_info=editor_info,
+            page_checkout=page_checkout,
         )
 
     @app.route("/page/<slug>")
@@ -78,6 +80,7 @@ def register_wiki_routes(app):
         log_action("view_page", request, user=user, page=slug)
         attachments = db.get_page_attachments(page["id"])
         prev_page, next_page = db.get_adjacent_pages(page["id"])
+        page_checkout = db.get_page_checkout(page["id"])
         return render_template(
             "wiki/page.html",
             page=page,
@@ -88,6 +91,7 @@ def register_wiki_routes(app):
             attachments=attachments,
             prev_page=prev_page,
             next_page=next_page,
+            page_checkout=page_checkout,
         )
 
     @app.route("/page/<slug>/history")
@@ -386,6 +390,9 @@ def register_wiki_routes(app):
                 if d["user_id"] != user["id"]:
                     db.delete_draft(page["id"], d["user_id"])
 
+            # Release the checkout now that the edit has been saved
+            db.release_checkout(page["id"], user["id"])
+
             cleanup_unused_uploads()
             log_action("edit_page", request, user=user, page=slug, message=edit_message)
             notify_change("page_edit", f"Page '{slug}' edited")
@@ -393,6 +400,13 @@ def register_wiki_routes(app):
             if page["is_home"]:
                 return redirect(url_for("home"))
             return redirect(url_for("view_page", slug=slug))
+
+        # Auto-check-out the page for this user when they open the editor.
+        # If another user currently holds the checkout a warning is displayed.
+        existing_checkout = db.get_page_checkout(page["id"])
+        if existing_checkout is None or existing_checkout["user_id"] == user["id"]:
+            db.checkout_page(page["id"], user["id"])
+            existing_checkout = None  # user owns it; no warning needed
 
         # Load draft if exists
         draft = db.get_draft(page["id"], user["id"])
@@ -405,6 +419,7 @@ def register_wiki_routes(app):
             categories=categories,
             uncategorized=uncategorized,
             attachments=attachments,
+            checkout=existing_checkout,
         )
 
     @app.route("/page/<slug>/edit/title", methods=["POST"])
@@ -432,6 +447,28 @@ def register_wiki_routes(app):
             log_action("edit_page_title", request, user=user, page=slug, new_title=new_title)
             notify_change("page_title_edit", f"Page '{slug}' title changed to '{new_title}'")
             flash("Title updated.", "success")
+        if page["is_home"]:
+            return redirect(url_for("home"))
+        return redirect(url_for("view_page", slug=slug))
+
+    @app.route("/page/<slug>/checkout/release", methods=["POST"])
+    @login_required
+    @editor_required
+    @rate_limit(20, 60)
+    def release_page_checkout(slug):
+        """Release the calling user's checkout for a page.
+
+        Redirects back to the page view (or home for the home page).  This
+        route is also reachable via a form button in the editor so editors can
+        voluntarily give up their lock without saving.
+        """
+        page = db.get_page_by_slug(slug)
+        if not page:
+            abort(404)
+        user = get_current_user()
+        db.release_checkout(page["id"], user["id"])
+        log_action("release_checkout", request, user=user, page=slug)
+        flash("Checkout released.", "success")
         if page["is_home"]:
             return redirect(url_for("home"))
         return redirect(url_for("view_page", slug=slug))

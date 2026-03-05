@@ -163,6 +163,18 @@ Page history can be globally disabled by setting `PAGE_HISTORY_ENABLED = False` 
 
 ## Drafts and collaboration
 
+### Page checkout (edit lock)
+When an editor opens a page for editing, the server automatically records a **checkout** — a short-lived edit lock that signals the editor's intent to other users.  The checkout expires after `CHECKOUT_TIMEOUT_MINUTES` minutes (default: 30) and is released automatically when the editor saves.
+
+- **Page view banner** — if a page is currently checked out by another user, a notice appears below the page content: *"✏️ username is currently editing this page."*
+- **Editor warning** — if a second editor opens the same page, a conflict banner appears at the top of the editor: *"⚠ username is already editing this page."*
+- **Release button** — the editor toolbar contains a **Release checkout** button so an editor can voluntarily give up the lock without saving.  The release endpoint is `POST /page/<slug>/checkout/release`.
+- **Automatic release on save** — once the editor saves the page (`POST /page/<slug>/edit`), the checkout is released immediately.
+
+> `db/_checkouts.py` → `checkout_page()`, `release_checkout()`, `get_page_checkout()`, `cleanup_expired_checkouts()`  
+> `routes/wiki.py` → `edit_page`, `release_page_checkout`  
+> `config.py` → `CHECKOUT_TIMEOUT_MINUTES`
+
 ### Auto-saving drafts
 While editing, the browser saves a draft to the server every few seconds via `/api/draft/save`. On next visit the draft is restored automatically so unsaved work is never lost.
 

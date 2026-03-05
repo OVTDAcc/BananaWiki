@@ -36,6 +36,12 @@
     {{ content_html|safe }}
 </div>
 
+{% if page_checkout and current_user and page_checkout.user_id != current_user.id %}
+<div class="draft-notice draft-notice-warning">
+    ✏️ <strong>{{ page_checkout.username }}</strong> is currently editing this page.
+</div>
+{% endif %}
+
 {% if editor_info %}
 <div class="edit-info">
     Last edit by <strong><a href="{{ url_for('user_profile', username=editor_info.username) }}" style="color:inherit">{{ editor_info.username }}</a></strong> <span title="{{ editor_info.edited_at }}">{{ editor_info.time_ago }}</span>

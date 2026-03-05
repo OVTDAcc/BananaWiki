@@ -108,6 +108,13 @@ LOGGING_ENABLED = True
 LOG_FILE = os.path.join(BASE_DIR, "logs", "bananawiki.log")
 
 # =============================================================================
+# Page Checkout (edit lock)
+# =============================================================================
+# How many minutes a page checkout (edit lock) lasts before it expires
+# automatically.  A user's checkout is also released when they save the page.
+CHECKOUT_TIMEOUT_MINUTES = 30
+
+# =============================================================================
 # Page History
 # =============================================================================
 # Enable or disable the page history viewer. When True (the default), every

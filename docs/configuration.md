@@ -58,6 +58,12 @@ Logs record every request (IP, method, path, user) and every significant action 
 |---|---|---|
 | `PAGE_HISTORY_ENABLED` | `True` | Enables the page history viewer. Every edit, title change, and revert is recorded. Reverting creates a new history entry — nothing is ever deleted. |
 
+## Page Checkout
+
+| Setting | Default | Description |
+|---|---|---|
+| `CHECKOUT_TIMEOUT_MINUTES` | `30` | How long a page checkout (edit lock) remains active before it expires automatically. A checkout is created when an editor opens the edit page and released when they save. |
+
 ## Invite Codes
 
 | Setting | Default | Description |
