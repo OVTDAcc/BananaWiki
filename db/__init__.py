@@ -14,6 +14,7 @@ from ._schema import init_db  # noqa: F401
 # Users & editor access
 from ._users import (  # noqa: F401
     _gen_user_id,
+    generate_random_id,
     create_user,
     get_user_by_id,
     get_user_by_username,

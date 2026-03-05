@@ -9,12 +9,49 @@ from ._connection import get_db
 
 
 # ---------------------------------------------------------------------------
-#  User helpers
+#  ID Generation helpers
 # ---------------------------------------------------------------------------
 def _gen_user_id():
     """Generate a random 8-character alphanumeric lowercase user ID."""
     chars = string.ascii_lowercase + string.digits
     return ''.join(secrets.choice(chars) for _ in range(8))
+
+
+def generate_random_id(length=12):
+    """Generate a random alphanumeric ID for entities.
+
+    This function generates cryptographically secure random IDs that can be used
+    for groups, pages, categories, and other entities as an alternative to
+    sequential INTEGER AUTOINCREMENT IDs.
+
+    Args:
+        length (int): Length of the ID to generate (default: 12 characters)
+
+    Returns:
+        str: Random alphanumeric lowercase ID
+
+    Note:
+        Using random IDs instead of sequential integers provides:
+        - Better privacy (can't enumerate all entities by incrementing IDs)
+        - Harder to guess entity counts or creation patterns
+        - More suitable for public-facing URLs
+
+        However, migrating existing entities from INTEGER to TEXT IDs requires:
+        - Database schema changes (PRIMARY KEY type change)
+        - Foreign key relationship updates
+        - Route parameter type changes (<int:id> to <string:id>)
+        - Extensive testing to prevent regressions
+
+        For this reason, this function is provided as a foundation for future
+        migration work, but not yet integrated into all entity creation paths.
+    """
+    chars = string.ascii_lowercase + string.digits
+    return ''.join(secrets.choice(chars) for _ in range(length))
+
+
+# ---------------------------------------------------------------------------
+#  User helpers
+# ---------------------------------------------------------------------------
 
 
 def create_user(username, hashed_pw, role="user", invite_code=None):
