@@ -133,11 +133,11 @@
         <input type="hidden" name="action" value="update_profile">
         <div class="form-group">
             <label>Real Name (optional)</label>
-            <input type="text" name="real_name" class="input" value="{{ profile.real_name if profile else '' }}" maxlength="100" placeholder="Your real name">
+            <input type="text" name="real_name" class="input" value="{{ profile.real_name if profile else '' }}" maxlength="100" placeholder="Enter your real name (optional)">
         </div>
         <div class="form-group">
             <label>Bio (optional, max 500 chars)</label>
-            <textarea name="bio" class="input" rows="3" maxlength="500" placeholder="A short bio about yourself">{{ profile.bio if profile else '' }}</textarea>
+            <textarea name="bio" class="input" rows="3" maxlength="500" placeholder="Write a short bio about yourself (optional)">{{ profile.bio if profile else '' }}</textarea>
         </div>
         <div class="form-group">
             <label>Profile Picture (PNG/JPG/GIF/WebP, max 1 MB)</label>

@@ -37,7 +37,7 @@
 <form method="POST" action="{{ url_for('chat_send', chat_id=chat.id) }}" class="chat-input-form" enctype="multipart/form-data">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="chat-input-row">
-        <textarea name="content" class="input chat-input" placeholder="Type a message…" required rows="2" maxlength="5000"></textarea>
+        <textarea name="content" class="input chat-input" placeholder="Type your message here…" required rows="2" maxlength="5000"></textarea>
         <button type="submit" class="btn chat-send-btn">Send</button>
     </div>
     <div class="chat-input-file">
