@@ -1,4 +1,4 @@
-.PHONY: help dev start install test clean
+.PHONY: help dev start install update test clean
 
 # Default target
 help:
@@ -13,6 +13,7 @@ help:
 	@echo "Production:"
 	@echo "  make start        Start production server with Gunicorn"
 	@echo "  make install      Run automated production installation (requires sudo)"
+	@echo "  make update       Update BananaWiki to latest version (requires sudo)"
 	@echo ""
 	@echo "Utilities:"
 	@echo "  make clean        Remove venv, cache, and temporary files"
@@ -29,6 +30,10 @@ start:
 # Automated production installation
 install:
 	@sudo ./install.sh
+
+# Update to latest version
+update:
+	@sudo ./update.sh
 
 # Run tests
 test:

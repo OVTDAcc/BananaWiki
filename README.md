@@ -235,6 +235,7 @@ BananaWiki/
 ├── dev.sh              # Quick start script for local development
 ├── start.sh            # Production start script with Gunicorn
 ├── install.sh          # Automated production installation script
+├── update.sh           # Automated update script (NEW)
 ├── bananawiki.service  # systemd service file for production
 ├── setup.py            # Advanced server provisioning wizard (systemd + nginx + certbot)
 ├── reset_password.py   # CLI tool for resetting a user password outside the web UI
@@ -286,4 +287,5 @@ Full documentation lives in the [`docs/`](docs/) directory:
 | [Features](docs/features.md) | Complete feature catalogue with code references |
 | [Configuration](docs/configuration.md) | Every `config.py` setting with defaults and usage notes |
 | [Deployment](docs/deployment.md) | systemd, manual Gunicorn, Cloudflare, nginx, Caddy, and direct SSL/TLS setups |
+| [Updates](docs/updates.md) | How to safely update BananaWiki to the latest version |
 | [Architecture](docs/architecture.md) | Codebase structure, request lifecycle, security model, and database schema |

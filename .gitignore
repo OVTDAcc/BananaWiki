@@ -16,3 +16,4 @@ venv/
 .pytest_cache/
 test_output.txt
 config.py.prod
+backups/
