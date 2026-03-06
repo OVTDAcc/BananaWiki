@@ -80,12 +80,12 @@ def init_db():
     CREATE TABLE IF NOT EXISTS site_settings (
         id          INTEGER PRIMARY KEY CHECK (id = 1),
         site_name   TEXT    NOT NULL DEFAULT 'BananaWiki',
-        primary_color    TEXT NOT NULL DEFAULT '#8fa0d4',
-        secondary_color  TEXT NOT NULL DEFAULT '#1e1e2c',
-        accent_color     TEXT NOT NULL DEFAULT '#7e9ada',
-        text_color       TEXT NOT NULL DEFAULT '#c8ccd8',
-        sidebar_color    TEXT NOT NULL DEFAULT '#1a1a24',
-        bg_color         TEXT NOT NULL DEFAULT '#16161f',
+        primary_color    TEXT NOT NULL DEFAULT '#6b7c9e',
+        secondary_color  TEXT NOT NULL DEFAULT '#22222c',
+        accent_color     TEXT NOT NULL DEFAULT '#8d99b5',
+        text_color       TEXT NOT NULL DEFAULT '#e0e2e8',
+        sidebar_color    TEXT NOT NULL DEFAULT '#1c1c24',
+        bg_color         TEXT NOT NULL DEFAULT '#0a0a0f',
         setup_done  INTEGER NOT NULL DEFAULT 0,
         timezone    TEXT    NOT NULL DEFAULT 'UTC',
         session_limit_enabled INTEGER NOT NULL DEFAULT 1,
@@ -297,12 +297,18 @@ def init_db():
         "text_color", "primary_color", "accent_color",
     }
     color_migrations = [
-        ("bg_color",        "#0d0d14", "#16161f"),
-        ("sidebar_color",   "#111118", "#1a1a24"),
-        ("secondary_color", "#151520", "#1e1e2c"),
-        ("text_color",      "#b8bcc8", "#c8ccd8"),
-        ("primary_color",   "#7c8dc6", "#8fa0d4"),
-        ("accent_color",    "#6e8aca", "#7e9ada"),
+        ("bg_color",        "#0d0d14", "#0a0a0f"),
+        ("bg_color",        "#16161f", "#0a0a0f"),
+        ("sidebar_color",   "#111118", "#1c1c24"),
+        ("sidebar_color",   "#1a1a24", "#1c1c24"),
+        ("secondary_color", "#151520", "#22222c"),
+        ("secondary_color", "#1e1e2c", "#22222c"),
+        ("text_color",      "#b8bcc8", "#e0e2e8"),
+        ("text_color",      "#c8ccd8", "#e0e2e8"),
+        ("primary_color",   "#7c8dc6", "#6b7c9e"),
+        ("primary_color",   "#8fa0d4", "#6b7c9e"),
+        ("accent_color",    "#6e8aca", "#8d99b5"),
+        ("accent_color",    "#7e9ada", "#8d99b5"),
     ]
     for col, old_val, new_val in color_migrations:
         if col not in _ALLOWED_COLOR_COLS:
