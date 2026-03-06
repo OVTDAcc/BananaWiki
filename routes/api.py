@@ -9,7 +9,7 @@ import db
 import config
 from helpers import (
     login_required, editor_required, admin_required, get_current_user,
-    render_markdown, rate_limit, format_datetime,
+    render_markdown, rate_limit, format_datetime, editor_has_category_access,
 )
 import wiki_logger
 from sync import notify_change
@@ -373,3 +373,107 @@ def register_api_routes(app):
         wiki_logger.log_action("reorder_categories", request, user=user, count=len(ids))
         notify_change("categories_reorder", "Category order updated")
         return jsonify({"ok": True})
+
+    # -----------------------------------------------------------------------
+    #  Page Reservation API
+    # -----------------------------------------------------------------------
+    @app.route("/api/pages/<int:page_id>/reservation/status")
+    @login_required
+    @editor_required
+    def api_page_reservation_status(page_id):
+        """Get current reservation status for a page."""
+        user = get_current_user()
+        page = db.get_page(page_id)
+        if not page:
+            return jsonify({"error": "Page not found"}), 404
+
+        # Check if user has category access
+        if not editor_has_category_access(user, page["category_id"]):
+            return jsonify({"error": "You do not have permission to access this page"}), 403
+
+        status = db.get_page_reservation_status(page_id, user["id"])
+
+        # Format time remaining for display
+        response = {
+            "is_reserved": status["is_reserved"],
+            "reserved_by": status["reserved_by"],
+            "reserved_by_username": status["reserved_by_username"],
+            "reserved_at": status["reserved_at"],
+            "expires_at": status["expires_at"],
+            "user_in_cooldown": status.get("user_in_cooldown", False),
+            "cooldown_until": status.get("cooldown_until"),
+        }
+
+        # Add human-readable time remaining
+        if status["time_remaining"]:
+            total_seconds = int(status["time_remaining"].total_seconds())
+            hours = total_seconds // 3600
+            minutes = (total_seconds % 3600) // 60
+            response["time_remaining_text"] = f"{hours}h {minutes}m"
+        else:
+            response["time_remaining_text"] = None
+
+        # Add human-readable cooldown remaining
+        if status.get("cooldown_remaining"):
+            total_seconds = int(status["cooldown_remaining"].total_seconds())
+            hours = total_seconds // 3600
+            minutes = (total_seconds % 3600) // 60
+            response["cooldown_remaining_text"] = f"{hours}h {minutes}m"
+        else:
+            response["cooldown_remaining_text"] = None
+
+        return jsonify(response)
+
+    @app.route("/api/pages/<int:page_id>/reservation", methods=["POST"])
+    @login_required
+    @editor_required
+    @rate_limit(30, 60)
+    def api_reserve_page(page_id):
+        """Reserve a page for exclusive editing."""
+        user = get_current_user()
+        page = db.get_page(page_id)
+        if not page:
+            return jsonify({"error": "Page not found"}), 404
+
+        # Check if user has category access
+        if not editor_has_category_access(user, page["category_id"]):
+            return jsonify({"error": "You do not have permission to edit pages in this category"}), 403
+
+        try:
+            reservation = db.reserve_page(page_id, user["id"])
+            wiki_logger.log_action("reserve_page", request, user=user, page_id=page_id)
+            notify_change("page_reservation", f"Page '{page['title']}' reserved by {user['username']}")
+            return jsonify({
+                "ok": True,
+                "reservation": {
+                    "page_id": reservation["page_id"],
+                    "reserved_at": reservation["reserved_at"],
+                    "expires_at": reservation["expires_at"],
+                }
+            })
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 409
+
+    @app.route("/api/pages/<int:page_id>/reservation", methods=["DELETE"])
+    @login_required
+    @editor_required
+    @rate_limit(30, 60)
+    def api_release_page_reservation(page_id):
+        """Release a page reservation."""
+        user = get_current_user()
+        page = db.get_page(page_id)
+        if not page:
+            return jsonify({"error": "Page not found"}), 404
+
+        # Check if user has category access
+        if not editor_has_category_access(user, page["category_id"]):
+            return jsonify({"error": "You do not have permission to edit pages in this category"}), 403
+
+        # Release the reservation (only if user holds it)
+        released = db.release_page_reservation(page_id, user["id"])
+        if released:
+            wiki_logger.log_action("release_page_reservation", request, user=user, page_id=page_id)
+            notify_change("page_reservation", f"Page '{page['title']}' reservation released by {user['username']}")
+            return jsonify({"ok": True})
+        else:
+            return jsonify({"error": "No active reservation found for this page by you"}), 404
