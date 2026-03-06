@@ -24,7 +24,7 @@ def isolated_db(tmp_path, monkeypatch):
     """Use a temporary database for every test."""
     db_path = str(tmp_path / "test.db")
     monkeypatch.setattr(config, "DATABASE_PATH", db_path)
-    monkeypatch.setattr(config, "LOGGING_ENABLED", False)
+    monkeypatch.setattr(config, "LOGGING_LEVEL", "off")
     monkeypatch.setattr(config, "UPLOAD_FOLDER", str(tmp_path / "uploads"))
     monkeypatch.setattr(config, "LOG_FILE", str(tmp_path / "logs" / "test.log"))
     monkeypatch.setattr(config, "SECRET_KEY_FILE", str(tmp_path / "instance" / ".secret_key"))

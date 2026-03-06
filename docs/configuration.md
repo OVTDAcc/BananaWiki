@@ -47,7 +47,7 @@ All configuration lives in `config.py` at the root of the project. Edit it direc
 
 | Setting | Default | Description |
 |---|---|---|
-| `LOGGING_ENABLED` | `True` | Write logs to disk. Disable to suppress all file logging. |
+| `LOGGING_LEVEL` | `"verbose"` | Control logging detail level. Options: `"off"` (no logs), `"minimal"` (critical only), `"medium"` (critical+important), `"verbose"` (all actions, default), `"debug"` (all+HTTP requests). |
 | `LOG_FILE` | `logs/bananawiki.log` | Path to the log file. The `logs/` directory is created automatically. |
 
 Logs record every request (IP, method, path, user) and every significant action (logins, page edits, admin operations). Sensitive fields (passwords, tokens) are redacted automatically.

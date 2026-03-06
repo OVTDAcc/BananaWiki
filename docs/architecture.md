@@ -240,7 +240,7 @@ Two public functions:
 - `log_request(request, user)` — logs every HTTP request: IP, method, path, user, and user agent.
 - `log_action(action, request, user, **details)` — logs named actions with key-value detail pairs. Sensitive fields (`password`, `token`, etc.) are automatically redacted. Control characters are stripped to prevent log injection.
 
-Logging writes to `logs/bananawiki.log` (if `LOGGING_ENABLED = True`) and always echoes to stdout.
+Logging writes to `logs/bananawiki.log` (controlled by `LOGGING_LEVEL` config) and always echoes to stdout.
 
 ---
 

@@ -38,7 +38,7 @@ def isolated_db(tmp_path, monkeypatch):
     """Fresh temporary database for every test."""
     db_path = str(tmp_path / "test.db")
     monkeypatch.setattr(config, "DATABASE_PATH", db_path)
-    monkeypatch.setattr(config, "LOGGING_ENABLED", False)
+    monkeypatch.setattr(config, "LOGGING_LEVEL", "off")
     # Point uploads at a temp directory so file-system operations work
     upload_dir = str(tmp_path / "uploads")
     os.makedirs(upload_dir, exist_ok=True)
