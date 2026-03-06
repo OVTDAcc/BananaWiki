@@ -30,6 +30,12 @@ This document catalogues every feature in BananaWiki, ordered from the most visi
 - [Logging and auditing](#logging-and-auditing)
 - [Networking and deployment](#networking-and-deployment)
 - [Database internals](#database-internals)
+- [Badge system](#badge-system)
+- [Page reservations and checkouts](#page-reservations-and-checkouts)
+- [Custom user permissions](#custom-user-permissions)
+- [Chat message cleanup](#chat-message-cleanup)
+- [Logging system configuration](#logging-system-configuration)
+- [Telegram sync priorities](#telegram-sync-priorities)
 - [Miscellaneous / Easter eggs](#miscellaneous--easter-eggs)
 
 ---
@@ -1041,6 +1047,257 @@ The "Reset All to Default" button inside the panel and the equivalent button on 
 In the Markdown editor, the divider between the edit textarea and the live preview panel is now a draggable resize handle. Either pane can be expanded from 15 % to 85 % of the container width.
 
 > `app/static/js/main.js` → `initEditorResize()`, `app/templates/wiki/edit.html`
+
+---
+
+## Badge system
+
+### Badge types
+Admins can create badge types that can be awarded to users for achievements. Each badge type has:
+- A name and description
+- An icon (emoji or character) and color
+- Enabled/disabled state
+- Auto-trigger configuration (optional)
+- Multiple-instance flag (whether a user can earn the same badge multiple times)
+
+> `db/_badges.py` → `badge_types` table, `create_badge_type()`, `get_badge_type()`, `list_badge_types()`, `update_badge_type()`, `delete_badge_type()`
+
+### Auto-trigger types
+Badges can be automatically awarded when users meet certain criteria. Supported trigger types:
+- **first_edit** — User makes their first page edit
+- **contribution_count** — User makes N contributions (configurable threshold)
+- **category_count** — User edits pages in N different categories (configurable threshold)
+- **member_days** — User has been a member for N days (configurable threshold)
+- **easter_egg** — User finds the easter egg
+- **reading_time** — User reads for N minutes (placeholder for future implementation)
+- **article_count** — User reads N articles (placeholder for future implementation)
+
+Manual-only badges (trigger type empty string) require admin action to award.
+
+> `db/_badges.py` → `VALID_TRIGGER_TYPES`, `check_and_award_auto_badges()`
+
+### Awarding and revoking badges
+Admins can:
+- **Award badges manually** to any user from the admin panel
+- **Revoke badges** from individual users
+- **Revoke all instances** of a badge from all users at once
+- View the list of users who have earned each badge
+
+When a badge is awarded, the user receives a notification that appears in their badge notifications bar.
+
+> `routes/admin.py` → `admin_badges`, `admin_badge_types`, `admin_award_badge`, `admin_revoke_badge`, `admin_revoke_all_badge_instances`, `db/_badges.py` → `award_badge()`, `revoke_badge()`, `revoke_all_badge_instances()`
+
+### Badge notifications
+When a user earns a badge, a notification is created and displayed in a banner at the top of the page. The banner shows the badge icon, name, and a link to view all notifications. Badge notifications can be:
+- **Viewed** at `/badges/notifications` — Shows all earned badges with timestamps
+- **Dismissed** individually or all at once
+
+The notification count badge appears in the topbar whenever there are unviewed badge notifications.
+
+> `db/_badges.py` → `badge_notifications` table, `create_badge_notification()`, `get_badge_notifications()`, `mark_badge_notification_viewed()`, `mark_all_badge_notifications_viewed()`, `count_unviewed_badge_notifications()`, `routes/users.py` → `badge_notifications`, `routes/api.py` → `api_dismiss_badge_notification`, `app/templates/_badge_notifications_bar.html`
+
+### Badge display
+Badges appear on:
+- User profile pages (all earned badges with timestamps)
+- User list in the admin panel (badge count)
+- Badge notifications page (full list with earn dates)
+
+> `app/templates/users/profile.html`, `app/templates/admin/users.html`, `app/templates/badges/notifications.html`
+
+### Auto-trigger integration
+Badge auto-trigger checks are performed:
+- On user login (`check_and_award_auto_badges` called in `routes/auth.py` → `login`)
+- After page edits (`check_and_award_auto_badges` called in `routes/wiki.py` → `edit_page`, `create_page`)
+
+This ensures badges are awarded promptly when users meet the criteria.
+
+> `routes/auth.py` → `login` (lines 130-136), `routes/wiki.py` → `edit_page` (lines 393-396), `create_page` (lines 514-517)
+
+---
+
+## Page reservations and checkouts
+
+### Exclusive editing locks
+Editors can reserve a page for exclusive editing, preventing other editors from modifying it until the reservation expires or is released. This prevents edit conflicts on critical pages and allows editors to work on major revisions without interruption.
+
+> `db/_reservations.py` → `page_reservations` table, `reserve_page()`, `release_page_reservation()`, `get_page_reservation()`, `is_page_reserved()`, `routes/wiki.py` → `reserve_page_route`, `release_page_reservation_route`
+
+### Reservation duration
+Reservations expire after a configurable time period (default: 48 hours, set in `config.py` as `PAGE_RESERVATION_DURATION_HOURS`). After expiration, any editor can reserve the page again or edit it directly. Admins can view and release all active reservations from a dedicated admin page.
+
+> `config.py` → `PAGE_RESERVATION_DURATION_HOURS`, `db/_reservations.py` → `reserve_page()`, `routes/admin.py` → `admin_checkouts` (lists all active reservations), `admin_force_release_reservation`
+
+### Cooldown periods
+After releasing a reservation, the user who held it enters a cooldown period (default: 2 hours, set in `config.py` as `PAGE_RESERVATION_COOLDOWN_HOURS`) during which they cannot re-reserve the same page. This prevents a single editor from monopolizing a page. The cooldown does not apply if the reservation expires naturally.
+
+> `config.py` → `PAGE_RESERVATION_COOLDOWN_HOURS`, `db/_reservations.py` → `release_page_reservation()`, `user_page_cooldowns` table
+
+### Reservation status indicators
+When viewing a page that is reserved:
+- Non-owners see a banner indicating who holds the reservation and when it expires
+- The "Edit" button is disabled for non-owners
+- The reservation holder sees a "Release Reservation" button to free the page early
+
+When editing a page, the edit form includes a "Reserve this page" checkbox that allows the editor to lock the page when saving their changes.
+
+> `app/templates/wiki/page.html` (reservation banner), `app/templates/wiki/edit.html` (reserve checkbox), `routes/wiki.py` → `edit_page` (handles reservation on save)
+
+### Admin override
+Admins can:
+- View all active reservations at `/admin/checkouts`
+- Force-release any reservation, bypassing the normal ownership check
+- See who reserved each page and when the reservation expires
+
+> `routes/admin.py` → `admin_checkouts`, `admin_force_release_reservation`, `app/templates/admin/checkouts.html`
+
+---
+
+## Custom user permissions
+
+### Fine-grained permission system
+Beyond the four standard roles (user, editor, admin, protected_admin), individual users can have custom permissions that grant or restrict specific capabilities. This system provides flexibility for complex access control scenarios without creating many custom roles.
+
+> `db/_permissions.py` → `user_permissions`, `user_category_access`, `user_allowed_categories` tables, `get_user_permissions()`, `set_user_permissions()`
+
+### Permission types
+Custom permissions can control:
+- **Read access** — Restrict which categories a user can read (separate from editor category restrictions)
+- **Write access** — Restrict which categories a user can edit (more fine-grained than editor category restrictions)
+- **Named permissions** — Enable/disable specific capabilities via permission keys (extensible for future features)
+
+Permissions are checked in addition to role-based permissions, allowing for scenarios like:
+- A user who can read all pages but only edit specific categories
+- An editor who can edit most pages but is blocked from certain sensitive categories
+- A user with special capabilities not tied to the admin role
+
+> `db/_permissions.py` → `get_user_permissions()`, `set_user_permissions()`, `has_permission()`
+
+### Category access control
+Users can have restricted read and/or write access to categories:
+- **Read restrictions** — User can only view pages in specified categories (all others hidden from sidebar and inaccessible)
+- **Write restrictions** — User can only edit pages in specified categories (more restrictive than read access)
+- Each access type (read/write) tracks:
+  - `restricted` flag — Whether restrictions are enabled for this user
+  - `allowed_category_ids` — List of category IDs the user can access
+
+This system is separate from but complementary to the existing `editor_category_access` system. It provides more granular control for complex permission scenarios.
+
+> `db/_permissions.py` → `user_category_access` table, `user_allowed_categories` table, `get_user_permissions()`, `set_user_permissions()`
+
+---
+
+## Chat message cleanup
+
+### Scheduled automatic deletion
+Direct messages and group chat messages are automatically deleted on a configurable schedule to prevent the database from growing unbounded. The cleanup system:
+- Runs on a weekly schedule by default (configurable via `CHAT_CLEANUP_FREQUENCY_DAYS`)
+- Executes at a specific time each day (default: 3 AM, configurable via `CHAT_CLEANUP_HOUR`)
+- Deletes messages older than the retention period
+- Preserves system messages and recent messages
+- Logs all cleanup operations
+
+> `config.py` → `CHAT_CLEANUP_ENABLED`, `CHAT_CLEANUP_FREQUENCY_DAYS`, `CHAT_CLEANUP_HOUR`, `CHAT_CLEANUP_RETENTION_DAYS`, `routes/chat.py` → `_schedule_chat_cleanup()`, `_run_chat_cleanup()`, `_cleanup_old_messages()`
+
+### Cleanup countdown display
+Chat pages display countdown information to help users understand when messages will be deleted:
+- **"Messages will be deleted in X days"** — Shows time until next scheduled cleanup
+- **"Last cleanup: X days ago"** — Shows time since the last cleanup ran
+
+The countdown banners appear on both direct message and group chat pages, calculated using `time_until_next_chat_cleanup()` and `time_since_last_chat_cleanup()` template helpers.
+
+> `app/templates/chats/chat.html` (lines 9-12, DM countdown), `app/templates/groups/chat.html` (lines 21-25, group countdown), `helpers/_time.py` → `time_until_next_chat_cleanup()` (lines 137-151), `time_since_last_chat_cleanup()` (lines 154-164)
+
+### Cleanup configuration
+Cleanup behavior is controlled by several config settings:
+- **CHAT_CLEANUP_ENABLED** — Master switch (default: True)
+- **CHAT_CLEANUP_FREQUENCY_DAYS** — How often cleanup runs (default: 7 days)
+- **CHAT_CLEANUP_HOUR** — Time of day to run cleanup (default: 3 AM, 0-23)
+- **CHAT_CLEANUP_RETENTION_DAYS** — How long to keep messages (default: 30 days)
+
+When cleanup is disabled, messages are never automatically deleted, but the countdown banners still display based on the configured schedule.
+
+> `config.py` → lines 101-103 (cleanup settings), `routes/chat.py` → lines 210-294 (scheduler implementation)
+
+### Backup integration
+Before messages are deleted, they are automatically backed up via the Telegram sync system (if enabled). This ensures deleted messages can be recovered if needed. The backup ZIP includes message content, sender info, timestamps, and attachments (when size permits).
+
+> `sync.py` → `notify_change()`, `_create_backup()`, `routes/chat.py` → `_run_chat_cleanup()` (triggers backup before deletion)
+
+---
+
+## Logging system configuration
+
+### Configurable logging levels
+The logging system supports five verbosity levels, configurable via `LOGGING_LEVEL` in `config.py`:
+
+| Level | Description | What is logged |
+|---|---|---|
+| **off** | No logging | Nothing is logged (except critical errors to stdout) |
+| **minimal** | Critical only | Login failures, errors, security events |
+| **medium** | Critical + important | Above + user management, role changes, deletions |
+| **verbose** | All actions (default) | Above + page edits, category changes, all user actions |
+| **debug** | Everything | Above + HTTP requests, API calls, draft saves |
+
+The default is `verbose`, which logs all significant user actions without excessive noise from routine operations like draft autosaves.
+
+> `config.py` → `LOGGING_LEVEL` (lines 108-116), `wiki_logger.py` → logging level constants (lines 27-49), `_should_log_action()` (lines 139-154)
+
+### Action categorization
+Every logged action is assigned a category that determines its logging level:
+- **CRITICAL** — Login failures, errors, security violations (always logged unless `off`)
+- **IMPORTANT** — User management, role changes, deletions, suspensions (logged at `medium` and above)
+- **ACTION** — Page edits, category changes, most user operations (logged at `verbose` and above)
+- **DEBUG** — HTTP requests, draft saves, minor API calls (logged only at `debug` level)
+
+This categorization ensures that increasing the logging level progressively adds more detail without overwhelming the logs.
+
+> `wiki_logger.py` → `ACTION_CATEGORIES` dict (maps action names to categories), `_should_log_action()` function
+
+### Log file configuration
+Logging can be completely disabled with `LOGGING_ENABLED = False` in `config.py`. The log file path defaults to `logs/bananawiki.log` and can be changed via `LOG_FILE`. All log entries are also echoed to stdout for systemd journal integration.
+
+> `config.py` → `LOGGING_ENABLED`, `LOG_FILE`, `wiki_logger.py` → `log_action()`, `log_request()`
+
+---
+
+## Telegram sync priorities
+
+### Priority-based backup scheduling
+The Telegram sync system uses four priority levels to determine when changes should trigger a backup. Higher-priority changes are synced faster, while low-priority changes are batched to reduce backup frequency.
+
+| Priority | Delay | Example changes |
+|---|---|---|
+| **IMMEDIATE** (0) | 0 seconds | Page deletions, user deletions, security events |
+| **HIGH** (1) | 30 seconds | Page edits, user role changes, settings changes |
+| **NORMAL** (2) | 60 seconds | Page creates, category changes, draft operations |
+| **LOW** (3) | 120 seconds | Draft autosaves, minor updates |
+
+The priority system ensures critical changes are backed up immediately while routine operations are batched to avoid flooding the Telegram API.
+
+> `sync.py` → `CHANGE_PRIORITY` dict (lines 52-71), `_get_change_priority()` (lines 107-125), `notify_change()`
+
+### Smart batching
+When multiple changes occur in quick succession, the sync system intelligently batches them:
+- Combines multiple changes into a single backup operation
+- Uses the highest priority of any pending change
+- Increases delay when many changes are queued (reduces backup spam)
+- Forces a backup after 10 minutes of continuous changes (prevents infinite deferrals)
+
+For example, if 5 page edits happen within 60 seconds, they are bundled into one backup with a "Page edited (×5)" message instead of creating 5 separate backups.
+
+> `sync.py` → `_calculate_smart_delay()` (lines 128-161), `notify_change()` (lines 164-228, batching logic)
+
+### Backup manifest
+Every backup includes a `backup_manifest.json` file that records:
+- Timestamp of the backup
+- List of changes that triggered this backup (with priority levels)
+- Files included in the ZIP
+- Files excluded (with size and reason)
+- Total size of the backup
+
+This manifest helps with backup auditing and understanding what triggered each backup operation.
+
+> `sync.py` → `_create_backup()` (manifest generation)
 
 ---
 
