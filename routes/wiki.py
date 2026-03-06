@@ -186,7 +186,7 @@ def register_wiki_routes(app):
                        f"Reverted to version from {entry['created_at']}", is_revert=True)
         log_action("revert_page", request, user=user, page=slug, entry_id=entry_id)
         notify_change("page_revert", f"Page '{slug}' reverted")
-        flash("Page reverted.", "success")
+        flash("Page has been successfully reverted to the selected version.", "success")
         return redirect(url_for("view_page", slug=slug))
 
     @app.route("/page/<slug>/history/<int:entry_id>/transfer", methods=["POST"])
@@ -206,7 +206,7 @@ def register_wiki_routes(app):
         new_user_id = request.form.get("new_user_id", "").strip()
         target_user = db.get_user_by_id(new_user_id) if new_user_id else None
         if not target_user:
-            flash("Invalid target user.", "error")
+            flash("The selected user is invalid. Please choose a valid user.", "error")
             return redirect(url_for("page_history", slug=slug))
         user = get_current_user()
         db.transfer_history_attribution(entry_id, new_user_id)
@@ -214,7 +214,7 @@ def register_wiki_routes(app):
                    entry_id=entry_id, new_user=target_user["username"])
         notify_change("transfer_attribution",
                       f"Attribution of entry {entry_id} on '{slug}' transferred to '{target_user['username']}'")
-        flash(f"Attribution transferred to {target_user['username']}.", "success")
+        flash(f"Attribution has been successfully transferred to {target_user['username']}.", "success")
         return redirect(url_for("page_history", slug=slug))
 
     @app.route("/page/<slug>/history/bulk-transfer", methods=["POST"])
@@ -233,7 +233,7 @@ def register_wiki_routes(app):
         from_user = db.get_user_by_id(from_user_id) if from_user_id else None
         target_user = db.get_user_by_id(new_user_id) if new_user_id else None
         if not from_user or not target_user:
-            flash("Invalid user selection.", "error")
+            flash("The selected users are invalid. Please verify your selection.", "error")
             return redirect(url_for("page_history", slug=slug))
         user = get_current_user()
         count = db.bulk_transfer_history_attribution(page["id"], from_user_id, new_user_id)
@@ -241,7 +241,7 @@ def register_wiki_routes(app):
                    from_user=from_user["username"], to_user=target_user["username"], count=count)
         notify_change("bulk_transfer_attribution",
                       f"Bulk attribution on '{slug}' transferred from '{from_user['username']}' to '{target_user['username']}'")
-        flash(f"Transferred {count} contribution(s) to {target_user['username']}.", "success")
+        flash(f"Successfully transferred {count} contribution(s) to {target_user['username']}.", "success")
         return redirect(url_for("page_history", slug=slug))
 
     @app.route("/page/<slug>/history/<int:entry_id>/deattribute", methods=["POST"])
@@ -264,7 +264,7 @@ def register_wiki_routes(app):
                    entry_id=entry_id)
         notify_change("deattribute_entry",
                       f"Attribution removed from entry {entry_id} on '{slug}'")
-        flash("Attribution removed from this entry.", "success")
+        flash("Attribution has been removed from this history entry.", "success")
         return redirect(url_for("page_history", slug=slug))
 
     @app.route("/page/<slug>/history/<int:entry_id>/delete", methods=["POST"])
@@ -287,7 +287,7 @@ def register_wiki_routes(app):
                    entry_id=entry_id)
         notify_change("delete_history_entry",
                       f"History entry {entry_id} deleted from '{slug}'")
-        flash("History entry deleted.", "success")
+        flash("History entry has been successfully deleted.", "success")
         return redirect(url_for("page_history", slug=slug))
 
     @app.route("/page/<slug>/history/clear", methods=["POST"])
@@ -306,7 +306,7 @@ def register_wiki_routes(app):
         log_action("clear_page_history", request, user=user, page=slug, count=count)
         notify_change("clear_page_history",
                       f"All history ({count} entries) cleared for '{slug}'")
-        flash(f"All history cleared ({count} entries removed).", "success")
+        flash(f"All page history has been cleared ({count} entries removed).", "success")
         return redirect(url_for("page_history", slug=slug))
 
     # ---------------------------------------------------------------------------
@@ -323,7 +323,7 @@ def register_wiki_routes(app):
             abort(404)
         user = get_current_user()
         if not editor_has_category_access(user, page["category_id"]):
-            flash("You do not have permission to edit pages in this category.", "error")
+            flash("You do not have the required permissions to edit pages in this category.", "error")
             return redirect(url_for("view_page", slug=slug))
 
         # Check reservation status
@@ -376,9 +376,9 @@ def register_wiki_routes(app):
                 new_cat_id = page["category_id"]
             if new_cat_id != page["category_id"]:
                 if new_cat_id and not db.get_category(new_cat_id):
-                    flash("Category update skipped: selected category does not exist.", "error")
+                    flash("Category update skipped: the selected category no longer exists.", "error")
                 elif not editor_has_category_access(user, new_cat_id):
-                    flash("Category update skipped: you do not have permission to move pages into this category.", "error")
+                    flash("Category update skipped: you do not have the required permissions to move pages into this category.", "error")
                 else:
                     db.update_page_category(page["id"], new_cat_id)
                     log_action("move_page", request, user=user, page=slug, category_id=new_cat_id)
@@ -392,15 +392,15 @@ def register_wiki_routes(app):
                     custom_label = request.form.get("tag_custom_label", "").strip()[:50]
                     custom_color = request.form.get("tag_custom_color", "").strip()
                     if not custom_label:
-                        flash("Custom tag requires a label.", "error")
+                        flash("Custom tag requires a label to be specified.", "error")
                         tag = ""
                     elif not _is_valid_hex_color(custom_color):
-                        flash("Custom tag requires a valid hex color.", "error")
+                        flash("Custom tag requires a valid hexadecimal color code.", "error")
                         tag = ""
                 if tag in db.VALID_DIFFICULTY_TAGS:
                     db.update_page_tag(page["id"], tag, custom_label, custom_color)
             elif tag:
-                flash("Invalid difficulty tag submitted.", "error")
+                flash("The difficulty tag submitted is invalid. Please select a valid option.", "error")
 
             # Clean up all drafts for this page (committer + contributors)
             db.delete_draft(page["id"], user["id"])
@@ -417,7 +417,7 @@ def register_wiki_routes(app):
             if newly_awarded:
                 session["badge_notifications"] = session.get("badge_notifications", 0) + len(newly_awarded)
 
-            flash("Page updated.", "success")
+            flash("Page has been successfully updated.", "success")
             if page["is_home"]:
                 return redirect(url_for("home"))
             return redirect(url_for("view_page", slug=slug))
@@ -447,20 +447,20 @@ def register_wiki_routes(app):
             abort(404)
         user = get_current_user()
         if not editor_has_category_access(user, page["category_id"]):
-            flash("You do not have permission to edit pages in this category.", "error")
+            flash("You do not have the required permissions to edit pages in this category.", "error")
             if page["is_home"]:
                 return redirect(url_for("home"))
             return redirect(url_for("view_page", slug=slug))
         new_title = request.form.get("title", "").strip()
         if not new_title:
-            flash("Title is required.", "error")
+            flash("A page title is required to continue.", "error")
         elif len(new_title) > 200:
-            flash("Title must be 200 characters or fewer.", "error")
+            flash("Page title cannot exceed 200 characters.", "error")
         else:
             db.update_page_title(page["id"], new_title, user["id"])
             log_action("edit_page_title", request, user=user, page=slug, new_title=new_title)
             notify_change("page_title_edit", f"Page '{slug}' title changed to '{new_title}'")
-            flash("Title updated.", "success")
+            flash("Page title has been successfully updated.", "success")
         if page["is_home"]:
             return redirect(url_for("home"))
         return redirect(url_for("view_page", slug=slug))
@@ -490,23 +490,23 @@ def register_wiki_routes(app):
             try:
                 cat_id = int(cat_id) if cat_id else None
             except (TypeError, ValueError):
-                flash("Invalid category.", "error")
+                flash("The specified category is invalid.", "error")
                 return render_template("wiki/create_page.html", categories=categories,
                                        uncategorized=uncategorized, form=form_data)
             if not title:
-                flash("Title is required.", "error")
+                flash("A page title is required to continue.", "error")
                 return render_template("wiki/create_page.html", categories=categories,
                                        uncategorized=uncategorized, form=form_data)
             if len(title) > 200:
-                flash("Title must be 200 characters or fewer.", "error")
+                flash("Page title cannot exceed 200 characters.", "error")
                 return render_template("wiki/create_page.html", categories=categories,
                                        uncategorized=uncategorized, form=form_data)
             if cat_id and not db.get_category(cat_id):
-                flash("Selected category does not exist.", "error")
+                flash("The selected category no longer exists.", "error")
                 return render_template("wiki/create_page.html", categories=categories,
                                        uncategorized=uncategorized, form=form_data)
             if not editor_has_category_access(user, cat_id):
-                flash("You do not have permission to create pages in this category.", "error")
+                flash("You do not have the required permissions to create pages in this category.", "error")
                 return render_template("wiki/create_page.html", categories=categories,
                                        uncategorized=uncategorized, form=form_data)
             slug = slugify(title)
@@ -539,7 +539,7 @@ def register_wiki_routes(app):
             if newly_awarded:
                 session["badge_notifications"] = session.get("badge_notifications", 0) + len(newly_awarded)
 
-            flash("Page created. Open it to start editing with Markdown.", "success")
+            flash("Page has been successfully created. You can now open it to start editing with Markdown.", "success")
             return redirect(url_for("view_page", slug=slug))
 
         return render_template("wiki/create_page.html", categories=categories,
@@ -555,17 +555,17 @@ def register_wiki_routes(app):
         if not page:
             abort(404)
         if page["is_home"]:
-            flash("Cannot delete the home page.", "error")
+            flash("The home page cannot be deleted as it is required for the wiki.", "error")
             return redirect(url_for("view_page", slug=slug))
         user = get_current_user()
         if not editor_has_category_access(user, page["category_id"]):
-            flash("You do not have permission to delete pages in this category.", "error")
+            flash("You do not have the required permissions to delete pages in this category.", "error")
             return redirect(url_for("view_page", slug=slug))
         db.delete_page(page["id"])
         cleanup_unused_uploads()
         log_action("delete_page", request, user=user, page=slug)
         notify_change("page_delete", f"Page '{slug}' deleted")
-        flash("Page deleted.", "success")
+        flash("Page has been successfully deleted.", "success")
         return redirect(url_for("home"))
 
     @app.route("/page/<slug>/move", methods=["POST"])
@@ -581,22 +581,22 @@ def register_wiki_routes(app):
         try:
             cat_id = int(cat_id) if cat_id else None
         except (TypeError, ValueError):
-            flash("Invalid category.", "error")
+            flash("The specified category is invalid.", "error")
             return redirect(url_for("view_page", slug=slug))
         if cat_id and not db.get_category(cat_id):
-            flash("Selected category does not exist.", "error")
+            flash("The selected category no longer exists.", "error")
             return redirect(url_for("view_page", slug=slug))
         user = get_current_user()
         if not editor_has_category_access(user, page["category_id"]):
-            flash("You do not have permission to move pages from this category.", "error")
+            flash("You do not have the required permissions to move pages from this category.", "error")
             return redirect(url_for("view_page", slug=slug))
         if not editor_has_category_access(user, cat_id):
-            flash("You do not have permission to move pages into this category.", "error")
+            flash("You do not have the required permissions to move pages into this category.", "error")
             return redirect(url_for("view_page", slug=slug))
         db.update_page_category(page["id"], cat_id)
         log_action("move_page", request, user=user, page=slug, category_id=cat_id)
         notify_change("page_move", f"Page '{slug}' moved")
-        flash("Page moved.", "success")
+        flash("Page has been successfully moved to the new category.", "success")
         return redirect(url_for("view_page", slug=slug))
 
     @app.route("/page/<slug>/tag", methods=["POST"])
@@ -610,13 +610,13 @@ def register_wiki_routes(app):
             abort(404)
         user = get_current_user()
         if not editor_has_category_access(user, page["category_id"]):
-            flash("You do not have permission to edit pages in this category.", "error")
+            flash("You do not have the required permissions to edit pages in this category.", "error")
             if page["is_home"]:
                 return redirect(url_for("home"))
             return redirect(url_for("view_page", slug=slug))
         tag = request.form.get("difficulty_tag", "").strip().lower()
         if tag not in db.VALID_DIFFICULTY_TAGS:
-            flash("Invalid difficulty tag.", "error")
+            flash("The difficulty tag selected is invalid.", "error")
             if page["is_home"]:
                 return redirect(url_for("home"))
             return redirect(url_for("view_page", slug=slug))
@@ -626,19 +626,19 @@ def register_wiki_routes(app):
             custom_label = request.form.get("tag_custom_label", "").strip()[:50]
             custom_color = request.form.get("tag_custom_color", "").strip()
             if not custom_label:
-                flash("Custom tag requires a label.", "error")
+                flash("Custom tag requires a label to be specified.", "error")
                 if page["is_home"]:
                     return redirect(url_for("home"))
                 return redirect(url_for("view_page", slug=slug))
             if not _is_valid_hex_color(custom_color):
-                flash("Custom tag requires a valid hex color.", "error")
+                flash("Custom tag requires a valid hexadecimal color code.", "error")
                 if page["is_home"]:
                     return redirect(url_for("home"))
                 return redirect(url_for("view_page", slug=slug))
         db.update_page_tag(page["id"], tag, custom_label, custom_color)
         log_action("update_page_tag", request, user=user, page=slug, tag=tag)
         notify_change("page_tag", f"Page '{slug}' tag updated to '{tag}'")
-        flash("Tag updated.", "success")
+        flash("Tag has been successfully updated.", "success")
         if page["is_home"]:
             return redirect(url_for("home"))
         return redirect(url_for("view_page", slug=slug))
@@ -652,28 +652,28 @@ def register_wiki_routes(app):
         user = get_current_user()
         access = db.get_editor_access(user["id"])
         if access["restricted"]:
-            flash("You do not have permission to create categories.", "error")
+            flash("You do not have the required permissions to create categories.", "error")
             return redirect(_safe_referrer() or url_for("home"))
         name = request.form.get("name", "").strip()
         parent_id = request.form.get("parent_id")
         try:
             parent_id = int(parent_id) if parent_id else None
         except (TypeError, ValueError):
-            flash("Invalid parent category.", "error")
+            flash("The specified parent category is invalid.", "error")
             return redirect(_safe_referrer() or url_for("home"))
         if not name:
-            flash("Category name is required.", "error")
+            flash("A category name is required to continue.", "error")
             return redirect(_safe_referrer() or url_for("home"))
         if len(name) > 100:
-            flash("Category name must be 100 characters or fewer.", "error")
+            flash("Category name cannot exceed 100 characters.", "error")
             return redirect(_safe_referrer() or url_for("home"))
         if parent_id and not db.get_category(parent_id):
-            flash("Selected parent category does not exist.", "error")
+            flash("The selected parent category no longer exists.", "error")
             return redirect(_safe_referrer() or url_for("home"))
         db.create_category(name, parent_id)
         log_action("create_category", request, user=user, category=name)
         notify_change("category_create", f"Category '{name}' created")
-        flash("Category created.", "success")
+        flash("Category has been successfully created.", "success")
         return redirect(_safe_referrer() or url_for("home"))
 
     @app.route("/category/<int:cat_id>/edit", methods=["POST"])
@@ -687,19 +687,19 @@ def register_wiki_routes(app):
             abort(404)
         user = get_current_user()
         if db.get_editor_access(user["id"])["restricted"]:
-            flash("You do not have permission to edit categories.", "error")
+            flash("You do not have the required permissions to edit categories.", "error")
             return redirect(_safe_referrer() or url_for("home"))
         name = request.form.get("name", "").strip()
         if not name:
-            flash("Category name is required.", "error")
+            flash("A category name is required to continue.", "error")
             return redirect(_safe_referrer() or url_for("home"))
         if len(name) > 100:
-            flash("Category name must be 100 characters or fewer.", "error")
+            flash("Category name cannot exceed 100 characters.", "error")
             return redirect(_safe_referrer() or url_for("home"))
         db.update_category(cat_id, name)
         log_action("edit_category", request, user=user, category_id=cat_id, new_name=name)
         notify_change("category_edit", f"Category {cat_id} renamed to '{name}'")
-        flash("Category updated.", "success")
+        flash("Category has been successfully updated.", "success")
         return redirect(_safe_referrer() or url_for("home"))
 
     @app.route("/category/<int:cat_id>/move", methods=["POST"])
@@ -713,7 +713,7 @@ def register_wiki_routes(app):
             abort(404)
         user = get_current_user()
         if db.get_editor_access(user["id"])["restricted"]:
-            flash("You do not have permission to move categories.", "error")
+            flash("You do not have the required permissions to move categories.", "error")
             return redirect(_safe_referrer() or url_for("home"))
         parent_id = request.form.get("parent_id")
         try:
@@ -722,18 +722,18 @@ def register_wiki_routes(app):
             parent_id = None
         # Prevent moving a category into itself or a descendant (circular ref)
         if parent_id == cat_id:
-            flash("Cannot move a category into itself.", "error")
+            flash("A category cannot be moved into itself.", "error")
             return redirect(_safe_referrer() or url_for("home"))
         if parent_id and not db.get_category(parent_id):
-            flash("Target category does not exist.", "error")
+            flash("The target category no longer exists.", "error")
             return redirect(_safe_referrer() or url_for("home"))
         if parent_id and db.is_descendant_of(cat_id, parent_id):
-            flash("Cannot move a category into one of its own subcategories.", "error")
+            flash("A category cannot be moved into one of its own subcategories.", "error")
             return redirect(_safe_referrer() or url_for("home"))
         db.update_category_parent(cat_id, parent_id)
         log_action("move_category", request, user=user, category_id=cat_id, new_parent=parent_id)
         notify_change("category_move", f"Category {cat_id} moved to parent {parent_id}")
-        flash("Category moved.", "success")
+        flash("Category has been successfully moved.", "success")
         return redirect(_safe_referrer() or url_for("home"))
 
     @app.route("/category/<int:cat_id>/delete", methods=["POST"])
@@ -747,7 +747,7 @@ def register_wiki_routes(app):
             abort(404)
         user = get_current_user()
         if db.get_editor_access(user["id"])["restricted"]:
-            flash("You do not have permission to delete categories.", "error")
+            flash("You do not have the required permissions to delete categories.", "error")
             return redirect(_safe_referrer() or url_for("home"))
         page_action = request.form.get("page_action", "uncategorize")
         target_cat = request.form.get("target_category_id")
@@ -763,7 +763,7 @@ def register_wiki_routes(app):
         db.delete_category(cat_id, page_action=page_action, target_category_id=target_cat)
         log_action("delete_category", request, user=user, category_id=cat_id, page_action=page_action)
         notify_change("category_delete", f"Category {cat_id} deleted")
-        flash("Category deleted.", "success")
+        flash("Category has been successfully deleted.", "success")
         return redirect(_safe_referrer() or url_for("home"))
 
     @app.route("/page/<slug>/rename", methods=["POST"])
@@ -780,7 +780,7 @@ def register_wiki_routes(app):
             return redirect(url_for("home"))
         user = get_current_user()
         if not editor_has_category_access(user, page["category_id"]):
-            flash("You do not have permission to edit pages in this category.", "error")
+            flash("You do not have the required permissions to edit pages in this category.", "error")
             return redirect(url_for("view_page", slug=slug))
         new_slug = request.form.get("new_slug", "").strip()
         if not new_slug:
@@ -816,7 +816,7 @@ def register_wiki_routes(app):
             return redirect(url_for("home"))
         user = get_current_user()
         if not editor_has_category_access(user, page["category_id"]):
-            flash("You do not have permission to edit pages in this category.", "error")
+            flash("You do not have the required permissions to edit pages in this category.", "error")
             return redirect(url_for("view_page", slug=slug))
         new_state = not bool(page["is_deindexed"])
         db.set_page_deindexed(page["id"], new_state)
