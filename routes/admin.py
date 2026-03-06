@@ -386,12 +386,35 @@ def register_admin_routes(app):
             elif target["role"] in ("admin", "protected_admin") and new_role not in ("admin", "protected_admin") and db.count_admins() <= 1:
                 flash("Cannot demote the last admin.", "error")
             else:
+                old_role = target["role"]
                 db.update_user(user_id, role=new_role)
-                db.record_role_change(user_id, target["role"], new_role, changed_by=current_user["id"])
+                db.record_role_change(user_id, old_role, new_role, changed_by=current_user["id"])
+
+                # Initialize default permissions for editors and users if not already set
+                if new_role in ("editor", "user"):
+                    from helpers._permissions import get_default_permissions
+                    perms = db.get_user_permissions(user_id)
+                    # Only set defaults if no permissions exist yet
+                    if not perms['enabled_permissions']:
+                        defaults = get_default_permissions(new_role)
+                        db.set_user_permissions(
+                            user_id,
+                            defaults,
+                            read_restricted=False,
+                            read_category_ids=[],
+                            write_restricted=False,
+                            write_category_ids=[],
+                        )
+
+                # Clear permissions when changing to admin
+                if new_role == "admin":
+                    db.clear_user_permissions(user_id)
+
                 log_action("admin_change_role", request, user=current_user,
                            target_user=target["username"], new_role=new_role)
                 notify_change("admin_change_role", f"User '{target['username']}' role changed to '{new_role}'")
-                flash("Role updated.", "success")
+                flash(f"Role updated. {'Configure permissions for this user.' if new_role in ('editor', 'user') else ''}", "success")
+
 
         elif action == "suspend":
             if user_id == current_user["id"]:
@@ -484,6 +507,93 @@ def register_admin_routes(app):
         )
 
     # -------------------------------------------------------------------
+    #  Admin – User permissions (custom role system)
+    # -------------------------------------------------------------------
+
+    @app.route("/admin/users/<string:user_id>/permissions", methods=["GET", "POST"])
+    @login_required
+    @admin_required
+    def admin_user_permissions(user_id):
+        """Manage detailed custom permissions for editor or user accounts."""
+        target = db.get_user_by_id(user_id)
+        if not target:
+            abort(404)
+        if target["role"] not in ("editor", "user"):
+            flash("Custom permissions can only be configured for editors and users.", "error")
+            return redirect(url_for("admin_users"))
+
+        current_user = get_current_user()
+        all_categories = db.list_categories()
+
+        # Import permission definitions
+        from helpers._permissions import (
+            group_permissions_by_category,
+            get_default_permissions,
+        )
+        from helpers._constants import ROLE_LABELS
+
+        if request.method == "POST":
+            # Get selected permissions
+            selected_perms = request.form.getlist("permissions")
+
+            # Get category access settings
+            read_restricted = request.form.get("read_restricted") == "1"
+            read_category_ids = [
+                int(v) for v in request.form.getlist("read_category_ids")
+                if v.isdigit()
+            ] if read_restricted else []
+
+            write_restricted = request.form.get("write_restricted") == "1"
+            write_category_ids = [
+                int(v) for v in request.form.getlist("write_category_ids")
+                if v.isdigit()
+            ] if write_restricted else []
+
+            # Save permissions
+            db.set_user_permissions(
+                user_id,
+                selected_perms,
+                read_restricted=read_restricted,
+                read_category_ids=read_category_ids,
+                write_restricted=write_restricted,
+                write_category_ids=write_category_ids,
+            )
+
+            log_action(
+                "admin_set_user_permissions", request, user=current_user,
+                target_user=target["username"],
+                permission_count=len(selected_perms),
+                read_restricted=read_restricted,
+                write_restricted=write_restricted,
+            )
+            notify_change("admin_user_permissions", f"Permissions updated for '{target['username']}'")
+            flash("Permissions updated successfully.", "success")
+            return redirect(url_for("admin_user_permissions", user_id=user_id))
+
+        # GET request - show current permissions
+        perms = db.get_user_permissions(user_id)
+
+        # If no permissions are set, initialize with defaults
+        if not perms['enabled_permissions']:
+            perms['enabled_permissions'] = get_default_permissions(target["role"])
+
+        categories, uncategorized = db.get_category_tree()
+        return render_template(
+            "admin/user_permissions.html",
+            target=target,
+            role_label=ROLE_LABELS.get(target["role"], target["role"]),
+            permissions=group_permissions_by_category(),
+            enabled_permissions=perms['enabled_permissions'],
+            read_restricted=perms['category_access']['restricted'],
+            read_allowed_categories=perms['category_access']['allowed_category_ids'],
+            write_restricted=perms['category_write_access']['restricted'],
+            write_allowed_categories=perms['category_write_access']['allowed_category_ids'],
+            all_categories=all_categories,
+            categories=categories,
+            uncategorized=uncategorized,
+        )
+
+    # -------------------------------------------------------------------
     #  Admin – Create user
     # -------------------------------------------------------------------
 
@@ -516,10 +626,24 @@ def register_admin_routes(app):
         else:
             hashed = generate_password_hash(password)
             try:
-                db.create_user(username, hashed, role=role)
+                user_id = db.create_user(username, hashed, role=role)
             except sqlite3.IntegrityError:
                 flash("Username already taken.", "error")
                 return redirect(url_for("admin_users"))
+
+            # Initialize default permissions for editors and users
+            if role in ("editor", "user"):
+                from helpers._permissions import get_default_permissions
+                defaults = get_default_permissions(role)
+                db.set_user_permissions(
+                    user_id,
+                    defaults,
+                    read_restricted=False,
+                    read_category_ids=[],
+                    write_restricted=False,
+                    write_category_ids=[],
+                )
+
             current_user = get_current_user()
             log_action("admin_create_user", request, user=current_user,
                        new_username=username, role=role)

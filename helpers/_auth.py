@@ -68,12 +68,56 @@ def editor_has_category_access(user, category_id):
     have access.  Restricted editors only have access to their explicitly
     allowed categories; uncategorised pages (category_id=None) are not
     accessible to restricted editors.
+
+    This function now uses the new custom permission system for category write access.
+    For backward compatibility, it falls back to the old editor_category_access system
+    if no custom permissions are set.
     """
     if user["role"] in ("admin", "protected_admin"):
         return True
-    access = db.get_editor_access(user["id"])
-    if not access["restricted"]:
-        return True
-    if category_id is None:
+
+    # Use new permission system
+    return db.has_category_write_access(user, category_id)
+
+
+def user_can_view_category(user, category_id):
+    """Return True if *user* can view pages in the given *category_id*.
+
+    Admins always have access. Regular users and editors check their
+    custom permissions for read access.
+    """
+    if not user:
         return False
-    return int(category_id) in access["allowed_category_ids"]
+
+    if user["role"] in ("admin", "protected_admin"):
+        return True
+
+    # Use new permission system
+    return db.has_category_read_access(user, category_id)
+
+
+def user_can_view_page(user, page):
+    """Return True if *user* can view the given *page*.
+
+    Takes into account:
+    - Deindexed pages (only editors/admins can see them by default)
+    - Category read access restrictions
+    - Custom permissions
+    """
+    if not user:
+        return False
+
+    # Admins can view all pages
+    if user["role"] in ("admin", "protected_admin"):
+        return True
+
+    # Check if page is deindexed (handle both dict and sqlite3.Row)
+    is_deindexed = page["is_deindexed"] if "is_deindexed" in page.keys() else False
+    if is_deindexed:
+        # Only users with page.view_deindexed permission can see them
+        return db.has_permission(user, "page.view_deindexed")
+
+    # Check category read access
+    category_id = page["category_id"] if "category_id" in page.keys() else None
+    return user_can_view_category(user, category_id)
+

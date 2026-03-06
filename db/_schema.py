@@ -237,6 +237,26 @@ def init_db():
         color       TEXT    NOT NULL DEFAULT '#9b59b6',
         sort_order  INTEGER NOT NULL DEFAULT 0
     );
+
+    CREATE TABLE IF NOT EXISTS user_permissions (
+        user_id         TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        permission_key  TEXT NOT NULL,
+        UNIQUE(user_id, permission_key)
+    );
+
+    CREATE TABLE IF NOT EXISTS user_category_access (
+        user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        access_type TEXT NOT NULL CHECK(access_type IN ('read','write')),
+        restricted  INTEGER NOT NULL DEFAULT 0,
+        UNIQUE(user_id, access_type)
+    );
+
+    CREATE TABLE IF NOT EXISTS user_allowed_categories (
+        user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        category_id INTEGER NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+        access_type TEXT NOT NULL CHECK(access_type IN ('read','write')),
+        UNIQUE(user_id, category_id, access_type)
+    );
     """)
 
     # -- Migrations: add columns to existing tables --
