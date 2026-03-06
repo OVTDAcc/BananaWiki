@@ -404,7 +404,7 @@ def register_group_routes(app):
         db.set_group_member_role(group_id, user["id"], "member")
         db.send_group_system_message(group_id, f"{user['username']} downgraded to member")
         notify_change("group_self_downgrade", f"{user['username']} self-downgraded in '{group['name']}'")
-        log_action(user["id"], "group_self_downgrade", f"Self-downgraded in group '{group['name']}'")
+        log_action("group_self_downgrade", request, user, group=group['name'])
         flash("You are now a regular member.", "success")
         return redirect(url_for("group_view", group_id=group_id))
 
