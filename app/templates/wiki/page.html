@@ -47,6 +47,34 @@
 </div>
 {% endif %}
 
+{% if reservation_status and current_user and current_user.role in ('editor', 'admin', 'protected_admin') %}
+<div class="reservation-panel">
+    {% if reservation_status.is_reserved %}
+        <div class="reservation-status reserved">
+            <span class="reservation-icon">🔒</span>
+            {% if reservation_status.reserved_by == current_user.id %}
+                <span class="reservation-text">You have reserved this page for editing</span>
+                <span class="reservation-expires">Expires {{ time_ago(reservation_status.expires_at) }}</span>
+                <button class="btn btn-sm btn-outline" onclick="releaseReservation({{ page.id }})">Release Reservation</button>
+            {% else %}
+                <span class="reservation-text">Reserved by <strong>{{ reservation_status.reserved_by_username }}</strong></span>
+                <span class="reservation-expires">Expires {{ time_ago(reservation_status.expires_at) }}</span>
+            {% endif %}
+        </div>
+    {% else %}
+        <div class="reservation-controls">
+            <label class="reservation-checkbox">
+                <input type="checkbox" id="reserveCheckbox" onchange="toggleReservation({{ page.id }}, this.checked)" {% if reservation_status.user_in_cooldown %}disabled{% endif %}>
+                <span>Reserve this page for exclusive editing</span>
+            </label>
+            {% if reservation_status.user_in_cooldown %}
+            <span class="cooldown-notice">⏱ Cooldown: available {{ time_ago(reservation_status.cooldown_until) }}</span>
+            {% endif %}
+        </div>
+    {% endif %}
+</div>
+{% endif %}
+
 {% if attachments %}
 <div class="attachments-section">
     <div class="attachments-header">
@@ -270,6 +298,51 @@ function toggleCustomTag(sel, customId) {
 document.addEventListener('DOMContentLoaded', function() {
     buildPresets('tagModalPresets','tagModalColorPicker','tagModalColorHex','tagModalPreview','tagModalLabel');
 });
+
+// ----- Page Reservation -----
+function toggleReservation(pageId, checked) {
+    if (checked) {
+        // Reserve the page
+        fetch('/api/pages/' + pageId + '/reservation', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCsrfToken() }
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (d.ok) {
+                location.reload();
+            } else {
+                alert(d.error || 'Failed to reserve page.');
+                document.getElementById('reserveCheckbox').checked = false;
+            }
+        })
+        .catch(function() {
+            alert('Failed to reserve page.');
+            document.getElementById('reserveCheckbox').checked = false;
+        });
+    }
+}
+
+function releaseReservation(pageId) {
+    if (!confirm('Are you sure you want to release your reservation? Others will be able to edit this page immediately.')) {
+        return;
+    }
+    fetch('/api/pages/' + pageId + '/reservation', {
+        method: 'DELETE',
+        headers: { 'X-CSRFToken': getCsrfToken() }
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+        if (d.ok) {
+            location.reload();
+        } else {
+            alert(d.error || 'Failed to release reservation.');
+        }
+    })
+    .catch(function() {
+        alert('Failed to release reservation.');
+    });
+}
 </script>
 {% endif %}
 {% endblock %}

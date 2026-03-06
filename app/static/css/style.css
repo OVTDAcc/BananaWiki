@@ -569,3 +569,17 @@ select.input{appearance:auto}
 ins.diff-ins{background:rgba(63,185,80,.25);color:#7ee787;text-decoration:none;border-radius:2px}
 del.diff-del{background:rgba(255,107,107,.2);color:#ff8585;border-radius:2px}
 .diff-pre{white-space:pre-wrap;word-break:break-word;font-family:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;font-size:.88rem;line-height:1.75;margin:0}
+
+/* Page Reservation Panel */
+.reservation-panel{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:1rem 1.2rem;margin:1.5rem 0}
+.reservation-status{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap}
+.reservation-icon{font-size:1.25rem;opacity:.8}
+.reservation-text{font-size:.95rem;opacity:.9}
+.reservation-expires{font-size:.85rem;opacity:.6;font-style:italic}
+.reservation-controls{display:flex;flex-direction:column;gap:.5rem}
+.reservation-checkbox{display:flex;align-items:center;gap:.5rem;cursor:pointer;user-select:none}
+.reservation-checkbox input[type="checkbox"]{cursor:pointer;width:16px;height:16px}
+.reservation-checkbox input[type="checkbox"]:disabled{cursor:not-allowed;opacity:.4}
+.reservation-checkbox input[type="checkbox"]:disabled + span{opacity:.4}
+.cooldown-notice{font-size:.85rem;opacity:.6;font-style:italic;padding-left:1.5rem}
+.reservation-notice{background:rgba(76,175,80,.15);border:1px solid rgba(76,175,80,.3);border-radius:8px;padding:.8rem 1rem;margin-bottom:1rem;display:flex;align-items:center;gap:.5rem;font-size:.9rem}
