@@ -219,3 +219,13 @@ from ._groups import (  # noqa: F401
     set_group_chat_active,
     delete_group_chat,
 )
+
+# Custom permissions
+from ._permissions import (  # noqa: F401
+    get_user_permissions,
+    set_user_permissions,
+    has_permission,
+    has_category_read_access,
+    has_category_write_access,
+    clear_user_permissions,
+)

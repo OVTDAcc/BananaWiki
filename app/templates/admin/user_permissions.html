@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+{% block title %}Permissions – {{ target.username }} – {{ settings.site_name }}{% endblock %}
+{% block content %}
+<h1>Custom Permissions: {{ target.username }}</h1>
+<p style="opacity:.7;margin-bottom:1.5rem">
+    Configure detailed permissions for <strong>{{ target.username }}</strong> ({{ role_label }}).
+    {% if target.role == 'editor' %}
+    By default, editors have reasonable permissions pre-selected. Customize as needed.
+    {% else %}
+    By default, users have read-only access. Customize as needed.
+    {% endif %}
+</p>
+
+<form method="POST">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <!-- Permission Categories -->
+    {% for category_key, category in permissions.items() %}
+    <div class="settings-section" style="margin-bottom:1.5rem">
+        <h3>{{ category.label }}</h3>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:.8rem">
+            {% for perm in category.permissions %}
+            {% set perm_key = perm[0] %}
+            {% set perm_label = perm[1] %}
+            {% set perm_desc = perm[2] %}
+            <label style="display:flex;align-items:flex-start;gap:.6rem;cursor:pointer;
+                          padding:.6rem .8rem;border-radius:4px;
+                          background:rgba(255,255,255,.04);
+                          transition:background .2s">
+                <input type="checkbox" name="permissions" value="{{ perm_key }}"
+                       {% if perm_key in enabled_permissions %}checked{% endif %}
+                       style="margin-top:3px;flex-shrink:0"
+                       {% if perm_key == 'page.view_deindexed' %}
+                       onchange="handleViewDeindexedChange(this)"
+                       {% elif perm_key.endswith('.edit_all') or perm_key.endswith('.create') or perm_key.endswith('.delete') %}
+                       onchange="handleEditPermissionChange(this)"
+                       {% endif %}>
+                <div style="flex:1">
+                    <div style="font-weight:500">{{ perm_label }}</div>
+                    <div style="font-size:.82rem;opacity:.7;margin-top:.2rem">{{ perm_desc }}</div>
+                </div>
+            </label>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+
+    <!-- Category Access Settings -->
+    <div class="settings-section" style="margin-bottom:1.5rem">
+        <h3>Category Access</h3>
+        <p style="opacity:.7;font-size:.88rem;margin-bottom:1rem">
+            Configure which categories {{ target.username }} can access.
+            By default, all categories are accessible unless you restrict them.
+        </p>
+
+        <!-- Read Access -->
+        <div style="margin-bottom:1.5rem;padding:1rem;background:rgba(255,255,255,.02);border-radius:6px">
+            <h4 style="margin-bottom:.8rem">Read Access</h4>
+            <div class="form-group">
+                <label style="display:flex;align-items:center;gap:.6rem;cursor:pointer">
+                    <input type="radio" name="read_restricted" value="0"
+                           id="read-unrestricted"
+                           {% if not read_restricted %}checked{% endif %}
+                           onchange="toggleReadCategoryPanel()">
+                    <span><strong>All categories</strong> – can view pages in all categories</span>
+                </label>
+            </div>
+            <div class="form-group">
+                <label style="display:flex;align-items:center;gap:.6rem;cursor:pointer">
+                    <input type="radio" name="read_restricted" value="1"
+                           id="read-restricted"
+                           {% if read_restricted %}checked{% endif %}
+                           onchange="toggleReadCategoryPanel()">
+                    <span><strong>Specific categories only</strong> – can only view selected categories</span>
+                </label>
+            </div>
+
+            <div id="read-category-panel" style="margin-top:1rem;{% if not read_restricted %}opacity:.4;pointer-events:none{% endif %}">
+                {% if all_categories %}
+                <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.5rem">
+                    {% for cat in all_categories %}
+                    <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;
+                                  padding:.4rem .6rem;border-radius:4px;
+                                  background:rgba(255,255,255,.04)">
+                        <input type="checkbox" name="read_category_ids" value="{{ cat.id }}"
+                               {% if cat.id in read_allowed_categories %}checked{% endif %}>
+                        {{ cat.name }}
+                    </label>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p style="opacity:.6;font-size:.88rem">No categories exist yet.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Write Access (only for editors) -->
+        {% if target.role == 'editor' %}
+        <div style="padding:1rem;background:rgba(255,255,255,.02);border-radius:6px">
+            <h4 style="margin-bottom:.8rem">Write Access</h4>
+            <div class="form-group">
+                <label style="display:flex;align-items:center;gap:.6rem;cursor:pointer">
+                    <input type="radio" name="write_restricted" value="0"
+                           id="write-unrestricted"
+                           {% if not write_restricted %}checked{% endif %}
+                           onchange="toggleWriteCategoryPanel()">
+                    <span><strong>All categories</strong> – can edit pages in all categories</span>
+                </label>
+            </div>
+            <div class="form-group">
+                <label style="display:flex;align-items:center;gap:.6rem;cursor:pointer">
+                    <input type="radio" name="write_restricted" value="1"
+                           id="write-restricted"
+                           {% if write_restricted %}checked{% endif %}
+                           onchange="toggleWriteCategoryPanel()">
+                    <span><strong>Specific categories only</strong> – can only edit in selected categories</span>
+                </label>
+            </div>
+
+            <div id="write-category-panel" style="margin-top:1rem;{% if not write_restricted %}opacity:.4;pointer-events:none{% endif %}">
+                {% if all_categories %}
+                <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.5rem">
+                    {% for cat in all_categories %}
+                    <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;
+                                  padding:.4rem .6rem;border-radius:4px;
+                                  background:rgba(255,255,255,.04)">
+                        <input type="checkbox" name="write_category_ids" value="{{ cat.id }}"
+                               {% if cat.id in write_allowed_categories %}checked{% endif %}>
+                        {{ cat.name }}
+                    </label>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p style="opacity:.6;font-size:.88rem">No categories exist yet.</p>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div style="margin-top:1rem;display:flex;gap:.8rem;align-items:center">
+        <button type="submit" class="btn">Save Permissions</button>
+        <a href="{{ url_for('admin_users') }}" class="btn btn-outline">← Back to Users</a>
+    </div>
+</form>
+
+<script>
+function toggleReadCategoryPanel() {
+    var restricted = document.getElementById('read-restricted').checked;
+    var panel = document.getElementById('read-category-panel');
+    if (restricted) {
+        panel.style.opacity = '1';
+        panel.style.pointerEvents = 'auto';
+    } else {
+        panel.style.opacity = '.4';
+        panel.style.pointerEvents = 'none';
+    }
+}
+
+function toggleWriteCategoryPanel() {
+    var restricted = document.getElementById('write-restricted').checked;
+    var panel = document.getElementById('write-category-panel');
+    if (restricted) {
+        panel.style.opacity = '1';
+        panel.style.pointerEvents = 'auto';
+    } else {
+        panel.style.opacity = '.4';
+        panel.style.pointerEvents = 'none';
+    }
+}
+
+// Auto-enable "View All Pages" when "View Deindexed Pages" is enabled
+function handleViewDeindexedChange(checkbox) {
+    if (checkbox.checked) {
+        var viewAllCheckbox = document.querySelector('input[value="page.view_all"]');
+        if (viewAllCheckbox) {
+            viewAllCheckbox.checked = true;
+        }
+    }
+}
+
+// Auto-enable view permission when edit permission is enabled
+function handleEditPermissionChange(checkbox) {
+    if (checkbox.checked) {
+        // For page.edit_all, enable page.view_all
+        if (checkbox.value === 'page.edit_all') {
+            var viewCheckbox = document.querySelector('input[value="page.view_all"]');
+            if (viewCheckbox) viewCheckbox.checked = true;
+        }
+        // For page.create, enable page.view_all
+        if (checkbox.value === 'page.create') {
+            var viewCheckbox = document.querySelector('input[value="page.view_all"]');
+            if (viewCheckbox) viewCheckbox.checked = true;
+        }
+    }
+}
+</script>
+{% endblock %}

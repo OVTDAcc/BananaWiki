@@ -77,7 +77,9 @@
                 <a href="{{ url_for('admin_user_audit', user_id=u.id) }}" class="btn btn-sm btn-outline" title="View audit trail">📋</a>
                 <a href="{{ url_for('admin_export_user_data', user_id=u.id) }}" class="btn btn-sm btn-outline" title="Export user data">⬇</a>
                 {% if u.role == 'editor' %}
-                <a href="{{ url_for('admin_editor_access', user_id=u.id) }}" class="btn btn-sm btn-outline" title="Customize category access">🔒 Access</a>
+                <a href="{{ url_for('admin_user_permissions', user_id=u.id) }}" class="btn btn-sm btn-outline" title="Customize permissions">✏️ Permissions</a>
+                {% elif u.role == 'user' %}
+                <a href="{{ url_for('admin_user_permissions', user_id=u.id) }}" class="btn btn-sm btn-outline" title="Customize permissions">✏️ Permissions</a>
                 {% endif %}
             </td>
         </tr>
