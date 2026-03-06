@@ -529,8 +529,8 @@ def register_admin_routes(app):
         from helpers._permissions import (
             group_permissions_by_category,
             get_default_permissions,
-            ROLE_LABELS,
         )
+        from helpers._constants import ROLE_LABELS
 
         if request.method == "POST":
             # Get selected permissions
