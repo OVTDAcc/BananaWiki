@@ -18,7 +18,7 @@
     <div class="auth-container">
         <div class="auth-box">
             <h1>{{ settings.site_name }} Setup</h1>
-            <p class="subtitle">Create your admin account to get started.</p>
+            <p class="subtitle">Create your administrator account to begin using BananaWiki.</p>
             {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
             {% for category, message in messages %}
@@ -40,7 +40,7 @@
                     <label>Confirm Password</label>
                     <input type="password" name="confirm_password" class="input" required minlength="6" autocomplete="new-password">
                 </div>
-                <button type="submit" class="btn">Create Admin Account</button>
+                <button type="submit" class="btn">Create Administrator Account</button>
             </form>
         </div>
     </div>

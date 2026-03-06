@@ -19,7 +19,7 @@
     <div class="auth-container">
         <div class="auth-box">
             <h1>{{ settings.site_name }}</h1>
-            <p class="subtitle">Create your account</p>
+            <p class="subtitle">Create a new account</p>
             {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
             {% for category, message in messages %}
@@ -45,10 +45,10 @@
                     <label>Invite Code</label>
                     <input type="text" name="invite_code" class="input" required placeholder="XXXX-XXXX" pattern="[A-Za-z0-9]{4}-[A-Za-z0-9]{4}" autocomplete="off" style="text-transform:uppercase">
                 </div>
-                <button type="submit" class="btn">Sign Up</button>
+                <button type="submit" class="btn">Create Account</button>
             </form>
             <div class="auth-link">
-                Already have an account? <a href="{{ url_for('login') }}">Login</a>
+                Already have an account? <a href="{{ url_for('login') }}">Sign in here</a>
             </div>
         </div>
     </div>

@@ -37,39 +37,39 @@ def register_auth_routes(app):
             confirm = request.form.get("confirm_password", "")
 
             if not username or not password:
-                flash("Username and password are required.", "error")
+                flash("Please provide both a username and password to continue.", "error")
                 return render_template("auth/setup.html")
             if len(username) < 3:
-                flash("Username must be at least 3 characters.", "error")
+                flash("Username must contain at least 3 characters.", "error")
                 return render_template("auth/setup.html")
             if len(username) > 50:
-                flash("Username must be 50 characters or fewer.", "error")
+                flash("Username cannot exceed 50 characters.", "error")
                 return render_template("auth/setup.html")
             if not _is_valid_username(username):
-                flash("Username may only contain letters, digits, underscores and hyphens.", "error")
+                flash("Username can only contain letters, numbers, underscores, and hyphens.", "error")
                 return render_template("auth/setup.html")
             if password != confirm:
-                flash("Passwords do not match.", "error")
+                flash("Password confirmation does not match. Please try again.", "error")
                 return render_template("auth/setup.html")
             if len(password) < 6:
-                flash("Password must be at least 6 characters.", "error")
+                flash("Password must contain at least 6 characters for security.", "error")
                 return render_template("auth/setup.html")
 
             hashed = generate_password_hash(password)
             # Re-check setup_done to prevent race condition
             settings = db.get_site_settings()
             if settings["setup_done"]:
-                flash("Setup already completed.", "info")
+                flash("Initial setup has already been completed.", "info")
                 return redirect(url_for("login"))
             try:
                 db.create_user(username, hashed, role="admin")
             except sqlite3.IntegrityError:
-                flash("Username already taken.", "error")
+                flash("This username is already registered. Please choose a different one.", "error")
                 return render_template("auth/setup.html")
             db.update_site_settings(setup_done=1)
             log_action("setup_complete", request, username=username)
             notify_change("setup_complete", f"Admin account '{username}' created")
-            flash("Admin account created! Please log in.", "success")
+            flash("Administrator account created successfully! You may now log in.", "success")
             return redirect(url_for("login"))
 
         return render_template("auth/setup.html")
@@ -86,7 +86,7 @@ def register_auth_routes(app):
         if request.method == "POST":
             if not _check_login_rate_limit():
                 log_action("login_rate_limited", request)
-                flash("Too many login attempts. Please wait a minute.", "error")
+                flash("Too many login attempts detected. Please wait one minute before trying again.", "error")
                 return render_template("auth/login.html", lockdown=lockdown), 429
 
             username = request.form.get("username", "").strip()
@@ -98,23 +98,23 @@ def register_auth_routes(app):
                 check_password_hash(_DUMMY_HASH, password)
                 _record_login_attempt()
                 log_action("login_failed", request, username=username)
-                flash("Invalid username or password.", "error")
+                flash("The username or password you entered is incorrect.", "error")
                 return render_template("auth/login.html", lockdown=lockdown)
 
             if not check_password_hash(user["password"], password):
                 _record_login_attempt()
                 log_action("login_failed", request, username=username)
-                flash("Invalid username or password.", "error")
+                flash("The username or password you entered is incorrect.", "error")
                 return render_template("auth/login.html", lockdown=lockdown)
 
             if user["suspended"]:
                 log_action("login_suspended", request, username=username)
-                flash("Your account has been suspended. Contact an administrator.", "error")
+                flash("Your account has been suspended. Please contact a site administrator for assistance.", "error")
                 return render_template("auth/login.html", lockdown=lockdown)
 
             if lockdown and user["role"] not in ("admin", "protected_admin"):
                 log_action("login_blocked_lockdown", request, username=username)
-                flash("This wiki is currently in lockdown. Only admins can log in.", "error")
+                flash("This wiki is currently in lockdown mode. Only administrators can access the site at this time.", "error")
                 return render_template("auth/login.html", lockdown=lockdown)
 
             session.clear()
@@ -158,49 +158,49 @@ def register_auth_routes(app):
             invite = request.form.get("invite_code", "").strip().upper()
 
             if not username or not password or not invite:
-                flash("All fields are required.", "error")
+                flash("Please complete all required fields to create your account.", "error")
                 return render_template("auth/signup.html")
             if len(username) < 3:
-                flash("Username must be at least 3 characters.", "error")
+                flash("Username must contain at least 3 characters.", "error")
                 return render_template("auth/signup.html")
             if len(username) > 50:
-                flash("Username must be 50 characters or fewer.", "error")
+                flash("Username cannot exceed 50 characters.", "error")
                 return render_template("auth/signup.html")
             if not _is_valid_username(username):
-                flash("Username may only contain letters, digits, underscores and hyphens.", "error")
+                flash("Username can only contain letters, numbers, underscores, and hyphens.", "error")
                 return render_template("auth/signup.html")
             if password != confirm:
-                flash("Passwords do not match.", "error")
+                flash("Password confirmation does not match. Please try again.", "error")
                 return render_template("auth/signup.html")
             if len(password) < 6:
-                flash("Password must be at least 6 characters.", "error")
+                flash("Password must contain at least 6 characters for security.", "error")
                 return render_template("auth/signup.html")
 
             code_row = db.validate_invite_code(invite)
             if not code_row:
                 log_action("signup_invalid_code", request, code=invite, username=username)
-                flash("Invalid or expired invite code.", "error")
+                flash("The invite code you entered is invalid or has expired.", "error")
                 return render_template("auth/signup.html")
 
             if db.get_user_by_username(username):
-                flash("Username already taken.", "error")
+                flash("This username is already registered. Please choose a different one.", "error")
                 return render_template("auth/signup.html")
 
             hashed = generate_password_hash(password)
             try:
                 user_id = db.create_user(username, hashed, invite_code=invite)
             except sqlite3.IntegrityError:
-                flash("Username already taken.", "error")
+                flash("This username is already registered. Please choose a different one.", "error")
                 return render_template("auth/signup.html")
             if not db.use_invite_code(invite, user_id):
                 # Race condition: code was used by another user concurrently
                 db.delete_user(user_id)
-                flash("This invite code was just used. Please request a new code.", "error")
+                flash("This invite code was just used by another person. Please request a new code.", "error")
                 return render_template("auth/signup.html")
 
             log_action("signup_success", request, username=username, invite_code=invite)
             notify_change("user_signup", f"New user '{username}' registered")
-            flash("Account created! Please log in.", "success")
+            flash("Your account has been created successfully! You may now log in.", "success")
             return redirect(url_for("login"))
 
         return render_template("auth/signup.html")
@@ -212,7 +212,7 @@ def register_auth_routes(app):
         if user:
             log_action("logout", request, user=user)
         session.clear()
-        flash("You have been logged out.", "info")
+        flash("You have been successfully logged out.", "info")
         return redirect(url_for("login"))
 
     @app.route("/session-conflict")
@@ -229,14 +229,14 @@ def register_auth_routes(app):
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "").strip()
         if not username or not password:
-            flash("Please enter your credentials to re-authenticate.", "error")
+            flash("Please enter your username and password to re-authenticate.", "error")
             return redirect(url_for("session_conflict"))
         user = db.get_user_by_username(username)
         if not user or not check_password_hash(user["password"], password):
-            flash("Incorrect username or password.", "error")
+            flash("The username or password you entered is incorrect.", "error")
             return redirect(url_for("session_conflict"))
         if user["suspended"]:
-            flash("Your account is suspended.", "error")
+            flash("Your account is currently suspended.", "error")
             return redirect(url_for("session_conflict"))
         # Issue a new session token so all other sessions are invalidated
         token = uuid.uuid4().hex
@@ -246,7 +246,7 @@ def register_auth_routes(app):
         session["user_id"] = user["id"]
         session["session_token"] = token
         log_action("session_conflict_force", request, user=user)
-        flash("Other sessions have been logged out. You are now signed in.", "info")
+        flash("All other sessions have been logged out. You are now signed in here.", "info")
         return redirect(url_for("home"))
 
     @app.route("/lockdown")

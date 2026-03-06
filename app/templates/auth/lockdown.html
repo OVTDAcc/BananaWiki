@@ -19,12 +19,12 @@
     <div class="auth-container">
         <div class="auth-box">
             <h1>{{ settings.site_name }}</h1>
-            <p class="subtitle">🔒 This wiki is currently in lockdown</p>
+            <p class="subtitle">🔒 This wiki is currently in lockdown mode</p>
             {% if settings.lockdown_message %}
             <div class="flash flash-info" style="white-space:pre-wrap">{{ settings.lockdown_message }}</div>
             {% endif %}
             <div style="margin-top:1.5rem;text-align:center">
-                <a href="{{ url_for('login') }}" class="btn">Admin Login</a>
+                <a href="{{ url_for('login') }}" class="btn">Administrator Login</a>
             </div>
         </div>
     </div>
