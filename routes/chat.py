@@ -216,14 +216,15 @@ def register_chat_routes(app):
 
             # Get last cleanup time
             last_cleanup = None
-            if settings and settings.get("last_chat_cleanup_at"):
-                last_cleanup_str = settings["last_chat_cleanup_at"]
+            if settings:
                 try:
-                    # Parse ISO format datetime
-                    last_cleanup = datetime.fromisoformat(last_cleanup_str.replace('Z', '+00:00'))
-                    # Convert to site timezone
-                    last_cleanup = last_cleanup.astimezone(site_tz)
-                except (ValueError, AttributeError):
+                    last_cleanup_str = settings["last_chat_cleanup_at"]
+                    if last_cleanup_str:
+                        # Parse ISO format datetime
+                        last_cleanup = datetime.fromisoformat(last_cleanup_str.replace('Z', '+00:00'))
+                        # Convert to site timezone
+                        last_cleanup = last_cleanup.astimezone(site_tz)
+                except (KeyError, ValueError, AttributeError, TypeError):
                     pass
 
             # If no last cleanup recorded, schedule for next configured hour today/tomorrow

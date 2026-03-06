@@ -91,14 +91,15 @@ def get_next_chat_cleanup_time():
 
         # Get last cleanup time
         last_cleanup = None
-        if settings and settings.get("last_chat_cleanup_at"):
-            last_cleanup_str = settings["last_chat_cleanup_at"]
+        if settings:
             try:
-                # Parse ISO format datetime
-                last_cleanup = datetime.fromisoformat(last_cleanup_str.replace('Z', '+00:00'))
-                # Convert to site timezone
-                last_cleanup = last_cleanup.astimezone(site_tz)
-            except (ValueError, AttributeError):
+                last_cleanup_str = settings["last_chat_cleanup_at"]
+                if last_cleanup_str:
+                    # Parse ISO format datetime
+                    last_cleanup = datetime.fromisoformat(last_cleanup_str.replace('Z', '+00:00'))
+                    # Convert to site timezone
+                    last_cleanup = last_cleanup.astimezone(site_tz)
+            except (KeyError, ValueError, AttributeError, TypeError):
                 pass
 
         # If no last cleanup recorded, next cleanup is at configured hour today/tomorrow
@@ -125,11 +126,16 @@ def get_time_since_last_chat_cleanup():
     """Return a human-readable string for time elapsed since last chat cleanup."""
     try:
         settings = db.get_site_settings()
-        if not settings or not settings.get("last_chat_cleanup_at"):
+        if not settings:
             return "Messages have not been cleaned up yet"
 
-        last_cleanup_str = settings["last_chat_cleanup_at"]
-        return time_ago(last_cleanup_str)
+        try:
+            last_cleanup_str = settings["last_chat_cleanup_at"]
+            if not last_cleanup_str:
+                return "Messages have not been cleaned up yet"
+            return time_ago(last_cleanup_str)
+        except (KeyError, TypeError):
+            return "Messages have not been cleaned up yet"
     except Exception:
         return "Unknown"
 
