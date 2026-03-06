@@ -49,8 +49,6 @@
                     <option value="category_count">Category Count - awarded after contributing to X categories</option>
                     <option value="member_days">Membership Duration - awarded after being member for X days</option>
                     <option value="easter_egg">Easter Egg - awarded when easter egg is found</option>
-                    <option value="reading_time">Reading Time - awarded after X minutes (not yet tracked)</option>
-                    <option value="article_count">Article Count - awarded after reading X articles (not yet tracked)</option>
                 </select>
             </div>
             <div class="form-group" id="threshold_group">
@@ -117,12 +115,10 @@ function updateThresholdLabel() {
     const thresholdLabel = document.getElementById('threshold_label');
     const value = select.value;
 
-    if (value === 'first_edit' || value === 'easter_egg' || value === '' || value === 'reading_time' || value === 'article_count') {
+    if (value === 'first_edit' || value === 'easter_egg' || value === '') {
         thresholdGroup.style.display = value === '' ? 'none' : 'block';
         if (value === 'first_edit' || value === 'easter_egg') {
             thresholdLabel.textContent = 'Threshold (not used for this trigger type)';
-        } else if (value === 'reading_time' || value === 'article_count') {
-            thresholdLabel.textContent = 'Threshold (feature not yet implemented)';
         }
     } else {
         thresholdGroup.style.display = 'block';

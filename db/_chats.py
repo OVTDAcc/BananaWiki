@@ -229,19 +229,29 @@ def get_all_messages_for_backup():
     return messages
 
 
-def cleanup_old_chat_messages():
-    """Delete all chat messages (and their attachments via CASCADE).
-    
+def cleanup_old_chat_messages(retention_days=30):
+    """Delete chat messages older than retention_days (and their attachments via CASCADE).
+
+    Args:
+        retention_days: Keep messages newer than this many days
+
     Returns list of attachment filenames that need to be removed from disk.
     """
     conn = get_db()
-    # Collect attachment filenames before deleting
+    # Collect attachment filenames for messages that will be deleted
     filenames = conn.execute(
-        "SELECT ca.filename FROM chat_attachments ca"
+        """SELECT ca.filename FROM chat_attachments ca
+           JOIN chat_messages cm ON ca.message_id = cm.id
+           WHERE datetime(cm.created_at) < datetime('now', '-' || ? || ' days')""",
+        (retention_days,)
     ).fetchall()
     files_to_delete = [r["filename"] for r in filenames]
-    # Delete all messages (attachments cascade)
-    conn.execute("DELETE FROM chat_messages")
+    # Delete messages older than retention period (attachments cascade)
+    conn.execute(
+        """DELETE FROM chat_messages
+           WHERE datetime(created_at) < datetime('now', '-' || ? || ' days')""",
+        (retention_days,)
+    )
     # Also delete empty chats (chats with no messages)
     conn.execute(
         "DELETE FROM chats WHERE id NOT IN (SELECT DISTINCT chat_id FROM chat_messages)"

@@ -14,8 +14,7 @@ VALID_TRIGGER_TYPES = {
     'first_edit',  # Made first edit
     'member_days',  # Member for X days
     'easter_egg',  # Found easter egg
-    'reading_time',  # Read for X minutes (placeholder)
-    'article_count',  # Read X articles (placeholder)
+    # Note: reading_time and article_count removed - no tracking system exists for these
 }
 
 
@@ -409,9 +408,8 @@ def check_and_award_auto_badges(user_id):
                 ).fetchone()
                 qualifies = user and user['easter_egg_found'] == 1
 
-            elif trigger_type in ('reading_time', 'article_count'):
-                # Placeholder triggers - no tracking exists yet
-                qualifies = False
+            # Note: reading_time and article_count triggers have been removed
+            # as no tracking system exists for these features yet
 
             if qualifies:
                 result = award_badge(user_id, badge['id'], awarded_by=None)

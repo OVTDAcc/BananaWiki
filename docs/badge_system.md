@@ -55,8 +55,6 @@ The `check_and_award_auto_badges()` function evaluates all enabled auto-trigger 
 | `category_count` | Contributed to X categories | Yes |
 | `member_days` | Member for X days | Yes |
 | `easter_egg` | Found the easter egg | No |
-| `reading_time` | Read for X minutes | Yes (placeholder) |
-| `article_count` | Read X articles | Yes (placeholder) |
 
 ### Integration Points
 
@@ -209,6 +207,12 @@ Potential additions not yet implemented:
 1. **Reading Time Tracking**
    - Track page view duration
    - Award badges for time spent reading
+   - Note: This would require implementing reading_time trigger type
+
+2. **Article Count Tracking**
+   - Track unique pages read per user
+   - Award badges for exploration
+   - Note: This would require implementing article_count trigger type
 
 2. **Article Count Tracking**
    - Track unique pages read per user
@@ -268,7 +272,7 @@ Potential additions not yet implemented:
 - **User Routes**: 2 new routes
 - **Templates**: 4 new, 4 modified
 - **Total Lines Added**: ~1,500 lines
-- **Auto-Trigger Types**: 7 (5 active, 2 placeholder)
+- **Auto-Trigger Types**: 5 (all active)
 - **Default Badges**: 7 included in seeder
 
 ## Conclusion

@@ -98,9 +98,11 @@ CHAT_ALLOWED_EXTENSIONS = {
     "png", "jpg", "jpeg", "gif", "webp",
 }
 
-# Chat message cleanup frequency (in days) and time
+# Chat message cleanup configuration
+CHAT_CLEANUP_ENABLED = True  # Master switch for automatic chat message cleanup
 CHAT_CLEANUP_FREQUENCY_DAYS = 7  # Delete messages every 7 days (weekly)
 CHAT_CLEANUP_HOUR = 3  # Hour of day (0-23) when cleanup runs (default: 3 AM)
+CHAT_CLEANUP_RETENTION_DAYS = 30  # Keep messages for this many days before deleting
 
 # =============================================================================
 # Logging
@@ -114,9 +116,6 @@ CHAT_CLEANUP_HOUR = 3  # Hour of day (0-23) when cleanup runs (default: 3 AM)
 #   - "debug":    All of the above + every HTTP request and detailed debug info
 # Default: "verbose" (highest useful level for production)
 LOGGING_LEVEL = "verbose"
-
-# Enable or disable logging (deprecated - use LOGGING_LEVEL = "off" instead)
-LOGGING_ENABLED = True
 
 # Log file path
 LOG_FILE = os.path.join(BASE_DIR, "logs", "bananawiki.log")

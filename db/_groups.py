@@ -17,7 +17,7 @@ def generate_invite_code_for_group():
     return ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(8))
 
 
-def create_group_chat(name, creator_id):
+def create_group_chat(name, creator_id, description=""):
     """Create a new group chat and add the creator as owner. Returns the group dict."""
     conn = get_db()
     invite_code = generate_invite_code_for_group()
@@ -25,8 +25,8 @@ def create_group_chat(name, creator_id):
     try:
         cur = conn.cursor()
         cur.execute(
-            "INSERT INTO group_chats (name, creator_id, invite_code, created_at) VALUES (?, ?, ?, ?)",
-            (name, creator_id, invite_code, now),
+            "INSERT INTO group_chats (name, creator_id, invite_code, description, created_at) VALUES (?, ?, ?, ?, ?)",
+            (name, creator_id, invite_code, description, now),
         )
         group_id = cur.lastrowid
         cur.execute(
@@ -411,18 +411,30 @@ def get_group_messages_for_export(group_id):
     return messages, group_info
 
 
-def cleanup_old_group_messages():
-    """Delete all group messages (and their attachments via CASCADE).
+def cleanup_old_group_messages(retention_days=30):
+    """Delete group messages older than retention_days (and their attachments via CASCADE).
+
+    Args:
+        retention_days: Keep messages newer than this many days
 
     Returns list of attachment filenames that need to be removed from disk.
     Unlike DM chats, group chats themselves are NOT deleted (they persist).
     """
     conn = get_db()
+    # Collect attachment filenames for messages that will be deleted
     filenames = conn.execute(
-        "SELECT ga.filename FROM group_attachments ga"
+        """SELECT ga.filename FROM group_attachments ga
+           JOIN group_messages gm ON ga.message_id = gm.id
+           WHERE datetime(gm.created_at) < datetime('now', '-' || ? || ' days')""",
+        (retention_days,)
     ).fetchall()
     files_to_delete = [r["filename"] for r in filenames]
-    conn.execute("DELETE FROM group_messages")
+    # Delete messages older than retention period (attachments cascade)
+    conn.execute(
+        """DELETE FROM group_messages
+           WHERE datetime(created_at) < datetime('now', '-' || ? || ' days')""",
+        (retention_days,)
+    )
     conn.commit()
     conn.close()
     return files_to_delete

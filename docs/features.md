@@ -480,7 +480,7 @@ Messages are sent via POST to `/chats/<chat_id>/send`. Each message records:
 - Message content (text, up to 5,000 characters)
 - Sender ID
 - Timestamp
-- Read status (currently not implemented in UI but tracked in database)
+- IP address (for moderation and audit)
 
 > `routes/chat.py` → `chat_send`, `db/_chats.py` → `add_chat_message()`, `get_chat_messages()`
 
@@ -493,7 +493,7 @@ Users can attach files to direct messages (PDF, documents, images, archives). Ea
 
 Users have a daily attachment limit (default: 10 files per day) to prevent abuse.
 
-> `routes/chat.py` → `chat_send` (file upload), `chat_attachment_download`, `config.py` → `MAX_CHAT_ATTACHMENT_SIZE`, `CHAT_ATTACHMENT_FOLDER`, `CHAT_DAILY_ATTACHMENT_LIMIT`, `db/_chats.py` → `chat_attachments` table, `count_user_chat_attachments_today()`
+> `routes/chat.py` → `chat_send` (file upload), `chat_attachment_download`, `config.py` → `MAX_CHAT_ATTACHMENT_SIZE`, `CHAT_ATTACHMENT_FOLDER`, `MAX_CHAT_ATTACHMENTS_PER_DAY`, `db/_chats.py` → `chat_attachments` table, `count_user_chat_attachments_today()`
 
 ### Admin chat oversight
 Admins can view a list of all direct message conversations and access any conversation's message history from **Admin → Chats**. This is for moderation purposes.
@@ -517,7 +517,7 @@ Any user with chat privileges can create a group chat. Each group has:
 - A name (3-50 characters)
 - A unique 8-character alphanumeric invite code
 - Member roles: `owner`, `moderator`, `member`
-- An optional description
+- An optional description (up to 500 characters)
 - Active/inactive status
 
 > `routes/groups.py` → `group_new`, `db/_groups.py` → `group_chats`, `group_members` tables, `create_group()`, `generate_random_id()`
@@ -942,9 +942,9 @@ Control characters and newlines are stripped from all log values before writing,
 > `wiki_logger.py` → log sanitization logic
 
 ### Log file configuration
-Logging can be disabled entirely with `LOGGING_ENABLED = False`. The log file path defaults to `logs/bananawiki.log`. All log entries are also echoed to stdout.
+Logging can be disabled entirely with `LOGGING_LEVEL = "off"`. The log file path defaults to `logs/bananawiki.log`. All log entries are also echoed to stdout.
 
-> `config.py` → `LOGGING_ENABLED`, `LOG_FILE`, `wiki_logger.py`
+> `config.py` → `LOGGING_LEVEL`, `LOG_FILE`, `wiki_logger.py`
 
 ### Password reset CLI script
 `reset_password.py` is a standalone command-line script for resetting a user's password outside of the web interface — useful if an admin is locked out.
@@ -1069,8 +1069,6 @@ Badges can be automatically awarded when users meet certain criteria. Supported 
 - **category_count** — User edits pages in N different categories (configurable threshold)
 - **member_days** — User has been a member for N days (configurable threshold)
 - **easter_egg** — User finds the easter egg
-- **reading_time** — User reads for N minutes (placeholder for future implementation)
-- **article_count** — User reads N articles (placeholder for future implementation)
 
 Manual-only badges (trigger type empty string) require admin action to award.
 
@@ -1216,7 +1214,7 @@ Cleanup behavior is controlled by several config settings:
 
 When cleanup is disabled, messages are never automatically deleted, but the countdown banners still display based on the configured schedule.
 
-> `config.py` → lines 101-103 (cleanup settings), `routes/chat.py` → lines 210-294 (scheduler implementation)
+> `config.py` → lines 102-105 (cleanup settings), `routes/chat.py` → lines 210-294 (scheduler implementation)
 
 ### Backup integration
 Before messages are deleted, they are automatically backed up via the Telegram sync system (if enabled). This ensures deleted messages can be recovered if needed. The backup ZIP includes message content, sender info, timestamps, and attachments (when size permits).
@@ -1254,9 +1252,9 @@ This categorization ensures that increasing the logging level progressively adds
 > `wiki_logger.py` → `ACTION_CATEGORIES` dict (maps action names to categories), `_should_log_action()` function
 
 ### Log file configuration
-Logging can be completely disabled with `LOGGING_ENABLED = False` in `config.py`. The log file path defaults to `logs/bananawiki.log` and can be changed via `LOG_FILE`. All log entries are also echoed to stdout for systemd journal integration.
+Logging can be completely disabled with `LOGGING_LEVEL = "off"` in `config.py`. The log file path defaults to `logs/bananawiki.log` and can be changed via `LOG_FILE`. All log entries are also echoed to stdout for systemd journal integration.
 
-> `config.py` → `LOGGING_ENABLED`, `LOG_FILE`, `wiki_logger.py` → `log_action()`, `log_request()`
+> `config.py` → `LOGGING_LEVEL`, `LOG_FILE`, `wiki_logger.py` → `log_action()`, `log_request()`
 
 ---
 
