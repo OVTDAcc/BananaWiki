@@ -144,18 +144,54 @@ BananaWiki is a lightweight, private wiki you can host on your own server. No cl
 
 **Requirements:** Python 3.9+
 
+### For Local Development / Testing
+
+**Option 1: Using Make (simplest)**
+```bash
+git clone https://github.com/ovtdadt/BananaWiki.git
+cd BananaWiki
+make dev
+```
+
+**Option 2: Using the dev script directly**
+```bash
+git clone https://github.com/ovtdadt/BananaWiki.git
+cd BananaWiki
+./dev.sh
+```
+
+Both methods automatically set up the virtual environment, install dependencies, and start the Flask development server. Open **http://localhost:5001** to access BananaWiki.
+
+### For Production Deployment
+
+**Option 1: Automated Installation (Recommended)**
+
+```bash
+git clone https://github.com/ovtdadt/BananaWiki.git
+cd BananaWiki
+sudo make install
+# or: sudo ./install.sh
+```
+
+The installation script will guide you through an interactive setup that:
+- Installs system dependencies
+- Sets up the application with proper permissions
+- Configures systemd service for automatic startup
+- Optionally sets up nginx reverse proxy
+- Optionally obtains SSL certificate with Let's Encrypt
+
+**Option 2: Manual Setup**
+
 ```bash
 git clone https://github.com/ovtdadt/BananaWiki.git
 cd BananaWiki
 python -m venv venv
 source venv/bin/activate        # Windows: venv\Scripts\activate
 pip install -r requirements.txt
-gunicorn wsgi:app -c gunicorn.conf.py
+make start                       # or: ./start.sh or: gunicorn wsgi:app -c gunicorn.conf.py
 ```
 
-Open **http://localhost:5001** — you'll be redirected to the setup wizard to create the first admin account.
-
-> **Local development:** You can also run `python app.py` to use the Flask dev server. It's single-threaded — use Gunicorn for anything beyond local testing.
+**On first visit**, you'll be redirected to the setup wizard to create the first admin account.
 
 ---
 
@@ -195,8 +231,12 @@ BananaWiki/
 ├── wiki_logger.py      # Request and action logging
 ├── wsgi.py             # WSGI entry point for Gunicorn
 ├── gunicorn.conf.py    # Gunicorn server configuration
+├── Makefile            # Convenient shortcuts: make dev, make start, make install
+├── dev.sh              # Quick start script for local development
+├── start.sh            # Production start script with Gunicorn
+├── install.sh          # Automated production installation script
 ├── bananawiki.service  # systemd service file for production
-├── setup.py            # One-shot server provisioning wizard (systemd + nginx + certbot)
+├── setup.py            # Advanced server provisioning wizard (systemd + nginx + certbot)
 ├── reset_password.py   # CLI tool for resetting a user password outside the web UI
 ├── requirements.txt    # Python dependencies
 ├── app/

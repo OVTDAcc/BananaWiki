@@ -2,8 +2,19 @@
 
 This guide covers all the ways to run BananaWiki in production.
 
+## Quick Comparison
+
+| Method | Best For | Complexity | Features |
+|--------|----------|------------|----------|
+| **`./dev.sh`** | Local testing | ⭐ Very Easy | Auto-setup, dev server |
+| **`./install.sh`** | Production VPS | ⭐⭐ Easy | Full automation, nginx, SSL |
+| **`setup.py` wizard** | Advanced setup | ⭐⭐⭐ Medium | Web UI, DNS verification, custom config |
+| **Manual systemd** | Custom deployments | ⭐⭐⭐ Medium | Full control |
+| **Cloudflare** | Free SSL/CDN | ⭐⭐ Easy | Automatic HTTPS, DDoS protection |
+
 ## Contents
 
+- [Quick automated installation](#quick-automated-installation-new)
 - [Automated setup wizard](#automated-setup-wizard)
 - [systemd (recommended)](#systemd-recommended)
 - [Manual Gunicorn](#manual-gunicorn)
@@ -13,6 +24,44 @@ This guide covers all the ways to run BananaWiki in production.
 - [IP-only access (no domain)](#ip-only-access-no-domain)
 - [Multiple apps on one server](#multiple-apps-on-one-server)
 - [Pre-flight checklist](#pre-flight-checklist)
+
+---
+
+## Quick automated installation (NEW)
+
+The easiest way to deploy BananaWiki on a VPS is with the new `install.sh` script:
+
+```bash
+git clone https://github.com/ovtdadt/BananaWiki.git
+cd BananaWiki
+sudo ./install.sh
+```
+
+The script will guide you through an interactive setup that:
+- Installs all system dependencies (Python, nginx, certbot)
+- Creates and configures a systemd service
+- Sets up nginx reverse proxy with optional SSL
+- Configures proper file permissions and directories
+- Starts the service automatically
+
+**Non-interactive installation:**
+```bash
+sudo ./install.sh --non-interactive --domain wiki.example.com --email admin@example.com --ssl
+```
+
+**Available options:**
+- `--non-interactive` - Skip all prompts, use defaults
+- `--app-name NAME` - Service name (default: bananawiki)
+- `--app-dir DIR` - Installation directory (default: /opt/BananaWiki)
+- `--user USER` - System user (default: www-data)
+- `--port PORT` - Port to bind to (default: 5001)
+- `--workers N` - Number of Gunicorn workers (default: 4)
+- `--domain DOMAIN` - Domain name for nginx/SSL
+- `--email EMAIL` - Email for Let's Encrypt
+- `--ssl` - Set up SSL with Let's Encrypt
+- `--no-nginx` - Skip nginx configuration
+
+After installation completes, visit your domain or server IP to complete the first-time setup wizard and create your admin account.
 
 ---
 
@@ -81,8 +130,22 @@ journalctl -u bananawiki -f         # follow live logs
 
 ## Manual Gunicorn
 
-Without systemd, start Gunicorn directly:
+For manual production deployment without systemd:
 
+**Using the start.sh wrapper (recommended):**
+```bash
+source venv/bin/activate
+./start.sh
+```
+
+The `start.sh` script provides a cleaner interface to Gunicorn with helpful output and command-line overrides:
+```bash
+./start.sh --port 8080           # Override port
+./start.sh --workers 8           # Override worker count
+./start.sh --bind 0.0.0.0:5001   # Bind to specific address
+```
+
+**Using Gunicorn directly:**
 ```bash
 source venv/bin/activate
 gunicorn wsgi:app -c gunicorn.conf.py
@@ -94,6 +157,14 @@ gunicorn wsgi:app --bind 0.0.0.0:5001 --workers 2
 ```
 
 `gunicorn.conf.py` reads `HOST`, `PORT`, and `PROXY_MODE` from `config.py` automatically.
+
+**For local development/testing only:**
+```bash
+./dev.sh                  # Automatically sets up venv and dependencies
+./dev.sh --port 8080      # Run on custom port
+```
+
+> **Note:** The Flask dev server (`python app.py` or `./dev.sh`) is single-threaded and not suitable for production. Always use Gunicorn for production deployments.
 
 ---
 
