@@ -363,6 +363,54 @@ def get_all_group_messages_for_backup():
     return messages
 
 
+def get_group_messages_for_export(group_id):
+    """Return all messages for a specific group with sender info and attachments for export.
+
+    Args:
+        group_id: The group chat ID to export messages from.
+
+    Returns:
+        A tuple of (messages, group_info) where:
+        - messages is a list of message dicts with attachments
+        - group_info is the group chat dict
+    """
+    conn = get_db()
+
+    # Get group info
+    group_row = conn.execute(
+        "SELECT * FROM group_chats WHERE id=?", (group_id,)
+    ).fetchone()
+    if not group_row:
+        conn.close()
+        return [], None
+
+    group_info = dict(group_row)
+
+    # Get all messages for this group
+    rows = conn.execute(
+        "SELECT gm.*, u.username AS sender_name "
+        "FROM group_messages gm "
+        "LEFT JOIN users u ON gm.sender_id=u.id "
+        "WHERE gm.group_id=? "
+        "ORDER BY gm.created_at ASC",
+        (group_id,)
+    ).fetchall()
+
+    messages = []
+    for r in rows:
+        msg = dict(r)
+        # Get attachments for this message
+        atts = conn.execute(
+            "SELECT * FROM group_attachments WHERE message_id=? ORDER BY id ASC",
+            (r["id"],),
+        ).fetchall()
+        msg["attachments"] = [dict(a) for a in atts]
+        messages.append(msg)
+
+    conn.close()
+    return messages, group_info
+
+
 def cleanup_old_group_messages():
     """Delete all group messages (and their attachments via CASCADE).
 

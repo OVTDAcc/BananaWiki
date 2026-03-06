@@ -72,11 +72,17 @@
 
         {# Delete group (owner or site admin, non-global only) #}
         {% if not group.is_global and (is_owner or is_site_admin) %}
-        <form method="POST" action="{{ url_for('group_delete', group_id=group.id) }}" style="margin-bottom:.5rem"
-              onsubmit="return confirm('Permanently delete this group and all its messages? This cannot be undone.')">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button class="btn btn-sm btn-danger" title="Delete group permanently">🗑 Delete Group</button>
-        </form>
+        <div style="display:flex;gap:.5rem;margin-bottom:.5rem;flex-wrap:wrap">
+            <a href="{{ url_for('group_export', group_id=group.id) }}" class="btn btn-sm btn-outline" title="Export chat history">💾 Export Chat</a>
+            <form method="POST" action="{{ url_for('group_delete', group_id=group.id) }}" style="margin:0"
+                  onsubmit="return confirm('Permanently delete this group and all its messages? This cannot be undone.\n\nTip: Use the Export Chat button above to save a backup first.')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-sm btn-danger" title="Delete group permanently">🗑 Delete Group</button>
+            </form>
+        </div>
+        {% elif my_role %}
+        {# Export button for members who can't delete #}
+        <a href="{{ url_for('group_export', group_id=group.id) }}" class="btn btn-sm btn-outline" style="margin-bottom:.5rem" title="Export chat history">💾 Export Chat</a>
         {% endif %}
 
         <table class="admin-table" style="font-size:.85rem">

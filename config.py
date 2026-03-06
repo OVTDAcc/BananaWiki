@@ -135,3 +135,9 @@ INVITE_CODE_EXPIRY_HOURS = 48
 SYNC = False
 SYNC_TOKEN = ""
 SYNC_USERID = ""
+
+# Smart backup options for Telegram sync
+# These control how backups are created and sent based on size
+SYNC_SPLIT_THRESHOLD = 45 * 1024 * 1024  # 45 MB - split if backup exceeds this
+SYNC_COMPRESS_LEVEL = 9  # ZIP compression level (0-9, higher = better compression)
+SYNC_INCLUDE_CHAT_ATTACHMENTS = True  # Include chat attachments in backups
