@@ -26,11 +26,16 @@ def register_wiki_routes(app):
     """Register wiki page and category routes on the Flask app."""
 
     @app.route("/")
-    @login_required
     def home():
-        """Render the wiki home page."""
-        page = db.get_home_page()
+        """Render the wiki home page, or the product landing page for unauthenticated visitors."""
         user = get_current_user()
+        if not user:
+            return redirect(url_for("landing"))
+        if user["suspended"]:
+            session.clear()
+            flash("Your account has been suspended.", "error")
+            return redirect(url_for("login"))
+        page = db.get_home_page()
         content_html = render_markdown(page["content"], embed_videos=True) if page else ""
         categories, uncategorized = db.get_category_tree()
 

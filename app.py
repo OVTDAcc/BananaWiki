@@ -134,12 +134,12 @@ def set_security_headers(response):
 def before_request_hook():
     """Enforce setup, lockdown, session limits, and global rate limiting."""
     settings = db.get_site_settings()
-    if not settings["setup_done"] and request.endpoint not in ("setup", "static"):
+    if not settings["setup_done"] and request.endpoint not in ("setup", "static", "landing"):
         return redirect(url_for("setup"))
 
     # Lockdown mode: non-admin users are kicked out
     if settings["lockdown_mode"] and request.endpoint not in (
-        "lockdown", "login", "logout", "static", "view_announcement"
+        "lockdown", "login", "logout", "static", "view_announcement", "landing"
     ):
         user = get_current_user()
         if not user or user["role"] not in ("admin", "protected_admin"):

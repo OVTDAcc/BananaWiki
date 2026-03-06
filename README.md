@@ -162,6 +162,10 @@ cd BananaWiki
 
 Both methods automatically set up the virtual environment, install dependencies, and start the Flask development server. Open **http://localhost:5001** to access BananaWiki.
 
+> **Product landing page:** The public-facing product website is served at **`/landing`** (e.g. `http://localhost:5001/landing`). It is accessible without logging in and introduces BananaWiki to new visitors. Unauthenticated requests to `/` are automatically redirected there.
+>
+> The landing page template lives at `app/templates/landing.html` and its styles at `app/static/css/landing.css` — straightforward to customise.
+
 ### For Production Deployment
 
 **Option 1: Automated Installation (Recommended)**

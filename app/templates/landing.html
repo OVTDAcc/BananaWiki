@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="color-scheme" content="dark">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BananaWiki – Self-Hosted Private Wiki</title>
+    <meta name="description" content="A lightweight, self-hosted wiki built with Flask and SQLite. No cloud, no external database — full control over your team's knowledge base.">
+    {% if settings.favicon_enabled %}
+      {% if settings.favicon_type == 'custom' and settings.favicon_custom %}
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicons/' + settings.favicon_custom) }}">
+      {% elif settings.favicon_type != 'custom' %}
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicons/banana_' + settings.favicon_type + '.png') }}">
+      {% endif %}
+    {% endif %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/landing.css') }}">
+</head>
+<body>
+
+<!-- ── Navigation ──────────────────────────────────────────────────────── -->
+<nav class="lp-nav" aria-label="Site navigation">
+    <div class="lp-nav-inner">
+        <a href="{{ url_for('landing') }}" class="lp-nav-logo">
+            <span class="lp-nav-logo-emoji" aria-hidden="true">🍌</span>
+            BananaWiki
+        </a>
+        <div class="lp-nav-links" role="list">
+            <a href="#features" class="lp-nav-link" role="listitem">Features</a>
+            <a href="#how-it-works" class="lp-nav-link" role="listitem">How it works</a>
+            <a href="#get-started" class="lp-nav-link" role="listitem">Get started</a>
+            <a href="https://github.com/ovtdadt/BananaWiki" class="lp-nav-link" role="listitem" target="_blank" rel="noopener noreferrer">GitHub</a>
+            <a href="{{ url_for('login') }}" class="lp-btn lp-btn-primary" style="margin-left:.4rem">Sign in</a>
+        </div>
+    </div>
+</nav>
+
+<!-- ── Hero ────────────────────────────────────────────────────────────── -->
+<section class="lp-hero" aria-labelledby="hero-title">
+    <div class="lp-hero-inner">
+        <span class="lp-hero-badge">Open Source · MIT License</span>
+        <h1 class="lp-hero-title" id="hero-title">
+            Your team's knowledge base,<br>
+            <span class="lp-hero-title-accent">fully under your control</span>
+        </h1>
+        <p class="lp-hero-subtitle">
+            BananaWiki is a lightweight, self-hosted wiki built with Flask and SQLite.
+            No cloud services, no external databases — spin it up in minutes and own
+            every byte of your documentation.
+        </p>
+        <div class="lp-hero-actions">
+            <a href="#get-started" class="lp-btn lp-btn-primary lp-btn-lg">Get started free</a>
+            <a href="https://github.com/ovtdadt/BananaWiki" class="lp-btn lp-btn-outline lp-btn-lg" target="_blank" rel="noopener noreferrer">View on GitHub</a>
+        </div>
+        <p class="lp-hero-note">Requires Python 3.9+ · SQLite · No external services needed</p>
+    </div>
+</section>
+
+<!-- ── Stats ───────────────────────────────────────────────────────────── -->
+<div class="lp-stats" aria-label="Project highlights">
+    <div class="lp-stats-inner">
+        <div class="lp-stat">
+            <span class="lp-stat-value">1 file</span>
+            <span class="lp-stat-label">SQLite database</span>
+        </div>
+        <div class="lp-stat">
+            <span class="lp-stat-value">4 roles</span>
+            <span class="lp-stat-label">Access tiers</span>
+        </div>
+        <div class="lp-stat">
+            <span class="lp-stat-value">Zero</span>
+            <span class="lp-stat-label">Cloud dependencies</span>
+        </div>
+        <div class="lp-stat">
+            <span class="lp-stat-value">&lt; 5 min</span>
+            <span class="lp-stat-label">Time to launch</span>
+        </div>
+    </div>
+</div>
+
+<!-- ── Features ────────────────────────────────────────────────────────── -->
+<section id="features" class="lp-section" aria-labelledby="features-title">
+    <div class="lp-container">
+        <div class="lp-section-head">
+            <span class="lp-section-label">Features</span>
+            <h2 class="lp-section-title" id="features-title">Everything you need, nothing you don't</h2>
+            <p class="lp-section-desc">
+                A complete wiki platform with Markdown editing, access control,
+                version history, and team collaboration — all from a single Python process.
+            </p>
+        </div>
+        <div class="lp-features-grid">
+
+            <article class="lp-feature-card">
+                <span class="lp-feature-icon" aria-hidden="true">📝</span>
+                <h3 class="lp-feature-title">Rich Markdown Editor</h3>
+                <p class="lp-feature-desc">Split-pane live preview, drag-to-resize divider, formatting toolbar, `[TOC]` table of contents, and fenced code blocks. Draft autosave keeps work safe between sessions.</p>
+            </article>
+
+            <article class="lp-feature-card">
+                <span class="lp-feature-icon" aria-hidden="true">🗂️</span>
+                <h3 class="lp-feature-title">Hierarchical Categories</h3>
+                <p class="lp-feature-desc">Unlimited nesting depth with a collapsible tree sidebar. Drag pages and categories to reorder them, and navigate chapters sequentially with Prev / Next buttons.</p>
+            </article>
+
+            <article class="lp-feature-card">
+                <span class="lp-feature-icon" aria-hidden="true">🔐</span>
+                <h3 class="lp-feature-title">Four-Tier Access Control</h3>
+                <p class="lp-feature-desc">Roles from read-only user to protected admin. Invite-code signup, per-category editor restrictions, and a lockdown mode that instantly blocks all non-admin access.</p>
+            </article>
+
+            <article class="lp-feature-card">
+                <span class="lp-feature-icon" aria-hidden="true">🕒</span>
+                <h3 class="lp-feature-title">Full Version History</h3>
+                <p class="lp-feature-desc">Every save is a versioned snapshot. View any past state, read edit summaries, compare diffs, and revert with a single click — nothing is ever deleted from history.</p>
+            </article>
+
+            <article class="lp-feature-card">
+                <span class="lp-feature-icon" aria-hidden="true">👥</span>
+                <h3 class="lp-feature-title">User Profiles & Badges</h3>
+                <p class="lp-feature-desc">Public profiles with avatars, bios, and a GitHub-style contribution heatmap. Auto-trigger badge awards celebrate milestones and keep the team engaged.</p>
+            </article>
+
+            <article class="lp-feature-card">
+                <span class="lp-feature-icon" aria-hidden="true">💬</span>
+                <h3 class="lp-feature-title">Team Messaging</h3>
+                <p class="lp-feature-desc">Real-time-style direct messages and group chats built right in — no third-party integration required. Automatic scheduled cleanup keeps storage tidy.</p>
+            </article>
+
+            <article class="lp-feature-card">
+                <span class="lp-feature-icon" aria-hidden="true">📦</span>
+                <h3 class="lp-feature-title">Full Site Migration</h3>
+                <p class="lp-feature-desc">Export or import the entire wiki as a ZIP with three conflict modes: delete all, override, or keep existing data. Telegram backup sends DB snapshots automatically.</p>
+            </article>
+
+            <article class="lp-feature-card">
+                <span class="lp-feature-icon" aria-hidden="true">♿</span>
+                <h3 class="lp-feature-title">Accessibility Panel</h3>
+                <p class="lp-feature-desc">Per-user preferences for font scale, high-contrast levels, line / letter spacing, reduce-motion, and six color overrides — accessible on every page including the editor.</p>
+            </article>
+
+            <article class="lp-feature-card">
+                <span class="lp-feature-icon" aria-hidden="true">🔒</span>
+                <h3 class="lp-feature-title">Security First</h3>
+                <p class="lp-feature-desc">CSRF protection on every form, HTML sanitization after every Markdown render, login rate limiting, security headers on all responses, and constant-time login checks.</p>
+            </article>
+
+        </div>
+    </div>
+</section>
+
+<!-- ── How it works ─────────────────────────────────────────────────────── -->
+<section id="how-it-works" class="lp-section lp-section-alt" aria-labelledby="how-title">
+    <div class="lp-container">
+        <div class="lp-section-head">
+            <span class="lp-section-label">Architecture</span>
+            <h2 class="lp-section-title" id="how-title">Simple by design</h2>
+            <p class="lp-section-desc">
+                BananaWiki is a standard Python web app — no build steps, no microservices,
+                no container orchestration required. One process, one database file.
+            </p>
+        </div>
+        <div class="lp-steps">
+
+            <div class="lp-step">
+                <div class="lp-step-num" aria-label="Step 1">1</div>
+                <h3 class="lp-step-title">Flask + Jinja2</h3>
+                <p class="lp-step-desc">Server-side rendered pages with Jinja2 templates keep the stack simple and fast. No JavaScript framework or build pipeline needed.</p>
+            </div>
+
+            <div class="lp-step">
+                <div class="lp-step-num" aria-label="Step 2">2</div>
+                <h3 class="lp-step-title">SQLite database</h3>
+                <p class="lp-step-desc">All wiki pages, users, history, chats, badges, and settings live in a single <code>wiki.db</code> file — trivial to backup, move, or inspect.</p>
+            </div>
+
+            <div class="lp-step">
+                <div class="lp-step-num" aria-label="Step 3">3</div>
+                <h3 class="lp-step-title">Gunicorn in production</h3>
+                <p class="lp-step-desc">Serve with Gunicorn behind nginx for production deployments. The included <code>install.sh</code> configures systemd, nginx, and optional SSL automatically.</p>
+            </div>
+
+            <div class="lp-step">
+                <div class="lp-step-num" aria-label="Step 4">4</div>
+                <h3 class="lp-step-title">Zero external services</h3>
+                <p class="lp-step-desc">No Redis, no Celery, no S3. Rate-limiting state lives in SQLite, background tasks are lightweight threads, and file uploads are stored on disk.</p>
+            </div>
+
+        </div>
+    </div>
+</section>
+
+<!-- ── Get started ──────────────────────────────────────────────────────── -->
+<section id="get-started" class="lp-section" aria-labelledby="start-title">
+    <div class="lp-container">
+        <div class="lp-section-head">
+            <span class="lp-section-label">Installation</span>
+            <h2 class="lp-section-title" id="start-title">Up and running in minutes</h2>
+            <p class="lp-section-desc">
+                Choose the workflow that fits — a one-liner for local development, or an
+                automated script for a production server.
+            </p>
+        </div>
+
+        <div class="lp-install-grid">
+
+            <div class="lp-install-card">
+                <p class="lp-install-card-title">
+                    Local development
+                    <span class="lp-install-badge">Quickest</span>
+                </p>
+                <div class="lp-code-block">
+                    <code>
+<span class="lp-code-comment"># Clone and start with one command</span><br>
+<span class="lp-code-cmd">git clone https://github.com/ovtdadt/BananaWiki.git</span><br>
+<span class="lp-code-cmd">cd BananaWiki</span><br>
+<span class="lp-code-cmd">make dev</span><br>
+<br>
+<span class="lp-code-note"># Opens at http://localhost:5001</span>
+                    </code>
+                </div>
+                <p style="font-size:.82rem;color:var(--lp-muted)">Automatically creates a virtual environment, installs dependencies, and starts the Flask dev server. Python 3.9+ required.</p>
+            </div>
+
+            <div class="lp-install-card">
+                <p class="lp-install-card-title">
+                    Production server
+                    <span class="lp-install-badge">Recommended</span>
+                </p>
+                <div class="lp-code-block">
+                    <code>
+<span class="lp-code-comment"># Automated install (systemd + nginx + SSL)</span><br>
+<span class="lp-code-cmd">git clone https://github.com/ovtdadt/BananaWiki.git</span><br>
+<span class="lp-code-cmd">cd BananaWiki</span><br>
+<span class="lp-code-cmd">sudo make install</span><br>
+<br>
+<span class="lp-code-note"># Interactive wizard handles everything</span>
+                    </code>
+                </div>
+                <p style="font-size:.82rem;color:var(--lp-muted)">Configures systemd service, nginx reverse proxy, and optionally obtains a Let's Encrypt SSL certificate.</p>
+            </div>
+
+        </div>
+
+        <div style="margin-top:1.8rem;padding:1.2rem 1.4rem;background:var(--lp-card);border:1px solid var(--lp-border);border-radius:var(--lp-radius)">
+            <p style="font-size:.88rem;font-weight:700;color:var(--lp-text);margin-bottom:.6rem">First run setup</p>
+            <p style="font-size:.84rem;color:var(--lp-muted);line-height:1.65">
+                On your first visit BananaWiki shows a one-time setup wizard where you create the initial admin account
+                and configure the site name. After that, invite your team via generated invite codes from the admin panel.
+            </p>
+        </div>
+    </div>
+</section>
+
+<!-- ── CTA ──────────────────────────────────────────────────────────────── -->
+<section class="lp-cta" aria-labelledby="cta-title">
+    <h2 class="lp-cta-title" id="cta-title">Ready to own your wiki?</h2>
+    <p class="lp-cta-desc">
+        Clone the repo, run one command, and your team's private knowledge base is live.
+        No accounts, no subscriptions, no data leaving your server.
+    </p>
+    <div class="lp-cta-actions">
+        <a href="#get-started" class="lp-btn lp-btn-primary lp-btn-lg">Get started free</a>
+        <a href="https://github.com/ovtdadt/BananaWiki" class="lp-btn lp-btn-outline lp-btn-lg" target="_blank" rel="noopener noreferrer">⭐ Star on GitHub</a>
+        <a href="{{ url_for('login') }}" class="lp-btn lp-btn-outline lp-btn-lg">Sign in to your wiki</a>
+    </div>
+</section>
+
+<!-- ── Footer ───────────────────────────────────────────────────────────── -->
+<footer class="lp-footer" aria-label="Site footer">
+    <div class="lp-footer-inner">
+        <a href="{{ url_for('landing') }}" class="lp-footer-logo">🍌 BananaWiki</a>
+        <nav class="lp-footer-links" aria-label="Footer links">
+            <a href="https://github.com/ovtdadt/BananaWiki" class="lp-footer-link" target="_blank" rel="noopener noreferrer">GitHub</a>
+            <a href="https://github.com/ovtdadt/BananaWiki/blob/main/README.md" class="lp-footer-link" target="_blank" rel="noopener noreferrer">Docs</a>
+            <a href="https://github.com/ovtdadt/BananaWiki/issues" class="lp-footer-link" target="_blank" rel="noopener noreferrer">Issues</a>
+            <a href="{{ url_for('login') }}" class="lp-footer-link">Sign in</a>
+        </nav>
+        <p class="lp-footer-copy">MIT License · Built with Flask &amp; SQLite</p>
+    </div>
+</footer>
+
+</body>
+</html>

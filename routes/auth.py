@@ -24,6 +24,12 @@ from sync import notify_change
 def register_auth_routes(app):
     """Register authentication-related routes on the Flask app."""
 
+    @app.route("/landing")
+    def landing():
+        """Public product landing page — no login required."""
+        settings = db.get_site_settings()
+        return render_template("landing.html", settings=settings)
+
     @app.route("/setup", methods=["GET", "POST"])
     def setup():
         """Initial admin-account setup wizard (only accessible before setup is complete)."""
