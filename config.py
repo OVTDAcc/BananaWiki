@@ -98,6 +98,10 @@ CHAT_ALLOWED_EXTENSIONS = {
     "png", "jpg", "jpeg", "gif", "webp",
 }
 
+# Chat message cleanup frequency (in days) and time
+CHAT_CLEANUP_FREQUENCY_DAYS = 7  # Delete messages every 7 days (weekly)
+CHAT_CLEANUP_HOUR = 3  # Hour of day (0-23) when cleanup runs (default: 3 AM)
+
 # =============================================================================
 # Logging
 # =============================================================================

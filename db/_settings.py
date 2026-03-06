@@ -19,7 +19,7 @@ _ALLOWED_SETTINGS_COLUMNS = {
     "text_color", "sidebar_color", "bg_color", "setup_done", "timezone",
     "favicon_enabled", "favicon_type", "favicon_custom",
     "lockdown_mode", "lockdown_message",
-    "session_limit_enabled",
+    "session_limit_enabled", "last_chat_cleanup_at",
 }
 
 
