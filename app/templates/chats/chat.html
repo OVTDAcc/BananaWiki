@@ -6,6 +6,11 @@
     <h1>Chat with {{ other_user.username }}</h1>
 </div>
 
+<div style="background:rgba(255,160,0,.15);border:1px solid rgba(255,160,0,.4);border-radius:6px;padding:.6rem 1rem;margin-bottom:1rem;text-align:center;font-size:.9rem">
+    ⚠️ <strong>Messages will be deleted {{ time_until_next_chat_cleanup() }}</strong><br>
+    <small>Last cleanup: {{ time_since_last_chat_cleanup() }}</small>
+</div>
+
 <div class="chat-messages" id="chat-messages">
     {% if messages %}
         {% for msg in messages %}

@@ -297,6 +297,10 @@ def init_db():
     if "accessibility" not in cols:
         cur.execute("ALTER TABLE users ADD COLUMN accessibility TEXT")
 
+    # Add last_chat_cleanup_at to site_settings if missing
+    if "last_chat_cleanup_at" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN last_chat_cleanup_at TEXT")
+
     # Add chat_disabled column to users if missing
     if "chat_disabled" not in cols:
         cur.execute("ALTER TABLE users ADD COLUMN chat_disabled INTEGER NOT NULL DEFAULT 0")

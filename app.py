@@ -36,6 +36,7 @@ from helpers import (                                       # noqa: F401
     _safe_referrer, get_current_user,
     login_required, editor_required, admin_required, editor_has_category_access,
     get_site_timezone, time_ago, format_datetime, format_datetime_local_input,
+    get_time_since_last_chat_cleanup, get_time_until_next_chat_cleanup,
 )
 
 # Re-export cleanup_unused_uploads (tests import it from app)
@@ -101,6 +102,8 @@ def inject_globals():
         "sidebar_people": sidebar_people,
         "current_user_profile": current_user_profile,
         "utcnow": datetime.now(timezone.utc).isoformat(),
+        "time_since_last_chat_cleanup": get_time_since_last_chat_cleanup,
+        "time_until_next_chat_cleanup": get_time_until_next_chat_cleanup,
     }
 
 

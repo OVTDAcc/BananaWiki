@@ -203,18 +203,44 @@ def register_chat_routes(app):
                                categories=categories, uncategorized=uncategorized)
 
     # -----------------------------------------------------------------------
-    #  Chat cleanup scheduler (runs at 3 AM in site timezone)
+    #  Chat cleanup scheduler (runs weekly at configured hour)
     # -----------------------------------------------------------------------
     _cleanup_timer_holder = [None]
 
     def _schedule_chat_cleanup():
-        """Schedule the next chat cleanup at 3 AM in the configured timezone."""
+        """Schedule the next chat cleanup based on configured frequency and hour."""
         try:
             site_tz = get_site_timezone()
             now = datetime.now(site_tz)
-            target = now.replace(hour=3, minute=0, second=0, microsecond=0)
-            if target <= now:
-                target += timedelta(days=1)
+            settings = db.get_site_settings()
+
+            # Get last cleanup time
+            last_cleanup = None
+            if settings:
+                try:
+                    last_cleanup_str = settings["last_chat_cleanup_at"]
+                    if last_cleanup_str:
+                        # Parse ISO format datetime
+                        last_cleanup = datetime.fromisoformat(last_cleanup_str.replace('Z', '+00:00'))
+                        # Convert to site timezone
+                        last_cleanup = last_cleanup.astimezone(site_tz)
+                except (KeyError, ValueError, AttributeError, TypeError):
+                    pass
+
+            # If no last cleanup recorded, schedule for next configured hour today/tomorrow
+            if not last_cleanup:
+                target = now.replace(hour=config.CHAT_CLEANUP_HOUR, minute=0, second=0, microsecond=0)
+                if target <= now:
+                    target += timedelta(days=1)
+            else:
+                # Schedule for configured frequency after last cleanup
+                target = last_cleanup.replace(hour=config.CHAT_CLEANUP_HOUR, minute=0, second=0, microsecond=0)
+                target += timedelta(days=config.CHAT_CLEANUP_FREQUENCY_DAYS)
+
+                # If target is in the past, schedule for the next interval
+                while target <= now:
+                    target += timedelta(days=config.CHAT_CLEANUP_FREQUENCY_DAYS)
+
             delay = (target - now).total_seconds()
             _cleanup_timer_holder[0] = threading.Timer(delay, _run_chat_cleanup)
             _cleanup_timer_holder[0].daemon = True
@@ -223,7 +249,7 @@ def register_chat_routes(app):
             pass
 
     def _run_chat_cleanup():
-        """Execute the nightly chat cleanup: backup to Telegram then delete."""
+        """Execute the scheduled chat cleanup: backup to Telegram then delete."""
         try:
             backup_chats_before_cleanup()
         except Exception:
@@ -256,7 +282,16 @@ def register_chat_routes(app):
                     pass
         except Exception:
             pass
-        # Reschedule for next night
+
+        # Record cleanup timestamp
+        try:
+            site_tz = get_site_timezone()
+            now = datetime.now(site_tz)
+            db.update_site_settings(last_chat_cleanup_at=now.isoformat())
+        except Exception:
+            pass
+
+        # Reschedule for next interval
         _schedule_chat_cleanup()
 
     _schedule_chat_cleanup()
