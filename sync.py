@@ -49,6 +49,27 @@ MAX_RETRIES = 3
 # Base delay between retries in seconds (exponential backoff)
 RETRY_BASE_DELAY = 5
 
+# Change type categories for intelligent batching
+# IMMEDIATE: Trigger backup immediately (critical operations)
+IMMEDIATE_CHANGES = {
+    "setup_complete", "admin_delete_user", "admin_bulk_delete",
+    "admin_deattribute_all", "user_delete_account"
+}
+# HIGH_PRIORITY: Batch with short debounce (important state changes)
+HIGH_PRIORITY_CHANGES = {
+    "user_signup", "user_login", "change_password", "change_username",
+    "admin_edit_profile", "admin_change_role", "group_create", "group_delete"
+}
+# NORMAL_PRIORITY: Standard debounce (regular operations)
+NORMAL_PRIORITY_CHANGES = {
+    "page_edit", "page_create", "page_revert", "move_page",
+    "upload_image", "page_reservation", "group_join", "group_kick"
+}
+# LOW_PRIORITY: Extended debounce (minor changes)
+LOW_PRIORITY_CHANGES = {
+    "view_page", "pages_reorder", "categories_reorder"
+}
+
 # ---------------------------------------------------------------------------
 #  Module-level state (thread-safe)
 # ---------------------------------------------------------------------------
@@ -59,6 +80,7 @@ _first_pending_time: float = 0
 _debounce_timer: threading.Timer | None = None
 _upload_msgs_lock = threading.Lock()
 _logger = None
+_change_stats: dict[str, int] = {}  # Track change types for smarter batching
 
 
 def _get_logger():
@@ -82,21 +104,83 @@ def is_enabled() -> bool:
     )
 
 
+def _get_change_priority(change_type: str) -> int:
+    """Get priority level for a change type (lower = higher priority).
+
+    Returns:
+        0: Immediate (trigger backup now)
+        1: High priority (short debounce)
+        2: Normal priority (standard debounce)
+        3: Low priority (extended debounce)
+    """
+    if change_type in IMMEDIATE_CHANGES:
+        return 0
+    elif change_type in HIGH_PRIORITY_CHANGES:
+        return 1
+    elif change_type in NORMAL_PRIORITY_CHANGES:
+        return 2
+    elif change_type in LOW_PRIORITY_CHANGES:
+        return 3
+    else:
+        return 2  # Default to normal priority
+
+
+def _calculate_smart_delay(change_type: str) -> float:
+    """Calculate intelligent debounce delay based on change type and context.
+
+    Uses priority levels and batching statistics to optimize sync frequency:
+    - Immediate changes: No delay
+    - High priority: 30 seconds
+    - Normal priority: 60 seconds (standard)
+    - Low priority: 120 seconds
+
+    Also considers:
+    - Similar changes in queue (batch together)
+    - Time since last backup (respect MIN_BACKUP_INTERVAL)
+    - Pending changes count (force backup if too many queued)
+    """
+    priority = _get_change_priority(change_type)
+
+    # Base delays by priority
+    base_delays = {
+        0: 0,      # Immediate
+        1: 30,     # High priority
+        2: 60,     # Normal priority
+        3: 120,    # Low priority
+    }
+    delay = base_delays.get(priority, 60)
+
+    # If we have many similar changes, reduce delay to batch them
+    if change_type in _change_stats and _change_stats[change_type] >= 3:
+        delay = min(delay, 30)  # Batch multiple similar changes quickly
+
+    # If too many pending changes, force sooner
+    if len(_pending_changes) >= 10:
+        delay = min(delay, 15)
+
+    return delay
+
+
 def notify_change(change_type: str, description: str = "") -> None:
-    """Record a significant change and schedule a debounced backup.
+    """Record a significant change and schedule an intelligent debounced backup.
 
     This is called from Flask routes whenever a runtime artifact changes
     (DB mutation, settings change, etc.).
     Log-only changes do NOT call this function.
 
-    Multiple rapid changes are merged into a single backup.  A backup is
-    guaranteed to fire within MAX_DEBOUNCE_WAIT seconds of the first
-    queued change, even if new changes keep arriving.
+    The sync system now intelligently batches changes:
+    - Critical operations trigger immediate backups
+    - Similar changes are grouped together
+    - Low-priority changes have extended debounce
+    - Multiple rapid changes are unified into single syncs
+
+    A backup is guaranteed to fire within MAX_DEBOUNCE_WAIT seconds of the
+    first queued change, even if new changes keep arriving.
     """
     if not is_enabled():
         return
 
-    global _debounce_timer, _first_pending_time
+    global _debounce_timer, _first_pending_time, _change_stats
 
     with _lock:
         _pending_changes.append(
@@ -106,6 +190,9 @@ def notify_change(change_type: str, description: str = "") -> None:
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }
         )
+
+        # Track change type statistics for smarter batching
+        _change_stats[change_type] = _change_stats.get(change_type, 0) + 1
 
         # Cancel any existing timer and re-schedule
         if _debounce_timer is not None:
@@ -117,12 +204,24 @@ def notify_change(change_type: str, description: str = "") -> None:
             _first_pending_time = now
 
         time_since_last = now - _last_backup_time
-        delay = max(DEBOUNCE_DELAY, MIN_BACKUP_INTERVAL - time_since_last)
+
+        # Calculate intelligent delay based on change priority
+        smart_delay = _calculate_smart_delay(change_type)
+        delay = max(smart_delay, MIN_BACKUP_INTERVAL - time_since_last)
 
         # Cap the delay so the backup fires within MAX_DEBOUNCE_WAIT of the
         # first pending change, preventing indefinite postponement.
         elapsed_since_first = now - _first_pending_time
         delay = min(delay, max(0, MAX_DEBOUNCE_WAIT - elapsed_since_first))
+
+        # Log intelligent batching decision
+        logger = _get_logger()
+        priority = _get_change_priority(change_type)
+        priority_name = ["IMMEDIATE", "HIGH", "NORMAL", "LOW"][priority]
+        logger.debug(
+            f"SYNC | Queued {change_type} (priority={priority_name}, "
+            f"delay={delay:.0f}s, pending={len(_pending_changes)})"
+        )
 
         _debounce_timer = threading.Timer(delay, _execute_backup)
         _debounce_timer.daemon = True
@@ -134,7 +233,7 @@ def notify_change(change_type: str, description: str = "") -> None:
 # ---------------------------------------------------------------------------
 def _execute_backup() -> None:
     """Create a zip of all runtime artifacts and send it to Telegram."""
-    global _last_backup_time, _debounce_timer, _first_pending_time
+    global _last_backup_time, _debounce_timer, _first_pending_time, _change_stats
 
     with _lock:
         if not _pending_changes:
@@ -143,9 +242,26 @@ def _execute_backup() -> None:
         _pending_changes.clear()
         _debounce_timer = None
         _first_pending_time = 0
+        # Clear change stats after backup
+        _change_stats.clear()
 
     logger = _get_logger()
     zip_path = None
+
+    # Unified sync summary
+    change_types = list({c["type"] for c in changes})
+    priority_counts = {
+        "IMMEDIATE": sum(1 for c in changes if _get_change_priority(c["type"]) == 0),
+        "HIGH": sum(1 for c in changes if _get_change_priority(c["type"]) == 1),
+        "NORMAL": sum(1 for c in changes if _get_change_priority(c["type"]) == 2),
+        "LOW": sum(1 for c in changes if _get_change_priority(c["type"]) == 3),
+    }
+    logger.info(
+        f"SYNC | Starting unified backup: {len(changes)} change(s) "
+        f"[{priority_counts['IMMEDIATE']} immediate, {priority_counts['HIGH']} high, "
+        f"{priority_counts['NORMAL']} normal, {priority_counts['LOW']} low] "
+        f"Types: {', '.join(change_types)}"
+    )
 
     try:
         zip_path, excluded_files = _create_backup(changes)
@@ -168,7 +284,7 @@ def _execute_backup() -> None:
                 with _lock:
                     _last_backup_time = time.time()
                 logger.info(
-                    f"SYNC | Backup sent successfully ({len(changes)} change(s))"
+                    f"SYNC | Backup sent successfully ({len(changes)} change(s) unified)"
                 )
             else:
                 logger.error(
@@ -316,22 +432,50 @@ def _send_to_telegram(
         )
         return False
 
-    # Build a human-readable caption
-    change_types = ", ".join(sorted({c["type"] for c in changes}))
+    # Build enhanced human-readable caption with unified sync info
+    change_types = sorted({c["type"] for c in changes})
+    unique_types = ", ".join(change_types[:5])
+    if len(change_types) > 5:
+        unique_types += f" +{len(change_types) - 5} more"
+
+    # Group changes by priority
+    priority_groups = {
+        "IMMEDIATE": [c for c in changes if _get_change_priority(c["type"]) == 0],
+        "HIGH": [c for c in changes if _get_change_priority(c["type"]) == 1],
+        "NORMAL": [c for c in changes if _get_change_priority(c["type"]) == 2],
+        "LOW": [c for c in changes if _get_change_priority(c["type"]) == 3],
+    }
+
+    caption_lines = [
+        "\U0001f34c BananaWiki Unified Backup",
+        f"\U0001f4c5 {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}",
+        f"\U0001f4e6 {len(changes)} change(s) unified in single sync",
+    ]
+
+    # Add priority breakdown
+    priority_parts = []
+    for prio, items in priority_groups.items():
+        if items:
+            priority_parts.append(f"{len(items)} {prio.lower()}")
+    if priority_parts:
+        caption_lines.append(f"\U0001f4ca Priority: {', '.join(priority_parts)}")
+
+    caption_lines.append(f"\U0001f4dd Types: {unique_types}")
+
+    # Add select descriptions
     descriptions = [c["description"] for c in changes if c.get("description")]
-    caption = (
-        f"\U0001f34c BananaWiki Backup\n"
-        f"\U0001f4c5 {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}\n"
-        f"\U0001f4dd Changes: {change_types}\n"
-        f"\U0001f4e6 {len(changes)} change(s)"
-    )
     if descriptions:
-        detail_lines = "\n".join(f"  • {d}" for d in descriptions[:10])
-        caption += f"\n\U0001f4cb Details:\n{detail_lines}"
-        if len(descriptions) > 10:
-            caption += f"\n  … and {len(descriptions) - 10} more"
+        detail_lines = "\n".join(f"  • {d}" for d in descriptions[:8])
+        caption_lines.append(f"\U0001f4cb Details:\n{detail_lines}")
+        if len(descriptions) > 8:
+            caption_lines.append(f"  … and {len(descriptions) - 8} more")
+
     if excluded_files:
-        caption += f"\n\u26a0\ufe0f {len(excluded_files)} file(s) excluded from backup"
+        caption_lines.append(
+            f"\u26a0\ufe0f {len(excluded_files)} file(s) excluded (size limit)"
+        )
+
+    caption = "\n".join(caption_lines)
 
     # --- Build multipart/form-data body using stdlib only ----------------
     boundary = f"----BananaWikiSync{int(time.time())}"
