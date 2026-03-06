@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+{% block title %}Edit Badge: {{ badge.name }} – {{ settings.site_name }}{% endblock %}
+{% block content %}
+<h1>Edit Badge: {{ badge.icon }} {{ badge.name }}</h1>
+
+<div class="settings-section">
+    <h3>Badge Settings</h3>
+    <form method="POST" action="{{ url_for('admin_edit_badge', badge_id=badge.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="update">
+        <div class="form-group">
+            <label>Badge Name *</label>
+            <input type="text" name="name" class="input" required maxlength="100" value="{{ badge.name }}">
+        </div>
+        <div class="form-group">
+            <label>Description</label>
+            <textarea name="description" class="input" rows="2" maxlength="500">{{ badge.description }}</textarea>
+        </div>
+        <div style="display:flex;gap:1rem;flex-wrap:wrap">
+            <div class="form-group">
+                <label>Icon (Emoji)</label>
+                <input type="text" name="icon" class="input input-sm" value="{{ badge.icon }}" maxlength="10" style="width:100px">
+            </div>
+            <div class="form-group">
+                <label>Color</label>
+                <input type="color" name="color" class="input input-sm" value="{{ badge.color }}" style="width:80px">
+            </div>
+            <div class="form-group">
+                <label style="cursor:pointer;display:flex;align-items:center;gap:.4rem">
+                    <input type="checkbox" name="enabled" value="1"{% if badge.enabled %} checked{% endif %}>
+                    Enabled
+                </label>
+            </div>
+        </div>
+        <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-top:1rem;padding-top:1rem;border-top:1px solid rgba(255,255,255,.06)">
+            <div class="form-group">
+                <label style="cursor:pointer;display:flex;align-items:center;gap:.4rem">
+                    <input type="checkbox" name="auto_trigger" value="1" id="auto_trigger_checkbox"{% if badge.auto_trigger %} checked{% endif %} onchange="toggleAutoTrigger()">
+                    Auto-award (trigger automatically)
+                </label>
+            </div>
+        </div>
+        <div id="auto_trigger_options" style="{% if not badge.auto_trigger %}display:none;{% endif %}margin-top:1rem;padding:1rem;background:rgba(255,255,255,.02);border-radius:6px">
+            <div class="form-group">
+                <label>Trigger Type</label>
+                <select name="trigger_type" class="input" id="trigger_type_select" onchange="updateThresholdLabel()">
+                    <option value=""{% if not badge.trigger_type %} selected{% endif %}>Manual only (no auto-trigger)</option>
+                    <option value="first_edit"{% if badge.trigger_type == 'first_edit' %} selected{% endif %}>First Edit - awarded when user makes their first contribution</option>
+                    <option value="contribution_count"{% if badge.trigger_type == 'contribution_count' %} selected{% endif %}>Contribution Count - awarded after X edits</option>
+                    <option value="category_count"{% if badge.trigger_type == 'category_count' %} selected{% endif %}>Category Count - awarded after contributing to X categories</option>
+                    <option value="member_days"{% if badge.trigger_type == 'member_days' %} selected{% endif %}>Membership Duration - awarded after being member for X days</option>
+                    <option value="easter_egg"{% if badge.trigger_type == 'easter_egg' %} selected{% endif %}>Easter Egg - awarded when easter egg is found</option>
+                    <option value="reading_time"{% if badge.trigger_type == 'reading_time' %} selected{% endif %}>Reading Time - awarded after X minutes (not yet tracked)</option>
+                    <option value="article_count"{% if badge.trigger_type == 'article_count' %} selected{% endif %}>Article Count - awarded after reading X articles (not yet tracked)</option>
+                </select>
+            </div>
+            <div class="form-group" id="threshold_group">
+                <label id="threshold_label">Threshold</label>
+                <input type="number" name="trigger_threshold" class="input input-sm" value="{{ badge.trigger_threshold }}" min="0" style="width:150px">
+                <small style="opacity:.6;display:block;margin-top:.3rem">Number required to earn this badge (0 for triggers that don't need a threshold)</small>
+            </div>
+            <div class="form-group">
+                <label style="cursor:pointer;display:flex;align-items:center;gap:.4rem">
+                    <input type="checkbox" name="allow_multiple" value="1"{% if badge.allow_multiple %} checked{% endif %}>
+                    Allow multiple awards (user can earn this badge multiple times)
+                </label>
+            </div>
+        </div>
+        <div class="form-actions" style="margin-top:1rem">
+            <button type="submit" class="btn">Update Badge</button>
+            <a href="{{ url_for('admin_badges') }}" class="btn btn-outline">Cancel</a>
+        </div>
+    </form>
+</div>
+
+<div class="settings-section">
+    <h3>Manually Award Badge</h3>
+    <form method="POST" action="{{ url_for('admin_award_badge', badge_id=badge.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-group">
+            <label>Username</label>
+            <input type="text" name="username" class="input" required placeholder="Enter username">
+        </div>
+        <button type="submit" class="btn">Award Badge</button>
+    </form>
+</div>
+
+<div class="settings-section">
+    <h3>Revoke Badge from User</h3>
+    <form method="POST" action="{{ url_for('admin_revoke_badge', badge_id=badge.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-group">
+            <label>Username</label>
+            <input type="text" name="username" class="input" required placeholder="Enter username">
+        </div>
+        <div class="form-group">
+            <label style="cursor:pointer;display:flex;align-items:center;gap:.4rem">
+                <input type="checkbox" name="permanent" value="1">
+                Permanent revocation (user cannot re-earn this badge)
+            </label>
+        </div>
+        <button type="submit" class="btn btn-danger">Revoke Badge</button>
+    </form>
+</div>
+
+{% if holders %}
+<div class="settings-section">
+    <h3>Badge Holders ({{ holders|length }})</h3>
+    <div style="display:flex;flex-wrap:wrap;gap:.5rem">
+        {% for holder in holders %}
+        <a href="{{ url_for('user_profile', username=holder.username) }}"
+           class="badge"
+           style="background:{{ badge.color }}22;color:{{ badge.color }};text-decoration:none"
+           title="Earned {{ time_ago(holder.earned_at) }}">
+            {{ holder.username }}
+        </a>
+        {% endfor %}
+    </div>
+    <form method="POST" action="{{ url_for('admin_revoke_all_badges', badge_id=badge.id) }}" style="margin-top:1rem">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-group">
+            <label style="cursor:pointer;display:flex;align-items:center;gap:.4rem">
+                <input type="checkbox" name="permanent" value="1">
+                Permanent revocation (users cannot re-earn this badge)
+            </label>
+        </div>
+        <button type="submit" class="btn btn-sm btn-danger" data-confirm="Revoke this badge from ALL users?">Revoke from All Users</button>
+    </form>
+</div>
+{% endif %}
+
+<div class="settings-section">
+    <h3>Danger Zone</h3>
+    <form method="POST" action="{{ url_for('admin_edit_badge', badge_id=badge.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="delete">
+        <div class="form-group">
+            <label style="cursor:pointer;display:flex;align-items:center;gap:.4rem">
+                <input type="checkbox" name="remove_user_badges" value="1">
+                Also delete all user badges (if unchecked, users keep their badges even though the type is deleted)
+            </label>
+        </div>
+        <button type="submit" class="btn btn-danger" data-confirm="Permanently delete this badge type?">Delete Badge Type</button>
+    </form>
+</div>
+
+<script>
+function toggleAutoTrigger() {
+    const checked = document.getElementById('auto_trigger_checkbox').checked;
+    document.getElementById('auto_trigger_options').style.display = checked ? 'block' : 'none';
+}
+
+function updateThresholdLabel() {
+    const select = document.getElementById('trigger_type_select');
+    const thresholdGroup = document.getElementById('threshold_group');
+    const thresholdLabel = document.getElementById('threshold_label');
+    const value = select.value;
+
+    if (value === 'first_edit' || value === 'easter_egg' || value === '' || value === 'reading_time' || value === 'article_count') {
+        thresholdGroup.style.display = value === '' ? 'none' : 'block';
+        if (value === 'first_edit' || value === 'easter_egg') {
+            thresholdLabel.textContent = 'Threshold (not used for this trigger type)';
+        } else if (value === 'reading_time' || value === 'article_count') {
+            thresholdLabel.textContent = 'Threshold (feature not yet implemented)';
+        }
+    } else {
+        thresholdGroup.style.display = 'block';
+        if (value === 'contribution_count') {
+            thresholdLabel.textContent = 'Number of Contributions';
+        } else if (value === 'category_count') {
+            thresholdLabel.textContent = 'Number of Categories';
+        } else if (value === 'member_days') {
+            thresholdLabel.textContent = 'Number of Days';
+        } else {
+            thresholdLabel.textContent = 'Threshold';
+        }
+    }
+}
+
+// Initialize on page load
+updateThresholdLabel();
+</script>
+
+{% endblock %}

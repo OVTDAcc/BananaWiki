@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}Badge Management – {{ settings.site_name }}{% endblock %}
+{% block content %}
+<h1>Badge Management</h1>
+
+<div class="settings-section">
+    <h3>Create New Badge</h3>
+    <form method="POST" action="{{ url_for('admin_create_badge') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-group">
+            <label>Badge Name *</label>
+            <input type="text" name="name" class="input" required maxlength="100" placeholder="e.g., First Edit, Contributor">
+        </div>
+        <div class="form-group">
+            <label>Description</label>
+            <textarea name="description" class="input" rows="2" maxlength="500" placeholder="Optional description of what this badge represents"></textarea>
+        </div>
+        <div style="display:flex;gap:1rem;flex-wrap:wrap">
+            <div class="form-group">
+                <label>Icon (Emoji)</label>
+                <input type="text" name="icon" class="input input-sm" value="🏆" maxlength="10" style="width:100px">
+            </div>
+            <div class="form-group">
+                <label>Color</label>
+                <input type="color" name="color" class="input input-sm" value="#ffd700" style="width:80px">
+            </div>
+            <div class="form-group">
+                <label style="cursor:pointer;display:flex;align-items:center;gap:.4rem">
+                    <input type="checkbox" name="enabled" value="1" checked>
+                    Enabled
+                </label>
+            </div>
+        </div>
+        <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-top:1rem;padding-top:1rem;border-top:1px solid rgba(255,255,255,.06)">
+            <div class="form-group">
+                <label style="cursor:pointer;display:flex;align-items:center;gap:.4rem">
+                    <input type="checkbox" name="auto_trigger" value="1" id="auto_trigger_checkbox" onchange="toggleAutoTrigger()">
+                    Auto-award (trigger automatically)
+                </label>
+            </div>
+        </div>
+        <div id="auto_trigger_options" style="display:none;margin-top:1rem;padding:1rem;background:rgba(255,255,255,.02);border-radius:6px">
+            <div class="form-group">
+                <label>Trigger Type</label>
+                <select name="trigger_type" class="input" id="trigger_type_select" onchange="updateThresholdLabel()">
+                    <option value="">Manual only (no auto-trigger)</option>
+                    <option value="first_edit">First Edit - awarded when user makes their first contribution</option>
+                    <option value="contribution_count">Contribution Count - awarded after X edits</option>
+                    <option value="category_count">Category Count - awarded after contributing to X categories</option>
+                    <option value="member_days">Membership Duration - awarded after being member for X days</option>
+                    <option value="easter_egg">Easter Egg - awarded when easter egg is found</option>
+                    <option value="reading_time">Reading Time - awarded after X minutes (not yet tracked)</option>
+                    <option value="article_count">Article Count - awarded after reading X articles (not yet tracked)</option>
+                </select>
+            </div>
+            <div class="form-group" id="threshold_group">
+                <label id="threshold_label">Threshold</label>
+                <input type="number" name="trigger_threshold" class="input input-sm" value="0" min="0" style="width:150px">
+                <small style="opacity:.6;display:block;margin-top:.3rem">Number required to earn this badge (0 for triggers that don't need a threshold)</small>
+            </div>
+            <div class="form-group">
+                <label style="cursor:pointer;display:flex;align-items:center;gap:.4rem">
+                    <input type="checkbox" name="allow_multiple" value="1">
+                    Allow multiple awards (user can earn this badge multiple times)
+                </label>
+            </div>
+        </div>
+        <button type="submit" class="btn">Create Badge</button>
+    </form>
+</div>
+
+{% if badge_stats %}
+<h2 style="margin-bottom:.8rem;font-size:1.1rem;margin-top:2rem">Existing Badges</h2>
+{% for stat in badge_stats %}
+{% set badge = stat.badge %}
+<div class="settings-section" style="border-left:4px solid {{ badge.color }}">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem;flex-wrap:wrap">
+        <div style="flex:1;min-width:0">
+            <div style="font-size:1.1rem;margin-bottom:.4rem">
+                <span style="font-size:1.5rem">{{ badge.icon }}</span>
+                <strong>{{ badge.name }}</strong>
+                {% if not badge.enabled %}
+                <span style="opacity:.5;font-size:.8rem">(disabled)</span>
+                {% endif %}
+                {% if badge.auto_trigger %}
+                <span class="badge" style="background:{{ badge.color }}22;color:{{ badge.color }};font-size:.7rem;margin-left:.5rem">AUTO</span>
+                {% endif %}
+            </div>
+            <div style="font-size:.85rem;opacity:.7;margin-bottom:.4rem">{{ badge.description }}</div>
+            <div style="font-size:.75rem;opacity:.5">
+                {{ stat.holder_count }} user{% if stat.holder_count != 1 %}s{% endif %} have this badge
+                {% if badge.auto_trigger %}
+                · Trigger: {{ badge.trigger_type }}
+                {% if badge.trigger_threshold > 0 %} (threshold: {{ badge.trigger_threshold }}){% endif %}
+                {% endif %}
+            </div>
+        </div>
+        <div style="display:flex;gap:.4rem;flex-shrink:0">
+            <a href="{{ url_for('admin_edit_badge', badge_id=badge.id) }}" class="btn btn-sm btn-outline">Manage</a>
+        </div>
+    </div>
+</div>
+{% endfor %}
+{% else %}
+<p style="opacity:.6;margin-top:1rem">No badges created yet. Create your first badge above!</p>
+{% endif %}
+
+<script>
+function toggleAutoTrigger() {
+    const checked = document.getElementById('auto_trigger_checkbox').checked;
+    document.getElementById('auto_trigger_options').style.display = checked ? 'block' : 'none';
+}
+
+function updateThresholdLabel() {
+    const select = document.getElementById('trigger_type_select');
+    const thresholdGroup = document.getElementById('threshold_group');
+    const thresholdLabel = document.getElementById('threshold_label');
+    const value = select.value;
+
+    if (value === 'first_edit' || value === 'easter_egg' || value === '' || value === 'reading_time' || value === 'article_count') {
+        thresholdGroup.style.display = value === '' ? 'none' : 'block';
+        if (value === 'first_edit' || value === 'easter_egg') {
+            thresholdLabel.textContent = 'Threshold (not used for this trigger type)';
+        } else if (value === 'reading_time' || value === 'article_count') {
+            thresholdLabel.textContent = 'Threshold (feature not yet implemented)';
+        }
+    } else {
+        thresholdGroup.style.display = 'block';
+        if (value === 'contribution_count') {
+            thresholdLabel.textContent = 'Number of Contributions';
+        } else if (value === 'category_count') {
+            thresholdLabel.textContent = 'Number of Categories';
+        } else if (value === 'member_days') {
+            thresholdLabel.textContent = 'Number of Days';
+        } else {
+            thresholdLabel.textContent = 'Threshold';
+        }
+    }
+}
+</script>
+
+{% endblock %}

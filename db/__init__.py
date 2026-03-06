@@ -229,3 +229,25 @@ from ._permissions import (  # noqa: F401
     has_category_write_access,
     clear_user_permissions,
 )
+
+# Badges
+from ._badges import (  # noqa: F401
+    VALID_TRIGGER_TYPES,
+    create_badge_type,
+    get_badge_type,
+    get_badge_type_by_name,
+    list_badge_types,
+    update_badge_type,
+    delete_badge_type,
+    award_badge,
+    revoke_badge,
+    get_user_badges,
+    has_badge,
+    get_badge_holders,
+    count_user_badges,
+    get_unnotified_badges,
+    mark_badges_notified,
+    clear_badge_notifications,
+    check_and_award_auto_badges,
+    revoke_all_badges_for_type,
+)

@@ -42,6 +42,16 @@
                 <span class="badge" style="opacity:.6">Hidden from public</span>
                 {% endif %}
             </div>
+            {% if user_badges %}
+            <div class="user-profile-badges" style="margin-top:.8rem">
+                <h3 style="font-size:.9rem;opacity:.7;margin-bottom:.5rem">Badges</h3>
+                {% for badge in user_badges %}
+                <span class="badge" style="background:{{ badge.color }}22;color:{{ badge.color }};border:1px solid {{ badge.color }}44" title="{{ badge.description }}{% if badge.earned_at %} · Earned {{ time_ago(badge.earned_at) }}{% endif %}">
+                    {{ badge.icon }} {{ badge.name }}
+                </span>
+                {% endfor %}
+            </div>
+            {% endif %}
             {% if is_own %}
             <div class="user-profile-actions">
                 <button class="btn btn-sm" onclick="var s=document.getElementById('profile-edit-section');s.style.display=s.style.display==='none'?'block':'none'">Edit Profile</button>

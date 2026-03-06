@@ -1103,3 +1103,238 @@ def register_admin_routes(app):
         return render_template("wiki/announcement.html", ann=ann,
                                content_html=content_html,
                                categories=categories, uncategorized=uncategorized)
+
+    # -------------------------------------------------------------------
+    #  Admin – Badge Management
+    # -------------------------------------------------------------------
+
+    @app.route("/admin/badges")
+    @login_required
+    @admin_required
+    def admin_badges():
+        """Admin: list all badge types and manage them."""
+        user = get_current_user()
+        badge_types = db.list_badge_types()
+        # Get holder count for each badge
+        badge_stats = []
+        for badge in badge_types:
+            holders = db.get_badge_holders(badge['id'], include_revoked=False)
+            badge_stats.append({
+                'badge': badge,
+                'holder_count': len(holders),
+            })
+        categories, uncategorized = db.get_category_tree()
+        return render_template("admin/badges.html",
+                               badge_stats=badge_stats,
+                               categories=categories,
+                               uncategorized=uncategorized,
+                               trigger_types=db.VALID_TRIGGER_TYPES)
+
+    @app.route("/admin/badges/create", methods=["POST"])
+    @login_required
+    @admin_required
+    @rate_limit(10, 60)
+    def admin_create_badge():
+        """Admin: create a new badge type."""
+        user = get_current_user()
+        name = request.form.get("name", "").strip()[:100]
+        description = request.form.get("description", "").strip()[:500]
+        icon = request.form.get("icon", "🏆").strip()[:10]
+        color = request.form.get("color", "#ffd700").strip()
+        enabled = request.form.get("enabled") == "1"
+        auto_trigger = request.form.get("auto_trigger") == "1"
+        trigger_type = request.form.get("trigger_type", "").strip()
+        trigger_threshold = request.form.get("trigger_threshold", 0, type=int)
+        allow_multiple = request.form.get("allow_multiple") == "1"
+
+        if not name:
+            flash("Badge name is required.", "error")
+            return redirect(url_for("admin_badges"))
+
+        if not _is_valid_hex_color(color):
+            flash("Invalid badge color.", "error")
+            return redirect(url_for("admin_badges"))
+
+        if trigger_type not in db.VALID_TRIGGER_TYPES:
+            flash("Invalid trigger type.", "error")
+            return redirect(url_for("admin_badges"))
+
+        try:
+            badge_id = db.create_badge_type(
+                name=name,
+                description=description,
+                icon=icon,
+                color=color,
+                enabled=enabled,
+                auto_trigger=auto_trigger,
+                trigger_type=trigger_type,
+                trigger_threshold=trigger_threshold,
+                allow_multiple=allow_multiple,
+                created_by=user['id']
+            )
+            log_action("create_badge_type", request, user=user, badge_id=badge_id)
+            notify_change("badge_create", f"Badge type '{name}' created")
+            flash(f"Badge '{name}' created successfully.", "success")
+        except Exception as e:
+            flash(f"Error creating badge: {str(e)}", "error")
+
+        return redirect(url_for("admin_badges"))
+
+    @app.route("/admin/badges/<int:badge_id>/edit", methods=["GET", "POST"])
+    @login_required
+    @admin_required
+    def admin_edit_badge(badge_id):
+        """Admin: edit a badge type."""
+        badge = db.get_badge_type(badge_id)
+        if not badge:
+            abort(404)
+        user = get_current_user()
+
+        if request.method == "GET":
+            holders = db.get_badge_holders(badge_id, include_revoked=False)
+            categories, uncategorized = db.get_category_tree()
+            return render_template("admin/edit_badge.html",
+                                   badge=badge,
+                                   holders=holders,
+                                   categories=categories,
+                                   uncategorized=uncategorized,
+                                   trigger_types=db.VALID_TRIGGER_TYPES)
+
+        # POST - update badge
+        action = request.form.get("action", "")
+
+        if action == "update":
+            name = request.form.get("name", "").strip()[:100]
+            description = request.form.get("description", "").strip()[:500]
+            icon = request.form.get("icon", "🏆").strip()[:10]
+            color = request.form.get("color", "#ffd700").strip()
+            enabled = request.form.get("enabled") == "1"
+            auto_trigger = request.form.get("auto_trigger") == "1"
+            trigger_type = request.form.get("trigger_type", "").strip()
+            trigger_threshold = request.form.get("trigger_threshold", 0, type=int)
+            allow_multiple = request.form.get("allow_multiple") == "1"
+
+            if not name:
+                flash("Badge name is required.", "error")
+                return redirect(url_for("admin_edit_badge", badge_id=badge_id))
+
+            if not _is_valid_hex_color(color):
+                flash("Invalid badge color.", "error")
+                return redirect(url_for("admin_edit_badge", badge_id=badge_id))
+
+            if trigger_type not in db.VALID_TRIGGER_TYPES:
+                flash("Invalid trigger type.", "error")
+                return redirect(url_for("admin_edit_badge", badge_id=badge_id))
+
+            try:
+                db.update_badge_type(
+                    badge_id,
+                    name=name,
+                    description=description,
+                    icon=icon,
+                    color=color,
+                    enabled=enabled,
+                    auto_trigger=auto_trigger,
+                    trigger_type=trigger_type,
+                    trigger_threshold=trigger_threshold,
+                    allow_multiple=allow_multiple
+                )
+                log_action("update_badge_type", request, user=user, badge_id=badge_id)
+                notify_change("badge_update", f"Badge type '{name}' updated")
+                flash(f"Badge '{name}' updated successfully.", "success")
+            except Exception as e:
+                flash(f"Error updating badge: {str(e)}", "error")
+
+            return redirect(url_for("admin_edit_badge", badge_id=badge_id))
+
+        elif action == "delete":
+            # Delete badge type and optionally all user badges
+            remove_user_badges = request.form.get("remove_user_badges") == "1"
+            db.delete_badge_type(badge_id, remove_user_badges=remove_user_badges)
+            log_action("delete_badge_type", request, user=user, badge_id=badge_id)
+            notify_change("badge_delete", f"Badge type deleted")
+            flash("Badge type deleted.", "success")
+            return redirect(url_for("admin_badges"))
+
+        return redirect(url_for("admin_edit_badge", badge_id=badge_id))
+
+    @app.route("/admin/badges/<int:badge_id>/award", methods=["POST"])
+    @login_required
+    @admin_required
+    @rate_limit(20, 60)
+    def admin_award_badge(badge_id):
+        """Admin: manually award a badge to a user."""
+        badge = db.get_badge_type(badge_id)
+        if not badge:
+            abort(404)
+        user = get_current_user()
+        target_username = request.form.get("username", "").strip()
+
+        if not target_username:
+            flash("Username is required.", "error")
+            return redirect(url_for("admin_edit_badge", badge_id=badge_id))
+
+        target_user = db.get_user_by_username(target_username)
+        if not target_user:
+            flash(f"User '{target_username}' not found.", "error")
+            return redirect(url_for("admin_edit_badge", badge_id=badge_id))
+
+        result = db.award_badge(target_user['id'], badge_id, awarded_by=user['id'])
+        if result is None:
+            flash(f"User '{target_username}' already has this badge.", "info")
+        else:
+            log_action("award_badge", request, user=user, target_user=target_username, badge_id=badge_id)
+            notify_change("badge_award", f"Badge '{badge['name']}' awarded to '{target_username}'")
+            flash(f"Badge '{badge['name']}' awarded to '{target_username}'.", "success")
+
+        return redirect(url_for("admin_edit_badge", badge_id=badge_id))
+
+    @app.route("/admin/badges/<int:badge_id>/revoke", methods=["POST"])
+    @login_required
+    @admin_required
+    @rate_limit(20, 60)
+    def admin_revoke_badge(badge_id):
+        """Admin: revoke a badge from a user."""
+        badge = db.get_badge_type(badge_id)
+        if not badge:
+            abort(404)
+        user = get_current_user()
+        target_username = request.form.get("username", "").strip()
+        permanent = request.form.get("permanent") == "1"
+
+        if not target_username:
+            flash("Username is required.", "error")
+            return redirect(url_for("admin_edit_badge", badge_id=badge_id))
+
+        target_user = db.get_user_by_username(target_username)
+        if not target_user:
+            flash(f"User '{target_username}' not found.", "error")
+            return redirect(url_for("admin_edit_badge", badge_id=badge_id))
+
+        db.revoke_badge(target_user['id'], badge_id, revoked_by=user['id'], permanent=permanent)
+        action_type = "permanently" if permanent else "temporarily"
+        log_action("revoke_badge", request, user=user, target_user=target_username, badge_id=badge_id)
+        notify_change("badge_revoke", f"Badge '{badge['name']}' revoked from '{target_username}'")
+        flash(f"Badge '{badge['name']}' {action_type} revoked from '{target_username}'.", "success")
+
+        return redirect(url_for("admin_edit_badge", badge_id=badge_id))
+
+    @app.route("/admin/badges/<int:badge_id>/revoke-all", methods=["POST"])
+    @login_required
+    @admin_required
+    @rate_limit(5, 60)
+    def admin_revoke_all_badges(badge_id):
+        """Admin: revoke this badge from all users."""
+        badge = db.get_badge_type(badge_id)
+        if not badge:
+            abort(404)
+        user = get_current_user()
+        permanent = request.form.get("permanent") == "1"
+
+        db.revoke_all_badges_for_type(badge_id, revoked_by=user['id'], permanent=permanent)
+        action_type = "permanently" if permanent else "temporarily"
+        log_action("revoke_all_badges", request, user=user, badge_id=badge_id)
+        notify_change("badge_revoke_all", f"All instances of badge '{badge['name']}' revoked")
+        flash(f"Badge '{badge['name']}' {action_type} revoked from all users.", "success")
+
+        return redirect(url_for("admin_edit_badge", badge_id=badge_id))

@@ -126,6 +126,15 @@ def register_auth_routes(app):
                 db.update_user(user["id"], session_token=token)
             _clear_login_attempts()
             db.update_user(user["id"], last_login_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
+
+            # Check and award auto-triggered badges
+            db.check_and_award_auto_badges(user["id"])
+
+            # Check for unnotified badges
+            unnotified = db.get_unnotified_badges(user["id"])
+            if unnotified:
+                session["badge_notifications"] = len(unnotified)
+
             log_action("login_success", request, user=user)
             notify_change("user_login", f"User '{user['username']}' logged in")
             return redirect(url_for("home"))
