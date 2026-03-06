@@ -24,9 +24,9 @@ def reserve_page(page_id, user_id):
     now = datetime.now(timezone.utc)
     expires = now + timedelta(hours=config.PAGE_RESERVATION_DURATION_HOURS)
 
-    # Check if page is already reserved (and not expired)
+    # Check if page is already reserved (and not expired or released)
     existing = conn.execute(
-        "SELECT * FROM page_reservations WHERE page_id=? AND expires_at > ?",
+        "SELECT * FROM page_reservations WHERE page_id=? AND expires_at > ? AND released_at IS NULL",
         (page_id, now.isoformat()),
     ).fetchone()
 
@@ -45,6 +45,12 @@ def reserve_page(page_id, user_id):
         raise ValueError("User is in cooldown period for this page")
 
     try:
+        # Delete any old released or expired reservations for this page
+        conn.execute(
+            "DELETE FROM page_reservations WHERE page_id=? AND (released_at IS NOT NULL OR expires_at <= ?)",
+            (page_id, now.isoformat())
+        )
+
         # Create reservation
         conn.execute(
             "INSERT INTO page_reservations (page_id, user_id, reserved_at, expires_at) "
@@ -155,7 +161,7 @@ def get_page_reservation_status(page_id, user_id=None):
         result.update({
             'is_reserved': True,
             'reserved_by': reservation["user_id"],
-            'reserved_by_username': reservation.get("username"),
+            'reserved_by_username': reservation["username"] if "username" in reservation.keys() else None,
             'reserved_at': reservation["reserved_at"],
             'expires_at': reservation["expires_at"],
             'time_remaining': expires - now,
