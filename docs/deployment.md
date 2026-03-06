@@ -24,6 +24,7 @@ This guide covers all the ways to run BananaWiki in production.
 - [IP-only access (no domain)](#ip-only-access-no-domain)
 - [Multiple apps on one server](#multiple-apps-on-one-server)
 - [Pre-flight checklist](#pre-flight-checklist)
+- [Updating BananaWiki](#updating-bananawiki)
 
 ---
 
@@ -296,3 +297,55 @@ Before starting BananaWiki for the first time (or after a fresh install), verify
 - [ ] **`SYNC` is configured** if you want automatic Telegram backups. Set `SYNC = True`, `SYNC_TOKEN`, and `SYNC_USERID` in `config.py`. See [Telegram Sync / Backup](configuration.md#telegram-sync--backup) for details and the security note about credentials stored in the Telegram chat.
 - [ ] **Firewall is configured.** Only expose the ports and interfaces you intend. If using a reverse proxy, Gunicorn's bind address (`HOST = "127.0.0.1"`) should not be reachable from outside the server.
 - [ ] **`gunicorn.conf.py` `forwarded_allow_ips` matches your proxy IP.** The default is `"127.0.0.1"`, which is correct when the proxy runs on the same machine. If the proxy is on a different host, set this to that host's IP to prevent IP spoofing via `X-Forwarded-For`.
+
+---
+
+## Updating BananaWiki
+
+To update BananaWiki to the latest version, use the automated update script:
+
+```bash
+cd /opt/BananaWiki  # or your installation directory
+sudo ./update.sh
+```
+
+The update script will:
+- Create a backup of your current installation
+- Pull the latest code from git
+- Update Python dependencies
+- Run database migrations automatically
+- Restart the service
+- Verify the update was successful
+
+**For complete update instructions, troubleshooting, and rollback procedures, see the [Update Guide](updates.md).**
+
+### Quick Update Commands
+
+```bash
+# Standard update
+sudo ./update.sh
+
+# Update to specific branch
+sudo ./update.sh --branch main
+
+# Update without restart (manual restart later)
+sudo ./update.sh --no-restart
+
+# View update help
+./update.sh --help
+```
+
+### After Updating
+
+```bash
+# Check service status
+sudo systemctl status bananawiki
+
+# View recent logs
+sudo journalctl -u bananawiki -n 50
+
+# Follow live logs
+sudo journalctl -u bananawiki -f
+```
+
+See [updates.md](updates.md) for complete documentation on updating, rollback procedures, and troubleshooting.
