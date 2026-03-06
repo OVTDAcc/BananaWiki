@@ -643,7 +643,7 @@ def register_group_routes(app):
         custom_code = request.form.get("custom_code", "").strip()
         if custom_code:
             if not re.match(r'^[A-Za-z0-9]{1,32}$', custom_code):
-                flash("Custom code must be 1–32 alphanumeric characters.", "error")
+                flash("Custom invite code must be between 1 and 32 alphanumeric characters.", "error")
                 return redirect(url_for("group_view", group_id=group_id))
             # Check uniqueness
             existing = db.get_group_chat_by_invite(custom_code)
@@ -675,7 +675,7 @@ def register_group_routes(app):
         my_role = db.get_group_member_role(group_id, user["id"])
         is_site_admin = user["role"] in ("admin", "protected_admin")
         if not my_role and not is_site_admin:
-            flash("You must be a member of this group to export it.", "error")
+            flash("You must be a member of this group to export its data.", "error")
             return redirect(url_for("group_list"))
 
         # Get messages and group info

@@ -283,18 +283,18 @@ def register_admin_routes(app):
             else:
                 rh = db.get_role_history_entry(entry_id)
                 if not rh or rh["user_id"] != user_id:
-                    flash("Role history entry not found.", "error")
+                    flash("The specified role history entry was not found.", "error")
                 else:
                     db.delete_role_history_entry(entry_id)
                     log_action("admin_delete_role_history_entry", request, user=current_user,
                                target_user=target["username"], entry_id=entry_id)
-                    flash("Role history entry deleted.", "success")
+                    flash("Role history entry has been successfully deleted.", "success")
 
         elif action == "delete_all_role_history":
             count = db.delete_all_role_history(user_id)
             log_action("admin_delete_all_role_history", request, user=current_user,
                        target_user=target["username"], count=count)
-            flash(f"Deleted {count} role history entries.", "success")
+            flash(f"Successfully deleted {count} role history entries.", "success")
 
         return redirect(url_for("user_profile", username=target["username"]))
 
@@ -336,20 +336,20 @@ def register_admin_routes(app):
                 return redirect(url_for("admin_users"))
             new_name = request.form.get("username", "").strip()
             if not new_name or len(new_name) < 3:
-                flash("Username must be at least 3 characters.", "error")
+                flash("Username must contain at least 3 characters.", "error")
             elif len(new_name) > 50:
-                flash("Username must be 50 characters or fewer.", "error")
+                flash("Username cannot exceed 50 characters.", "error")
             elif not _is_valid_username(new_name):
-                flash("Username may only contain letters, digits, underscores and hyphens.", "error")
+                flash("Username can only contain letters, numbers, underscores, and hyphens.", "error")
             else:
                 existing = db.get_user_by_username(new_name)
                 if existing and existing["id"] != user_id:
-                    flash("Username already taken.", "error")
+                    flash("This username is already registered. Please choose a different one.", "error")
                 else:
                     try:
                         db.update_user(user_id, username=new_name)
                     except sqlite3.IntegrityError:
-                        flash("Username already taken.", "error")
+                        flash("This username is already registered. Please choose a different one.", "error")
                         return redirect(url_for("admin_users"))
                     else:
                         db.record_username_change(user_id, target["username"], new_name)
@@ -365,7 +365,7 @@ def register_admin_routes(app):
             new_pw = request.form.get("password", "")
             confirm_pw = request.form.get("confirm_password", "")
             if len(new_pw) < 6:
-                flash("Password must be at least 6 characters.", "error")
+                flash("Password must contain at least 6 characters for security.", "error")
             elif new_pw != confirm_pw:
                 flash("Passwords do not match.", "error")
             else:
@@ -610,25 +610,25 @@ def register_admin_routes(app):
         if not username or not password:
             flash("Username and password are required.", "error")
         elif len(username) < 3:
-            flash("Username must be at least 3 characters.", "error")
+            flash("Username must contain at least 3 characters.", "error")
         elif len(username) > 50:
-            flash("Username must be 50 characters or fewer.", "error")
+            flash("Username cannot exceed 50 characters.", "error")
         elif not _is_valid_username(username):
-            flash("Username may only contain letters, digits, underscores and hyphens.", "error")
+            flash("Username can only contain letters, numbers, underscores, and hyphens.", "error")
         elif password != confirm:
             flash("Passwords do not match.", "error")
         elif len(password) < 6:
-            flash("Password must be at least 6 characters.", "error")
+            flash("Password must contain at least 6 characters for security.", "error")
         elif role not in ("user", "editor", "admin"):
             flash("The specified role is invalid.", "error")
         elif db.get_user_by_username(username):
-            flash("Username already taken.", "error")
+            flash("This username is already registered. Please choose a different one.", "error")
         else:
             hashed = generate_password_hash(password)
             try:
                 user_id = db.create_user(username, hashed, role=role)
             except sqlite3.IntegrityError:
-                flash("Username already taken.", "error")
+                flash("This username is already registered. Please choose a different one.", "error")
                 return redirect(url_for("admin_users"))
 
             # Initialize default permissions for editors and users
@@ -724,7 +724,7 @@ def register_admin_routes(app):
         if request.method == "POST":
             site_name = request.form.get("site_name", "").strip() or "BananaWiki"
             if len(site_name) > 100:
-                flash("Site name must be 100 characters or fewer.", "error")
+                flash("Site name cannot exceed 100 characters.", "error")
                 return redirect(url_for("admin_settings"))
             color_fields = {
                 "primary_color": request.form.get("primary_color", "#7c8dc6"),
@@ -977,7 +977,7 @@ def register_admin_routes(app):
             flash("A Announcement content is required to continue.", "error")
             return redirect(url_for("admin_announcements"))
         if len(content) > 2000:
-            flash("Announcement content must be 2000 characters or fewer.", "error")
+            flash("Announcement content cannot exceed 2,000 characters.", "error")
             return redirect(url_for("admin_announcements"))
         if color not in _VALID_ANN_COLORS:
             flash("The specified color is invalid.", "error")
@@ -1027,7 +1027,7 @@ def register_admin_routes(app):
             flash("A Announcement content is required to continue.", "error")
             return redirect(url_for("admin_announcements"))
         if len(content) > 2000:
-            flash("Announcement content must be 2000 characters or fewer.", "error")
+            flash("Announcement content cannot exceed 2,000 characters.", "error")
             return redirect(url_for("admin_announcements"))
         if color not in _VALID_ANN_COLORS:
             flash("The specified color is invalid.", "error")
@@ -1276,7 +1276,7 @@ def register_admin_routes(app):
 
         target_user = db.get_user_by_username(target_username)
         if not target_user:
-            flash(f"User '{target_username}' not found.", "error")
+            flash(f"User '{target_username}' was not found.", "error")
             return redirect(url_for("admin_edit_badge", badge_id=badge_id))
 
         result = db.award_badge(target_user['id'], badge_id, awarded_by=user['id'])
@@ -1308,7 +1308,7 @@ def register_admin_routes(app):
 
         target_user = db.get_user_by_username(target_username)
         if not target_user:
-            flash(f"User '{target_username}' not found.", "error")
+            flash(f"User '{target_username}' was not found.", "error")
             return redirect(url_for("admin_edit_badge", badge_id=badge_id))
 
         db.revoke_badge(target_user['id'], badge_id, revoked_by=user['id'], permanent=permanent)
