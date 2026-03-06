@@ -35,7 +35,7 @@ def isolated_db(tmp_path, monkeypatch):
     """Use a fresh temporary SQLite database for every test."""
     db_path = str(tmp_path / "test.db")
     monkeypatch.setattr(config, "DATABASE_PATH", db_path)
-    monkeypatch.setattr(config, "LOGGING_ENABLED", False)
+    monkeypatch.setattr(config, "LOGGING_LEVEL", "off")
     monkeypatch.setattr(config, "UPLOAD_FOLDER", str(tmp_path / "uploads"))
     monkeypatch.setattr(config, "ATTACHMENT_FOLDER", str(tmp_path / "attachments"))
     monkeypatch.setattr(config, "CHAT_ATTACHMENT_FOLDER", str(tmp_path / "chat_attachments"))

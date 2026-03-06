@@ -31,7 +31,7 @@ def isolated_db(tmp_path, monkeypatch):
     """Use a fresh temporary database and isolated folders for every test."""
     db_path = str(tmp_path / "test.db")
     monkeypatch.setattr(config, "DATABASE_PATH", db_path)
-    monkeypatch.setattr(config, "LOGGING_ENABLED", False)
+    monkeypatch.setattr(config, "LOGGING_LEVEL", "off")
     monkeypatch.setattr(config, "UPLOAD_FOLDER", str(tmp_path / "uploads"))
     monkeypatch.setattr(config, "ATTACHMENT_FOLDER", str(tmp_path / "attachments"))
     import db as db_mod
