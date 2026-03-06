@@ -573,6 +573,23 @@ Moderators and owners can delete any message in the group via POST to `/groups/<
 
 > `routes/groups.py` → `group_delete_message`, `db/_groups.py` → `delete_group_message()`
 
+### Group chat export
+Members can export group chat history and attachments as downloadable files via `/groups/<id>/export`. The system intelligently decides the export format:
+
+- **Text file**: Simple text export if there are no attachments and total size is under 10 MB
+- **Unified ZIP**: Single ZIP archive with messages and attachments if total size is under 50 MB (Telegram limit)
+- **Split export**: Messages-only ZIP with a manifest if attachments are too large (>50 MB), with instructions to download attachments separately
+
+The export includes:
+- All messages with timestamps, sender names, and IP addresses
+- System messages (joins, kicks, role changes)
+- File attachments (when size permits)
+- Export metadata (date, message count, group name)
+
+Export button is prominently displayed in the group management panel, with a reminder shown in the delete confirmation dialog.
+
+> `routes/groups.py` → `group_export`, `db/_groups.py` → `get_group_messages_for_export()`, `app/templates/groups/chat.html` → export button UI
+
 ### Group activation/deactivation
 Owners can deactivate a group, which hides it from member lists and prevents new messages. It can be reactivated later without data loss.
 

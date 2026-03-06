@@ -207,6 +207,7 @@ from ._groups import (  # noqa: F401
     get_group_message_by_id,
     get_all_group_chats_admin,
     get_all_group_messages_for_backup,
+    get_group_messages_for_export,
     cleanup_old_group_messages,
     get_user_group_attachment_count_today,
     transfer_group_ownership,

@@ -17,6 +17,7 @@ Telegram's 50 MB limit.
 import io
 import json
 import os
+import secrets
 import shutil
 import threading
 import time
@@ -184,7 +185,10 @@ def _execute_backup() -> None:
 
 
 def _create_backup(changes: list[dict]) -> tuple[str | None, list[tuple]]:
-    """Zip all runtime artifacts and return (zip_path, excluded_files)."""
+    """Zip all runtime artifacts and return (zip_path, excluded_files).
+
+    Uses smart compression and size-based decisions for optimal Telegram sending.
+    """
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     zip_filename = f"bananawiki_backup_{timestamp}.zip"
 
@@ -194,11 +198,16 @@ def _create_backup(changes: list[dict]) -> tuple[str | None, list[tuple]]:
 
     excluded_files: list[tuple[str, int, str]] = []
     current_size = 0
-    # Leave 1 MB margin below Telegram's limit
-    max_size = TELEGRAM_FILE_LIMIT - (1024 * 1024)
+    # Use configured split threshold or default to 1 MB margin below Telegram's limit
+    split_threshold = getattr(config, "SYNC_SPLIT_THRESHOLD", TELEGRAM_FILE_LIMIT - (1024 * 1024))
+    max_size = min(split_threshold, TELEGRAM_FILE_LIMIT - (1024 * 1024))
+
+    # Use configured compression level (default 9 for maximum compression)
+    compress_level = getattr(config, "SYNC_COMPRESS_LEVEL", 9)
+    include_chat_attachments = getattr(config, "SYNC_INCLUDE_CHAT_ATTACHMENTS", True)
 
     try:
-        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED, compresslevel=compress_level) as zf:
             # 1. Database -------------------------------------------------
             if os.path.exists(config.DATABASE_PATH):
                 db_size = os.path.getsize(config.DATABASE_PATH)
@@ -249,10 +258,30 @@ def _create_backup(changes: list[dict]) -> tuple[str | None, list[tuple]]:
                             (f"logs/{log_file}", file_size, "Exceeds size limit")
                         )
 
-            # 5. Backup manifest -----------------------------------------
+            # 5. Chat attachments (optional) -----------------------------
+            if include_chat_attachments:
+                chat_att_dir = getattr(config, "CHAT_ATTACHMENT_FOLDER", None)
+                if chat_att_dir and os.path.isdir(chat_att_dir):
+                    for att_file in sorted(os.listdir(chat_att_dir)):
+                        att_path = os.path.join(chat_att_dir, att_file)
+                        if not os.path.isfile(att_path):
+                            continue
+                        file_size = os.path.getsize(att_path)
+                        if current_size + file_size < max_size:
+                            zf.write(att_path, f"chat_attachments/{att_file}")
+                            current_size += file_size
+                        else:
+                            excluded_files.append(
+                                (f"chat_attachments/{att_file}", file_size, "Exceeds size limit")
+                            )
+
+            # 6. Backup manifest -----------------------------------------
             manifest = {
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "changes": changes,
+                "total_size_bytes": current_size,
+                "compression_level": compress_level,
+                "chat_attachments_included": include_chat_attachments,
                 "excluded_files": [
                     {"file": f, "size_bytes": s, "reason": r}
                     for f, s, r in excluded_files
@@ -466,6 +495,7 @@ def backup_group_chats_before_cleanup() -> None:
     """Send all group chat messages to Telegram before the nightly cleanup.
 
     Similar to backup_chats_before_cleanup but for group messages.
+    Uses smart sending: sends as text if small, or as files if large.
     Runs synchronously (called from the cleanup thread).
     """
     if not is_enabled():
@@ -498,34 +528,77 @@ def backup_group_chats_before_cleanup() -> None:
         lines.append(line)
 
     text = "\n".join(lines)
-    chunks = [text[i:i + 4000] for i in range(0, len(text), 4000)]
+    text_size = len(text.encode("utf-8"))
 
-    for chunk in chunks:
-        payload = {"chat_id": user_id, "text": chunk}
-        body = json.dumps(payload).encode()
-        url = f"https://api.telegram.org/bot{token}/sendMessage"
+    # Smart decision: if text is large (>1 MB), send as file instead of chunked messages
+    if text_size > 1024 * 1024:
+        # Send as a text file
+        text_file = io.BytesIO(text.encode("utf-8"))
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        filename = f"group_chat_backup_{timestamp}.txt"
+
+        boundary = f"----BananaBoundary{secrets.token_hex(16)}"
+        body_parts = [
+            f'--{boundary}',
+            f'Content-Disposition: form-data; name="chat_id"',
+            '',
+            str(user_id),
+            f'--{boundary}',
+            f'Content-Disposition: form-data; name="document"; filename="{filename}"',
+            f'Content-Type: text/plain',
+            '',
+            text,
+            f'--{boundary}--',
+        ]
+        body = "\r\n".join(body_parts).encode("utf-8")
+
+        url = f"https://api.telegram.org/bot{token}/sendDocument"
         req = Request(
             url,
             data=body,
             headers={
-                "Content-Type": "application/json",
+                "Content-Type": f"multipart/form-data; boundary={boundary}",
                 "Content-Length": str(len(body)),
             },
             method="POST",
         )
         try:
-            with urlopen(req, timeout=30) as resp:
+            with urlopen(req, timeout=60) as resp:
                 resp.read()
+            logger.info(f"SYNC | Group chat backup sent as file ({len(messages)} message(s), {text_size / 1024:.1f} KB)")
         except (URLError, OSError, ValueError) as exc:
-            logger.error(f"SYNC | Group chat backup text send failed: {exc}")
+            logger.error(f"SYNC | Group chat backup file send failed: {exc}")
+    else:
+        # Send as chunked text messages (original behavior)
+        chunks = [text[i:i + 4000] for i in range(0, len(text), 4000)]
 
+        for chunk in chunks:
+            payload = {"chat_id": user_id, "text": chunk}
+            body = json.dumps(payload).encode()
+            url = f"https://api.telegram.org/bot{token}/sendMessage"
+            req = Request(
+                url,
+                data=body,
+                headers={
+                    "Content-Type": "application/json",
+                    "Content-Length": str(len(body)),
+                },
+                method="POST",
+            )
+            try:
+                with urlopen(req, timeout=30) as resp:
+                    resp.read()
+            except (URLError, OSError, ValueError) as exc:
+                logger.error(f"SYNC | Group chat backup text send failed: {exc}")
+
+        logger.info(f"SYNC | Group chat backup sent ({len(messages)} message(s), {len(chunks)} chunk(s))")
+
+    # Send attachments
     for msg in messages:
         for att in msg.get("attachments", []):
             filepath = os.path.join(chat_attach_dir, att["filename"]) if chat_attach_dir else ""
             if filepath and os.path.isfile(filepath):
                 _do_send_upload(att["filename"], filepath, display_name=att["original_name"])
-
-    logger.info(f"SYNC | Group chat backup sent ({len(messages)} message(s))")
 
 
 # ---------------------------------------------------------------------------
