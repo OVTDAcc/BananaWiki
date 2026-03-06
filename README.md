@@ -146,13 +146,21 @@ BananaWiki is a lightweight, private wiki you can host on your own server. No cl
 
 ### For Local Development / Testing
 
+**Option 1: Using Make (simplest)**
+```bash
+git clone https://github.com/ovtdadt/BananaWiki.git
+cd BananaWiki
+make dev
+```
+
+**Option 2: Using the dev script directly**
 ```bash
 git clone https://github.com/ovtdadt/BananaWiki.git
 cd BananaWiki
 ./dev.sh
 ```
 
-The `dev.sh` script automatically sets up the virtual environment, installs dependencies, and starts the Flask development server. Open **http://localhost:5001** to access BananaWiki.
+Both methods automatically set up the virtual environment, install dependencies, and start the Flask development server. Open **http://localhost:5001** to access BananaWiki.
 
 ### For Production Deployment
 
@@ -161,10 +169,11 @@ The `dev.sh` script automatically sets up the virtual environment, installs depe
 ```bash
 git clone https://github.com/ovtdadt/BananaWiki.git
 cd BananaWiki
-sudo ./install.sh
+sudo make install
+# or: sudo ./install.sh
 ```
 
-The `install.sh` script will guide you through an interactive setup that:
+The installation script will guide you through an interactive setup that:
 - Installs system dependencies
 - Sets up the application with proper permissions
 - Configures systemd service for automatic startup
@@ -179,7 +188,7 @@ cd BananaWiki
 python -m venv venv
 source venv/bin/activate        # Windows: venv\Scripts\activate
 pip install -r requirements.txt
-./start.sh                      # or: gunicorn wsgi:app -c gunicorn.conf.py
+make start                       # or: ./start.sh or: gunicorn wsgi:app -c gunicorn.conf.py
 ```
 
 **On first visit**, you'll be redirected to the setup wizard to create the first admin account.
@@ -222,6 +231,7 @@ BananaWiki/
 ├── wiki_logger.py      # Request and action logging
 ├── wsgi.py             # WSGI entry point for Gunicorn
 ├── gunicorn.conf.py    # Gunicorn server configuration
+├── Makefile            # Convenient shortcuts: make dev, make start, make install
 ├── dev.sh              # Quick start script for local development
 ├── start.sh            # Production start script with Gunicorn
 ├── install.sh          # Automated production installation script
