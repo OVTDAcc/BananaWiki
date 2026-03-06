@@ -88,7 +88,8 @@ def init_db():
         bg_color         TEXT NOT NULL DEFAULT '#16161f',
         setup_done  INTEGER NOT NULL DEFAULT 0,
         timezone    TEXT    NOT NULL DEFAULT 'UTC',
-        session_limit_enabled INTEGER NOT NULL DEFAULT 1
+        session_limit_enabled INTEGER NOT NULL DEFAULT 1,
+        about_page_initialized INTEGER NOT NULL DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS login_attempts (
@@ -285,6 +286,8 @@ def init_db():
         cur.execute("ALTER TABLE site_settings ADD COLUMN lockdown_message TEXT NOT NULL DEFAULT ''")
     if "session_limit_enabled" not in ss_cols:
         cur.execute("ALTER TABLE site_settings ADD COLUMN session_limit_enabled INTEGER NOT NULL DEFAULT 1")
+    if "about_page_initialized" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN about_page_initialized INTEGER NOT NULL DEFAULT 0")
 
     # Migrate old default colors to improved, more readable defaults.
     # Column names come from a hardcoded list – validated against the allowed
@@ -385,6 +388,51 @@ def init_db():
             "INSERT INTO pages (title, slug, content, is_home) VALUES (?, ?, ?, 1)",
             ("Home", "home", "# Welcome to your Wiki\n\nEdit this page to get started."),
         )
+
+    # Ensure About page exists (only on fresh install, never after deletion)
+    # Use about_page_initialized flag to track if we've ever tried to create it
+    settings = cur.execute("SELECT about_page_initialized FROM site_settings WHERE id=1").fetchone()
+    about_initialized = settings[0] if settings else 0
+
+    if not about_initialized:
+        # Check if About page exists
+        about = cur.execute("SELECT id FROM pages WHERE slug=?", ("about",)).fetchone()
+        if not about:
+            # Create the About page only if it doesn't exist
+            about_content = """# About BananaWiki
+
+BananaWiki is a lightweight, self-hosted wiki platform designed for simplicity and ease of use.
+
+## Features
+
+- **Markdown Support**: Write content using simple Markdown syntax
+- **Categories**: Organize your pages into hierarchical categories
+- **User Management**: Role-based access control (User, Editor, Admin)
+- **Page History**: Track all changes with full revision history
+- **Direct Messaging**: Built-in chat system for user communication
+- **Group Chats**: Create and manage group conversations
+- **Customization**: Personalize colors and appearance
+
+## Getting Started
+
+As an administrator, you can:
+- Create new pages and categories
+- Manage users and permissions
+- Customize site settings
+- Monitor system activity
+
+Feel free to edit or delete this page as needed!
+
+---
+
+*This page was automatically created during installation. You can safely edit or delete it.*
+"""
+            cur.execute(
+                "INSERT INTO pages (title, slug, content, sort_order) VALUES (?, ?, ?, ?)",
+                ("About", "about", about_content, -1),
+            )
+        # Mark as initialized whether the page was created or already existed
+        cur.execute("UPDATE site_settings SET about_page_initialized=1 WHERE id=1")
 
     conn.commit()
     conn.close()
