@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}New Badges – {{ settings.site_name }}{% endblock %}
+{% block content %}
+<h1>🏆 New Badges Earned!</h1>
+
+{% if unnotified %}
+<p style="opacity:.8;margin-bottom:1.5rem">Congratulations! You've earned the following badges:</p>
+
+<div style="display:grid;gap:1rem;max-width:800px">
+    {% for badge_notif in unnotified %}
+    <div class="settings-section" style="border-left:4px solid {{ badge_notif.color }}">
+        <div style="display:flex;align-items:flex-start;gap:1rem">
+            <div style="font-size:3rem;line-height:1">{{ badge_notif.icon }}</div>
+            <div style="flex:1">
+                <h2 style="font-size:1.3rem;margin:0 0 .5rem">{{ badge_notif.name }}</h2>
+                <p style="opacity:.8;margin:0">{{ badge_notif.description }}</p>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<form method="POST" action="{{ url_for('dismiss_badge_notifications') }}" style="margin-top:2rem">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit" class="btn">Continue</button>
+</form>
+
+{% else %}
+<p style="opacity:.7">No new badge notifications.</p>
+<a href="{{ url_for('user_profile', username=current_user.username) }}" class="btn">View My Profile</a>
+{% endif %}
+
+{% endblock %}

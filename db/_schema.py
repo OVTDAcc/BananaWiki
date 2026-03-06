@@ -258,6 +258,42 @@ def init_db():
         access_type TEXT NOT NULL CHECK(access_type IN ('read','write')),
         UNIQUE(user_id, category_id, access_type)
     );
+
+    CREATE TABLE IF NOT EXISTS badge_types (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        name            TEXT    NOT NULL UNIQUE,
+        description     TEXT    NOT NULL DEFAULT '',
+        icon            TEXT    NOT NULL DEFAULT '🏆',
+        color           TEXT    NOT NULL DEFAULT '#ffd700',
+        enabled         INTEGER NOT NULL DEFAULT 1,
+        auto_trigger    INTEGER NOT NULL DEFAULT 0,
+        trigger_type    TEXT    NOT NULL DEFAULT ''
+                                CHECK(trigger_type IN ('','category_count','contribution_count','first_edit','member_days','easter_egg','reading_time','article_count')),
+        trigger_threshold INTEGER NOT NULL DEFAULT 0,
+        allow_multiple  INTEGER NOT NULL DEFAULT 0,
+        created_by      TEXT REFERENCES users(id) ON DELETE SET NULL,
+        created_at      TEXT    NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS user_badges (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id         TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        badge_type_id   INTEGER NOT NULL REFERENCES badge_types(id) ON DELETE CASCADE,
+        earned_at       TEXT    NOT NULL DEFAULT (datetime('now')),
+        awarded_by      TEXT REFERENCES users(id) ON DELETE SET NULL,
+        revoked         INTEGER NOT NULL DEFAULT 0,
+        revoked_at      TEXT,
+        revoked_by      TEXT REFERENCES users(id) ON DELETE SET NULL,
+        UNIQUE(user_id, badge_type_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS badge_notifications (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id         TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        badge_type_id   INTEGER NOT NULL REFERENCES badge_types(id) ON DELETE CASCADE,
+        notified        INTEGER NOT NULL DEFAULT 0,
+        created_at      TEXT    NOT NULL DEFAULT (datetime('now'))
+    );
     """)
 
     # -- Migrations: add columns to existing tables --

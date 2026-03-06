@@ -76,6 +76,31 @@ def register_user_routes(app):
             return url
         return fallback
 
+    @app.route("/badges/notifications")
+    @login_required
+    def badge_notifications():
+        """View and dismiss badge notifications."""
+        user = get_current_user()
+        unnotified = db.get_unnotified_badges(user["id"])
+        categories, uncategorized = db.get_category_tree()
+        return render_template(
+            "users/badge_notifications.html",
+            unnotified=unnotified,
+            categories=categories,
+            uncategorized=uncategorized,
+        )
+
+    @app.route("/badges/notifications/dismiss", methods=["POST"])
+    @login_required
+    def dismiss_badge_notifications():
+        """Dismiss all badge notifications for the current user."""
+        user = get_current_user()
+        db.mark_badges_notified(user["id"])
+        if "badge_notifications" in session:
+            del session["badge_notifications"]
+        flash("Badge notifications dismissed.", "info")
+        return redirect(request.referrer or url_for("home"))
+
     @app.route("/account", methods=["GET", "POST"])
     @login_required
     @rate_limit(10, 60)
@@ -327,6 +352,7 @@ def register_user_routes(app):
         contribution_list = db.get_user_contributions(target["id"])
         role_history = db.get_role_history(target["id"])
         custom_tags = db.get_user_custom_tags(target["id"])
+        user_badges = db.get_user_badges(target["id"], include_revoked=False)
         categories, uncategorized = db.get_category_tree()
         all_users = db.list_users() if is_admin else []
         return render_template(
@@ -341,6 +367,7 @@ def register_user_routes(app):
             role_labels=ROLE_LABELS,
             role_history=role_history,
             custom_tags=custom_tags,
+            user_badges=user_badges,
             all_users=all_users,
             categories=categories,
             uncategorized=uncategorized,

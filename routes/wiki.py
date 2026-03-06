@@ -389,6 +389,12 @@ def register_wiki_routes(app):
             cleanup_unused_uploads()
             log_action("edit_page", request, user=user, page=slug, message=edit_message)
             notify_change("page_edit", f"Page '{slug}' edited")
+
+            # Check and award auto-triggered badges
+            newly_awarded = db.check_and_award_auto_badges(user["id"])
+            if newly_awarded:
+                session["badge_notifications"] = session.get("badge_notifications", 0) + len(newly_awarded)
+
             flash("Page updated.", "success")
             if page["is_home"]:
                 return redirect(url_for("home"))
@@ -504,6 +510,12 @@ def register_wiki_routes(app):
             cleanup_unused_uploads()
             log_action("create_page", request, user=user, page=slug)
             notify_change("page_create", f"Page '{slug}' created")
+
+            # Check and award auto-triggered badges
+            newly_awarded = db.check_and_award_auto_badges(user["id"])
+            if newly_awarded:
+                session["badge_notifications"] = session.get("badge_notifications", 0) + len(newly_awarded)
+
             flash("Page created. Open it to start editing with Markdown.", "success")
             return redirect(url_for("view_page", slug=slug))
 
