@@ -178,11 +178,16 @@ def has_category_read_access(user, category_id):
     if not user:
         return False
 
-    # Admins always have access
-    if user.get("role") in ("admin", "protected_admin"):
+    # Admins always have access (handle both dict and sqlite3.Row)
+    role = user["role"] if "role" in user.keys() else None
+    if role in ("admin", "protected_admin"):
         return True
 
-    permissions = get_user_permissions(user["id"])
+    user_id = user["id"] if "id" in user.keys() else None
+    if not user_id:
+        return False
+
+    permissions = get_user_permissions(user_id)
     cat_access = permissions['category_access']
 
     # If not restricted, user has access to all
@@ -210,13 +215,39 @@ def has_category_write_access(user, category_id):
     if not user:
         return False
 
-    # Admins always have access
-    if user.get("role") in ("admin", "protected_admin"):
+    # Admins always have access (handle both dict and sqlite3.Row)
+    role = user["role"] if "role" in user.keys() else None
+    if role in ("admin", "protected_admin"):
         return True
 
-    permissions = get_user_permissions(user["id"])
+    user_id = user["id"] if "id" in user.keys() else None
+    if not user_id:
+        return False
+
+    permissions = get_user_permissions(user_id)
     cat_access = permissions['category_write_access']
 
+    # Check if user has any custom permissions set at all
+    # If not, fall back to old editor_category_access system for backward compatibility
+    conn = get_db()
+    cur = conn.cursor()
+    has_custom_perms = cur.execute(
+        "SELECT 1 FROM user_category_access WHERE user_id = ? AND access_type = 'write'",
+        (user_id,)
+    ).fetchone()
+    conn.close()
+
+    if not has_custom_perms and role == "editor":
+        # Fall back to old system
+        from ._users import get_editor_access
+        old_access = get_editor_access(user_id)
+        if not old_access["restricted"]:
+            return True
+        if category_id is None:
+            return False
+        return int(category_id) in old_access["allowed_category_ids"]
+
+    # Use new permission system
     # If not restricted, user has write access to all
     if not cat_access['restricted']:
         return True
