@@ -51,13 +51,17 @@ def register_group_routes(app):
             return redirect(url_for("group_list"))
         if request.method == "POST":
             name = request.form.get("name", "").strip()
+            description = request.form.get("description", "").strip()
             if not name:
                 flash("A group name is required to continue.", "error")
                 return redirect(url_for("group_new"))
             if len(name) > 100:
                 flash("Group name cannot exceed 100 characters.", "error")
                 return redirect(url_for("group_new"))
-            group = db.create_group_chat(name, user["id"])
+            if len(description) > 500:
+                flash("Group description cannot exceed 500 characters.", "error")
+                return redirect(url_for("group_new"))
+            group = db.create_group_chat(name, user["id"], description)
             db.send_group_system_message(group["id"], f"{user['username']} created the group")
             notify_change("group_create", f"Group '{name}' created by {user['username']}")
             flash("Group has been successfully created!", "success")

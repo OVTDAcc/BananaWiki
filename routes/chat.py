@@ -250,6 +250,10 @@ def register_chat_routes(app):
 
     def _run_chat_cleanup():
         """Execute the scheduled chat cleanup: backup to Telegram then delete."""
+        # Check if cleanup is enabled
+        if not config.CHAT_CLEANUP_ENABLED:
+            return
+
         try:
             backup_chats_before_cleanup()
         except Exception:
@@ -259,7 +263,8 @@ def register_chat_routes(app):
         except Exception:
             pass
         try:
-            files_to_delete = db.cleanup_old_chat_messages()
+            retention_days = config.CHAT_CLEANUP_RETENTION_DAYS
+            files_to_delete = db.cleanup_old_chat_messages(retention_days)
             att_dir = config.CHAT_ATTACHMENT_FOLDER
             for fname in files_to_delete:
                 try:
@@ -271,7 +276,8 @@ def register_chat_routes(app):
         except Exception:
             pass
         try:
-            group_files = db.cleanup_old_group_messages()
+            retention_days = config.CHAT_CLEANUP_RETENTION_DAYS
+            group_files = db.cleanup_old_group_messages(retention_days)
             att_dir = config.CHAT_ATTACHMENT_FOLDER
             for fname in group_files:
                 try:

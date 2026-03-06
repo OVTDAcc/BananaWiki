@@ -55,14 +55,10 @@ def _get_log_level():
     if _log_level is not None:
         return _log_level
 
-    # Check new LOGGING_LEVEL config first
+    # Get LOGGING_LEVEL config
     level = getattr(config, "LOGGING_LEVEL", "verbose").lower()
     if level not in {LOG_OFF, LOG_MINIMAL, LOG_MEDIUM, LOG_VERBOSE, LOG_DEBUG}:
         level = LOG_VERBOSE  # Default to verbose if invalid
-
-    # Fall back to old LOGGING_ENABLED for backwards compatibility
-    if not getattr(config, "LOGGING_ENABLED", True):
-        level = LOG_OFF
 
     _log_level = level
     return _log_level

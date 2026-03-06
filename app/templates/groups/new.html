@@ -9,6 +9,10 @@
         <label>Group Name</label>
         <input type="text" name="name" class="input" required placeholder="Enter a group name" maxlength="100" autocomplete="off">
     </div>
+    <div class="form-group">
+        <label>Description (optional)</label>
+        <textarea name="description" class="input" rows="3" maxlength="500" placeholder="Describe what this group is about..."></textarea>
+    </div>
     <div class="form-actions">
         <button type="submit" class="btn">Create Group</button>
         <a href="{{ url_for('group_list') }}" class="btn btn-outline">Cancel</a>

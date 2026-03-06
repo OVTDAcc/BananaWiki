@@ -392,6 +392,10 @@ def init_db():
     if "is_active" not in gc_cols:
         cur.execute("ALTER TABLE group_chats ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1")
 
+    # Add description column to group_chats if missing
+    if "description" not in gc_cols:
+        cur.execute("ALTER TABLE group_chats ADD COLUMN description TEXT NOT NULL DEFAULT ''")
+
     # Add sequential_nav to categories if missing
     cat_cols = [r[1] for r in cur.execute("PRAGMA table_info(categories)").fetchall()]
     if "sequential_nav" not in cat_cols:
