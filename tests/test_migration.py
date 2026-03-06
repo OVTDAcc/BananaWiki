@@ -93,6 +93,24 @@ def test_export_contains_home_page():
     assert "home" in slugs
 
 
+def test_export_contains_about_page():
+    """Exported data includes the about page that init_db() creates."""
+    import db
+    data = db.export_site_data()
+    slugs = [p["slug"] for p in data["pages"]]
+    assert "about" in slugs
+
+
+def test_about_page_exists_after_init():
+    """About page is created automatically during init_db()."""
+    import db
+    about = db.get_page_by_slug("about")
+    assert about is not None
+    assert about["title"] == "About"
+    assert "BananaWiki" in about["content"]
+    assert about["sort_order"] == 999999
+
+
 # ---------------------------------------------------------------------------
 # db.import_site_data – delete_all mode
 # ---------------------------------------------------------------------------

@@ -366,6 +366,42 @@ def init_db():
             ("Home", "home", "# Welcome to your Wiki\n\nEdit this page to get started."),
         )
 
+    # Ensure About page exists
+    about = cur.execute("SELECT id FROM pages WHERE slug=?", ("about",)).fetchone()
+    if not about:
+        about_content = """# About BananaWiki
+
+**BananaWiki** is a self-hosted wiki built with Flask and SQLite — clean, fast, and ready to run in minutes.
+
+## What is BananaWiki?
+
+BananaWiki is a lightweight, private wiki you can host on your own server. No cloud services, no external databases — just a Python app, a single SQLite file, and full control over your knowledge base.
+
+## Key Features
+
+- **Markdown editing** with split-pane live preview
+- **Hierarchical categories** with unlimited nesting
+- **Page history** with full version control
+- **User management** with roles and permissions
+- **Draft autosave** to never lose your work
+- **Image uploads** and page attachments
+- **Direct messaging** and group chats
+- **Search** across all pages
+- **Customizable themes** and site settings
+
+## Learn More
+
+Visit the [BananaWiki GitHub repository](https://github.com/ovtdadt/BananaWiki) for documentation, source code, and contribution guidelines.
+
+---
+
+*This page can be edited by admins and editors to customize it for your wiki instance.*"""
+        cur.execute(
+            "INSERT INTO pages (title, slug, content, is_home, category_id, sort_order) "
+            "VALUES (?, ?, ?, 0, NULL, 999999)",
+            ("About", "about", about_content),
+        )
+
     conn.commit()
     conn.close()
 
