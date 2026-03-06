@@ -111,36 +111,36 @@ def register_user_routes(app):
 
         if action == "change_username":
             if user["is_superuser"]:
-                flash("This account is protected and cannot be modified.", "error")
+                flash("This account is protected and cannot be modified by administrators.", "error")
                 return redirect(url_for("account_settings"))
             new_username = request.form.get("new_username", "").strip()
             password = request.form.get("password", "")
             if not check_password_hash(user["password"], password):
                 flash("Incorrect password.", "error")
             elif len(new_username) < 3:
-                flash("Username must be at least 3 characters.", "error")
+                flash("Username must contain at least 3 characters.", "error")
             elif len(new_username) > 50:
-                flash("Username must be 50 characters or fewer.", "error")
+                flash("Username cannot exceed 50 characters.", "error")
             elif not _is_valid_username(new_username):
-                flash("Username may only contain letters, digits, underscores and hyphens.", "error")
+                flash("Username can only contain letters, numbers, underscores, and hyphens.", "error")
             elif db.get_user_by_username(new_username) and new_username.lower() != user["username"].lower():
-                flash("Username already taken.", "error")
+                flash("This username is already registered. Please choose a different one.", "error")
             else:
                 try:
                     db.update_user(user["id"], username=new_username)
                 except sqlite3.IntegrityError:
-                    flash("Username already taken.", "error")
+                    flash("This username is already registered. Please choose a different one.", "error")
                     return redirect(url_for("account_settings"))
                 else:
                     db.record_username_change(user["id"], user["username"], new_username)
                     log_action("change_username", request, user=user, new_username=new_username)
                     notify_change("user_change_username", f"User '{user['username']}' renamed to '{new_username}'")
-                    flash("Username updated.", "success")
+                    flash("Username has been successfully updated.", "success")
             return redirect(url_for("account_settings"))
 
         if action == "change_password":
             if user["is_superuser"]:
-                flash("This account is protected and cannot be modified.", "error")
+                flash("This account is protected and cannot be modified by administrators.", "error")
                 return redirect(url_for("account_settings"))
             current_pw = request.form.get("current_password", "")
             new_pw = request.form.get("new_password", "")
@@ -150,12 +150,12 @@ def register_user_routes(app):
             elif new_pw != confirm_pw:
                 flash("New passwords do not match.", "error")
             elif len(new_pw) < 6:
-                flash("Password must be at least 6 characters.", "error")
+                flash("Password must contain at least 6 characters for security.", "error")
             else:
                 db.update_user(user["id"], password=generate_password_hash(new_pw))
                 log_action("change_password", request, user=user)
                 notify_change("user_change_password", f"User '{user['username']}' changed password")
-                flash("Password updated.", "success")
+                flash("Password has been successfully updated.", "success")
             return redirect(url_for("account_settings"))
 
         if action == "delete_account":
@@ -220,7 +220,7 @@ def register_user_routes(app):
                 size = avatar_file.stream.tell()
                 avatar_file.stream.seek(0)
                 if size > 1 * 1024 * 1024:
-                    flash("Avatar must be 1 MB or smaller.", "error")
+                    flash("Avatar file size cannot exceed 1 MB.", "error")
                     return redirect(url_for("account_settings"))
                 try:
                     img = Image.open(avatar_file.stream)
@@ -247,7 +247,7 @@ def register_user_routes(app):
                     notify_file_deleted(old_avatar)
             db.upsert_user_profile(user["id"], real_name=real_name, bio=bio, avatar_filename=new_avatar)
             log_action("update_profile", request, user=user)
-            flash("Profile updated.", "success")
+            flash("Profile has been successfully updated.", "success")
             return redirect(_profile_next(url_for("account_settings")))
 
         if action == "remove_avatar":
@@ -258,7 +258,7 @@ def register_user_routes(app):
                     os.remove(old_path)
                 notify_file_deleted(profile["avatar_filename"])
                 db.upsert_user_profile(user["id"], avatar_filename="")
-            flash("Avatar removed.", "success")
+            flash("Avatar has been successfully removed.", "success")
             return redirect(_profile_next(url_for("account_settings")))
 
         if action == "publish_profile":

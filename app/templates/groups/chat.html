@@ -34,7 +34,7 @@
         <form method="POST" action="{{ url_for('group_regenerate_code', group_id=group.id) }}" style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:.5rem"
               onsubmit="return confirm('Regenerate invite code? The old code will stop working.')">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="text" name="custom_code" class="input input-sm" placeholder="Custom code (optional)" style="width:180px" maxlength="32" pattern="[A-Za-z0-9]*" title="Letters and digits only, max 32 characters">
+            <input type="text" name="custom_code" class="input input-sm" placeholder="Custom invite code (optional)" style="width:180px" maxlength="32" pattern="[A-Za-z0-9]*" title="Letters and digits only, max 32 characters">
             <button class="btn btn-sm btn-outline" title="Regenerate invite code">🔄 Regenerate Code</button>
         </form>
         {% endif %}
@@ -43,7 +43,7 @@
         {% if is_mod or (group.is_global and is_site_admin) %}
         <form method="POST" action="{{ url_for('group_add_member', group_id=group.id) }}" style="display:flex;gap:.5rem;margin-bottom:.5rem;flex-wrap:wrap">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="text" name="username" class="input input-sm" placeholder="Add user by username" style="width:180px" autocomplete="off" list="user-list-add">
+            <input type="text" name="username" class="input input-sm" placeholder="Enter username to add" style="width:180px" autocomplete="off" list="user-list-add">
             <datalist id="user-list-add">
                 {% for u in all_users %}
                 {% if u.id != current_user.id %}
@@ -282,7 +282,7 @@
 <form method="POST" action="{{ url_for('group_send', group_id=group.id) }}" class="chat-input-form" enctype="multipart/form-data">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="chat-input-row">
-        <textarea name="content" class="input chat-input" placeholder="Type a message…" required rows="2" maxlength="5000"></textarea>
+        <textarea name="content" class="input chat-input" placeholder="Type your message here…" required rows="2" maxlength="5000"></textarea>
         <button type="submit" class="btn chat-send-btn">Send</button>
     </div>
     <div class="chat-input-file">

@@ -9,11 +9,11 @@
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-group">
             <label>Badge Name *</label>
-            <input type="text" name="name" class="input" required maxlength="100" placeholder="e.g., First Edit, Contributor">
+            <input type="text" name="name" class="input" required maxlength="100" placeholder="Badge name (e.g., First Edit, Contributor)">
         </div>
         <div class="form-group">
             <label>Description</label>
-            <textarea name="description" class="input" rows="2" maxlength="500" placeholder="Optional description of what this badge represents"></textarea>
+            <textarea name="description" class="input" rows="2" maxlength="500" placeholder="Optional: describe what this badge represents"></textarea>
         </div>
         <div style="display:flex;gap:1rem;flex-wrap:wrap">
             <div class="form-group">

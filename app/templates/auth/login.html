@@ -19,7 +19,7 @@
     <div class="auth-container">
         <div class="auth-box">
             <h1>{{ settings.site_name }}</h1>
-            <p class="subtitle">{% if lockdown %}Admin sign in{% else %}Sign in to continue{% endif %}</p>
+            <p class="subtitle">{% if lockdown %}Administrator sign-in{% else %}Sign in to your account{% endif %}</p>
             {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
             {% for category, message in messages %}
@@ -41,9 +41,9 @@
             </form>
             <div class="auth-link">
                 {% if not lockdown %}
-                Don't have an account? <a href="{{ url_for('signup') }}">Sign up</a>
+                Don't have an account? <a href="{{ url_for('signup') }}">Create one now</a>
                 {% else %}
-                <a href="{{ url_for('lockdown') }}">← Back to lockdown page</a>
+                <a href="{{ url_for('lockdown') }}">← Return to lockdown notice</a>
                 {% endif %}
             </div>
         </div>

@@ -38,7 +38,7 @@ def register_chat_routes(app):
         """Start a new direct message conversation with another user."""
         user = get_current_user()
         if db.is_user_chat_disabled(user["id"]):
-            flash("Your chat privileges have been disabled.", "error")
+            flash("Your chat privileges have been disabled by an administrator.", "error")
             return redirect(url_for("chat_list"))
         if request.method == "POST":
             target_username = request.form.get("username", "").strip()
@@ -47,7 +47,7 @@ def register_chat_routes(app):
                 return redirect(url_for("chat_new"))
             target = db.get_user_by_username(target_username)
             if not target:
-                flash("User not found.", "error")
+                flash("The specified user was not found.", "error")
                 return redirect(url_for("chat_new"))
             if target["id"] == user["id"]:
                 flash("You cannot start a chat with yourself.", "error")
@@ -86,7 +86,7 @@ def register_chat_routes(app):
         """Send a message (and optional file attachment) in a direct message conversation."""
         user = get_current_user()
         if db.is_user_chat_disabled(user["id"]):
-            flash("Your chat privileges have been disabled.", "error")
+            flash("Your chat privileges have been disabled by an administrator.", "error")
             return redirect(url_for("chat_view", chat_id=chat_id))
         if not db.is_chat_participant(chat_id, user["id"]):
             flash("Access denied.", "error")
@@ -96,7 +96,7 @@ def register_chat_routes(app):
             flash("Message cannot be empty.", "error")
             return redirect(url_for("chat_view", chat_id=chat_id))
         if len(content) > 5000:
-            flash("Message too long (max 5000 characters).", "error")
+            flash("Message cannot exceed 5,000 characters.", "error")
             return redirect(url_for("chat_view", chat_id=chat_id))
         ip_address = request.remote_addr or "unknown"
         msg_id = db.send_chat_message(chat_id, user["id"], content, ip_address)
@@ -108,7 +108,7 @@ def register_chat_routes(app):
                 # Check daily limit
                 att_count = db.get_user_chat_attachment_count_today(user["id"])
                 if att_count >= config.MAX_CHAT_ATTACHMENTS_PER_DAY:
-                    flash("Daily attachment limit reached (10 per day).", "error")
+                    flash("You have reached the daily attachment limit of 10 files per day.", "error")
                     return redirect(url_for("chat_view", chat_id=chat_id))
                 if not _chat_allowed_file(f.filename):
                     flash("File type not allowed.", "error")

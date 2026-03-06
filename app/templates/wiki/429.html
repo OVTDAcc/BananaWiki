@@ -2,6 +2,6 @@
 {% block title %}Too Many Requests – {{ settings.site_name }}{% endblock %}
 {% block content %}
 <h1>429 – Too Many Requests</h1>
-<p>You are sending requests too quickly. Please slow down and try again in a moment.</p>
-<p><a href="{{ url_for('home') }}">← Go home</a></p>
+<p>You are sending requests too quickly. Please wait a moment before trying again.</p>
+<p><a href="{{ url_for('home') }}">← Return to home page</a></p>
 {% endblock %}

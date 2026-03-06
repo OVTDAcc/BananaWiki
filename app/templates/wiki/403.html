@@ -2,6 +2,6 @@
 {% block title %}Access Denied – {{ settings.site_name }}{% endblock %}
 {% block content %}
 <h1>403 – Access Denied</h1>
-<p>You do not have permission to access this page.</p>
-<p><a href="{{ url_for('home') }}">← Go home</a></p>
+<p>You do not have the required permissions to access this page. Please contact an administrator if you believe this is an error.</p>
+<p><a href="{{ url_for('home') }}">← Return to home page</a></p>
 {% endblock %}

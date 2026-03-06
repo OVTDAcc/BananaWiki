@@ -47,20 +47,20 @@ def register_group_routes(app):
         """Create a new group chat."""
         user = get_current_user()
         if db.is_user_chat_disabled(user["id"]):
-            flash("Your chat privileges have been disabled.", "error")
+            flash("Your chat privileges have been disabled by an administrator.", "error")
             return redirect(url_for("group_list"))
         if request.method == "POST":
             name = request.form.get("name", "").strip()
             if not name:
-                flash("Group name is required.", "error")
+                flash("A group name is required to continue.", "error")
                 return redirect(url_for("group_new"))
             if len(name) > 100:
-                flash("Group name too long (max 100 characters).", "error")
+                flash("Group name cannot exceed 100 characters.", "error")
                 return redirect(url_for("group_new"))
             group = db.create_group_chat(name, user["id"])
             db.send_group_system_message(group["id"], f"{user['username']} created the group")
             notify_change("group_create", f"Group '{name}' created by {user['username']}")
-            flash("Group created!", "success")
+            flash("Group has been successfully created!", "success")
             return redirect(url_for("group_view", group_id=group["id"]))
         categories, uncategorized = db.get_category_tree()
         return render_template("groups/new.html",
@@ -74,14 +74,14 @@ def register_group_routes(app):
         if request.method == "POST":
             code = request.form.get("invite_code", "").strip()
             if not code:
-                flash("Please enter an invite code.", "error")
+                flash("Please enter a valid invite code.", "error")
                 return redirect(url_for("group_join"))
             group = db.get_group_chat_by_invite(code)
             if not group:
-                flash("Invalid invite code.", "error")
+                flash("The invite code you entered is invalid.", "error")
                 return redirect(url_for("group_join"))
             if db.is_group_member_banned(group["id"], user["id"]):
-                flash("You are banned from this group.", "error")
+                flash("You are currently banned from this group.", "error")
                 return redirect(url_for("group_join"))
             if db.is_group_member(group["id"], user["id"]):
                 flash("You are already a member of this group.", "info")
@@ -115,7 +115,7 @@ def register_group_routes(app):
         if not group:
             abort(404)
         if not db.is_group_member(group_id, user["id"]):
-            flash("You are not a member of this group.", "error")
+            flash("You are not currently a member of this group.", "error")
             return redirect(url_for("group_list"))
         messages = db.get_group_messages(group_id)
         members = db.get_group_members(group_id)
@@ -135,7 +135,7 @@ def register_group_routes(app):
         """Send a message (and optional file attachment) to a group chat."""
         user = get_current_user()
         if db.is_user_chat_disabled(user["id"]):
-            flash("Your chat privileges have been disabled.", "error")
+            flash("Your chat privileges have been disabled by an administrator.", "error")
             return redirect(url_for("group_view", group_id=group_id))
         group = db.get_group_chat(group_id)
         if not group:
@@ -147,7 +147,7 @@ def register_group_routes(app):
             flash("Access denied.", "error")
             return redirect(url_for("group_list"))
         if db.is_group_member_banned(group_id, user["id"]):
-            flash("You are banned from this group.", "error")
+            flash("You are currently banned from this group.", "error")
             return redirect(url_for("group_list"))
         if db.is_group_member_timed_out(group_id, user["id"]):
             flash("You are timed out and cannot send messages.", "error")
@@ -157,7 +157,7 @@ def register_group_routes(app):
             flash("Message cannot be empty.", "error")
             return redirect(url_for("group_view", group_id=group_id))
         if len(content) > 5000:
-            flash("Message too long (max 5000 characters).", "error")
+            flash("Message cannot exceed 5,000 characters.", "error")
             return redirect(url_for("group_view", group_id=group_id))
         ip_address = request.remote_addr or "unknown"
         msg_id = db.send_group_message(group_id, user["id"], content, ip_address)
@@ -246,7 +246,7 @@ def register_group_routes(app):
             return redirect(url_for("group_view", group_id=group_id))
         target = db.get_user_by_username(username)
         if not target:
-            flash("User not found.", "error")
+            flash("The specified user was not found.", "error")
             return redirect(url_for("group_view", group_id=group_id))
         if db.is_group_member_banned(group_id, target["id"]):
             flash("User is banned from this group. Revoke the ban first.", "error")
@@ -270,7 +270,7 @@ def register_group_routes(app):
             abort(404)
         my_role = db.get_group_member_role(group_id, user["id"])
         if not my_role:
-            flash("You are not a member of this group.", "error")
+            flash("You are not currently a member of this group.", "error")
             return redirect(url_for("group_list"))
         if my_role == "owner" and not group["is_global"]:
             flash("You must transfer ownership before leaving.", "error")
@@ -302,7 +302,7 @@ def register_group_routes(app):
         target_id = request.form.get("user_id", "")
         target_membership = db.get_group_member(group_id, target_id)
         if not target_membership:
-            flash("User is not a member.", "error")
+            flash("This user is not a member of the group.", "error")
             return redirect(url_for("group_view", group_id=group_id))
         # Moderators cannot kick other moderators or the owner
         if not is_site_admin and my_role == "moderator" and target_membership["role"] in ("owner", "moderator"):
@@ -338,7 +338,7 @@ def register_group_routes(app):
         target_id = request.form.get("user_id", "")
         target_membership = db.get_group_member(group_id, target_id)
         if not target_membership:
-            flash("User is not a member.", "error")
+            flash("This user is not a member of the group.", "error")
             return redirect(url_for("group_view", group_id=group_id))
         if target_membership["role"] != "member":
             flash("User is already a moderator or owner.", "info")
@@ -389,7 +389,7 @@ def register_group_routes(app):
 
         # Check if user is a member of the group
         if my_role is None:
-            flash("You are not a member of this group.", "error")
+            flash("You are not currently a member of this group.", "error")
             return redirect(url_for("group_view", group_id=group_id))
 
         # Check if user is a moderator (only moderators can self-downgrade)
@@ -429,7 +429,7 @@ def register_group_routes(app):
             return redirect(url_for("group_view", group_id=group_id))
         target_membership = db.get_group_member(group_id, target_id)
         if not target_membership:
-            flash("User is not a member.", "error")
+            flash("This user is not a member of the group.", "error")
             return redirect(url_for("group_view", group_id=group_id))
         target_user = db.get_user_by_id(target_id)
         target_name = target_user["username"] if target_user else "Unknown"
@@ -461,7 +461,7 @@ def register_group_routes(app):
         target_id = request.form.get("user_id", "")
         target_membership = db.get_group_member(group_id, target_id)
         if not target_membership:
-            flash("User is not a member.", "error")
+            flash("This user is not a member of the group.", "error")
             return redirect(url_for("group_view", group_id=group_id))
         # Don't allow timing out owner or same/higher rank
         if not group["is_global"] and my_role == "moderator" and target_membership["role"] in ("owner", "moderator"):
@@ -481,7 +481,7 @@ def register_group_routes(app):
                 if minutes < 1:
                     raise ValueError
             except (ValueError, TypeError):
-                flash("Invalid duration.", "error")
+                flash("The specified duration is invalid.", "error")
                 return redirect(url_for("group_view", group_id=group_id))
             until = (datetime.now(timezone.utc) + timedelta(minutes=minutes)).isoformat()
             db.set_group_member_timeout(group_id, target_id, until)
@@ -514,7 +514,7 @@ def register_group_routes(app):
         target_id = request.form.get("user_id", "")
         target_membership = db.get_group_member(group_id, target_id)
         if not target_membership:
-            flash("User is not a member.", "error")
+            flash("This user is not a member of the group.", "error")
             return redirect(url_for("group_view", group_id=group_id))
         target_user = db.get_user_by_id(target_id)
         target_name = target_user["username"] if target_user else "Unknown"
@@ -543,11 +543,11 @@ def register_group_routes(app):
                 return redirect(url_for("group_view", group_id=group_id))
         message_id = request.form.get("message_id", type=int)
         if not message_id:
-            flash("Invalid message.", "error")
+            flash("The specified message is invalid.", "error")
             return redirect(url_for("group_view", group_id=group_id))
         msg = db.get_group_message_by_id(message_id)
         if not msg or msg["group_id"] != group_id:
-            flash("Message not found.", "error")
+            flash("The specified Message was not found.", "error")
             return redirect(url_for("group_view", group_id=group_id))
         files = db.delete_group_message(message_id)
         for fname in files:
@@ -558,7 +558,7 @@ def register_group_routes(app):
             except OSError:
                 pass
         db.send_group_system_message(group_id, f"A message was deleted by {user['username']}")
-        flash("Message deleted.", "success")
+        flash("Message has been successfully deleted.", "success")
         return redirect(url_for("group_view", group_id=group_id))
 
     # ---------------------------------------------------------------------------
@@ -614,7 +614,7 @@ def register_group_routes(app):
                 return redirect(url_for("group_view", group_id=group_id))
         target_id = request.form.get("user_id", "")
         if not db.is_group_member_banned(group_id, target_id):
-            flash("User is not banned.", "error")
+            flash("This user is not currently banned from the group.", "error")
             return redirect(url_for("group_view", group_id=group_id))
         target_user = db.get_user_by_id(target_id)
         target_name = target_user["username"] if target_user else "Unknown"
@@ -643,7 +643,7 @@ def register_group_routes(app):
         custom_code = request.form.get("custom_code", "").strip()
         if custom_code:
             if not re.match(r'^[A-Za-z0-9]{1,32}$', custom_code):
-                flash("Custom code must be 1–32 alphanumeric characters.", "error")
+                flash("Custom invite code must be between 1 and 32 alphanumeric characters.", "error")
                 return redirect(url_for("group_view", group_id=group_id))
             # Check uniqueness
             existing = db.get_group_chat_by_invite(custom_code)
@@ -675,7 +675,7 @@ def register_group_routes(app):
         my_role = db.get_group_member_role(group_id, user["id"])
         is_site_admin = user["role"] in ("admin", "protected_admin")
         if not my_role and not is_site_admin:
-            flash("You must be a member of this group to export it.", "error")
+            flash("You must be a member of this group to export its data.", "error")
             return redirect(url_for("group_list"))
 
         # Get messages and group info
