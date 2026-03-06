@@ -105,7 +105,17 @@ CHAT_CLEANUP_HOUR = 3  # Hour of day (0-23) when cleanup runs (default: 3 AM)
 # =============================================================================
 # Logging
 # =============================================================================
-# Enable or disable logging (default: on)
+# Logging level controls the verbosity of logs
+# Available levels:
+#   - "off":      No logging at all
+#   - "minimal":  Only critical errors and warnings
+#   - "medium":   Errors, warnings, and important actions (logins, signups, admin actions)
+#   - "verbose":  Medium + all user actions (page edits, profile changes, etc.)
+#   - "debug":    All of the above + every HTTP request and detailed debug info
+# Default: "verbose" (highest useful level for production)
+LOGGING_LEVEL = "verbose"
+
+# Enable or disable logging (deprecated - use LOGGING_LEVEL = "off" instead)
 LOGGING_ENABLED = True
 
 # Log file path
