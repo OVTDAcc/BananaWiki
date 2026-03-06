@@ -78,6 +78,12 @@ def register_wiki_routes(app):
         log_action("view_page", request, user=user, page=slug)
         attachments = db.get_page_attachments(page["id"])
         prev_page, next_page = db.get_adjacent_pages(page["id"])
+
+        # Get reservation status if user is an editor
+        reservation_status = None
+        if user and user["role"] in ("editor", "admin", "protected_admin"):
+            reservation_status = db.get_page_reservation_status(page["id"], user["id"])
+
         return render_template(
             "wiki/page.html",
             page=page,
@@ -88,6 +94,7 @@ def register_wiki_routes(app):
             attachments=attachments,
             prev_page=prev_page,
             next_page=next_page,
+            reservation_status=reservation_status,
         )
 
     @app.route("/page/<slug>/history")
@@ -318,6 +325,15 @@ def register_wiki_routes(app):
         if not editor_has_category_access(user, page["category_id"]):
             flash("You do not have permission to edit pages in this category.", "error")
             return redirect(url_for("view_page", slug=slug))
+
+        # Check reservation status
+        reservation_status = db.get_page_reservation_status(page["id"], user["id"])
+        can_edit, edit_reason = db.can_user_edit_page(page["id"], user["id"])
+
+        if not can_edit:
+            flash(f"Cannot edit: {edit_reason}", "error")
+            return redirect(url_for("view_page", slug=slug))
+
         categories, uncategorized = db.get_category_tree()
 
         # Check for existing drafts from other users
@@ -326,6 +342,12 @@ def register_wiki_routes(app):
         ]
 
         if request.method == "POST":
+            # Verify user still has edit access (reservation may have expired)
+            can_edit, edit_reason = db.can_user_edit_page(page["id"], user["id"])
+            if not can_edit:
+                flash(f"Cannot save: {edit_reason}", "error")
+                return redirect(url_for("view_page", slug=slug))
+
             title = request.form.get("title", page["title"]).strip()
             content = request.form.get("content", "")
             edit_message = request.form.get("edit_message", "").strip()
@@ -411,6 +433,7 @@ def register_wiki_routes(app):
             categories=categories,
             uncategorized=uncategorized,
             attachments=attachments,
+            reservation_status=reservation_status,
         )
 
     @app.route("/page/<slug>/edit/title", methods=["POST"])

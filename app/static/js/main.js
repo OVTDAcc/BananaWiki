@@ -1403,19 +1403,38 @@ function initAccessibility(prefs) {
             var entry = colorMap[key];
             if (!entry.input) return;
             var stored = _a11yPrefs[entry.prop];
-            var hex;
+
+            // If user has explicitly saved a color preference, use it
             if (stored) {
-                hex = _rgbToHex(stored);
-            } else {
-                // Show current computed color as placeholder
-                var color = computed.getPropertyValue(entry.cssVar).trim();
-                hex = _rgbToHex(color);
+                var hex = _rgbToHex(stored);
+                if (hex) {
+                    entry.input.value = hex;
+                    return;
+                }
             }
-            // Only update the input when we have a valid, parseable color.
-            // Skipping on null prevents an unresolvable CSS variable from
-            // silently setting the picker to #000000 and later being saved
-            // as a custom color that turns the whole site black.
-            if (hex) entry.input.value = hex;
+
+            // Otherwise, try to read the current computed color from CSS
+            var color = computed.getPropertyValue(entry.cssVar).trim();
+            var hex = _rgbToHex(color);
+
+            // Always initialize the input value to prevent stale browser defaults.
+            // If we can't determine the color (hex is null), use a safe default
+            // based on the color type to prevent accidentally saving inappropriate
+            // colors that would make the site unreadable.
+            if (hex) {
+                entry.input.value = hex;
+            } else {
+                // Safe defaults: background=white, text=black, others=primary color
+                var safeDefaults = {
+                    'bg': '#ffffff',
+                    'text': '#2d3748',
+                    'primary': '#4299e1',
+                    'secondary': '#4a5568',
+                    'accent': '#ed8936',
+                    'sidebar': '#f7fafc'
+                };
+                entry.input.value = safeDefaults[key] || '#4299e1';
+            }
         });
     }
 

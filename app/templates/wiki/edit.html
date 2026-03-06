@@ -33,6 +33,13 @@
 </div>
 {% endif %}
 
+{% if reservation_status and reservation_status.is_reserved and reservation_status.reserved_by == current_user.id %}
+<div class="reservation-notice">
+    <span class="reservation-icon">🔒</span>
+    You have reserved this page. Your reservation expires {{ time_ago(reservation_status.expires_at) }}.
+</div>
+{% endif %}
+
 <form method="POST" id="editForm">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="form-group">

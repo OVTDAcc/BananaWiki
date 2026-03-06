@@ -294,6 +294,24 @@ def init_db():
         notified        INTEGER NOT NULL DEFAULT 0,
         created_at      TEXT    NOT NULL DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS page_reservations (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        page_id         INTEGER NOT NULL REFERENCES pages(id) ON DELETE CASCADE,
+        user_id         TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        reserved_at     TEXT    NOT NULL,
+        expires_at      TEXT    NOT NULL,
+        released_at     TEXT,
+        UNIQUE(page_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS user_page_cooldowns (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        page_id         INTEGER NOT NULL REFERENCES pages(id) ON DELETE CASCADE,
+        user_id         TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        cooldown_until  TEXT    NOT NULL,
+        UNIQUE(page_id, user_id)
+    );
     """)
 
     # -- Migrations: add columns to existing tables --
