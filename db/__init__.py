@@ -161,6 +161,11 @@ from ._chats import (  # noqa: F401
     get_user_chats_admin,
     get_all_messages_for_backup,
     cleanup_old_chat_messages,
+    cleanup_old_chat_attachments,
+    clear_chat_messages,
+    increment_unread_count,
+    reset_unread_count,
+    get_total_unread_dm_count,
 )
 
 # Audit / role history / custom tags / contribution management
@@ -209,6 +214,7 @@ from ._groups import (  # noqa: F401
     get_all_group_messages_for_backup,
     get_group_messages_for_export,
     cleanup_old_group_messages,
+    cleanup_old_group_attachments,
     get_user_group_attachment_count_today,
     transfer_group_ownership,
     ban_group_member,
@@ -218,6 +224,10 @@ from ._groups import (  # noqa: F401
     regenerate_group_invite_code,
     set_group_chat_active,
     delete_group_chat,
+    clear_group_messages,
+    increment_group_unread_count,
+    reset_group_unread_count,
+    get_total_unread_group_count,
 )
 
 # Custom permissions

@@ -95,6 +95,13 @@ def register_chat_routes(app):
         if not db.is_chat_participant(chat_id, user["id"]):
             flash("Access denied.", "error")
             return redirect(url_for("chat_list"))
+
+        # Get chat object for finding the other participant
+        chat = db.get_chat_by_id(chat_id)
+        if not chat:
+            flash("Chat not found.", "error")
+            return redirect(url_for("chat_list"))
+
         content = request.form.get("content", "").strip()
         if not content:
             flash("Message cannot be empty.", "error")
@@ -115,7 +122,7 @@ def register_chat_routes(app):
             if f.filename:
                 # Check daily limit (use site settings if available, fall back to config)
                 settings = db.get_site_settings()
-                max_attachments = settings.get("chat_attachments_per_day_limit", config.MAX_CHAT_ATTACHMENTS_PER_DAY) if settings else config.MAX_CHAT_ATTACHMENTS_PER_DAY
+                max_attachments = settings["chat_attachments_per_day_limit"] if settings and "chat_attachments_per_day_limit" in settings.keys() else config.MAX_CHAT_ATTACHMENTS_PER_DAY
                 att_count = db.get_user_chat_attachment_count_today(user["id"])
                 if att_count >= max_attachments:
                     flash(f"You have reached the daily attachment limit of {max_attachments} files per day.", "error")
