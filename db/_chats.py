@@ -57,12 +57,13 @@ def is_chat_participant(chat_id, user_id):
 
 
 def get_user_chats(user_id):
-    """Return all chats for a user, with the other user's info and last message."""
+    """Return all chats for a user, with the other user's info, last message, and unread count."""
     conn = get_db()
     rows = conn.execute(
         "SELECT c.*, "
         "  CASE WHEN c.user1_id=? THEN u2.username ELSE u1.username END AS other_username, "
         "  CASE WHEN c.user1_id=? THEN c.user2_id ELSE c.user1_id END AS other_user_id, "
+        "  CASE WHEN c.user1_id=? THEN c.unread_count_user1 ELSE c.unread_count_user2 END AS unread_count, "
         "  m.content AS last_message, "
         "  m.created_at AS last_message_at "
         "FROM chats c "
@@ -73,7 +74,7 @@ def get_user_chats(user_id):
         ") "
         "WHERE c.user1_id=? OR c.user2_id=? "
         "ORDER BY COALESCE(m.created_at, c.created_at) DESC",
-        (user_id, user_id, user_id, user_id),
+        (user_id, user_id, user_id, user_id, user_id),
     ).fetchall()
     conn.close()
     return rows
@@ -259,4 +260,108 @@ def cleanup_old_chat_messages(retention_days=30):
     conn.commit()
     conn.close()
     return files_to_delete
+
+
+def cleanup_old_chat_attachments(retention_days=7):
+    """Delete only chat attachments older than retention_days (keep messages).
+
+    Args:
+        retention_days: Keep attachments newer than this many days
+
+    Returns list of attachment filenames that need to be removed from disk.
+    """
+    conn = get_db()
+    # Collect attachment filenames that will be deleted
+    filenames = conn.execute(
+        """SELECT filename FROM chat_attachments
+           WHERE datetime(created_at) < datetime('now', '-' || ? || ' days')""",
+        (retention_days,)
+    ).fetchall()
+    files_to_delete = [r["filename"] for r in filenames]
+    # Delete attachments older than retention period
+    conn.execute(
+        """DELETE FROM chat_attachments
+           WHERE datetime(created_at) < datetime('now', '-' || ? || ' days')""",
+        (retention_days,)
+    )
+    conn.commit()
+    conn.close()
+    return files_to_delete
+
+
+def clear_chat_messages(chat_id):
+    """Delete all messages and attachments in a specific chat.
+
+    Returns list of attachment filenames that need to be removed from disk.
+    """
+    conn = get_db()
+    # Collect attachment filenames for messages that will be deleted
+    filenames = conn.execute(
+        """SELECT ca.filename FROM chat_attachments ca
+           JOIN chat_messages cm ON ca.message_id = cm.id
+           WHERE cm.chat_id = ?""",
+        (chat_id,)
+    ).fetchall()
+    files_to_delete = [r["filename"] for r in filenames]
+    # Delete all messages in this chat (attachments cascade)
+    conn.execute("DELETE FROM chat_messages WHERE chat_id = ?", (chat_id,))
+    # Reset unread counts
+    conn.execute(
+        "UPDATE chats SET unread_count_user1 = 0, unread_count_user2 = 0 WHERE id = ?",
+        (chat_id,)
+    )
+    conn.commit()
+    conn.close()
+    return files_to_delete
+
+
+def increment_unread_count(chat_id, for_user_id):
+    """Increment the unread count for a specific user in a chat."""
+    conn = get_db()
+    chat = conn.execute("SELECT * FROM chats WHERE id = ?", (chat_id,)).fetchone()
+    if not chat:
+        conn.close()
+        return
+
+    # Determine which unread counter to increment
+    if chat["user1_id"] == for_user_id:
+        conn.execute("UPDATE chats SET unread_count_user1 = unread_count_user1 + 1 WHERE id = ?", (chat_id,))
+    elif chat["user2_id"] == for_user_id:
+        conn.execute("UPDATE chats SET unread_count_user2 = unread_count_user2 + 1 WHERE id = ?", (chat_id,))
+
+    conn.commit()
+    conn.close()
+
+
+def reset_unread_count(chat_id, for_user_id):
+    """Reset the unread count for a specific user in a chat."""
+    conn = get_db()
+    chat = conn.execute("SELECT * FROM chats WHERE id = ?", (chat_id,)).fetchone()
+    if not chat:
+        conn.close()
+        return
+
+    # Determine which unread counter to reset
+    if chat["user1_id"] == for_user_id:
+        conn.execute("UPDATE chats SET unread_count_user1 = 0 WHERE id = ?", (chat_id,))
+    elif chat["user2_id"] == for_user_id:
+        conn.execute("UPDATE chats SET unread_count_user2 = 0 WHERE id = ?", (chat_id,))
+
+    conn.commit()
+    conn.close()
+
+
+def get_total_unread_dm_count(user_id):
+    """Get the total number of unread direct messages for a user."""
+    conn = get_db()
+    count = conn.execute(
+        """SELECT
+            COALESCE(SUM(CASE WHEN user1_id = ? THEN unread_count_user1 ELSE 0 END), 0) +
+            COALESCE(SUM(CASE WHEN user2_id = ? THEN unread_count_user2 ELSE 0 END), 0) AS total
+           FROM chats
+           WHERE user1_id = ? OR user2_id = ?""",
+        (user_id, user_id, user_id, user_id)
+    ).fetchone()
+    conn.close()
+    return count["total"] if count else 0
 

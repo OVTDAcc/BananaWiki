@@ -167,6 +167,63 @@
         </div>
     </div>
 
+    <div class="settings-section">
+        <h3>Chat Settings</h3>
+        <div class="form-group">
+            <label>Daily Attachment Limit Per User</label>
+            <input type="number" name="chat_attachments_per_day_limit"
+                   value="{{ settings.chat_attachments_per_day_limit if settings.chat_attachments_per_day_limit else 10 }}"
+                   class="input" style="max-width:150px" min="1" max="100">
+            <small style="opacity:.7;display:block;margin-top:.3rem">
+                Maximum number of file attachments each user can send per day across all chats.
+                Resets when auto-cleanup runs.
+            </small>
+        </div>
+        <div class="form-group">
+            <label>
+                <input type="checkbox" name="chat_auto_clear_messages" value="1"
+                       {% if settings.chat_auto_clear_messages %}checked{% endif %}>
+                Auto-clear old messages
+            </label>
+            <small style="opacity:.7;display:block;margin-top:.3rem">
+                When enabled, messages older than the retention period will be automatically deleted.
+            </small>
+        </div>
+        <div class="form-group" id="message-retention-group"
+             style="margin-left:1.5rem;{% if not settings.chat_auto_clear_messages %}opacity:.5{% endif %}">
+            <label>Message Retention (days)</label>
+            <input type="number" name="chat_message_retention_days"
+                   value="{{ settings.chat_message_retention_days if settings.chat_message_retention_days else 0 }}"
+                   class="input" style="max-width:150px" min="1" max="365"
+                   {% if not settings.chat_auto_clear_messages %}disabled{% endif %}>
+            <small style="opacity:.7;display:block;margin-top:.3rem">
+                Keep messages for this many days before deleting them. Set to 0 to keep all messages forever.
+            </small>
+        </div>
+        <div class="form-group">
+            <label>
+                <input type="checkbox" name="chat_auto_clear_attachments" value="1"
+                       {% if settings.chat_auto_clear_attachments %}checked{% endif %}>
+                Auto-clear old attachments
+            </label>
+            <small style="opacity:.7;display:block;margin-top:.3rem">
+                When enabled, attachments older than the retention period will be automatically deleted.
+                This is recommended to save disk space (default: enabled, 7 days).
+            </small>
+        </div>
+        <div class="form-group" id="attachment-retention-group"
+             style="margin-left:1.5rem;{% if not settings.chat_auto_clear_attachments %}opacity:.5{% endif %}">
+            <label>Attachment Retention (days)</label>
+            <input type="number" name="chat_attachment_retention_days"
+                   value="{{ settings.chat_attachment_retention_days if settings.chat_attachment_retention_days else 7 }}"
+                   class="input" style="max-width:150px" min="1" max="365"
+                   {% if not settings.chat_auto_clear_attachments %}disabled{% endif %}>
+            <small style="opacity:.7;display:block;margin-top:.3rem">
+                Keep attachments for this many days before deleting them. Messages remain intact.
+            </small>
+        </div>
+    </div>
+
     <button type="submit" class="btn">Save Settings</button>
 </form>
 
@@ -202,6 +259,31 @@
 
     enabledCheckbox.addEventListener('change', toggleOptions);
     typeSelect.addEventListener('change', updatePreview);
+})();
+
+// Chat settings auto-clear toggles
+(function() {
+    var msgCheckbox = document.querySelector('input[name="chat_auto_clear_messages"]');
+    var msgInput = document.querySelector('input[name="chat_message_retention_days"]');
+    var msgGroup = document.getElementById('message-retention-group');
+
+    var attCheckbox = document.querySelector('input[name="chat_auto_clear_attachments"]');
+    var attInput = document.querySelector('input[name="chat_attachment_retention_days"]');
+    var attGroup = document.getElementById('attachment-retention-group');
+
+    if (msgCheckbox && msgInput && msgGroup) {
+        msgCheckbox.addEventListener('change', function() {
+            msgInput.disabled = !this.checked;
+            msgGroup.style.opacity = this.checked ? '1' : '.5';
+        });
+    }
+
+    if (attCheckbox && attInput && attGroup) {
+        attCheckbox.addEventListener('change', function() {
+            attInput.disabled = !this.checked;
+            attGroup.style.opacity = this.checked ? '1' : '.5';
+        });
+    }
 })();
 
 // Color preview strip

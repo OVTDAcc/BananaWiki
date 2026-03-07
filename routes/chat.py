@@ -4,7 +4,7 @@ BananaWiki – Direct messaging (chat) routes.
 
 from flask import (render_template, request, redirect, url_for, session, flash, send_file, jsonify, abort,
                    send_from_directory)
-import os, io, uuid, threading
+import os, io, uuid, threading, zipfile, json, re
 from datetime import datetime, timedelta, timezone
 from werkzeug.utils import secure_filename
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -28,8 +28,10 @@ def register_chat_routes(app):
         """List all direct message conversations for the current user."""
         user = get_current_user()
         chats = db.get_user_chats(user["id"])
+        total_unread_dm = db.get_total_unread_dm_count(user["id"])
         categories, uncategorized = db.get_category_tree()
         return render_template("chats/list.html", chats=chats,
+                               total_unread_dm=total_unread_dm,
                                categories=categories, uncategorized=uncategorized)
 
     @app.route("/chats/new", methods=["GET", "POST"])
@@ -70,6 +72,8 @@ def register_chat_routes(app):
         chat = db.get_chat_by_id(chat_id)
         if not chat:
             abort(404)
+        # Reset unread count when viewing the chat
+        db.reset_unread_count(chat_id, user["id"])
         # Determine other user
         other_id = chat["user2_id"] if chat["user1_id"] == user["id"] else chat["user1_id"]
         other_user = db.get_user_by_id(other_id)
@@ -101,14 +105,20 @@ def register_chat_routes(app):
         ip_address = request.remote_addr or "unknown"
         msg_id = db.send_chat_message(chat_id, user["id"], content, ip_address)
 
+        # Increment unread count for the other participant
+        other_id = chat["user2_id"] if chat["user1_id"] == user["id"] else chat["user1_id"]
+        db.increment_unread_count(chat_id, other_id)
+
         # Handle file attachment if present
         if "attachment" in request.files:
             f = request.files["attachment"]
             if f.filename:
-                # Check daily limit
+                # Check daily limit (use site settings if available, fall back to config)
+                settings = db.get_site_settings()
+                max_attachments = settings.get("chat_attachments_per_day_limit", config.MAX_CHAT_ATTACHMENTS_PER_DAY) if settings else config.MAX_CHAT_ATTACHMENTS_PER_DAY
                 att_count = db.get_user_chat_attachment_count_today(user["id"])
-                if att_count >= config.MAX_CHAT_ATTACHMENTS_PER_DAY:
-                    flash("You have reached the daily attachment limit of 10 files per day.", "error")
+                if att_count >= max_attachments:
+                    flash(f"You have reached the daily attachment limit of {max_attachments} files per day.", "error")
                     return redirect(url_for("chat_view", chat_id=chat_id))
                 if not _chat_allowed_file(f.filename):
                     flash("File type not allowed.", "error")
@@ -164,6 +174,132 @@ def register_chat_routes(app):
         return send_from_directory(att_dir, att["filename"],
                                    as_attachment=True,
                                    download_name=att["original_name"])
+
+    @app.route("/chats/<int:chat_id>/export", methods=["GET"])
+    @login_required
+    @rate_limit(10, 60)
+    def chat_export(chat_id):
+        """Export direct message chat messages and attachments as a downloadable file.
+
+        Both participants can export their chat history.
+        """
+        user = get_current_user()
+        chat = db.get_chat_by_id(chat_id)
+        if not chat:
+            abort(404)
+
+        # Check permissions: both participants can export
+        if not db.is_chat_participant(chat_id, user["id"]):
+            flash("Access denied.", "error")
+            return redirect(url_for("chat_list"))
+
+        # Get messages and chat info
+        messages = db.get_chat_messages(chat_id)
+        user1 = db.get_user_by_id(chat["user1_id"])
+        user2 = db.get_user_by_id(chat["user2_id"])
+
+        if not messages:
+            flash("No messages to export.", "info")
+            return redirect(url_for("chat_view", chat_id=chat_id))
+
+        # Generate text content
+        text_lines = [
+            f"Direct Message Export",
+            f"Participants: {user1['username']} & {user2['username']}",
+            f"Export Date: {datetime.now(timezone.utc).isoformat()}",
+            f"Total Messages: {len(messages)}",
+            "=" * 80,
+            "",
+        ]
+
+        attachment_files = []
+        total_attachment_size = 0
+
+        for msg in messages:
+            sender = msg.get("sender_name", "Unknown")
+            timestamp = msg["created_at"]
+            content = msg["content"]
+            ip = msg.get("ip_address", "N/A")
+
+            text_lines.append(f"[{timestamp}] {sender} (IP: {ip})")
+            text_lines.append(f"  {content}")
+
+            # Handle attachments
+            if msg.get("attachments"):
+                text_lines.append("  Attachments:")
+                for att in msg["attachments"]:
+                    att_name = att["original_name"]
+                    att_size = att["file_size"]
+                    att_filename = att["filename"]
+                    text_lines.append(f"    - {att_name} ({att_size / 1024:.1f} KB)")
+
+                    # Collect attachment file paths
+                    att_path = os.path.join(config.CHAT_ATTACHMENT_FOLDER, att_filename)
+                    if os.path.isfile(att_path):
+                        attachment_files.append((att_filename, att_name, att_path, att_size))
+                        total_attachment_size += att_size
+
+            text_lines.append("")
+
+        text_content = "\n".join(text_lines)
+        text_size = len(text_content.encode("utf-8"))
+        total_size = text_size + total_attachment_size
+
+        # Create safe filename
+        other_username = user2["username"] if user["id"] == user1["id"] else user1["username"]
+        safe_name = re.sub(r'[^\w\s-]', '', other_username).strip().replace(' ', '_')
+        timestamp_str = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+
+        # Simple text file if no attachments and small size
+        if not attachment_files and text_size < 10 * 1024 * 1024:
+            filename = f"dm_{safe_name}_{timestamp_str}.txt"
+            return send_file(
+                io.BytesIO(text_content.encode("utf-8")),
+                mimetype="text/plain",
+                as_attachment=True,
+                download_name=filename,
+            )
+        else:
+            # ZIP with messages and attachments
+            filename = f"dm_{safe_name}_{timestamp_str}.zip"
+            zip_buffer = io.BytesIO()
+
+            with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zipf:
+                # Add text content
+                zipf.writestr(f"dm_{safe_name}_messages.txt", text_content)
+
+                # Add attachments in a subdirectory
+                for att_filename, att_original_name, att_path, att_size in attachment_files:
+                    zipf.write(att_path, f"attachments/{att_original_name}")
+
+            zip_buffer.seek(0)
+            return send_file(
+                zip_buffer,
+                mimetype="application/zip",
+                as_attachment=True,
+                download_name=filename,
+            )
+
+    @app.route("/chats/<int:chat_id>/clear", methods=["POST"])
+    @login_required
+    @rate_limit(5, 60)
+    def chat_clear(chat_id):
+        """Clear all messages in a direct message chat. Both participants can clear the chat."""
+        user = get_current_user()
+        chat = db.get_chat_by_id(chat_id)
+        if not chat:
+            abort(404)
+
+        # Check permissions: both participants can clear
+        if not db.is_chat_participant(chat_id, user["id"]):
+            flash("Access denied.", "error")
+            return redirect(url_for("chat_list"))
+
+        # Delete all messages and attachments
+        db.clear_chat_messages(chat_id)
+        flash("Chat has been cleared successfully.", "success")
+        log_action("chat_clear", request, user=user, chat_id=chat_id)
+        return redirect(url_for("chat_view", chat_id=chat_id))
 
     # -----------------------------------------------------------------------
     #  Admin – Chat monitoring
@@ -262,30 +398,63 @@ def register_chat_routes(app):
             backup_group_chats_before_cleanup()
         except Exception:
             pass
+
+        # Get cleanup settings from database
+        settings = db.get_site_settings()
+        auto_clear_messages = settings.get("chat_auto_clear_messages", 0) if settings else 0
+        auto_clear_attachments = settings.get("chat_auto_clear_attachments", 1) if settings else 1
+        message_retention_days = settings.get("chat_message_retention_days", 0) if settings else 0
+        attachment_retention_days = settings.get("chat_attachment_retention_days", 7) if settings else 7
+
+        att_dir = config.CHAT_ATTACHMENT_FOLDER
+
+        # Clean up direct messages
         try:
-            retention_days = config.CHAT_CLEANUP_RETENTION_DAYS
-            files_to_delete = db.cleanup_old_chat_messages(retention_days)
-            att_dir = config.CHAT_ATTACHMENT_FOLDER
-            for fname in files_to_delete:
-                try:
-                    fpath = os.path.join(att_dir, fname)
-                    if os.path.isfile(fpath):
-                        os.remove(fpath)
-                except OSError:
-                    pass
+            if auto_clear_messages and message_retention_days > 0:
+                # Clear old messages (this also clears their attachments via CASCADE)
+                files_to_delete = db.cleanup_old_chat_messages(message_retention_days)
+                for fname in files_to_delete:
+                    try:
+                        fpath = os.path.join(att_dir, fname)
+                        if os.path.isfile(fpath):
+                            os.remove(fpath)
+                    except OSError:
+                        pass
+            elif auto_clear_attachments and attachment_retention_days > 0:
+                # Clear only old attachments (keep messages)
+                files_to_delete = db.cleanup_old_chat_attachments(attachment_retention_days)
+                for fname in files_to_delete:
+                    try:
+                        fpath = os.path.join(att_dir, fname)
+                        if os.path.isfile(fpath):
+                            os.remove(fpath)
+                    except OSError:
+                        pass
         except Exception:
             pass
+
+        # Clean up group messages
         try:
-            retention_days = config.CHAT_CLEANUP_RETENTION_DAYS
-            group_files = db.cleanup_old_group_messages(retention_days)
-            att_dir = config.CHAT_ATTACHMENT_FOLDER
-            for fname in group_files:
-                try:
-                    fpath = os.path.join(att_dir, fname)
-                    if os.path.isfile(fpath):
-                        os.remove(fpath)
-                except OSError:
-                    pass
+            if auto_clear_messages and message_retention_days > 0:
+                # Clear old messages (this also clears their attachments via CASCADE)
+                group_files = db.cleanup_old_group_messages(message_retention_days)
+                for fname in group_files:
+                    try:
+                        fpath = os.path.join(att_dir, fname)
+                        if os.path.isfile(fpath):
+                            os.remove(fpath)
+                    except OSError:
+                        pass
+            elif auto_clear_attachments and attachment_retention_days > 0:
+                # Clear only old attachments (keep messages)
+                group_files = db.cleanup_old_group_attachments(attachment_retention_days)
+                for fname in group_files:
+                    try:
+                        fpath = os.path.join(att_dir, fname)
+                        if os.path.isfile(fpath):
+                            os.remove(fpath)
+                    except OSError:
+                        pass
         except Exception:
             pass
 

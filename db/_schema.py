@@ -396,6 +396,29 @@ def init_db():
     if "description" not in gc_cols:
         cur.execute("ALTER TABLE group_chats ADD COLUMN description TEXT NOT NULL DEFAULT ''")
 
+    # Add chat configuration columns to site_settings if missing
+    if "chat_attachments_per_day_limit" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN chat_attachments_per_day_limit INTEGER NOT NULL DEFAULT 10")
+    if "chat_auto_clear_messages" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN chat_auto_clear_messages INTEGER NOT NULL DEFAULT 0")
+    if "chat_auto_clear_attachments" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN chat_auto_clear_attachments INTEGER NOT NULL DEFAULT 1")
+    if "chat_message_retention_days" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN chat_message_retention_days INTEGER NOT NULL DEFAULT 0")
+    if "chat_attachment_retention_days" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN chat_attachment_retention_days INTEGER NOT NULL DEFAULT 7")
+
+    # Add unread_count column to chats if missing
+    chat_cols = [r[1] for r in cur.execute("PRAGMA table_info(chats)").fetchall()]
+    if "unread_count_user1" not in chat_cols:
+        cur.execute("ALTER TABLE chats ADD COLUMN unread_count_user1 INTEGER NOT NULL DEFAULT 0")
+    if "unread_count_user2" not in chat_cols:
+        cur.execute("ALTER TABLE chats ADD COLUMN unread_count_user2 INTEGER NOT NULL DEFAULT 0")
+
+    # Add unread_count to group_members if missing
+    if "unread_count" not in gm_cols:
+        cur.execute("ALTER TABLE group_members ADD COLUMN unread_count INTEGER NOT NULL DEFAULT 0")
+
     # Add sequential_nav to categories if missing
     cat_cols = [r[1] for r in cur.execute("PRAGMA table_info(categories)").fetchall()]
     if "sequential_nav" not in cat_cols:

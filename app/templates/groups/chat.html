@@ -4,6 +4,17 @@
 <div class="chat-header">
     <a href="{{ url_for('group_list') }}" class="btn btn-sm btn-outline">← Back</a>
     <h1>{% if group.is_global %}🌍{% endif %} {{ group.name }}</h1>
+    <div style="margin-left:auto;display:flex;gap:.5rem">
+        {% if is_mod or is_site_admin %}
+        <a href="{{ url_for('group_export', group_id=group.id) }}" class="btn btn-sm btn-outline">📥 Export</a>
+        {% endif %}
+        {% if is_owner or is_site_admin %}
+        <form method="POST" action="{{ url_for('group_clear', group_id=group.id) }}" style="display:inline" onsubmit="return confirm('Are you sure you want to clear all messages in this group? This cannot be undone.')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-sm btn-outline" style="background:rgba(220,38,38,.1);border-color:rgba(220,38,38,.3);color:#dc2626">🗑️ Clear Chat</button>
+        </form>
+        {% endif %}
+    </div>
 </div>
 
 {% set my_role = my_membership.role if my_membership else 'member' %}

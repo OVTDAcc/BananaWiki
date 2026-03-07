@@ -1,7 +1,11 @@
 {% extends "base.html" %}
 {% block title %}Groups – {{ settings.site_name }}{% endblock %}
 {% block content %}
-<h1>👥 Groups</h1>
+<h1>👥 Groups
+    {% if total_unread_group > 0 %}
+    <span class="unread-badge">{{ total_unread_group }}</span>
+    {% endif %}
+</h1>
 
 <div style="margin-bottom:1rem;display:flex;gap:.5rem;flex-wrap:wrap">
     <a href="{{ url_for('group_new') }}" class="btn">New Group</a>
@@ -17,6 +21,9 @@
             {% if g.is_global %}🌍{% endif %}
             {{ g.name }}
             <small style="opacity:.6">({{ g.member_count }} member{{ 's' if g.member_count != 1 }})</small>
+            {% if g.unread_count > 0 %}
+            <span class="unread-badge">{{ g.unread_count }}</span>
+            {% endif %}
         </div>
         <div class="chat-list-preview">
             {% if g.last_message %}
