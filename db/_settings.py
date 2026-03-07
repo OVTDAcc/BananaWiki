@@ -20,6 +20,21 @@ _ALLOWED_SETTINGS_COLUMNS = {
     "favicon_enabled", "favicon_type", "favicon_custom",
     "lockdown_mode", "lockdown_message",
     "session_limit_enabled", "last_chat_cleanup_at",
+    # Legacy chat settings (backwards compatibility)
+    "chat_attachments_per_day_limit", "chat_auto_clear_messages",
+    "chat_auto_clear_attachments", "chat_message_retention_days",
+    "chat_attachment_retention_days",
+    # Global chat settings
+    "chat_max_message_length", "chat_attachments_enabled",
+    "chat_max_attachment_size_mb",
+    # DM-specific settings
+    "chat_dm_enabled", "chat_allow_dm_creation",
+    "chat_dm_auto_clear_messages", "chat_dm_auto_clear_attachments",
+    "chat_dm_message_retention_days", "chat_dm_attachment_retention_days",
+    # Group-specific settings
+    "chat_group_enabled", "chat_allow_group_creation",
+    "chat_group_auto_clear_messages", "chat_group_auto_clear_attachments",
+    "chat_group_message_retention_days", "chat_group_attachment_retention_days",
 }
 
 
