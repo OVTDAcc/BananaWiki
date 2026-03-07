@@ -79,7 +79,7 @@ def register_admin_routes(app):
             return redirect(url_for("admin_users"))
 
         if target["role"] == "protected_admin" and user_id != current_user["id"]:
-            flash("Protected administrator accounts can only be modified by their owner.", "error")
+            flash("Protected admin accounts can only be edited by their owner.", "error")
             return redirect(url_for("admin_users"))
 
         if action == "edit_profile":
@@ -153,7 +153,7 @@ def register_admin_routes(app):
             return redirect(url_for("user_profile", username=target["username"]))
 
         if target["role"] == "protected_admin" and user_id != current_user["id"]:
-            flash("Protected administrator accounts can only be modified by their owner.", "error")
+            flash("Protected admin accounts can only be edited by their owner.", "error")
             return redirect(url_for("user_profile", username=target["username"]))
 
         if action == "add_tag":
@@ -212,7 +212,7 @@ def register_admin_routes(app):
                     db.reorder_user_custom_tags(user_id, tag_ids)
                     flash("Tag order has been successfully updated.", "success")
                 else:
-                    flash("The specified tag IDs are invalid.", "error")
+                    flash("Invalid tag IDs.", "error")
 
         return redirect(url_for("user_profile", username=target["username"]))
 
@@ -236,13 +236,13 @@ def register_admin_routes(app):
             return redirect(url_for("user_profile", username=target["username"]))
 
         if target["role"] == "protected_admin" and user_id != current_user["id"]:
-            flash("Protected administrator accounts can only be modified by their owner.", "error")
+            flash("Protected admin accounts can only be edited by their owner.", "error")
             return redirect(url_for("user_profile", username=target["username"]))
 
         if action == "deattribute_contribution":
             entry_id = request.form.get("entry_id", type=int)
             if not entry_id or entry_id < 1:
-                flash("The specified entry is invalid.", "error")
+                flash("Invalid entry.", "error")
             else:
                 entry = db.get_history_entry(entry_id)
                 if not entry or entry["edited_by"] != user_id:
@@ -251,7 +251,7 @@ def register_admin_routes(app):
                     db.deattribute_contribution(entry_id)
                     log_action("admin_deattribute_contribution", request, user=current_user,
                                target_user=target["username"], entry_id=entry_id)
-                    flash("Contribution has been successfully deattributed.", "success")
+                    flash("Contribution deattributed.", "success")
 
         elif action == "deattribute_all":
             count = db.deattribute_all_user_contributions(user_id)
@@ -265,9 +265,9 @@ def register_admin_routes(app):
             to_user_id = request.form.get("to_user_id", "").strip()
             to_user = db.get_user_by_id(to_user_id) if to_user_id else None
             if not to_user:
-                flash("The specified target user is invalid.", "error")
+                flash("Invalid target user.", "error")
             elif to_user_id == user_id:
-                flash("Cannot reassign attribution to the same user.", "error")
+                flash("Cannot reattribute to the same user.", "error")
             else:
                 count = db.mass_reattribute_contributions(user_id, to_user_id)
                 log_action("admin_mass_reattribute", request, user=current_user,
@@ -279,22 +279,22 @@ def register_admin_routes(app):
         elif action == "delete_role_history_entry":
             entry_id = request.form.get("entry_id", type=int)
             if not entry_id or entry_id < 1:
-                flash("The specified entry is invalid.", "error")
+                flash("Invalid entry.", "error")
             else:
                 rh = db.get_role_history_entry(entry_id)
                 if not rh or rh["user_id"] != user_id:
-                    flash("The specified role history entry was not found.", "error")
+                    flash("Role history entry not found.", "error")
                 else:
                     db.delete_role_history_entry(entry_id)
                     log_action("admin_delete_role_history_entry", request, user=current_user,
                                target_user=target["username"], entry_id=entry_id)
-                    flash("Role history entry has been successfully deleted.", "success")
+                    flash("Role history entry deleted.", "success")
 
         elif action == "delete_all_role_history":
             count = db.delete_all_role_history(user_id)
             log_action("admin_delete_all_role_history", request, user=current_user,
                        target_user=target["username"], count=count)
-            flash(f"Successfully deleted {count} role history entries.", "success")
+            flash(f"Deleted {count} role history entries.", "success")
 
         return redirect(url_for("user_profile", username=target["username"]))
 
@@ -332,35 +332,35 @@ def register_admin_routes(app):
 
         if action == "change_username":
             if target["role"] == "protected_admin" and user_id != current_user["id"]:
-                flash("Protected administrator accounts can only be modified by their owner.", "error")
+                flash("Protected admin accounts can only be edited by their owner.", "error")
                 return redirect(url_for("admin_users"))
             new_name = request.form.get("username", "").strip()
             if not new_name or len(new_name) < 3:
-                flash("Username must contain at least 3 characters.", "error")
+                flash("Username must be at least 3 characters long.", "error")
             elif len(new_name) > 50:
                 flash("Username cannot exceed 50 characters.", "error")
             elif not _is_valid_username(new_name):
-                flash("Username can only contain letters, numbers, underscores, and hyphens.", "error")
+                flash("Username can only contain letters, digits, underscores and hyphens.", "error")
             else:
                 existing = db.get_user_by_username(new_name)
                 if existing and existing["id"] != user_id:
-                    flash("This username is already registered. Please choose a different one.", "error")
+                    flash("Username already taken. Please choose another.", "error")
                 else:
                     try:
                         db.update_user(user_id, username=new_name)
                     except sqlite3.IntegrityError:
-                        flash("This username is already registered. Please choose a different one.", "error")
+                        flash("Username already taken. Please choose another.", "error")
                         return redirect(url_for("admin_users"))
                     else:
                         db.record_username_change(user_id, target["username"], new_name)
                         log_action("admin_change_username", request, user=current_user,
                                    target_user=target["username"], new_username=new_name)
                         notify_change("admin_change_username", f"User '{target['username']}' renamed to '{new_name}'")
-                        flash("Username has been successfully updated.", "success")
+                        flash("Username updated.", "success")
 
         elif action == "change_password":
             if target["role"] == "protected_admin" and user_id != current_user["id"]:
-                flash("Protected administrator accounts can only be modified by their owner.", "error")
+                flash("Protected admin accounts can only be edited by their owner.", "error")
                 return redirect(url_for("admin_users"))
             new_pw = request.form.get("password", "")
             confirm_pw = request.form.get("confirm_password", "")
@@ -373,12 +373,12 @@ def register_admin_routes(app):
                 log_action("admin_change_password", request, user=current_user,
                            target_user=target["username"])
                 notify_change("admin_change_password", f"Password changed for '{target['username']}'")
-                flash("Password has been successfully updated.", "success")
+                flash("Password updated.", "success")
 
         elif action == "change_role":
             new_role = request.form.get("role", "")
             if new_role not in ("user", "editor", "admin"):
-                flash("The specified role is invalid.", "error")
+                flash("Invalid role.", "error")
             elif target["role"] == "protected_admin":
                 flash("Protected admin status can only be changed by the account owner.", "error")
             elif user_id == current_user["id"] and new_role != current_user["role"]:
@@ -455,7 +455,7 @@ def register_admin_routes(app):
                     if os.path.isfile(old_path):
                         os.remove(old_path)
                     notify_file_deleted(admin_del_profile["avatar_filename"])
-                flash("User has been successfully deleted.", "success")
+                flash("User deleted.", "success")
 
         return redirect(url_for("admin_users"))
 
@@ -610,25 +610,25 @@ def register_admin_routes(app):
         if not username or not password:
             flash("Username and password are required.", "error")
         elif len(username) < 3:
-            flash("Username must contain at least 3 characters.", "error")
+            flash("Username must be at least 3 characters long.", "error")
         elif len(username) > 50:
             flash("Username cannot exceed 50 characters.", "error")
         elif not _is_valid_username(username):
-            flash("Username can only contain letters, numbers, underscores, and hyphens.", "error")
+            flash("Username can only contain letters, digits, underscores and hyphens.", "error")
         elif password != confirm:
             flash("Passwords do not match.", "error")
         elif len(password) < 6:
             flash("Password must contain at least 6 characters for security.", "error")
         elif role not in ("user", "editor", "admin"):
-            flash("The specified role is invalid.", "error")
+            flash("Invalid role.", "error")
         elif db.get_user_by_username(username):
-            flash("This username is already registered. Please choose a different one.", "error")
+            flash("Username already taken. Please choose another.", "error")
         else:
             hashed = generate_password_hash(password)
             try:
                 user_id = db.create_user(username, hashed, role=role)
             except sqlite3.IntegrityError:
-                flash("This username is already registered. Please choose a different one.", "error")
+                flash("Username already taken. Please choose another.", "error")
                 return redirect(url_for("admin_users"))
 
             # Initialize default permissions for editors and users
@@ -822,7 +822,7 @@ def register_admin_routes(app):
             user = get_current_user()
             log_action("update_settings", request, user=user, site_name=site_name)
             notify_change("settings_update", f"Site settings updated (name='{site_name}')")
-            flash("Settings has been successfully updated.", "success")
+            flash("Settings updated.", "success")
             return redirect(url_for("admin_settings"))
 
         settings = db.get_site_settings()
@@ -1001,7 +1001,7 @@ def register_admin_routes(app):
             flash("A Announcement content is required to continue.", "error")
             return redirect(url_for("admin_announcements"))
         if len(content) > 2000:
-            flash("Announcement content cannot exceed 2,000 characters.", "error")
+            flash("Announcement content cannot exceed 2000 characters.", "error")
             return redirect(url_for("admin_announcements"))
         if color not in _VALID_ANN_COLORS:
             flash("The specified color is invalid.", "error")
@@ -1026,7 +1026,7 @@ def register_admin_routes(app):
                                not_removable=not_removable, show_countdown=show_countdown)
         log_action("create_announcement", request, user=user)
         notify_change("announcement_create", "Announcement created")
-        flash("Announcement has been successfully created.", "success")
+        flash("Announcement created.", "success")
         return redirect(url_for("admin_announcements"))
 
     @app.route("/admin/announcements/<int:ann_id>/edit", methods=["POST"])
@@ -1051,7 +1051,7 @@ def register_admin_routes(app):
             flash("A Announcement content is required to continue.", "error")
             return redirect(url_for("admin_announcements"))
         if len(content) > 2000:
-            flash("Announcement content cannot exceed 2,000 characters.", "error")
+            flash("Announcement content cannot exceed 2000 characters.", "error")
             return redirect(url_for("admin_announcements"))
         if color not in _VALID_ANN_COLORS:
             flash("The specified color is invalid.", "error")
@@ -1077,7 +1077,7 @@ def register_admin_routes(app):
                                not_removable=not_removable, show_countdown=show_countdown)
         log_action("edit_announcement", request, user=user, ann_id=ann_id)
         notify_change("announcement_edit", f"Announcement {ann_id} updated")
-        flash("Announcement has been successfully updated.", "success")
+        flash("Announcement updated.", "success")
         return redirect(url_for("admin_announcements"))
 
     @app.route("/admin/announcements/<int:ann_id>/delete", methods=["POST"])
@@ -1092,7 +1092,7 @@ def register_admin_routes(app):
         db.delete_announcement(ann_id)
         log_action("delete_announcement", request, user=user, ann_id=ann_id)
         notify_change("announcement_delete", f"Announcement {ann_id} deleted")
-        flash("Announcement has been successfully deleted.", "success")
+        flash("Announcement deleted.", "success")
         return redirect(url_for("admin_announcements"))
 
     # -------------------------------------------------------------------

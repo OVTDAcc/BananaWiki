@@ -41,7 +41,7 @@
             </form>
             <div class="auth-link">
                 {% if not lockdown %}
-                Don't have an account? <a href="{{ url_for('signup') }}">Create one now</a>
+                Don't have an account? <a href="{{ url_for('signup') }}">Sign up</a>
                 {% else %}
                 <a href="{{ url_for('lockdown') }}">← Return to lockdown notice</a>
                 {% endif %}

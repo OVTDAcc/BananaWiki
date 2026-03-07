@@ -118,24 +118,24 @@ def register_user_routes(app):
             if not check_password_hash(user["password"], password):
                 flash("Incorrect password.", "error")
             elif len(new_username) < 3:
-                flash("Username must contain at least 3 characters.", "error")
+                flash("Username must be at least 3 characters long.", "error")
             elif len(new_username) > 50:
                 flash("Username cannot exceed 50 characters.", "error")
             elif not _is_valid_username(new_username):
-                flash("Username can only contain letters, numbers, underscores, and hyphens.", "error")
+                flash("Username can only contain letters, digits, underscores and hyphens.", "error")
             elif db.get_user_by_username(new_username) and new_username.lower() != user["username"].lower():
-                flash("This username is already registered. Please choose a different one.", "error")
+                flash("Username already taken. Please choose another.", "error")
             else:
                 try:
                     db.update_user(user["id"], username=new_username)
                 except sqlite3.IntegrityError:
-                    flash("This username is already registered. Please choose a different one.", "error")
+                    flash("Username already taken. Please choose another.", "error")
                     return redirect(url_for("account_settings"))
                 else:
                     db.record_username_change(user["id"], user["username"], new_username)
                     log_action("change_username", request, user=user, new_username=new_username)
                     notify_change("user_change_username", f"User '{user['username']}' renamed to '{new_username}'")
-                    flash("Username has been successfully updated.", "success")
+                    flash("Username updated.", "success")
             return redirect(url_for("account_settings"))
 
         if action == "change_password":
@@ -155,7 +155,7 @@ def register_user_routes(app):
                 db.update_user(user["id"], password=generate_password_hash(new_pw))
                 log_action("change_password", request, user=user)
                 notify_change("user_change_password", f"User '{user['username']}' changed password")
-                flash("Password has been successfully updated.", "success")
+                flash("Password updated.", "success")
             return redirect(url_for("account_settings"))
 
         if action == "delete_account":

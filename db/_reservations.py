@@ -24,27 +24,32 @@ def reserve_page(page_id, user_id):
     now = datetime.now(timezone.utc)
     expires = now + timedelta(hours=config.PAGE_RESERVATION_DURATION_HOURS)
 
-    # Check if page is already reserved (and not expired or released)
-    existing = conn.execute(
-        "SELECT * FROM page_reservations WHERE page_id=? AND expires_at > ? AND released_at IS NULL",
-        (page_id, now.isoformat()),
-    ).fetchone()
-
-    if existing:
-        conn.close()
-        raise ValueError("Page is already reserved by another user")
-
-    # Check if user is in cooldown for this page
-    cooldown = conn.execute(
-        "SELECT * FROM user_page_cooldowns WHERE page_id=? AND user_id=? AND cooldown_until > ?",
-        (page_id, user_id, now.isoformat()),
-    ).fetchone()
-
-    if cooldown:
-        conn.close()
-        raise ValueError("User is in cooldown period for this page")
-
     try:
+        # Use BEGIN IMMEDIATE to serialise concurrent reservation attempts
+        conn.execute("BEGIN IMMEDIATE")
+
+        # Check if page is already reserved (and not expired or released)
+        existing = conn.execute(
+            "SELECT * FROM page_reservations WHERE page_id=? AND expires_at > ? AND released_at IS NULL",
+            (page_id, now.isoformat()),
+        ).fetchone()
+
+        if existing:
+            conn.execute("ROLLBACK")
+            conn.close()
+            raise ValueError("Page is already reserved by another user")
+
+        # Check if user is in cooldown for this page
+        cooldown = conn.execute(
+            "SELECT * FROM user_page_cooldowns WHERE page_id=? AND user_id=? AND cooldown_until > ?",
+            (page_id, user_id, now.isoformat()),
+        ).fetchone()
+
+        if cooldown:
+            conn.execute("ROLLBACK")
+            conn.close()
+            raise ValueError("User is in cooldown period for this page")
+
         # Delete any old released or expired reservations for this page
         conn.execute(
             "DELETE FROM page_reservations WHERE page_id=? AND (released_at IS NOT NULL OR expires_at <= ?)",
@@ -67,6 +72,10 @@ def reserve_page(page_id, user_id):
         conn.close()
         return reservation
     except Exception as e:
+        try:
+            conn.execute("ROLLBACK")
+        except Exception:
+            pass
         conn.close()
         raise e
 

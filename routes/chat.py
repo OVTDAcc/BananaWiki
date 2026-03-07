@@ -49,7 +49,7 @@ def register_chat_routes(app):
                 return redirect(url_for("chat_new"))
             target = db.get_user_by_username(target_username)
             if not target:
-                flash("The specified user was not found.", "error")
+                flash("User not found.", "error")
                 return redirect(url_for("chat_new"))
             if target["id"] == user["id"]:
                 flash("You cannot start a chat with yourself.", "error")
@@ -107,7 +107,7 @@ def register_chat_routes(app):
             flash("Message cannot be empty.", "error")
             return redirect(url_for("chat_view", chat_id=chat_id))
         if len(content) > 5000:
-            flash("Message cannot exceed 5,000 characters.", "error")
+            flash("Message too long.", "error")
             return redirect(url_for("chat_view", chat_id=chat_id))
         ip_address = request.remote_addr or "unknown"
         msg_id = db.send_chat_message(chat_id, user["id"], content, ip_address)
@@ -125,7 +125,7 @@ def register_chat_routes(app):
                 max_attachments = settings["chat_attachments_per_day_limit"] if settings and "chat_attachments_per_day_limit" in settings.keys() else config.MAX_CHAT_ATTACHMENTS_PER_DAY
                 att_count = db.get_user_chat_attachment_count_today(user["id"])
                 if att_count >= max_attachments:
-                    flash(f"You have reached the daily attachment limit of {max_attachments} files per day.", "error")
+                    flash(f"Daily attachment limit of {max_attachments} per day reached.", "error")
                     return redirect(url_for("chat_view", chat_id=chat_id))
                 if not _chat_allowed_file(f.filename):
                     flash("File type not allowed.", "error")

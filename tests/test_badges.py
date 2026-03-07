@@ -63,6 +63,18 @@ def test_badge_awarding():
     user_id = db.create_user("testuser", generate_password_hash("password"), role="user")
     print(f"  ✓ Created test user with ID: {user_id}")
 
+    # Create a badge to award (each test runs with a fresh DB)
+    badge_id = db.create_badge_type(
+        name="First Contributor",
+        description="Made your first edit to the wiki",
+        icon="✏️",
+        color="#4a90e2",
+        enabled=True,
+        auto_trigger=True,
+        trigger_type="first_edit",
+        trigger_threshold=1
+    )
+
     # Get a badge to award
     badges = db.list_badge_types()
     badge = badges[0]
@@ -87,6 +99,21 @@ def test_badge_awarding():
 def test_badge_revocation():
     """Test revoking badges."""
     print("\nTesting badge revocation...")
+
+    # Set up: create user and badge, then award it
+    from werkzeug.security import generate_password_hash
+    user_id = db.create_user("testuser", generate_password_hash("password"), role="user")
+    badge_id = db.create_badge_type(
+        name="First Contributor",
+        description="Made your first edit",
+        icon="✏️",
+        color="#4a90e2",
+        enabled=True,
+        auto_trigger=False,
+        trigger_type="first_edit",
+        trigger_threshold=1
+    )
+    db.award_badge(user_id, badge_id, awarded_by=None)
 
     # Get test user and their badges
     user = db.get_user_by_username("testuser")
@@ -113,6 +140,20 @@ def test_auto_triggers():
     """Test automatic badge triggering."""
     print("\nTesting automatic badge triggers...")
 
+    # Set up: create user and a first_edit badge
+    from werkzeug.security import generate_password_hash
+    user_id = db.create_user("testuser", generate_password_hash("password"), role="user")
+    db.create_badge_type(
+        name="First Contributor",
+        description="Made your first edit",
+        icon="✏️",
+        color="#4a90e2",
+        enabled=True,
+        auto_trigger=True,
+        trigger_type="first_edit",
+        trigger_threshold=1
+    )
+
     # Get test user
     user = db.get_user_by_username("testuser")
 
@@ -122,7 +163,7 @@ def test_auto_triggers():
         title="Test Page",
         slug="test-page",
         content="Test content",
-        edited_by=user['id']
+        user_id=user['id']
     )
     print(f"  ✓ Created test page with ID: {page_id}")
 
@@ -132,7 +173,7 @@ def test_auto_triggers():
 
     # Verify first_edit badge was awarded
     user_badges = db.get_user_badges(user['id'], include_revoked=False)
-    first_edit_badges = [b for b in user_badges if b['trigger_type'] == 'first_edit']
+    first_edit_badges = [b for b in user_badges if b['name'] == 'First Contributor']
     if len(first_edit_badges) > 0:
         print(f"  ✓ First edit badge automatically awarded!")
 
@@ -140,6 +181,21 @@ def test_auto_triggers():
 def test_badge_notifications():
     """Test badge notification system."""
     print("\nTesting badge notifications...")
+
+    # Set up: create user and badge, then award it
+    from werkzeug.security import generate_password_hash
+    user_id = db.create_user("testuser", generate_password_hash("password"), role="user")
+    badge_id = db.create_badge_type(
+        name="First Contributor",
+        description="Made your first edit",
+        icon="✏️",
+        color="#4a90e2",
+        enabled=True,
+        auto_trigger=False,
+        trigger_type="first_edit",
+        trigger_threshold=1
+    )
+    db.award_badge(user_id, badge_id, awarded_by=None)
 
     user = db.get_user_by_username("testuser")
 

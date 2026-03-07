@@ -40,16 +40,16 @@ def register_auth_routes(app):
                 flash("Please provide both a username and password to continue.", "error")
                 return render_template("auth/setup.html")
             if len(username) < 3:
-                flash("Username must contain at least 3 characters.", "error")
+                flash("Username must be at least 3 characters long.", "error")
                 return render_template("auth/setup.html")
             if len(username) > 50:
                 flash("Username cannot exceed 50 characters.", "error")
                 return render_template("auth/setup.html")
             if not _is_valid_username(username):
-                flash("Username can only contain letters, numbers, underscores, and hyphens.", "error")
+                flash("Username can only contain letters, digits, underscores and hyphens.", "error")
                 return render_template("auth/setup.html")
             if password != confirm:
-                flash("Password confirmation does not match. Please try again.", "error")
+                flash("Passwords do not match. Please try again.", "error")
                 return render_template("auth/setup.html")
             if len(password) < 6:
                 flash("Password must contain at least 6 characters for security.", "error")
@@ -64,12 +64,12 @@ def register_auth_routes(app):
             try:
                 db.create_user(username, hashed, role="admin")
             except sqlite3.IntegrityError:
-                flash("This username is already registered. Please choose a different one.", "error")
+                flash("Username already taken. Please choose another.", "error")
                 return render_template("auth/setup.html")
             db.update_site_settings(setup_done=1)
             log_action("setup_complete", request, username=username)
             notify_change("setup_complete", f"Admin account '{username}' created")
-            flash("Administrator account created successfully! You may now log in.", "success")
+            flash("Admin account created. You may now log in.", "success")
             return redirect(url_for("login"))
 
         return render_template("auth/setup.html")
@@ -98,13 +98,13 @@ def register_auth_routes(app):
                 check_password_hash(_DUMMY_HASH, password)
                 _record_login_attempt()
                 log_action("login_failed", request, username=username)
-                flash("The username or password you entered is incorrect.", "error")
+                flash("Invalid username or password.", "error")
                 return render_template("auth/login.html", lockdown=lockdown)
 
             if not check_password_hash(user["password"], password):
                 _record_login_attempt()
                 log_action("login_failed", request, username=username)
-                flash("The username or password you entered is incorrect.", "error")
+                flash("Invalid username or password.", "error")
                 return render_template("auth/login.html", lockdown=lockdown)
 
             if user["suspended"]:
@@ -158,19 +158,19 @@ def register_auth_routes(app):
             invite = request.form.get("invite_code", "").strip().upper()
 
             if not username or not password or not invite:
-                flash("Please complete all required fields to create your account.", "error")
+                flash("All fields are required to create your account.", "error")
                 return render_template("auth/signup.html")
             if len(username) < 3:
-                flash("Username must contain at least 3 characters.", "error")
+                flash("Username must be at least 3 characters long.", "error")
                 return render_template("auth/signup.html")
             if len(username) > 50:
                 flash("Username cannot exceed 50 characters.", "error")
                 return render_template("auth/signup.html")
             if not _is_valid_username(username):
-                flash("Username can only contain letters, numbers, underscores, and hyphens.", "error")
+                flash("Username can only contain letters, digits, underscores and hyphens.", "error")
                 return render_template("auth/signup.html")
             if password != confirm:
-                flash("Password confirmation does not match. Please try again.", "error")
+                flash("Passwords do not match. Please try again.", "error")
                 return render_template("auth/signup.html")
             if len(password) < 6:
                 flash("Password must contain at least 6 characters for security.", "error")
@@ -183,14 +183,14 @@ def register_auth_routes(app):
                 return render_template("auth/signup.html")
 
             if db.get_user_by_username(username):
-                flash("This username is already registered. Please choose a different one.", "error")
+                flash("Username already taken. Please choose another.", "error")
                 return render_template("auth/signup.html")
 
             hashed = generate_password_hash(password)
             try:
                 user_id = db.create_user(username, hashed, invite_code=invite)
             except sqlite3.IntegrityError:
-                flash("This username is already registered. Please choose a different one.", "error")
+                flash("Username already taken. Please choose another.", "error")
                 return render_template("auth/signup.html")
             if not db.use_invite_code(invite, user_id):
                 # Race condition: code was used by another user concurrently
@@ -200,7 +200,7 @@ def register_auth_routes(app):
 
             log_action("signup_success", request, username=username, invite_code=invite)
             notify_change("user_signup", f"New user '{username}' registered")
-            flash("Your account has been created successfully! You may now log in.", "success")
+            flash("Account created. You may now log in.", "success")
             return redirect(url_for("login"))
 
         return render_template("auth/signup.html")
@@ -233,7 +233,7 @@ def register_auth_routes(app):
             return redirect(url_for("session_conflict"))
         user = db.get_user_by_username(username)
         if not user or not check_password_hash(user["password"], password):
-            flash("The username or password you entered is incorrect.", "error")
+            flash("Invalid username or password.", "error")
             return redirect(url_for("session_conflict"))
         if user["suspended"]:
             flash("Your account is currently suspended.", "error")
