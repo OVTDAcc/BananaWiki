@@ -132,10 +132,10 @@ def test_group_chat_cleanup_with_retention(alice_uid):
     assert not any(msg["content"] == "Old message" for msg in messages)
 
 
-def test_chat_cleanup_config_enabled_flag(app, alice_uid, bob_uid, monkeypatch):
-    """Test that CHAT_CLEANUP_ENABLED configuration works."""
-    # Set cleanup enabled to False
-    monkeypatch.setattr(config, "CHAT_CLEANUP_ENABLED", False)
+def test_chat_cleanup_config_enabled_flag(app, alice_uid, bob_uid):
+    """Test that chat_cleanup_enabled setting works (disabling it only affects the scheduler)."""
+    # Set cleanup enabled to False via site settings
+    db.update_site_settings(chat_cleanup_enabled=0)
 
     # Create chat and message
     chat = db.get_or_create_chat(alice_uid, bob_uid)
@@ -152,10 +152,10 @@ def test_chat_cleanup_config_enabled_flag(app, alice_uid, bob_uid, monkeypatch):
     conn.close()
 
     # Cleanup function should still work when called directly
-    # (the ENABLED check is in routes/chat.py scheduler)
+    # (the chat_cleanup_enabled check is in routes/chat.py scheduler)
     files = db.cleanup_old_chat_messages(retention_days=30)
 
-    # Message should be deleted (db function doesn't check ENABLED flag)
+    # Message should be deleted (db function doesn't check enabled flag)
     messages = db.get_chat_messages(chat["id"])
     assert len(messages) == 0
 

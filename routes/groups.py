@@ -164,8 +164,10 @@ def register_group_routes(app):
         if not content:
             flash("Message cannot be empty.", "error")
             return redirect(url_for("group_view", group_id=group_id))
-        if len(content) > 5000:
-            flash("Message too long.", "error")
+        settings = db.get_site_settings()
+        max_msg_len = settings["chat_max_message_length"] if settings and settings["chat_max_message_length"] else 5000
+        if len(content) > max_msg_len:
+            flash(f"Message cannot exceed {max_msg_len} characters.", "error")
             return redirect(url_for("group_view", group_id=group_id))
         ip_address = request.remote_addr or "unknown"
         msg_id = db.send_group_message(group_id, user["id"], content, ip_address)
@@ -180,9 +182,10 @@ def register_group_routes(app):
         if "attachment" in request.files:
             f = request.files["attachment"]
             if f.filename:
-                # Check daily limit (use site settings if available, fall back to config)
-                settings = db.get_site_settings()
-                max_attachments = settings["chat_attachments_per_day_limit"] if settings and "chat_attachments_per_day_limit" in settings.keys() else config.MAX_CHAT_ATTACHMENTS_PER_DAY
+                # Check daily limit from site settings
+                if not settings:
+                    settings = db.get_site_settings()
+                max_attachments = settings["chat_attachments_per_day_limit"] if settings and settings["chat_attachments_per_day_limit"] else 10
                 att_count = db.get_user_group_attachment_count_today(user["id"])
                 if att_count >= max_attachments:
                     flash(f"Daily attachment limit of {max_attachments} files reached.", "error")
@@ -195,6 +198,9 @@ def register_group_routes(app):
                 stored_name = f"{uuid.uuid4().hex}.{ext}"
                 os.makedirs(config.CHAT_ATTACHMENT_FOLDER, exist_ok=True)
                 filepath = os.path.join(config.CHAT_ATTACHMENT_FOLDER, stored_name)
+                # Chunked write with size enforcement (limit from site settings, in bytes)
+                max_att_size_mb = settings["chat_max_attachment_size_mb"] if settings and settings["chat_max_attachment_size_mb"] else 5
+                max_att_size = max_att_size_mb * 1024 * 1024
                 file_size = 0
                 chunk_size = 64 * 1024
                 oversized = False
@@ -204,7 +210,7 @@ def register_group_routes(app):
                         if not chunk:
                             break
                         file_size += len(chunk)
-                        if file_size > config.MAX_CHAT_ATTACHMENT_SIZE:
+                        if file_size > max_att_size:
                             oversized = True
                             break
                         out.write(chunk)
@@ -213,7 +219,7 @@ def register_group_routes(app):
                         os.remove(filepath)
                     except OSError:
                         pass
-                    flash("File exceeds the 5 MB limit.", "error")
+                    flash(f"File exceeds the {max_att_size_mb} MB limit.", "error")
                     return redirect(url_for("group_view", group_id=group_id))
                 db.add_group_attachment(msg_id, stored_name, original_name, file_size)
 

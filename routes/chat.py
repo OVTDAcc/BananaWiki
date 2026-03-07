@@ -106,8 +106,10 @@ def register_chat_routes(app):
         if not content:
             flash("Message cannot be empty.", "error")
             return redirect(url_for("chat_view", chat_id=chat_id))
-        if len(content) > 5000:
-            flash("Message too long.", "error")
+        settings = db.get_site_settings()
+        max_msg_len = settings["chat_max_message_length"] if settings and settings["chat_max_message_length"] else 5000
+        if len(content) > max_msg_len:
+            flash(f"Message cannot exceed {max_msg_len} characters.", "error")
             return redirect(url_for("chat_view", chat_id=chat_id))
         ip_address = request.remote_addr or "unknown"
         msg_id = db.send_chat_message(chat_id, user["id"], content, ip_address)
@@ -120,12 +122,13 @@ def register_chat_routes(app):
         if "attachment" in request.files:
             f = request.files["attachment"]
             if f.filename:
-                # Check daily limit (use site settings if available, fall back to config)
-                settings = db.get_site_settings()
-                max_attachments = settings["chat_attachments_per_day_limit"] if settings and "chat_attachments_per_day_limit" in settings.keys() else config.MAX_CHAT_ATTACHMENTS_PER_DAY
+                # Check daily limit from site settings
+                if not settings:
+                    settings = db.get_site_settings()
+                max_attachments = settings["chat_attachments_per_day_limit"] if settings and settings["chat_attachments_per_day_limit"] else 10
                 att_count = db.get_user_chat_attachment_count_today(user["id"])
                 if att_count >= max_attachments:
-                    flash(f"Daily attachment limit of {max_attachments} per day reached.", "error")
+                    flash(f"Daily attachment limit of {max_attachments} files reached.", "error")
                     return redirect(url_for("chat_view", chat_id=chat_id))
                 if not _chat_allowed_file(f.filename):
                     flash("File type not allowed.", "error")
@@ -135,7 +138,9 @@ def register_chat_routes(app):
                 stored_name = f"{uuid.uuid4().hex}.{ext}"
                 os.makedirs(config.CHAT_ATTACHMENT_FOLDER, exist_ok=True)
                 filepath = os.path.join(config.CHAT_ATTACHMENT_FOLDER, stored_name)
-                # Chunked write with size enforcement
+                # Chunked write with size enforcement (limit from site settings, in bytes)
+                max_att_size_mb = settings["chat_max_attachment_size_mb"] if settings and settings["chat_max_attachment_size_mb"] else 5
+                max_att_size = max_att_size_mb * 1024 * 1024
                 file_size = 0
                 chunk_size = 64 * 1024
                 oversized = False
@@ -145,7 +150,7 @@ def register_chat_routes(app):
                         if not chunk:
                             break
                         file_size += len(chunk)
-                        if file_size > config.MAX_CHAT_ATTACHMENT_SIZE:
+                        if file_size > max_att_size:
                             oversized = True
                             break
                         out.write(chunk)
@@ -154,7 +159,7 @@ def register_chat_routes(app):
                         os.remove(filepath)
                     except OSError:
                         pass
-                    flash("File exceeds the 5 MB limit.", "error")
+                    flash(f"File exceeds the {max_att_size_mb} MB limit.", "error")
                     return redirect(url_for("chat_view", chat_id=chat_id))
                 db.add_chat_attachment(msg_id, stored_name, original_name, file_size)
 
@@ -357,6 +362,10 @@ def register_chat_routes(app):
             now = datetime.now(site_tz)
             settings = db.get_site_settings()
 
+            # Get cleanup schedule from DB settings with sensible defaults
+            cleanup_frequency = (settings["chat_cleanup_frequency_days"] if settings and settings["chat_cleanup_frequency_days"] else 7)
+            cleanup_hour = (settings["chat_cleanup_hour"] if settings and settings["chat_cleanup_hour"] is not None else 3)
+
             # Get last cleanup time
             last_cleanup = None
             if settings:
@@ -372,17 +381,17 @@ def register_chat_routes(app):
 
             # If no last cleanup recorded, schedule for next configured hour today/tomorrow
             if not last_cleanup:
-                target = now.replace(hour=config.CHAT_CLEANUP_HOUR, minute=0, second=0, microsecond=0)
+                target = now.replace(hour=cleanup_hour, minute=0, second=0, microsecond=0)
                 if target <= now:
                     target += timedelta(days=1)
             else:
                 # Schedule for configured frequency after last cleanup
-                target = last_cleanup.replace(hour=config.CHAT_CLEANUP_HOUR, minute=0, second=0, microsecond=0)
-                target += timedelta(days=config.CHAT_CLEANUP_FREQUENCY_DAYS)
+                target = last_cleanup.replace(hour=cleanup_hour, minute=0, second=0, microsecond=0)
+                target += timedelta(days=cleanup_frequency)
 
                 # If target is in the past, schedule for the next interval
                 while target <= now:
-                    target += timedelta(days=config.CHAT_CLEANUP_FREQUENCY_DAYS)
+                    target += timedelta(days=cleanup_frequency)
 
             delay = (target - now).total_seconds()
             _cleanup_timer_holder[0] = threading.Timer(delay, _run_chat_cleanup)
@@ -393,8 +402,9 @@ def register_chat_routes(app):
 
     def _run_chat_cleanup():
         """Execute the scheduled chat cleanup: backup to Telegram then delete."""
-        # Check if cleanup is enabled
-        if not config.CHAT_CLEANUP_ENABLED:
+        # Check if cleanup is enabled in site settings
+        settings = db.get_site_settings()
+        if not settings or not settings["chat_cleanup_enabled"]:
             return
 
         try:
@@ -406,36 +416,17 @@ def register_chat_routes(app):
         except Exception:
             pass
 
-        # Get cleanup settings from database
-        settings = db.get_site_settings()
+        # Get DM-specific cleanup settings (use is not None to distinguish 0 from unset)
+        dm_auto_clear_messages = settings["chat_dm_auto_clear_messages"] if settings["chat_dm_auto_clear_messages"] is not None else 0
+        dm_auto_clear_attachments = settings["chat_dm_auto_clear_attachments"] if settings["chat_dm_auto_clear_attachments"] is not None else 1
+        dm_message_retention_days = settings["chat_dm_message_retention_days"] if settings["chat_dm_message_retention_days"] is not None else 30
+        dm_attachment_retention_days = settings["chat_dm_attachment_retention_days"] if settings["chat_dm_attachment_retention_days"] is not None else 7
 
-        # Get DM-specific settings (with fallback to legacy settings)
-        dm_auto_clear_messages = settings.get("chat_dm_auto_clear_messages")
-        if dm_auto_clear_messages is None:
-            dm_auto_clear_messages = settings.get("chat_auto_clear_messages", 0)
-        dm_auto_clear_attachments = settings.get("chat_dm_auto_clear_attachments")
-        if dm_auto_clear_attachments is None:
-            dm_auto_clear_attachments = settings.get("chat_auto_clear_attachments", 1)
-        dm_message_retention_days = settings.get("chat_dm_message_retention_days")
-        if dm_message_retention_days is None:
-            dm_message_retention_days = settings.get("chat_message_retention_days", 0)
-        dm_attachment_retention_days = settings.get("chat_dm_attachment_retention_days")
-        if dm_attachment_retention_days is None:
-            dm_attachment_retention_days = settings.get("chat_attachment_retention_days", 7)
-
-        # Get Group-specific settings (with fallback to legacy settings)
-        group_auto_clear_messages = settings.get("chat_group_auto_clear_messages")
-        if group_auto_clear_messages is None:
-            group_auto_clear_messages = settings.get("chat_auto_clear_messages", 0)
-        group_auto_clear_attachments = settings.get("chat_group_auto_clear_attachments")
-        if group_auto_clear_attachments is None:
-            group_auto_clear_attachments = settings.get("chat_auto_clear_attachments", 1)
-        group_message_retention_days = settings.get("chat_group_message_retention_days")
-        if group_message_retention_days is None:
-            group_message_retention_days = settings.get("chat_message_retention_days", 0)
-        group_attachment_retention_days = settings.get("chat_group_attachment_retention_days")
-        if group_attachment_retention_days is None:
-            group_attachment_retention_days = settings.get("chat_attachment_retention_days", 7)
+        # Get Group-specific cleanup settings
+        group_auto_clear_messages = settings["chat_group_auto_clear_messages"] if settings["chat_group_auto_clear_messages"] is not None else 0
+        group_auto_clear_attachments = settings["chat_group_auto_clear_attachments"] if settings["chat_group_auto_clear_attachments"] is not None else 1
+        group_message_retention_days = settings["chat_group_message_retention_days"] if settings["chat_group_message_retention_days"] is not None else 30
+        group_attachment_retention_days = settings["chat_group_attachment_retention_days"] if settings["chat_group_attachment_retention_days"] is not None else 7
 
         att_dir = config.CHAT_ATTACHMENT_FOLDER
 

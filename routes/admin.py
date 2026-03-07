@@ -793,30 +793,29 @@ def register_admin_routes(app):
                 lockdown_mode=1 if request.form.get("lockdown_mode") else 0,
                 lockdown_message=request.form.get("lockdown_message", "").strip()[:1000],
                 session_limit_enabled=1 if request.form.get("session_limit_enabled") else 0,
-                # Legacy chat settings (for backwards compatibility)
-                chat_attachments_per_day_limit=int(request.form.get("chat_attachments_per_day_limit", 10)),
-                chat_auto_clear_messages=1 if request.form.get("chat_auto_clear_messages") else 0,
-                chat_auto_clear_attachments=1 if request.form.get("chat_auto_clear_attachments") else 0,
-                chat_message_retention_days=int(request.form.get("chat_message_retention_days", 0)),
-                chat_attachment_retention_days=int(request.form.get("chat_attachment_retention_days", 7)),
                 # Global chat settings
-                chat_max_message_length=int(request.form.get("chat_max_message_length", 5000)),
+                chat_max_message_length=max(100, min(50000, int(request.form.get("chat_max_message_length", 5000) or 5000))),
                 chat_attachments_enabled=1 if request.form.get("chat_attachments_enabled") else 0,
-                chat_max_attachment_size_mb=int(request.form.get("chat_max_attachment_size_mb", 5)),
+                chat_max_attachment_size_mb=max(1, min(100, int(request.form.get("chat_max_attachment_size_mb", 5) or 5))),
+                chat_attachments_per_day_limit=max(1, min(1000, int(request.form.get("chat_attachments_per_day_limit", 10) or 10))),
                 # DM-specific settings
                 chat_dm_enabled=1 if request.form.get("chat_dm_enabled") else 0,
                 chat_allow_dm_creation=1 if request.form.get("chat_allow_dm_creation") else 0,
                 chat_dm_auto_clear_messages=1 if request.form.get("chat_dm_auto_clear_messages") else 0,
                 chat_dm_auto_clear_attachments=1 if request.form.get("chat_dm_auto_clear_attachments") else 0,
-                chat_dm_message_retention_days=int(request.form.get("chat_dm_message_retention_days", 0)),
-                chat_dm_attachment_retention_days=int(request.form.get("chat_dm_attachment_retention_days", 7)),
+                chat_dm_message_retention_days=max(1, min(3650, int(request.form.get("chat_dm_message_retention_days", 30) or 30))),
+                chat_dm_attachment_retention_days=max(1, min(3650, int(request.form.get("chat_dm_attachment_retention_days", 7) or 7))),
                 # Group-specific settings
                 chat_group_enabled=1 if request.form.get("chat_group_enabled") else 0,
                 chat_allow_group_creation=1 if request.form.get("chat_allow_group_creation") else 0,
                 chat_group_auto_clear_messages=1 if request.form.get("chat_group_auto_clear_messages") else 0,
                 chat_group_auto_clear_attachments=1 if request.form.get("chat_group_auto_clear_attachments") else 0,
-                chat_group_message_retention_days=int(request.form.get("chat_group_message_retention_days", 0)),
-                chat_group_attachment_retention_days=int(request.form.get("chat_group_attachment_retention_days", 7)),
+                chat_group_message_retention_days=max(1, min(3650, int(request.form.get("chat_group_message_retention_days", 30) or 30))),
+                chat_group_attachment_retention_days=max(1, min(3650, int(request.form.get("chat_group_attachment_retention_days", 7) or 7))),
+                # Chat cleanup schedule
+                chat_cleanup_enabled=1 if request.form.get("chat_cleanup_enabled") else 0,
+                chat_cleanup_frequency_days=max(1, min(365, int(request.form.get("chat_cleanup_frequency_days", 7) or 7))),
+                chat_cleanup_hour=max(0, min(23, int(request.form.get("chat_cleanup_hour", 3) or 3))),
                 **color_fields,
             )
             user = get_current_user()

@@ -35,6 +35,8 @@ _ALLOWED_SETTINGS_COLUMNS = {
     "chat_group_enabled", "chat_allow_group_creation",
     "chat_group_auto_clear_messages", "chat_group_auto_clear_attachments",
     "chat_group_message_retention_days", "chat_group_attachment_retention_days",
+    # Chat cleanup schedule settings
+    "chat_cleanup_enabled", "chat_cleanup_frequency_days", "chat_cleanup_hour",
 }
 
 
