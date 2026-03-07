@@ -401,18 +401,42 @@ def register_chat_routes(app):
 
         # Get cleanup settings from database
         settings = db.get_site_settings()
-        auto_clear_messages = settings.get("chat_auto_clear_messages", 0) if settings else 0
-        auto_clear_attachments = settings.get("chat_auto_clear_attachments", 1) if settings else 1
-        message_retention_days = settings.get("chat_message_retention_days", 0) if settings else 0
-        attachment_retention_days = settings.get("chat_attachment_retention_days", 7) if settings else 7
+
+        # Get DM-specific settings (with fallback to legacy settings)
+        dm_auto_clear_messages = settings.get("chat_dm_auto_clear_messages")
+        if dm_auto_clear_messages is None:
+            dm_auto_clear_messages = settings.get("chat_auto_clear_messages", 0)
+        dm_auto_clear_attachments = settings.get("chat_dm_auto_clear_attachments")
+        if dm_auto_clear_attachments is None:
+            dm_auto_clear_attachments = settings.get("chat_auto_clear_attachments", 1)
+        dm_message_retention_days = settings.get("chat_dm_message_retention_days")
+        if dm_message_retention_days is None:
+            dm_message_retention_days = settings.get("chat_message_retention_days", 0)
+        dm_attachment_retention_days = settings.get("chat_dm_attachment_retention_days")
+        if dm_attachment_retention_days is None:
+            dm_attachment_retention_days = settings.get("chat_attachment_retention_days", 7)
+
+        # Get Group-specific settings (with fallback to legacy settings)
+        group_auto_clear_messages = settings.get("chat_group_auto_clear_messages")
+        if group_auto_clear_messages is None:
+            group_auto_clear_messages = settings.get("chat_auto_clear_messages", 0)
+        group_auto_clear_attachments = settings.get("chat_group_auto_clear_attachments")
+        if group_auto_clear_attachments is None:
+            group_auto_clear_attachments = settings.get("chat_auto_clear_attachments", 1)
+        group_message_retention_days = settings.get("chat_group_message_retention_days")
+        if group_message_retention_days is None:
+            group_message_retention_days = settings.get("chat_message_retention_days", 0)
+        group_attachment_retention_days = settings.get("chat_group_attachment_retention_days")
+        if group_attachment_retention_days is None:
+            group_attachment_retention_days = settings.get("chat_attachment_retention_days", 7)
 
         att_dir = config.CHAT_ATTACHMENT_FOLDER
 
-        # Clean up direct messages
+        # Clean up direct messages using DM-specific settings
         try:
-            if auto_clear_messages and message_retention_days > 0:
+            if dm_auto_clear_messages and dm_message_retention_days > 0:
                 # Clear old messages (this also clears their attachments via CASCADE)
-                files_to_delete = db.cleanup_old_chat_messages(message_retention_days)
+                files_to_delete = db.cleanup_old_chat_messages(dm_message_retention_days)
                 for fname in files_to_delete:
                     try:
                         fpath = os.path.join(att_dir, fname)
@@ -420,9 +444,9 @@ def register_chat_routes(app):
                             os.remove(fpath)
                     except OSError:
                         pass
-            elif auto_clear_attachments and attachment_retention_days > 0:
+            elif dm_auto_clear_attachments and dm_attachment_retention_days > 0:
                 # Clear only old attachments (keep messages)
-                files_to_delete = db.cleanup_old_chat_attachments(attachment_retention_days)
+                files_to_delete = db.cleanup_old_chat_attachments(dm_attachment_retention_days)
                 for fname in files_to_delete:
                     try:
                         fpath = os.path.join(att_dir, fname)
@@ -433,11 +457,11 @@ def register_chat_routes(app):
         except Exception:
             pass
 
-        # Clean up group messages
+        # Clean up group messages using Group-specific settings
         try:
-            if auto_clear_messages and message_retention_days > 0:
+            if group_auto_clear_messages and group_message_retention_days > 0:
                 # Clear old messages (this also clears their attachments via CASCADE)
-                group_files = db.cleanup_old_group_messages(message_retention_days)
+                group_files = db.cleanup_old_group_messages(group_message_retention_days)
                 for fname in group_files:
                     try:
                         fpath = os.path.join(att_dir, fname)
@@ -445,9 +469,9 @@ def register_chat_routes(app):
                             os.remove(fpath)
                     except OSError:
                         pass
-            elif auto_clear_attachments and attachment_retention_days > 0:
+            elif group_auto_clear_attachments and group_attachment_retention_days > 0:
                 # Clear only old attachments (keep messages)
-                group_files = db.cleanup_old_group_attachments(attachment_retention_days)
+                group_files = db.cleanup_old_group_attachments(group_attachment_retention_days)
                 for fname in group_files:
                     try:
                         fpath = os.path.join(att_dir, fname)

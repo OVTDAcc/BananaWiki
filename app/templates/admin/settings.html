@@ -169,57 +169,219 @@
 
     <div class="settings-section">
         <h3>Chat Settings</h3>
-        <div class="form-group">
-            <label>Daily Attachment Limit Per User</label>
-            <input type="number" name="chat_attachments_per_day_limit"
-                   value="{{ settings.chat_attachments_per_day_limit if settings.chat_attachments_per_day_limit else 10 }}"
-                   class="input" style="max-width:150px" min="1" max="100">
-            <small style="opacity:.7;display:block;margin-top:.3rem">
-                Maximum number of file attachments each user can send per day across all chats.
-                Resets when auto-cleanup runs.
-            </small>
+
+        <!-- Global Chat Settings -->
+        <div style="padding:1rem;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05);border-radius:2px;margin-bottom:1.5rem">
+            <h4 style="margin-top:0;margin-bottom:1rem;font-size:1rem;opacity:.9">Global Chat Settings</h4>
+
+            <div class="form-group">
+                <label>Maximum Message Length (characters)</label>
+                <input type="number" name="chat_max_message_length"
+                       value="{{ settings.chat_max_message_length if settings.chat_max_message_length else 5000 }}"
+                       class="input" style="max-width:150px" min="100" max="50000">
+                <small style="opacity:.7;display:block;margin-top:.3rem">
+                    Maximum length of a single chat message.
+                </small>
+            </div>
+
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" name="chat_attachments_enabled" value="1"
+                           {% if settings.chat_attachments_enabled is not defined or settings.chat_attachments_enabled %}checked{% endif %}>
+                    Enable File Attachments
+                </label>
+                <small style="opacity:.7;display:block;margin-top:.3rem">
+                    Allow users to attach files to chat messages.
+                </small>
+            </div>
+
+            <div class="form-group" id="attachment-settings-group"
+                 style="margin-left:1.5rem;{% if settings.chat_attachments_enabled is defined and not settings.chat_attachments_enabled %}opacity:.5{% endif %}">
+                <label>Maximum Attachment Size (MB)</label>
+                <input type="number" name="chat_max_attachment_size_mb"
+                       value="{{ settings.chat_max_attachment_size_mb if settings.chat_max_attachment_size_mb else 5 }}"
+                       class="input" style="max-width:150px" min="1" max="100"
+                       {% if settings.chat_attachments_enabled is defined and not settings.chat_attachments_enabled %}disabled{% endif %}>
+                <small style="opacity:.7;display:block;margin-top:.3rem">
+                    Maximum file size per attachment.
+                </small>
+            </div>
+
+            <div class="form-group" style="margin-left:1.5rem;{% if settings.chat_attachments_enabled is defined and not settings.chat_attachments_enabled %}opacity:.5{% endif %}">
+                <label>Daily Attachment Limit Per User</label>
+                <input type="number" name="chat_attachments_per_day_limit"
+                       value="{{ settings.chat_attachments_per_day_limit if settings.chat_attachments_per_day_limit else 10 }}"
+                       class="input" style="max-width:150px" min="1" max="1000"
+                       {% if settings.chat_attachments_enabled is defined and not settings.chat_attachments_enabled %}disabled{% endif %}>
+                <small style="opacity:.7;display:block;margin-top:.3rem">
+                    Maximum number of file attachments each user can send per day across all chats.
+                </small>
+            </div>
         </div>
-        <div class="form-group">
-            <label>
-                <input type="checkbox" name="chat_auto_clear_messages" value="1"
-                       {% if settings.chat_auto_clear_messages %}checked{% endif %}>
-                Auto-clear old messages
-            </label>
-            <small style="opacity:.7;display:block;margin-top:.3rem">
-                When enabled, messages older than the retention period will be automatically deleted.
-            </small>
+
+        <!-- Direct Message (DM) Settings -->
+        <div style="padding:1rem;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05);border-radius:2px;margin-bottom:1.5rem">
+            <h4 style="margin-top:0;margin-bottom:1rem;font-size:1rem;opacity:.9">Direct Message (DM) Settings</h4>
+
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" name="chat_dm_enabled" value="1"
+                           {% if settings.chat_dm_enabled is not defined or settings.chat_dm_enabled %}checked{% endif %}>
+                    Enable Direct Messages
+                </label>
+                <small style="opacity:.7;display:block;margin-top:.3rem">
+                    Allow users to send private one-on-one messages.
+                </small>
+            </div>
+
+            <div id="dm-settings-container" style="{% if settings.chat_dm_enabled is defined and not settings.chat_dm_enabled %}opacity:.5{% endif %}">
+                <div class="form-group" style="margin-left:1.5rem">
+                    <label>
+                        <input type="checkbox" name="chat_allow_dm_creation" value="1"
+                               {% if settings.chat_allow_dm_creation is not defined or settings.chat_allow_dm_creation %}checked{% endif %}
+                               {% if settings.chat_dm_enabled is defined and not settings.chat_dm_enabled %}disabled{% endif %}>
+                        Allow Users to Create New DMs
+                    </label>
+                    <small style="opacity:.7;display:block;margin-top:.3rem">
+                        If disabled, only existing DM conversations can be used.
+                    </small>
+                </div>
+
+                <div class="form-group" style="margin-left:1.5rem">
+                    <label>
+                        <input type="checkbox" name="chat_dm_auto_clear_messages" value="1"
+                               {% if settings.chat_dm_auto_clear_messages %}checked{% endif %}
+                               {% if settings.chat_dm_enabled is defined and not settings.chat_dm_enabled %}disabled{% endif %}>
+                        Auto-clear Old DM Messages
+                    </label>
+                    <small style="opacity:.7;display:block;margin-top:.3rem">
+                        Automatically delete DM messages older than the retention period.
+                    </small>
+                </div>
+
+                <div class="form-group" id="dm-message-retention-group"
+                     style="margin-left:3rem;{% if not settings.chat_dm_auto_clear_messages %}opacity:.5{% endif %}">
+                    <label>DM Message Retention (days)</label>
+                    <input type="number" name="chat_dm_message_retention_days"
+                           value="{{ settings.chat_dm_message_retention_days if settings.chat_dm_message_retention_days else 0 }}"
+                           class="input" style="max-width:150px" min="1" max="3650"
+                           {% if not settings.chat_dm_auto_clear_messages or (settings.chat_dm_enabled is defined and not settings.chat_dm_enabled) %}disabled{% endif %}>
+                    <small style="opacity:.7;display:block;margin-top:.3rem">
+                        Keep DM messages for this many days. Set to 0 to keep forever.
+                    </small>
+                </div>
+
+                <div class="form-group" style="margin-left:1.5rem">
+                    <label>
+                        <input type="checkbox" name="chat_dm_auto_clear_attachments" value="1"
+                               {% if settings.chat_dm_auto_clear_attachments is not defined or settings.chat_dm_auto_clear_attachments %}checked{% endif %}
+                               {% if settings.chat_dm_enabled is defined and not settings.chat_dm_enabled %}disabled{% endif %}>
+                        Auto-clear Old DM Attachments
+                    </label>
+                    <small style="opacity:.7;display:block;margin-top:.3rem">
+                        Delete DM attachments to save disk space (recommended).
+                    </small>
+                </div>
+
+                <div class="form-group" id="dm-attachment-retention-group"
+                     style="margin-left:3rem;{% if not settings.chat_dm_auto_clear_attachments %}opacity:.5{% endif %}">
+                    <label>DM Attachment Retention (days)</label>
+                    <input type="number" name="chat_dm_attachment_retention_days"
+                           value="{{ settings.chat_dm_attachment_retention_days if settings.chat_dm_attachment_retention_days else 7 }}"
+                           class="input" style="max-width:150px" min="1" max="3650"
+                           {% if not settings.chat_dm_auto_clear_attachments or (settings.chat_dm_enabled is defined and not settings.chat_dm_enabled) %}disabled{% endif %}>
+                    <small style="opacity:.7;display:block;margin-top:.3rem">
+                        Keep DM attachments for this many days. Messages remain intact.
+                    </small>
+                </div>
+            </div>
         </div>
-        <div class="form-group" id="message-retention-group"
-             style="margin-left:1.5rem;{% if not settings.chat_auto_clear_messages %}opacity:.5{% endif %}">
-            <label>Message Retention (days)</label>
-            <input type="number" name="chat_message_retention_days"
-                   value="{{ settings.chat_message_retention_days if settings.chat_message_retention_days else 0 }}"
-                   class="input" style="max-width:150px" min="1" max="365"
-                   {% if not settings.chat_auto_clear_messages %}disabled{% endif %}>
-            <small style="opacity:.7;display:block;margin-top:.3rem">
-                Keep messages for this many days before deleting them. Set to 0 to keep all messages forever.
-            </small>
+
+        <!-- Group Chat Settings -->
+        <div style="padding:1rem;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05);border-radius:2px;margin-bottom:1rem">
+            <h4 style="margin-top:0;margin-bottom:1rem;font-size:1rem;opacity:.9">Group Chat Settings</h4>
+
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" name="chat_group_enabled" value="1"
+                           {% if settings.chat_group_enabled is not defined or settings.chat_group_enabled %}checked{% endif %}>
+                    Enable Group Chats
+                </label>
+                <small style="opacity:.7;display:block;margin-top:.3rem">
+                    Allow users to create and participate in group conversations.
+                </small>
+            </div>
+
+            <div id="group-settings-container" style="{% if settings.chat_group_enabled is defined and not settings.chat_group_enabled %}opacity:.5{% endif %}">
+                <div class="form-group" style="margin-left:1.5rem">
+                    <label>
+                        <input type="checkbox" name="chat_allow_group_creation" value="1"
+                               {% if settings.chat_allow_group_creation is not defined or settings.chat_allow_group_creation %}checked{% endif %}
+                               {% if settings.chat_group_enabled is defined and not settings.chat_group_enabled %}disabled{% endif %}>
+                        Allow Users to Create New Groups
+                    </label>
+                    <small style="opacity:.7;display:block;margin-top:.3rem">
+                        If disabled, only existing group chats can be used.
+                    </small>
+                </div>
+
+                <div class="form-group" style="margin-left:1.5rem">
+                    <label>
+                        <input type="checkbox" name="chat_group_auto_clear_messages" value="1"
+                               {% if settings.chat_group_auto_clear_messages %}checked{% endif %}
+                               {% if settings.chat_group_enabled is defined and not settings.chat_group_enabled %}disabled{% endif %}>
+                        Auto-clear Old Group Messages
+                    </label>
+                    <small style="opacity:.7;display:block;margin-top:.3rem">
+                        Automatically delete group messages older than the retention period.
+                    </small>
+                </div>
+
+                <div class="form-group" id="group-message-retention-group"
+                     style="margin-left:3rem;{% if not settings.chat_group_auto_clear_messages %}opacity:.5{% endif %}">
+                    <label>Group Message Retention (days)</label>
+                    <input type="number" name="chat_group_message_retention_days"
+                           value="{{ settings.chat_group_message_retention_days if settings.chat_group_message_retention_days else 0 }}"
+                           class="input" style="max-width:150px" min="1" max="3650"
+                           {% if not settings.chat_group_auto_clear_messages or (settings.chat_group_enabled is defined and not settings.chat_group_enabled) %}disabled{% endif %}>
+                    <small style="opacity:.7;display:block;margin-top:.3rem">
+                        Keep group messages for this many days. Set to 0 to keep forever.
+                    </small>
+                </div>
+
+                <div class="form-group" style="margin-left:1.5rem">
+                    <label>
+                        <input type="checkbox" name="chat_group_auto_clear_attachments" value="1"
+                               {% if settings.chat_group_auto_clear_attachments is not defined or settings.chat_group_auto_clear_attachments %}checked{% endif %}
+                               {% if settings.chat_group_enabled is defined and not settings.chat_group_enabled %}disabled{% endif %}>
+                        Auto-clear Old Group Attachments
+                    </label>
+                    <small style="opacity:.7;display:block;margin-top:.3rem">
+                        Delete group attachments to save disk space (recommended).
+                    </small>
+                </div>
+
+                <div class="form-group" id="group-attachment-retention-group"
+                     style="margin-left:3rem;{% if not settings.chat_group_auto_clear_attachments %}opacity:.5{% endif %}">
+                    <label>Group Attachment Retention (days)</label>
+                    <input type="number" name="chat_group_attachment_retention_days"
+                           value="{{ settings.chat_group_attachment_retention_days if settings.chat_group_attachment_retention_days else 7 }}"
+                           class="input" style="max-width:150px" min="1" max="3650"
+                           {% if not settings.chat_group_auto_clear_attachments or (settings.chat_group_enabled is defined and not settings.chat_group_enabled) %}disabled{% endif %}>
+                    <small style="opacity:.7;display:block;margin-top:.3rem">
+                        Keep group attachments for this many days. Messages remain intact.
+                    </small>
+                </div>
+            </div>
         </div>
-        <div class="form-group">
-            <label>
-                <input type="checkbox" name="chat_auto_clear_attachments" value="1"
-                       {% if settings.chat_auto_clear_attachments %}checked{% endif %}>
-                Auto-clear old attachments
-            </label>
-            <small style="opacity:.7;display:block;margin-top:.3rem">
-                When enabled, attachments older than the retention period will be automatically deleted.
-                This is recommended to save disk space (default: enabled, 7 days).
-            </small>
-        </div>
-        <div class="form-group" id="attachment-retention-group"
-             style="margin-left:1.5rem;{% if not settings.chat_auto_clear_attachments %}opacity:.5{% endif %}">
-            <label>Attachment Retention (days)</label>
-            <input type="number" name="chat_attachment_retention_days"
-                   value="{{ settings.chat_attachment_retention_days if settings.chat_attachment_retention_days else 7 }}"
-                   class="input" style="max-width:150px" min="1" max="365"
-                   {% if not settings.chat_auto_clear_attachments %}disabled{% endif %}>
-            <small style="opacity:.7;display:block;margin-top:.3rem">
-                Keep attachments for this many days before deleting them. Messages remain intact.
+
+        <!-- Legacy Settings Note -->
+        <div style="padding:.8rem;background:rgba(255,200,0,.05);border:1px solid rgba(255,200,0,.2);border-radius:2px">
+            <small style="opacity:.8">
+                <strong>Note:</strong> The legacy "chat_auto_clear_messages", "chat_auto_clear_attachments",
+                "chat_message_retention_days", and "chat_attachment_retention_days" settings are maintained for
+                backwards compatibility. When separate DM/Group settings are not configured, the system falls
+                back to these legacy values.
             </small>
         </div>
     </div>
@@ -263,6 +425,7 @@
 
 // Chat settings auto-clear toggles
 (function() {
+    // Legacy settings (for backwards compatibility)
     var msgCheckbox = document.querySelector('input[name="chat_auto_clear_messages"]');
     var msgInput = document.querySelector('input[name="chat_message_retention_days"]');
     var msgGroup = document.getElementById('message-retention-group');
@@ -282,6 +445,115 @@
         attCheckbox.addEventListener('change', function() {
             attInput.disabled = !this.checked;
             attGroup.style.opacity = this.checked ? '1' : '.5';
+        });
+    }
+
+    // Global attachment settings
+    var attachmentsEnabledCheckbox = document.querySelector('input[name="chat_attachments_enabled"]');
+    var attachmentSettingsGroup = document.getElementById('attachment-settings-group');
+    var maxSizeInput = document.querySelector('input[name="chat_max_attachment_size_mb"]');
+    var attachmentLimitInput = document.querySelector('input[name="chat_attachments_per_day_limit"]');
+
+    if (attachmentsEnabledCheckbox) {
+        attachmentsEnabledCheckbox.addEventListener('change', function() {
+            var enabled = this.checked;
+            if (attachmentSettingsGroup) {
+                attachmentSettingsGroup.style.opacity = enabled ? '1' : '.5';
+            }
+            if (maxSizeInput) maxSizeInput.disabled = !enabled;
+            if (attachmentLimitInput) attachmentLimitInput.disabled = !enabled;
+        });
+    }
+
+    // DM Settings
+    var dmEnabledCheckbox = document.querySelector('input[name="chat_dm_enabled"]');
+    var dmSettingsContainer = document.getElementById('dm-settings-container');
+    var dmAllowCreationCheckbox = document.querySelector('input[name="chat_allow_dm_creation"]');
+    var dmMsgCheckbox = document.querySelector('input[name="chat_dm_auto_clear_messages"]');
+    var dmMsgInput = document.querySelector('input[name="chat_dm_message_retention_days"]');
+    var dmMsgGroup = document.getElementById('dm-message-retention-group');
+    var dmAttCheckbox = document.querySelector('input[name="chat_dm_auto_clear_attachments"]');
+    var dmAttInput = document.querySelector('input[name="chat_dm_attachment_retention_days"]');
+    var dmAttGroup = document.getElementById('dm-attachment-retention-group');
+
+    if (dmEnabledCheckbox) {
+        dmEnabledCheckbox.addEventListener('change', function() {
+            var enabled = this.checked;
+            if (dmSettingsContainer) {
+                dmSettingsContainer.style.opacity = enabled ? '1' : '.5';
+            }
+            if (dmAllowCreationCheckbox) dmAllowCreationCheckbox.disabled = !enabled;
+            if (dmMsgCheckbox) dmMsgCheckbox.disabled = !enabled;
+            if (dmAttCheckbox) dmAttCheckbox.disabled = !enabled;
+            if (!enabled) {
+                if (dmMsgInput) dmMsgInput.disabled = true;
+                if (dmAttInput) dmAttInput.disabled = true;
+            } else {
+                if (dmMsgInput && dmMsgCheckbox) dmMsgInput.disabled = !dmMsgCheckbox.checked;
+                if (dmAttInput && dmAttCheckbox) dmAttInput.disabled = !dmAttCheckbox.checked;
+            }
+        });
+    }
+
+    if (dmMsgCheckbox && dmMsgInput && dmMsgGroup) {
+        dmMsgCheckbox.addEventListener('change', function() {
+            var parentEnabled = !dmEnabledCheckbox || dmEnabledCheckbox.checked;
+            dmMsgInput.disabled = !this.checked || !parentEnabled;
+            dmMsgGroup.style.opacity = this.checked ? '1' : '.5';
+        });
+    }
+
+    if (dmAttCheckbox && dmAttInput && dmAttGroup) {
+        dmAttCheckbox.addEventListener('change', function() {
+            var parentEnabled = !dmEnabledCheckbox || dmEnabledCheckbox.checked;
+            dmAttInput.disabled = !this.checked || !parentEnabled;
+            dmAttGroup.style.opacity = this.checked ? '1' : '.5';
+        });
+    }
+
+    // Group Settings
+    var groupEnabledCheckbox = document.querySelector('input[name="chat_group_enabled"]');
+    var groupSettingsContainer = document.getElementById('group-settings-container');
+    var groupAllowCreationCheckbox = document.querySelector('input[name="chat_allow_group_creation"]');
+    var groupMsgCheckbox = document.querySelector('input[name="chat_group_auto_clear_messages"]');
+    var groupMsgInput = document.querySelector('input[name="chat_group_message_retention_days"]');
+    var groupMsgGroup = document.getElementById('group-message-retention-group');
+    var groupAttCheckbox = document.querySelector('input[name="chat_group_auto_clear_attachments"]');
+    var groupAttInput = document.querySelector('input[name="chat_group_attachment_retention_days"]');
+    var groupAttGroup = document.getElementById('group-attachment-retention-group');
+
+    if (groupEnabledCheckbox) {
+        groupEnabledCheckbox.addEventListener('change', function() {
+            var enabled = this.checked;
+            if (groupSettingsContainer) {
+                groupSettingsContainer.style.opacity = enabled ? '1' : '.5';
+            }
+            if (groupAllowCreationCheckbox) groupAllowCreationCheckbox.disabled = !enabled;
+            if (groupMsgCheckbox) groupMsgCheckbox.disabled = !enabled;
+            if (groupAttCheckbox) groupAttCheckbox.disabled = !enabled;
+            if (!enabled) {
+                if (groupMsgInput) groupMsgInput.disabled = true;
+                if (groupAttInput) groupAttInput.disabled = true;
+            } else {
+                if (groupMsgInput && groupMsgCheckbox) groupMsgInput.disabled = !groupMsgCheckbox.checked;
+                if (groupAttInput && groupAttCheckbox) groupAttInput.disabled = !groupAttCheckbox.checked;
+            }
+        });
+    }
+
+    if (groupMsgCheckbox && groupMsgInput && groupMsgGroup) {
+        groupMsgCheckbox.addEventListener('change', function() {
+            var parentEnabled = !groupEnabledCheckbox || groupEnabledCheckbox.checked;
+            groupMsgInput.disabled = !this.checked || !parentEnabled;
+            groupMsgGroup.style.opacity = this.checked ? '1' : '.5';
+        });
+    }
+
+    if (groupAttCheckbox && groupAttInput && groupAttGroup) {
+        groupAttCheckbox.addEventListener('change', function() {
+            var parentEnabled = !groupEnabledCheckbox || groupEnabledCheckbox.checked;
+            groupAttInput.disabled = !this.checked || !parentEnabled;
+            groupAttGroup.style.opacity = this.checked ? '1' : '.5';
         });
     }
 })();

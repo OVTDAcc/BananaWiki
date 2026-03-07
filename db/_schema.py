@@ -408,6 +408,41 @@ def init_db():
     if "chat_attachment_retention_days" not in ss_cols:
         cur.execute("ALTER TABLE site_settings ADD COLUMN chat_attachment_retention_days INTEGER NOT NULL DEFAULT 7")
 
+    # Add separate DM and Group chat settings
+    if "chat_dm_enabled" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN chat_dm_enabled INTEGER NOT NULL DEFAULT 1")
+    if "chat_dm_auto_clear_messages" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN chat_dm_auto_clear_messages INTEGER NOT NULL DEFAULT 0")
+    if "chat_dm_auto_clear_attachments" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN chat_dm_auto_clear_attachments INTEGER NOT NULL DEFAULT 1")
+    if "chat_dm_message_retention_days" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN chat_dm_message_retention_days INTEGER NOT NULL DEFAULT 0")
+    if "chat_dm_attachment_retention_days" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN chat_dm_attachment_retention_days INTEGER NOT NULL DEFAULT 7")
+
+    if "chat_group_enabled" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN chat_group_enabled INTEGER NOT NULL DEFAULT 1")
+    if "chat_group_auto_clear_messages" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN chat_group_auto_clear_messages INTEGER NOT NULL DEFAULT 0")
+    if "chat_group_auto_clear_attachments" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN chat_group_auto_clear_attachments INTEGER NOT NULL DEFAULT 1")
+    if "chat_group_message_retention_days" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN chat_group_message_retention_days INTEGER NOT NULL DEFAULT 0")
+    if "chat_group_attachment_retention_days" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN chat_group_attachment_retention_days INTEGER NOT NULL DEFAULT 7")
+
+    # Add additional chat customization options
+    if "chat_max_message_length" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN chat_max_message_length INTEGER NOT NULL DEFAULT 5000")
+    if "chat_attachments_enabled" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN chat_attachments_enabled INTEGER NOT NULL DEFAULT 1")
+    if "chat_max_attachment_size_mb" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN chat_max_attachment_size_mb INTEGER NOT NULL DEFAULT 5")
+    if "chat_allow_dm_creation" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN chat_allow_dm_creation INTEGER NOT NULL DEFAULT 1")
+    if "chat_allow_group_creation" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN chat_allow_group_creation INTEGER NOT NULL DEFAULT 1")
+
     # Add unread_count column to chats if missing
     chat_cols = [r[1] for r in cur.execute("PRAGMA table_info(chats)").fetchall()]
     if "unread_count_user1" not in chat_cols:
