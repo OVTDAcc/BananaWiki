@@ -62,6 +62,7 @@ def admin_user():
 def editor_user():
     """Create an editor user."""
     import db
+    db.update_site_settings(setup_done=1)
     uid = db.create_user("editor", generate_password_hash("editor123"), role="editor")
     return uid
 
@@ -443,16 +444,9 @@ def test_edit_page_with_no_reservation(logged_in_editor, test_page):
 
 def test_edit_page_with_own_reservation(logged_in_editor, test_page):
     """Test editing a page user has reserved."""
-    import db
-    from helpers import get_current_user
-
-    # Get editor user id
-    with logged_in_editor.application.app_context():
-        with logged_in_editor.session_transaction() as sess:
-            sess["user_id"] = "editor_test_id"
+    import db as db_mod
 
     # Reserve as the logged in user
-    import db as db_mod
     editor = db_mod.get_user_by_username("editor")
     db_mod.reserve_page(test_page, editor["id"])
 

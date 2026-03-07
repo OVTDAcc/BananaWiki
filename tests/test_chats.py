@@ -286,6 +286,8 @@ def test_attachment_bad_extension(alice_client, bob_uid):
 def test_attachment_daily_limit(alice_client, bob_uid, monkeypatch):
     monkeypatch.setattr(config, "MAX_CHAT_ATTACHMENTS_PER_DAY", 1)
     import db
+    # Also update the DB setting so the route picks up the limit
+    db.update_site_settings(chat_attachments_per_day_limit=1)
     alice = db.get_user_by_username("alice")
     chat = db.get_or_create_chat(alice["id"], bob_uid)
     # First attachment should work
@@ -390,9 +392,18 @@ def test_db_chat_messages_order(alice_uid, bob_uid):
 
 def test_db_cleanup_old_chat_messages(alice_uid, bob_uid):
     import db
+    import sqlite3
     chat = db.get_or_create_chat(alice_uid, bob_uid)
     msg_id = db.send_chat_message(chat["id"], alice_uid, "to be deleted")
     db.add_chat_attachment(msg_id, "stored.txt", "original.txt", 100)
+    # Backdate the message so it falls outside the retention window
+    conn = sqlite3.connect(config.DATABASE_PATH)
+    conn.execute(
+        "UPDATE chat_messages SET created_at = datetime('now', '-31 days') WHERE id = ?",
+        (msg_id,)
+    )
+    conn.commit()
+    conn.close()
     files = db.cleanup_old_chat_messages()
     assert "stored.txt" in files
     assert len(db.get_chat_messages(chat["id"])) == 0

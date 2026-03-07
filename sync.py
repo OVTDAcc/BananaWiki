@@ -472,7 +472,7 @@ def _send_to_telegram(
 
     if excluded_files:
         caption_lines.append(
-            f"\u26a0\ufe0f {len(excluded_files)} file(s) excluded (size limit)"
+            f"\u26a0\ufe0f {len(excluded_files)} file(s) excluded from backup (size limit)"
         )
 
     caption = "\n".join(caption_lines)

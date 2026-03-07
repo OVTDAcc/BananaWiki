@@ -746,9 +746,18 @@ def test_db_group_message_order(alice_uid, bob_uid):
 
 def test_db_cleanup_group_messages(alice_uid):
     import db
+    import sqlite3
     group = db.create_group_chat("Test", alice_uid)
     msg_id = db.send_group_message(group["id"], alice_uid, "to be deleted")
     db.add_group_attachment(msg_id, "stored.txt", "original.txt", 100)
+    # Backdate the message so it falls outside the retention window
+    conn = sqlite3.connect(config.DATABASE_PATH)
+    conn.execute(
+        "UPDATE group_messages SET created_at = datetime('now', '-31 days') WHERE id = ?",
+        (msg_id,)
+    )
+    conn.commit()
+    conn.close()
     files = db.cleanup_old_group_messages()
     assert "stored.txt" in files
     msgs = db.get_group_messages(group["id"])
