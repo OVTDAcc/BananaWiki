@@ -70,7 +70,7 @@ def reserve_page(page_id, user_id):
             (page_id, user_id),
         ).fetchone()
         conn.close()
-        return reservation
+        return dict(reservation) if reservation else None
     except Exception as e:
         try:
             conn.execute("ROLLBACK")
