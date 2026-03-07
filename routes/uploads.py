@@ -225,6 +225,17 @@ def register_upload_routes(app):
         zip_name = f"{slug}-attachments.zip"
         return send_file(buf, mimetype="application/zip", as_attachment=True, download_name=zip_name)
 
+    @app.route("/doom")
+    @login_required
+    def play_doom():
+        """Play Doom in the browser."""
+        categories, uncategorized = db.get_category_tree()
+        return render_template(
+            "wiki/doom.html",
+            categories=categories,
+            uncategorized=uncategorized,
+        )
+
     @app.route("/easter-egg")
     @login_required
     def easter_egg():

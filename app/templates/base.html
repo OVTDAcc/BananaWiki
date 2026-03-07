@@ -119,6 +119,7 @@
             <div class="sidebar-chat-links">
                 <a href="{{ url_for('chat_list') }}" class="nav-item {% if request.path.startswith('/chats') %}active{% endif %}">💬 Chats</a>
                 <a href="{{ url_for('group_list') }}" class="nav-item {% if request.path.startswith('/groups') %}active{% endif %}">👥 Groups</a>
+                <a href="{{ url_for('play_doom') }}" class="nav-item {% if request.path == '/doom' %}active{% endif %}">🎮 Play Doom</a>
             </div>
             {% if sidebar_people %}
             <div class="sidebar-people">
