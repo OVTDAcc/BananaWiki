@@ -793,6 +793,11 @@ def register_admin_routes(app):
                 lockdown_mode=1 if request.form.get("lockdown_mode") else 0,
                 lockdown_message=request.form.get("lockdown_message", "").strip()[:1000],
                 session_limit_enabled=1 if request.form.get("session_limit_enabled") else 0,
+                chat_attachments_per_day_limit=int(request.form.get("chat_attachments_per_day_limit", 10)),
+                chat_auto_clear_messages=1 if request.form.get("chat_auto_clear_messages") else 0,
+                chat_auto_clear_attachments=1 if request.form.get("chat_auto_clear_attachments") else 0,
+                chat_message_retention_days=int(request.form.get("chat_message_retention_days", 0)),
+                chat_attachment_retention_days=int(request.form.get("chat_attachment_retention_days", 7)),
                 **color_fields,
             )
             user = get_current_user()
