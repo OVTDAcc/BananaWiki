@@ -196,10 +196,10 @@ def is_group_member_timed_out(group_id, user_id):
 
 
 def get_user_groups(user_id):
-    """Return all groups a user is a member of, with last message info."""
+    """Return all groups a user is a member of, with last message info and unread count."""
     conn = get_db()
     rows = conn.execute(
-        "SELECT gc.*, gm.role AS my_role, "
+        "SELECT gc.*, gm.role AS my_role, gm.unread_count, "
         "  m.content AS last_message, m.created_at AS last_message_at, "
         "  (SELECT COUNT(*) FROM group_members WHERE group_id=gc.id) AS member_count "
         "FROM group_chats gc "
@@ -438,6 +438,92 @@ def cleanup_old_group_messages(retention_days=30):
     conn.commit()
     conn.close()
     return files_to_delete
+
+
+def cleanup_old_group_attachments(retention_days=7):
+    """Delete only group attachments older than retention_days (keep messages).
+
+    Args:
+        retention_days: Keep attachments newer than this many days
+
+    Returns list of attachment filenames that need to be removed from disk.
+    """
+    conn = get_db()
+    # Collect attachment filenames that will be deleted
+    filenames = conn.execute(
+        """SELECT filename FROM group_attachments
+           WHERE datetime(created_at) < datetime('now', '-' || ? || ' days')""",
+        (retention_days,)
+    ).fetchall()
+    files_to_delete = [r["filename"] for r in filenames]
+    # Delete attachments older than retention period
+    conn.execute(
+        """DELETE FROM group_attachments
+           WHERE datetime(created_at) < datetime('now', '-' || ? || ' days')""",
+        (retention_days,)
+    )
+    conn.commit()
+    conn.close()
+    return files_to_delete
+
+
+def clear_group_messages(group_id):
+    """Delete all messages and attachments in a specific group.
+
+    Returns list of attachment filenames that need to be removed from disk.
+    """
+    conn = get_db()
+    # Collect attachment filenames for messages that will be deleted
+    filenames = conn.execute(
+        """SELECT ga.filename FROM group_attachments ga
+           JOIN group_messages gm ON ga.message_id = gm.id
+           WHERE gm.group_id = ?""",
+        (group_id,)
+    ).fetchall()
+    files_to_delete = [r["filename"] for r in filenames]
+    # Delete all messages in this group (attachments cascade)
+    conn.execute("DELETE FROM group_messages WHERE group_id = ?", (group_id,))
+    # Reset unread counts for all members
+    conn.execute(
+        "UPDATE group_members SET unread_count = 0 WHERE group_id = ?",
+        (group_id,)
+    )
+    conn.commit()
+    conn.close()
+    return files_to_delete
+
+
+def increment_group_unread_count(group_id, for_user_id):
+    """Increment the unread count for a specific user in a group."""
+    conn = get_db()
+    conn.execute(
+        "UPDATE group_members SET unread_count = unread_count + 1 WHERE group_id = ? AND user_id = ?",
+        (group_id, for_user_id)
+    )
+    conn.commit()
+    conn.close()
+
+
+def reset_group_unread_count(group_id, for_user_id):
+    """Reset the unread count for a specific user in a group."""
+    conn = get_db()
+    conn.execute(
+        "UPDATE group_members SET unread_count = 0 WHERE group_id = ? AND user_id = ?",
+        (group_id, for_user_id)
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_total_unread_group_count(user_id):
+    """Get the total number of unread group messages for a user."""
+    conn = get_db()
+    count = conn.execute(
+        "SELECT COALESCE(SUM(unread_count), 0) AS total FROM group_members WHERE user_id = ?",
+        (user_id,)
+    ).fetchone()
+    conn.close()
+    return count["total"] if count else 0
 
 
 def get_user_group_attachment_count_today(user_id):

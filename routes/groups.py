@@ -37,8 +37,10 @@ def register_group_routes(app):
         """List all group chats the current user belongs to."""
         user = get_current_user()
         groups = db.get_user_groups(user["id"])
+        total_unread_group = db.get_total_unread_group_count(user["id"])
         categories, uncategorized = db.get_category_tree()
         return render_template("groups/list.html", groups=groups,
+                               total_unread_group=total_unread_group,
                                categories=categories, uncategorized=uncategorized)
 
     @app.route("/groups/new", methods=["GET", "POST"])
@@ -121,6 +123,8 @@ def register_group_routes(app):
         if not db.is_group_member(group_id, user["id"]):
             flash("You are not currently a member of this group.", "error")
             return redirect(url_for("group_list"))
+        # Reset unread count when viewing the group
+        db.reset_group_unread_count(group_id, user["id"])
         messages = db.get_group_messages(group_id)
         members = db.get_group_members(group_id)
         banned_members = db.get_group_banned_members(group_id)
@@ -166,13 +170,22 @@ def register_group_routes(app):
         ip_address = request.remote_addr or "unknown"
         msg_id = db.send_group_message(group_id, user["id"], content, ip_address)
 
+        # Increment unread count for all other members
+        members = db.get_group_members(group_id)
+        for member in members:
+            if member["user_id"] != user["id"]:
+                db.increment_group_unread_count(group_id, member["user_id"])
+
         # Handle file attachment if present
         if "attachment" in request.files:
             f = request.files["attachment"]
             if f.filename:
+                # Check daily limit (use site settings if available, fall back to config)
+                settings = db.get_site_settings()
+                max_attachments = settings.get("chat_attachments_per_day_limit", config.MAX_CHAT_ATTACHMENTS_PER_DAY) if settings else config.MAX_CHAT_ATTACHMENTS_PER_DAY
                 att_count = db.get_user_group_attachment_count_today(user["id"])
-                if att_count >= config.MAX_CHAT_ATTACHMENTS_PER_DAY:
-                    flash("Daily attachment limit reached.", "error")
+                if att_count >= max_attachments:
+                    flash(f"Daily attachment limit of {max_attachments} files reached.", "error")
                     return redirect(url_for("group_view", group_id=group_id))
                 if not _chat_allowed_file(f.filename):
                     flash("File type not allowed.", "error")
@@ -675,12 +688,14 @@ def register_group_routes(app):
         if not group:
             abort(404)
 
-        # Check permissions: member, owner, or site admin
+        # Check permissions: owner, moderator, or site admin only
         my_role = db.get_group_member_role(group_id, user["id"])
         is_site_admin = user["role"] in ("admin", "protected_admin")
-        if not my_role and not is_site_admin:
-            flash("You must be a member of this group to export its data.", "error")
-            return redirect(url_for("group_list"))
+
+        # Only owners, moderators, and site admins can export
+        if not is_site_admin and my_role not in ("owner", "moderator"):
+            flash("Only group owners and moderators can export chat data.", "error")
+            return redirect(url_for("group_view", group_id=group_id))
 
         # Get messages and group info
         messages, group_info = db.get_group_messages_for_export(group_id)
@@ -808,6 +823,42 @@ def register_group_routes(app):
                 as_attachment=True,
                 download_name=filename,
             )
+
+    @app.route("/groups/<int:group_id>/clear", methods=["POST"])
+    @login_required
+    @rate_limit(5, 60)
+    def group_clear(group_id):
+        """Clear all messages in a group chat. Only owners can clear."""
+        user = get_current_user()
+        group = db.get_group_chat(group_id)
+        if not group:
+            abort(404)
+
+        # Check permissions: owner or site admin only
+        my_role = db.get_group_member_role(group_id, user["id"])
+        is_site_admin = user["role"] in ("admin", "protected_admin")
+
+        if my_role != "owner" and not is_site_admin:
+            flash("Only the group owner can clear the chat.", "error")
+            return redirect(url_for("group_view", group_id=group_id))
+
+        # Delete all messages and attachments
+        files_to_delete = db.clear_group_messages(group_id)
+        att_dir = config.CHAT_ATTACHMENT_FOLDER
+        for fname in files_to_delete:
+            try:
+                fpath = os.path.join(att_dir, fname)
+                if os.path.isfile(fpath):
+                    os.remove(fpath)
+            except OSError:
+                pass
+
+        # Send system message
+        db.send_group_system_message(group_id, f"Chat cleared by {user['username']}")
+        notify_change("group_clear", f"Group '{group['name']}' chat cleared by {user['username']}")
+        flash("Group chat has been cleared successfully.", "success")
+        log_action("group_clear", request, user=user, group_id=group_id)
+        return redirect(url_for("group_view", group_id=group_id))
 
     @app.route("/groups/<int:group_id>/delete", methods=["POST"])
     @login_required

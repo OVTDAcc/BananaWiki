@@ -544,6 +544,11 @@ select.input{appearance:auto}
 .chat-list-name{font-weight:600;margin-bottom:.25rem}
 .chat-list-preview{font-size:.9rem;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .chat-list-time{font-size:.8rem;opacity:.55;margin-top:.25rem}
+/* Unread message badge */
+.unread-badge{display:inline-block;background:#dc2626;color:#fff;font-size:.75rem;font-weight:700;padding:.15rem .5rem;border-radius:12px;min-width:20px;text-align:center;margin-left:.5rem;line-height:1.4;box-shadow:0 2px 8px rgba(220,38,38,.4)}
+.unread-badge:hover{text-decoration:none}
+h1 .unread-badge{font-size:.9rem;padding:.2rem .6rem;vertical-align:middle}
+@media(max-width:768px){h1 .unread-badge{font-size:.75rem;padding:.15rem .5rem}}
 .chat-header{display:flex;align-items:center;gap:1rem;margin-bottom:1rem}
 .chat-header h1{margin:0}
 .chat-messages{display:flex;flex-direction:column;gap:.75rem;max-height:60vh;overflow-y:auto;padding:1rem;background:var(--secondary);border-radius:8px;margin-bottom:1rem}
