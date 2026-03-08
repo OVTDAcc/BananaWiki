@@ -184,7 +184,7 @@ def test_send_too_long_message(alice_client, bob_uid):
     resp = alice_client.post(f"/chats/{chat['id']}/send",
                              data={"content": "x" * 5001},
                              follow_redirects=True)
-    assert b"Message too long" in resp.data
+    assert b"cannot exceed" in resp.data
 
 
 def test_non_participant_cannot_send(alice_client, bob_uid, admin_uid):
@@ -283,10 +283,9 @@ def test_attachment_bad_extension(alice_client, bob_uid):
     assert b"File type not allowed" in resp.data
 
 
-def test_attachment_daily_limit(alice_client, bob_uid, monkeypatch):
-    monkeypatch.setattr(config, "MAX_CHAT_ATTACHMENTS_PER_DAY", 1)
+def test_attachment_daily_limit(alice_client, bob_uid):
     import db
-    # Also update the DB setting so the route picks up the limit
+    # Set the DB setting to enforce a limit of 1 attachment per day
     db.update_site_settings(chat_attachments_per_day_limit=1)
     alice = db.get_user_by_username("alice")
     chat = db.get_or_create_chat(alice["id"], bob_uid)
@@ -419,20 +418,22 @@ def test_db_get_all_messages_for_backup(alice_uid, bob_uid):
     assert msgs[0]["receiver_name"] == "bob"
 
 
-def test_attachment_oversized_file(alice_client, bob_uid, monkeypatch):
-    monkeypatch.setattr(config, "MAX_CHAT_ATTACHMENT_SIZE", 10)  # 10 bytes
+def test_attachment_oversized_file(alice_client, bob_uid):
     import db
+    # Set a 1 MB limit via site settings, then send a 2 MB file
+    db.update_site_settings(chat_max_attachment_size_mb=1)
     alice = db.get_user_by_username("alice")
     chat = db.get_or_create_chat(alice["id"], bob_uid)
     data = {
         "content": "Big file",
-        "attachment": (io.BytesIO(b"x" * 100), "big.txt"),
+        "attachment": (io.BytesIO(b"x" * (2 * 1024 * 1024)), "big.txt"),
     }
     resp = alice_client.post(f"/chats/{chat['id']}/send",
                              data=data,
                              content_type="multipart/form-data",
                              follow_redirects=True)
-    assert b"File exceeds the 5 MB limit" in resp.data
+    assert b"File exceeds the" in resp.data
+    assert b"MB limit" in resp.data
     # The text message should still exist (sent before attachment)
     msgs = db.get_chat_messages(chat["id"])
     assert len(msgs) == 1

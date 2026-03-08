@@ -273,7 +273,7 @@ def test_send_too_long_group_message(alice_client, alice_uid):
     resp = alice_client.post(f"/groups/{group['id']}/send",
                              data={"content": "x" * 5001},
                              follow_redirects=True)
-    assert b"Message too long" in resp.data
+    assert b"cannot exceed" in resp.data
 
 
 def test_non_member_cannot_send(alice_client, bob_uid):

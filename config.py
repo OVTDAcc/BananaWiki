@@ -90,19 +90,14 @@ ATTACHMENT_ALLOWED_EXTENSIONS = {
 # =============================================================================
 # Stored outside the static folder (authenticated download route).
 CHAT_ATTACHMENT_FOLDER = os.path.join(BASE_DIR, "instance", "chat_attachments")
-MAX_CHAT_ATTACHMENT_SIZE = 5 * 1024 * 1024   # 5 MB per file
-MAX_CHAT_ATTACHMENTS_PER_DAY = 10            # resets when messages are cleaned up
 CHAT_ALLOWED_EXTENSIONS = {
     "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx",
     "txt", "md", "csv", "json", "xml", "zip", "tar", "gz",
     "png", "jpg", "jpeg", "gif", "webp",
 }
 
-# Chat message cleanup configuration
-CHAT_CLEANUP_ENABLED = True  # Master switch for automatic chat message cleanup
-CHAT_CLEANUP_FREQUENCY_DAYS = 7  # Delete messages every 7 days (weekly)
-CHAT_CLEANUP_HOUR = 3  # Hour of day (0-23) when cleanup runs (default: 3 AM)
-CHAT_CLEANUP_RETENTION_DAYS = 30  # Keep messages for this many days before deleting
+# Note: chat attachment size limits, daily attachment quotas, and cleanup schedule
+# are now fully managed via Admin → Settings in the web interface.
 
 # =============================================================================
 # Logging

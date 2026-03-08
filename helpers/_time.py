@@ -4,7 +4,6 @@ from datetime import datetime, timedelta, timezone
 
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-import config
 import db
 
 
@@ -89,6 +88,10 @@ def get_next_chat_cleanup_time():
         now = datetime.now(site_tz)
         settings = db.get_site_settings()
 
+        # Get cleanup schedule from DB settings with sensible defaults
+        cleanup_frequency = (settings["chat_cleanup_frequency_days"] if settings and settings["chat_cleanup_frequency_days"] else 7)
+        cleanup_hour = (settings["chat_cleanup_hour"] if settings and settings["chat_cleanup_hour"] is not None else 3)
+
         # Get last cleanup time
         last_cleanup = None
         if settings:
@@ -104,17 +107,17 @@ def get_next_chat_cleanup_time():
 
         # If no last cleanup recorded, next cleanup is at configured hour today/tomorrow
         if not last_cleanup:
-            target = now.replace(hour=config.CHAT_CLEANUP_HOUR, minute=0, second=0, microsecond=0)
+            target = now.replace(hour=cleanup_hour, minute=0, second=0, microsecond=0)
             if target <= now:
                 target += timedelta(days=1)
         else:
             # Schedule for configured frequency after last cleanup
-            target = last_cleanup.replace(hour=config.CHAT_CLEANUP_HOUR, minute=0, second=0, microsecond=0)
-            target += timedelta(days=config.CHAT_CLEANUP_FREQUENCY_DAYS)
+            target = last_cleanup.replace(hour=cleanup_hour, minute=0, second=0, microsecond=0)
+            target += timedelta(days=cleanup_frequency)
 
             # If target is in the past, schedule for the next interval
             while target <= now:
-                target += timedelta(days=config.CHAT_CLEANUP_FREQUENCY_DAYS)
+                target += timedelta(days=cleanup_frequency)
 
         # Convert to UTC for storage
         return target.astimezone(timezone.utc).isoformat()

@@ -443,6 +443,14 @@ def init_db():
     if "chat_allow_group_creation" not in ss_cols:
         cur.execute("ALTER TABLE site_settings ADD COLUMN chat_allow_group_creation INTEGER NOT NULL DEFAULT 1")
 
+    # Add chat cleanup schedule settings (moved from config.py to allow admin configuration)
+    if "chat_cleanup_enabled" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN chat_cleanup_enabled INTEGER NOT NULL DEFAULT 1")
+    if "chat_cleanup_frequency_days" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN chat_cleanup_frequency_days INTEGER NOT NULL DEFAULT 7")
+    if "chat_cleanup_hour" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN chat_cleanup_hour INTEGER NOT NULL DEFAULT 3")
+
     # Add unread_count column to chats if missing
     chat_cols = [r[1] for r in cur.execute("PRAGMA table_info(chats)").fetchall()]
     if "unread_count_user1" not in chat_cols:
