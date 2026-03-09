@@ -414,6 +414,116 @@
 
     </div>
 
+    <div class="settings-section">
+        <h3>OAuth Login (GitHub &amp; Google)</h3>
+        <p style="opacity:.8;margin-bottom:.8rem">
+            Allow users to sign in with their GitHub or Google accounts. Each provider requires
+            a Client ID and Client Secret from that provider's developer console.
+        </p>
+
+        <!-- OAuth signup global options -->
+        <div class="form-group">
+            <label>
+                <input type="checkbox" name="oauth_signup_enabled" value="1"{% if settings.oauth_signup_enabled %} checked{% endif %}>
+                Allow new users to sign up via OAuth
+            </label>
+            <small style="opacity:.7;display:block;margin-top:.3rem">
+                When disabled, only existing accounts can use OAuth to log in (useful for linking only).
+            </small>
+        </div>
+        <div class="form-group" style="max-width:200px">
+            <label>Default role for new OAuth users</label>
+            <select name="oauth_default_role" class="input">
+                <option value="user"{% if settings.oauth_default_role == 'user' %} selected{% endif %}>User (read-only)</option>
+                <option value="editor"{% if settings.oauth_default_role == 'editor' %} selected{% endif %}>Editor</option>
+            </select>
+            <small style="opacity:.7;display:block;margin-top:.3rem">
+                Role assigned to accounts created through OAuth sign-up.
+            </small>
+        </div>
+
+        <!-- GitHub -->
+        <div class="settings-sub-section" style="border:1px solid rgba(255,255,255,.1);border-radius:4px;padding:1rem;margin-top:1rem">
+            <h4 style="margin-top:0;margin-bottom:.8rem;font-size:1rem">GitHub OAuth</h4>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" name="github_oauth_enabled" value="1"
+                           id="github-enabled"{% if settings.github_oauth_enabled %} checked{% endif %}
+                           onchange="document.getElementById('github-fields').style.opacity=this.checked?'1':'.4'">
+                    Enable GitHub login
+                </label>
+            </div>
+            <div id="github-fields" style="opacity:{% if settings.github_oauth_enabled %}1{% else %}.4{% endif %}">
+                <div class="form-group">
+                    <label>GitHub Client ID</label>
+                    <input type="text" name="github_client_id" class="input" style="max-width:400px"
+                           value="{{ settings.github_client_id or '' }}"
+                           placeholder="Ov23li…">
+                </div>
+                <div class="form-group">
+                    <label>GitHub Client Secret</label>
+                    <input type="password" name="github_client_secret" class="input" style="max-width:400px"
+                           value="{{ settings.github_client_secret or '' }}"
+                           autocomplete="new-password"
+                           placeholder="••••••••">
+                    <small style="opacity:.7;display:block;margin-top:.3rem">
+                        Set the callback URL in your GitHub app to:
+                        <code>{{ request.host_url.rstrip('/') }}/auth/github/callback</code>
+                    </small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Google -->
+        <div class="settings-sub-section" style="border:1px solid rgba(255,255,255,.1);border-radius:4px;padding:1rem;margin-top:1rem">
+            <h4 style="margin-top:0;margin-bottom:.8rem;font-size:1rem">Google OAuth</h4>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" name="google_oauth_enabled" value="1"
+                           id="google-enabled"{% if settings.google_oauth_enabled %} checked{% endif %}
+                           onchange="document.getElementById('google-fields').style.opacity=this.checked?'1':'.4'">
+                    Enable Google login
+                </label>
+            </div>
+            <div id="google-fields" style="opacity:{% if settings.google_oauth_enabled %}1{% else %}.4{% endif %}">
+                <div class="form-group">
+                    <label>Google Client ID</label>
+                    <input type="text" name="google_client_id" class="input" style="max-width:400px"
+                           value="{{ settings.google_client_id or '' }}"
+                           placeholder="123456789-abc….apps.googleusercontent.com">
+                </div>
+                <div class="form-group">
+                    <label>Google Client Secret</label>
+                    <input type="password" name="google_client_secret" class="input" style="max-width:400px"
+                           value="{{ settings.google_client_secret or '' }}"
+                           autocomplete="new-password"
+                           placeholder="••••••••">
+                    <small style="opacity:.7;display:block;margin-top:.3rem">
+                        Set the callback URL in your Google Cloud Console to:
+                        <code>{{ request.host_url.rstrip('/') }}/auth/google/callback</code>
+                    </small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Warning: users with OAuth-only accounts if provider is being disabled -->
+        {% set github_users_count = oauth_github_count %}
+        {% set google_users_count = oauth_google_count %}
+        {% if github_users_count > 0 or google_users_count > 0 %}
+        <div class="flash flash-info" style="margin-top:1rem">
+            <strong>Note:</strong>
+            {% if github_users_count > 0 %}
+            {{ github_users_count }} user{{ 's' if github_users_count != 1 else '' }} signed up via GitHub.
+            {% endif %}
+            {% if google_users_count > 0 %}
+            {{ google_users_count }} user{{ 's' if google_users_count != 1 else '' }} signed up via Google.
+            {% endif %}
+            If you disable a provider, those users will need a password set before they can log in.
+            <a href="{{ url_for('admin_users') }}">Manage OAuth users →</a>
+        </div>
+        {% endif %}
+    </div>
+
     <button type="submit" class="btn">Save Settings</button>
 </form>
 

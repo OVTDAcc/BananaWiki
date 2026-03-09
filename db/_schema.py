@@ -558,6 +558,32 @@ Feel free to edit or delete this page as needed!
         # Mark as initialized whether the page was created or already existed
         cur.execute("UPDATE site_settings SET about_page_initialized=1 WHERE id=1")
 
+    # ---- OAuth provider columns on users ----
+    user_cols = [r[1] for r in cur.execute("PRAGMA table_info(users)").fetchall()]
+    if "oauth_provider" not in user_cols:
+        cur.execute("ALTER TABLE users ADD COLUMN oauth_provider TEXT")
+    if "oauth_id" not in user_cols:
+        cur.execute("ALTER TABLE users ADD COLUMN oauth_id TEXT")
+
+    # ---- OAuth settings on site_settings ----
+    ss_cols = [r[1] for r in cur.execute("PRAGMA table_info(site_settings)").fetchall()]
+    if "github_oauth_enabled" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN github_oauth_enabled INTEGER NOT NULL DEFAULT 0")
+    if "github_client_id" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN github_client_id TEXT NOT NULL DEFAULT ''")
+    if "github_client_secret" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN github_client_secret TEXT NOT NULL DEFAULT ''")
+    if "google_oauth_enabled" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN google_oauth_enabled INTEGER NOT NULL DEFAULT 0")
+    if "google_client_id" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN google_client_id TEXT NOT NULL DEFAULT ''")
+    if "google_client_secret" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN google_client_secret TEXT NOT NULL DEFAULT ''")
+    if "oauth_signup_enabled" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN oauth_signup_enabled INTEGER NOT NULL DEFAULT 1")
+    if "oauth_default_role" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN oauth_default_role TEXT NOT NULL DEFAULT 'user'")
+
     conn.commit()
     conn.close()
 

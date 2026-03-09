@@ -253,6 +253,14 @@ select.input{appearance:auto}
 .auth-box .form-group{margin-bottom:1rem}
 .auth-box .btn{width:100%;text-align:center;padding:.5rem;font-size:.95rem}
 .auth-link{text-align:center;margin-top:1rem;font-size:.85rem;opacity:.6}
+.oauth-divider{text-align:center;margin:1rem 0;position:relative;font-size:.8rem;opacity:.5}
+.oauth-divider::before,.oauth-divider::after{content:'';position:absolute;top:50%;width:40%;height:1px;background:rgba(255,255,255,.15)}
+.oauth-divider::before{left:0}.oauth-divider::after{right:0}
+.oauth-buttons{display:flex;gap:.5rem;flex-wrap:wrap}
+.btn-oauth{flex:1;min-width:120px;text-align:center;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.05);padding:.5rem;font-size:.88rem;border-radius:3px;display:flex;align-items:center;justify-content:center;text-decoration:none;color:var(--text);transition:background .15s}
+.btn-oauth:hover{background:rgba(255,255,255,.1);text-decoration:none}
+.btn-github{border-color:rgba(200,220,255,.2)}
+.btn-google{border-color:rgba(200,220,255,.2)}
 
 /* Settings sections */
 .settings-section{margin-bottom:1.5rem;padding:1rem;background:var(--secondary);border:1px solid rgba(255,255,255,.06);border-radius:6px}

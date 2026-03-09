@@ -457,6 +457,38 @@ def register_admin_routes(app):
                     notify_file_deleted(admin_del_profile["avatar_filename"])
                 flash("User deleted.", "success")
 
+        elif action == "set_oauth_password":
+            # Admin sets a password for an OAuth-only user so they can use password login
+            if target["role"] == "protected_admin" and user_id != current_user["id"]:
+                flash("Protected admin accounts can only be edited by their owner.", "error")
+                return redirect(url_for("admin_users"))
+            new_pw = request.form.get("password", "")
+            confirm_pw = request.form.get("confirm_password", "")
+            if len(new_pw) < 6:
+                flash("Password must contain at least 6 characters for security.", "error")
+            elif new_pw != confirm_pw:
+                flash("Passwords do not match.", "error")
+            else:
+                db.update_user(user_id, password=generate_password_hash(new_pw))
+                log_action("admin_set_oauth_password", request, user=current_user,
+                           target_user=target["username"])
+                notify_change("admin_set_oauth_password",
+                              f"Password set for OAuth user '{target['username']}'")
+                flash("Password has been successfully set. The user can now log in with a password.", "success")
+
+        elif action == "unlink_oauth":
+            # Remove OAuth linkage from a user (they must have a real password first)
+            if not target["oauth_provider"]:
+                flash("This user has no linked OAuth provider.", "error")
+            else:
+                db.update_user(user_id, oauth_provider=None, oauth_id=None)
+                log_action("admin_unlink_oauth", request, user=current_user,
+                           target_user=target["username"],
+                           provider=target["oauth_provider"])
+                notify_change("admin_unlink_oauth",
+                              f"OAuth provider unlinked for user '{target['username']}'")
+                flash("OAuth provider has been successfully unlinked from this account.", "success")
+
         return redirect(url_for("admin_users"))
 
     # -------------------------------------------------------------------
@@ -816,6 +848,15 @@ def register_admin_routes(app):
                 chat_cleanup_enabled=1 if request.form.get("chat_cleanup_enabled") else 0,
                 chat_cleanup_frequency_days=max(1, min(365, int(request.form.get("chat_cleanup_frequency_days", 7) or 7))),
                 chat_cleanup_hour=max(0, min(23, int(request.form.get("chat_cleanup_hour", 3) or 3))),
+                # OAuth provider settings
+                github_oauth_enabled=1 if request.form.get("github_oauth_enabled") else 0,
+                github_client_id=request.form.get("github_client_id", "").strip()[:500],
+                github_client_secret=request.form.get("github_client_secret", "").strip()[:500],
+                google_oauth_enabled=1 if request.form.get("google_oauth_enabled") else 0,
+                google_client_id=request.form.get("google_client_id", "").strip()[:500],
+                google_client_secret=request.form.get("google_client_secret", "").strip()[:500],
+                oauth_signup_enabled=1 if request.form.get("oauth_signup_enabled") else 0,
+                oauth_default_role=request.form.get("oauth_default_role", "user") if request.form.get("oauth_default_role", "user") in ("user", "editor") else "user",
                 **color_fields,
             )
             user = get_current_user()
@@ -826,10 +867,16 @@ def register_admin_routes(app):
 
         settings = db.get_site_settings()
         categories, uncategorized = db.get_category_tree()
+        # Count users by OAuth provider for the warning notice
+        oauth_users = db.list_oauth_users()
+        oauth_github_count = sum(1 for u in oauth_users if u["oauth_provider"] == "github")
+        oauth_google_count = sum(1 for u in oauth_users if u["oauth_provider"] == "google")
         return render_template("admin/settings.html", settings=settings,
                                timezones=sorted(available_timezones()),
                                favicon_types=sorted(_VALID_FAVICON_TYPES - {"custom"}),
-                               categories=categories, uncategorized=uncategorized)
+                               categories=categories, uncategorized=uncategorized,
+                               oauth_github_count=oauth_github_count,
+                               oauth_google_count=oauth_google_count)
 
     # -------------------------------------------------------------------
     #  Admin – User audit

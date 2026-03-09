@@ -88,7 +88,8 @@ def get_user_by_username(username):
     return user
 
 
-_ALLOWED_USER_COLUMNS = {"username", "password", "role", "suspended", "last_login_at", "session_token"}
+_ALLOWED_USER_COLUMNS = {"username", "password", "role", "suspended", "last_login_at", "session_token",
+                         "oauth_provider", "oauth_id"}
 
 
 def update_user(user_id, **kwargs):
@@ -159,6 +160,55 @@ def set_easter_egg_found(user_id):
     )
     conn.commit()
     conn.close()
+
+
+def get_user_by_oauth(provider, oauth_id):
+    """Return the user row for the given OAuth *provider* and *oauth_id*, or None."""
+    conn = get_db()
+    user = conn.execute(
+        "SELECT * FROM users WHERE oauth_provider=? AND oauth_id=?",
+        (provider, str(oauth_id)),
+    ).fetchone()
+    conn.close()
+    return user
+
+
+def create_oauth_user(username, oauth_provider, oauth_id, role="user"):
+    """Create a new user via OAuth login (no usable password) and return its ID.
+
+    The password column is filled with a hash of a random secret so that
+    no plain-text password can ever match it, preventing password-based login
+    until an admin explicitly sets one.
+    """
+    import secrets as _secrets
+    from werkzeug.security import generate_password_hash as _gph
+    # Random 32-byte hex – discarded immediately, never stored in plaintext
+    sentinel_hash = _gph(_secrets.token_hex(32))
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        uid = _gen_user_id()
+        while conn.execute("SELECT 1 FROM users WHERE id=?", (uid,)).fetchone():
+            uid = _gen_user_id()
+        cur.execute(
+            "INSERT INTO users (id, username, password, role, oauth_provider, oauth_id)"
+            " VALUES (?, ?, ?, ?, ?, ?)",
+            (uid, username, sentinel_hash, role, oauth_provider, str(oauth_id)),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return uid
+
+
+def list_oauth_users():
+    """Return all users that signed up via an OAuth provider (non-NULL oauth_provider)."""
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT * FROM users WHERE oauth_provider IS NOT NULL ORDER BY created_at"
+    ).fetchall()
+    conn.close()
+    return rows
 
 
 # ---------------------------------------------------------------------------

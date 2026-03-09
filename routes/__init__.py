@@ -14,11 +14,13 @@ from routes.groups import register_group_routes
 from routes.api import register_api_routes
 from routes.uploads import register_upload_routes
 from routes.errors import register_error_handlers
+from routes.oauth import register_oauth_routes
 
 
 def register_all_routes(app):
     """Register all route groups and error handlers on *app*."""
     register_auth_routes(app)
+    register_oauth_routes(app)
     register_wiki_routes(app)
     register_user_routes(app)
     register_admin_routes(app)

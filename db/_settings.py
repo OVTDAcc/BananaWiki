@@ -37,6 +37,10 @@ _ALLOWED_SETTINGS_COLUMNS = {
     "chat_group_message_retention_days", "chat_group_attachment_retention_days",
     # Chat cleanup schedule settings
     "chat_cleanup_enabled", "chat_cleanup_frequency_days", "chat_cleanup_hour",
+    # OAuth provider settings
+    "github_oauth_enabled", "github_client_id", "github_client_secret",
+    "google_oauth_enabled", "google_client_id", "google_client_secret",
+    "oauth_signup_enabled", "oauth_default_role",
 }
 
 

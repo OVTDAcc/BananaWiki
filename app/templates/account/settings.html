@@ -211,6 +211,34 @@
     </form>
 </div>
 {% endif %}
+
+{% if settings.github_oauth_enabled or settings.google_oauth_enabled %}
+<div class="settings-section">
+    <h3>Linked Accounts</h3>
+    <p style="font-size:.85rem;opacity:.7;margin-bottom:.8rem">
+        Connect an OAuth provider to allow signing in without a password.
+    </p>
+    {% if user.oauth_provider %}
+    <p>
+        <strong>Linked provider:</strong>
+        <span style="text-transform:capitalize">{{ user.oauth_provider }}</span>
+    </p>
+    <form method="POST" data-confirm="Unlink your {{ user.oauth_provider | capitalize }} account? Make sure you have a password set before doing this.">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="unlink_oauth">
+        <button class="btn btn-outline">Unlink {{ user.oauth_provider | capitalize }}</button>
+    </form>
+    {% else %}
+    <p style="font-size:.85rem;opacity:.7;margin-bottom:.8rem">No OAuth provider linked to your account.</p>
+    {% if settings.github_oauth_enabled %}
+    <a href="{{ url_for('oauth_github_begin') }}" class="btn btn-outline" style="margin-right:.5rem">Link GitHub account</a>
+    {% endif %}
+    {% if settings.google_oauth_enabled %}
+    <a href="{{ url_for('oauth_google_begin') }}" class="btn btn-outline">Link Google account</a>
+    {% endif %}
+    {% endif %}
+</div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}

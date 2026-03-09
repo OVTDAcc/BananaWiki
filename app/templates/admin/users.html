@@ -73,6 +73,7 @@
             <td style="font-size:.82rem">{% if u.last_login_at %}<span title="{{ format_datetime(u.last_login_at) }}">{{ time_ago(u.last_login_at) }}</span>{% else %}Never{% endif %}</td>
             <td>{{ time_ago(u.created_at) }}</td>
             <td>
+                {% if u.oauth_provider %}<span class="badge" style="background:rgba(100,160,255,.15);border:1px solid rgba(100,160,255,.3);font-size:.72rem;padding:.1rem .35rem" title="Signed up via {{ u.oauth_provider | capitalize }}">{{ u.oauth_provider | capitalize }}</span> {% endif %}
                 <button class="btn btn-sm btn-outline" onclick="document.getElementById('editUser{{ u.id }}').style.display=document.getElementById('editUser{{ u.id }}').style.display==='none'?'table-row':'none'">Edit</button>
                 <a href="{{ url_for('admin_user_audit', user_id=u.id) }}" class="btn btn-sm btn-outline" title="View audit trail">📋</a>
                 <a href="{{ url_for('admin_export_user_data', user_id=u.id) }}" class="btn btn-sm btn-outline" title="Export user data">⬇</a>
@@ -98,14 +99,22 @@
                         <input type="text" name="username" value="{{ u.username }}" class="input input-sm" style="width:120px">
                         <button class="btn btn-sm">Rename</button>
                     </form>
-                    <!-- Change password -->
+                    <!-- Change password / set OAuth password -->
                     <form method="POST" action="{{ url_for('admin_edit_user', user_id=u.id) }}" class="inline-form">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <input type="hidden" name="action" value="change_password">
+                        <input type="hidden" name="action" value="{% if u.oauth_provider and not u.password %}set_oauth_password{% else %}change_password{% endif %}">
                         <input type="password" name="password" placeholder="New password" class="input input-sm" style="width:120px" autocomplete="new-password">
                         <input type="password" name="confirm_password" placeholder="Confirm" class="input input-sm" style="width:120px" autocomplete="new-password">
-                        <button class="btn btn-sm">Set PW</button>
+                        <button class="btn btn-sm">{% if u.oauth_provider %}Set PW{% else %}Set PW{% endif %}</button>
                     </form>
+                    <!-- Unlink OAuth provider -->
+                    {% if u.oauth_provider %}
+                    <form method="POST" action="{{ url_for('admin_edit_user', user_id=u.id) }}" data-confirm="Unlink {{ u.oauth_provider | capitalize }} from this user? They will need a password to log in.">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="action" value="unlink_oauth">
+                        <button class="btn btn-sm btn-outline" title="Remove {{ u.oauth_provider | capitalize }} login link">Unlink {{ u.oauth_provider | capitalize }}</button>
+                    </form>
+                    {% endif %}
                     <!-- Change role -->
                     {% if u.role != 'protected_admin' %}
                     <form method="POST" action="{{ url_for('admin_edit_user', user_id=u.id) }}" class="inline-form">

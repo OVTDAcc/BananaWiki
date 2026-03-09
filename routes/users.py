@@ -289,6 +289,16 @@ def register_user_routes(app):
             flash("Your profile page has been deleted.", "success")
             return redirect(_profile_next(url_for("account_settings")))
 
+        if action == "unlink_oauth":
+            if not user["oauth_provider"]:
+                flash("No OAuth provider is linked to your account.", "error")
+            else:
+                provider = user["oauth_provider"]
+                db.update_user(user["id"], oauth_provider=None, oauth_id=None)
+                log_action("unlink_oauth", request, user=user, provider=provider)
+                flash(f"Your {provider.capitalize()} account has been successfully unlinked.", "success")
+            return redirect(url_for("account_settings"))
+
         categories, uncategorized = db.get_category_tree()
         profile = db.get_user_profile(user["id"])
         return render_template("account/settings.html", user=user,
