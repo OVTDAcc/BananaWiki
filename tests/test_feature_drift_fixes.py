@@ -191,3 +191,176 @@ def test_group_description_max_length(alice_uid):
 
     assert len(group["description"]) == 500
     assert group["description"] == description
+
+
+# ---------------------------------------------------------------------------
+# GAP-001: view_page enforces user_can_view_page() (category read restrictions
+#          and deindexed-page permissions).
+# ---------------------------------------------------------------------------
+
+def test_view_page_restricted_category_returns_403(client, admin_uid):
+    """GAP-001: A user with restricted read access gets 403 on a restricted category page."""
+    from werkzeug.security import generate_password_hash
+    from helpers._permissions import get_default_permissions
+
+    # Create a category and a page in it
+    cat_id = db.create_category("Restricted Cat")
+    db.create_page("Secret Page", "secret-page", "Content", category_id=cat_id)
+
+    # Create a user whose read access is restricted to NO categories
+    user_id = db.create_user("restricted", generate_password_hash("pass123"), role="user")
+    db.set_user_permissions(
+        user_id,
+        get_default_permissions("user"),
+        read_restricted=True,
+        read_category_ids=[],
+    )
+
+    # Log in as that restricted user
+    client.post("/login", data={"username": "restricted", "password": "pass123"})
+
+    resp = client.get("/page/secret-page")
+    assert resp.status_code == 403
+
+
+def test_view_page_allowed_category_returns_200(client, admin_uid):
+    """GAP-001: A user with read access to a specific category can view pages in it."""
+    from werkzeug.security import generate_password_hash
+    from helpers._permissions import get_default_permissions
+
+    cat_id = db.create_category("Allowed Cat")
+    db.create_page("Allowed Page", "allowed-page", "Content", category_id=cat_id)
+
+    user_id = db.create_user("allowed_user", generate_password_hash("pass123"), role="user")
+    db.set_user_permissions(
+        user_id,
+        get_default_permissions("user"),
+        read_restricted=True,
+        read_category_ids=[cat_id],
+    )
+
+    client.post("/login", data={"username": "allowed_user", "password": "pass123"})
+
+    resp = client.get("/page/allowed-page")
+    assert resp.status_code == 200
+
+
+def test_view_page_unrestricted_user_can_see_all(client, admin_uid):
+    """GAP-001: A user with unrestricted read access can view any page."""
+    from werkzeug.security import generate_password_hash
+    from helpers._permissions import get_default_permissions
+
+    cat_id = db.create_category("Some Cat")
+    db.create_page("Some Page", "some-page", "Content", category_id=cat_id)
+
+    user_id = db.create_user("free_user", generate_password_hash("pass123"), role="user")
+    db.set_user_permissions(
+        user_id,
+        get_default_permissions("user"),
+        read_restricted=False,
+    )
+
+    client.post("/login", data={"username": "free_user", "password": "pass123"})
+
+    resp = client.get("/page/some-page")
+    assert resp.status_code == 200
+
+
+def test_view_page_admin_always_has_access(client, admin_uid):
+    """GAP-001: Admins can view all pages regardless of permissions."""
+    cat_id = db.create_category("Admin Cat")
+    db.create_page("Admin Page", "admin-page", "Content", category_id=cat_id)
+
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+
+    resp = client.get("/page/admin-page")
+    assert resp.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# GAP-002: Search API filters results by category read access restrictions.
+# ---------------------------------------------------------------------------
+
+def test_search_api_filters_restricted_categories(client, admin_uid):
+    """GAP-002: Search results exclude pages in restricted categories for restricted users."""
+    from werkzeug.security import generate_password_hash
+    from helpers._permissions import get_default_permissions
+
+    # Create two categories with pages
+    allowed_cat = db.create_category("Allowed Category")
+    restricted_cat = db.create_category("Restricted Category")
+    db.create_page("Public Page", "public-page", "Content", category_id=allowed_cat)
+    db.create_page("Private Page", "private-page", "Content", category_id=restricted_cat)
+
+    # Create user with read access only to allowed_cat
+    user_id = db.create_user("search_user", generate_password_hash("pass123"), role="user")
+    db.set_user_permissions(
+        user_id,
+        get_default_permissions("user"),
+        read_restricted=True,
+        read_category_ids=[allowed_cat],
+    )
+
+    client.post("/login", data={"username": "search_user", "password": "pass123"})
+
+    resp = client.get("/api/pages/search?q=Page")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    slugs = [r["slug"] for r in data]
+
+    # Should see public page but NOT private page
+    assert "public-page" in slugs
+    assert "private-page" not in slugs
+
+
+def test_search_api_unrestricted_user_sees_all(client, admin_uid):
+    """GAP-002: An unrestricted user sees all pages in search results."""
+    from werkzeug.security import generate_password_hash
+    from helpers._permissions import get_default_permissions
+
+    cat_id = db.create_category("Some Category")
+    db.create_page("Findable Page", "findable-page", "Content", category_id=cat_id)
+
+    user_id = db.create_user("unrestr_user", generate_password_hash("pass123"), role="user")
+    db.set_user_permissions(
+        user_id,
+        get_default_permissions("user"),
+        read_restricted=False,
+    )
+
+    client.post("/login", data={"username": "unrestr_user", "password": "pass123"})
+
+    resp = client.get("/api/pages/search?q=Findable")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    slugs = [r["slug"] for r in data]
+    assert "findable-page" in slugs
+
+
+def test_sidebar_search_filters_restricted_categories(client, admin_uid):
+    """GAP-002: Sidebar search also excludes pages in restricted categories."""
+    from werkzeug.security import generate_password_hash
+    from helpers._permissions import get_default_permissions
+
+    allowed_cat = db.create_category("AllowedCat")
+    blocked_cat = db.create_category("BlockedCat")
+    db.create_page("Open Page", "open-page", "Content", category_id=allowed_cat)
+    db.create_page("Hidden Page", "hidden-page", "Content", category_id=blocked_cat)
+
+    user_id = db.create_user("sb_user", generate_password_hash("pass123"), role="user")
+    db.set_user_permissions(
+        user_id,
+        get_default_permissions("user"),
+        read_restricted=True,
+        read_category_ids=[allowed_cat],
+    )
+
+    client.post("/login", data={"username": "sb_user", "password": "pass123"})
+
+    resp = client.get("/api/sidebar/search?q=Page")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    slugs = [p["slug"] for p in data.get("pages", [])]
+
+    assert "open-page" in slugs
+    assert "hidden-page" not in slugs

@@ -157,7 +157,9 @@ def has_permission(user, permission_key):
         return False
 
     # Admins and protected_admins have all permissions
-    if user.get("role") in ("admin", "protected_admin"):
+    # Use subscript access for sqlite3.Row compatibility (no .get() method)
+    role = user["role"] if "role" in user.keys() else None
+    if role in ("admin", "protected_admin"):
         return True
 
     # Regular users and editors use custom permissions

@@ -59,6 +59,8 @@ from helpers._auth import (              # noqa: F401
     editor_required,
     admin_required,
     editor_has_category_access,
+    user_can_view_page,
+    user_can_view_category,
 )
 
 from helpers._time import (              # noqa: F401

@@ -62,6 +62,9 @@ def register_wiki_routes(app):
         if not page:
             abort(404)
         user = get_current_user()
+        # Enforce category read access restrictions
+        if not db.has_category_read_access(user, page["category_id"]):
+            abort(403)
         content_html = render_markdown(page["content"], embed_videos=True)
         categories, uncategorized = db.get_category_tree()
 

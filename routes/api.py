@@ -30,7 +30,9 @@ def register_api_routes(app):
         user = get_current_user()
         include_deindexed = user and user["role"] in ("editor", "admin", "protected_admin")
         results = db.search_pages(query, include_deindexed=include_deindexed)
-        return jsonify([{"title": r["title"], "slug": r["slug"]} for r in results])
+        # Filter results by category read access restrictions
+        filtered = [r for r in results if db.has_category_read_access(user, r["category_id"])]
+        return jsonify([{"title": r["title"], "slug": r["slug"]} for r in filtered])
 
     @app.route("/api/sidebar/search")
     @login_required
@@ -59,7 +61,9 @@ def register_api_routes(app):
         pages = db.search_pages_full(query, include_deindexed=include_deindexed,
                                      search_content=search_content)
         categories = db.search_categories(query)
-        return jsonify({"categories": categories, "pages": pages})
+        # Filter pages by category read access restrictions
+        filtered_pages = [p for p in pages if db.has_category_read_access(user, p["category_id"])]
+        return jsonify({"categories": categories, "pages": filtered_pages})
 
     # -----------------------------------------------------------------------
     #  Live preview API
