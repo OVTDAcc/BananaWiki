@@ -95,7 +95,8 @@ def search_pages(query, limit=15, include_deindexed=False):
     pattern = f"%{query}%"
     deindex_clause = "" if include_deindexed else " AND is_deindexed=0"
     rows = conn.execute(
-        f"SELECT id, title, slug FROM pages WHERE is_home=0{deindex_clause} AND title LIKE ? "
+        f"SELECT id, title, slug, category_id, is_deindexed FROM pages "
+        f"WHERE is_home=0{deindex_clause} AND title LIKE ? "
         "ORDER BY title LIMIT ?",
         (pattern, limit),
     ).fetchall()
