@@ -66,6 +66,7 @@ def register_admin_routes(app):
     @app.route("/admin/users/<string:user_id>/profile", methods=["POST"])
     @login_required
     @admin_required
+    @rate_limit(10, 60)
     def admin_moderate_profile(user_id):
         """Admin: edit or disable a user's profile page."""
         target = db.get_user_by_id(user_id)
@@ -140,6 +141,7 @@ def register_admin_routes(app):
     @app.route("/admin/users/<string:user_id>/tags", methods=["POST"])
     @login_required
     @admin_required
+    @rate_limit(10, 60)
     def admin_manage_user_tags(user_id):
         """Admin: add, update, delete, or reorder custom tags for a user."""
         target = db.get_user_by_id(user_id)
@@ -223,6 +225,7 @@ def register_admin_routes(app):
     @app.route("/admin/users/<string:user_id>/attributions", methods=["POST"])
     @login_required
     @admin_required
+    @rate_limit(10, 60)
     def admin_manage_attributions(user_id):
         """Admin: deattribute contributions or delete role history entries for a user."""
         target = db.get_user_by_id(user_id)
@@ -318,6 +321,7 @@ def register_admin_routes(app):
     @app.route("/admin/users/<string:user_id>/edit", methods=["POST"])
     @login_required
     @admin_required
+    @rate_limit(10, 60)
     def admin_edit_user(user_id):
         """Process all user-management actions (role change, suspend, password reset, etc.) for a single user."""
         target = db.get_user_by_id(user_id)
@@ -466,6 +470,7 @@ def register_admin_routes(app):
     @app.route("/admin/users/<string:user_id>/editor-access", methods=["GET", "POST"])
     @login_required
     @admin_required
+    @rate_limit(10, 60)
     def admin_editor_access(user_id):
         """Manage category-based access restrictions for an editor account."""
         target = db.get_user_by_id(user_id)
@@ -513,6 +518,7 @@ def register_admin_routes(app):
     @app.route("/admin/users/<string:user_id>/permissions", methods=["GET", "POST"])
     @login_required
     @admin_required
+    @rate_limit(10, 60)
     def admin_user_permissions(user_id):
         """Manage detailed custom permissions for editor or user accounts."""
         target = db.get_user_by_id(user_id)
@@ -600,6 +606,7 @@ def register_admin_routes(app):
     @app.route("/admin/users/create", methods=["POST"])
     @login_required
     @admin_required
+    @rate_limit(10, 60)
     def admin_create_user():
         """Admin: create a new user account with the specified username, password, and role."""
         username = request.form.get("username", "").strip()
@@ -679,6 +686,7 @@ def register_admin_routes(app):
     @app.route("/admin/codes/generate", methods=["POST"])
     @login_required
     @admin_required
+    @rate_limit(10, 60)
     def admin_generate_code():
         """Generate a new invite code and redirect to the codes list."""
         user = get_current_user()
@@ -691,6 +699,7 @@ def register_admin_routes(app):
     @app.route("/admin/codes/<int:code_id>/delete", methods=["POST"])
     @login_required
     @admin_required
+    @rate_limit(10, 60)
     def admin_delete_code(code_id):
         """Soft-delete (deactivate) an active invite code."""
         user = get_current_user()
@@ -703,6 +712,7 @@ def register_admin_routes(app):
     @app.route("/admin/codes/expired/<int:code_id>/delete", methods=["POST"])
     @login_required
     @admin_required
+    @rate_limit(10, 60)
     def admin_hard_delete_code(code_id):
         """Permanently remove an expired or used invite code from the database."""
         user = get_current_user()
@@ -719,6 +729,7 @@ def register_admin_routes(app):
     @app.route("/admin/settings", methods=["GET", "POST"])
     @login_required
     @admin_required
+    @rate_limit(10, 60)
     def admin_settings():
         """Admin site settings page: site name, colors, timezone, favicon, lockdown mode, and session limit."""
         if request.method == "POST":
@@ -889,6 +900,7 @@ def register_admin_routes(app):
     @app.route("/admin/migration/export", methods=["POST"])
     @login_required
     @admin_required
+    @rate_limit(5, 60)
     def admin_migration_export():
         """Export the entire site as a ZIP containing a single JSON file."""
         user = get_current_user()
@@ -909,6 +921,7 @@ def register_admin_routes(app):
     @app.route("/admin/migration/import", methods=["POST"])
     @login_required
     @admin_required
+    @rate_limit(5, 60)
     def admin_migration_import():
         """Import a previously exported site ZIP."""
         user = get_current_user()
@@ -985,6 +998,7 @@ def register_admin_routes(app):
     @app.route("/admin/announcements/create", methods=["POST"])
     @login_required
     @admin_required
+    @rate_limit(10, 60)
     def admin_create_announcement():
         """Create a new site-wide announcement banner."""
         content = request.form.get("content", "").strip()
@@ -1031,6 +1045,7 @@ def register_admin_routes(app):
     @app.route("/admin/announcements/<int:ann_id>/edit", methods=["POST"])
     @login_required
     @admin_required
+    @rate_limit(10, 60)
     def admin_edit_announcement(ann_id):
         """Edit an existing announcement's content, color, size, visibility, and expiry."""
         ann = db.get_announcement(ann_id)
@@ -1082,6 +1097,7 @@ def register_admin_routes(app):
     @app.route("/admin/announcements/<int:ann_id>/delete", methods=["POST"])
     @login_required
     @admin_required
+    @rate_limit(10, 60)
     def admin_delete_announcement(ann_id):
         """Permanently delete an announcement by ID."""
         ann = db.get_announcement(ann_id)
@@ -1206,6 +1222,7 @@ def register_admin_routes(app):
     @app.route("/admin/badges/<int:badge_id>/edit", methods=["GET", "POST"])
     @login_required
     @admin_required
+    @rate_limit(10, 60)
     def admin_edit_badge(badge_id):
         """Admin: edit a badge type."""
         badge = db.get_badge_type(badge_id)

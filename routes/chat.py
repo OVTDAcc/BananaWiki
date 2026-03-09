@@ -40,6 +40,7 @@ def register_chat_routes(app):
 
     @app.route("/chats/new", methods=["GET", "POST"])
     @login_required
+    @rate_limit(10, 60)
     def chat_new():
         """Start a new direct message conversation with another user."""
         user = get_current_user()

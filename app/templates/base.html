@@ -117,8 +117,8 @@
                 {% endif %}
             </nav>
             <div class="sidebar-chat-links">
-                <a href="{{ url_for('chat_list') }}" class="nav-item {% if request.path.startswith('/chats') %}active{% endif %}">💬 Chats</a>
-                <a href="{{ url_for('group_list') }}" class="nav-item {% if request.path.startswith('/groups') %}active{% endif %}">👥 Groups</a>
+                <a href="{{ url_for('chat_list') }}" class="nav-item {% if request.path.startswith('/chats') %}active{% endif %}">💬 Chats{% if total_unread_dm %} <span class="unread-badge">{{ total_unread_dm }}</span>{% endif %}</a>
+                <a href="{{ url_for('group_list') }}" class="nav-item {% if request.path.startswith('/groups') %}active{% endif %}">👥 Groups{% if total_unread_group %} <span class="unread-badge">{{ total_unread_group }}</span>{% endif %}</a>
             </div>
             {% if sidebar_people %}
             <div class="sidebar-people">

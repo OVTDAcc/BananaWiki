@@ -89,6 +89,8 @@ def inject_globals():
     user_accessibility = db.get_user_accessibility(user["id"]) if user else {}
     sidebar_people = db.list_published_profiles()[:19] if user else []
     current_user_profile = db.get_user_profile(user["id"]) if user else None
+    total_unread_dm = db.get_total_unread_dm_count(user["id"]) if user else 0
+    total_unread_group = db.get_total_unread_group_count(user["id"]) if user else 0
     return {
         "current_user": user,
         "settings": settings,
@@ -104,6 +106,8 @@ def inject_globals():
         "utcnow": datetime.now(timezone.utc).isoformat(),
         "time_since_last_chat_cleanup": get_time_since_last_chat_cleanup,
         "time_until_next_chat_cleanup": get_time_until_next_chat_cleanup,
+        "total_unread_dm": total_unread_dm,
+        "total_unread_group": total_unread_group,
     }
 
 

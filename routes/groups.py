@@ -49,6 +49,7 @@ def register_group_routes(app):
 
     @app.route("/groups/new", methods=["GET", "POST"])
     @login_required
+    @rate_limit(10, 60)
     def group_new():
         """Create a new group chat."""
         user = get_current_user()
@@ -85,10 +86,14 @@ def register_group_routes(app):
 
     @app.route("/groups/join", methods=["GET", "POST"])
     @login_required
+    @rate_limit(10, 60)
     def group_join():
         """Join an existing group chat using an invite code."""
         user = get_current_user()
         if request.method == "POST":
+            if db.is_user_chat_disabled(user["id"]):
+                flash("Your chat privileges have been disabled by an administrator.", "error")
+                return redirect(url_for("group_list"))
             code = request.form.get("invite_code", "").strip()
             if not code:
                 flash("Please enter an invite code.", "error")
@@ -273,6 +278,7 @@ def register_group_routes(app):
 
     @app.route("/groups/<int:group_id>/members/add", methods=["POST"])
     @login_required
+    @rate_limit(10, 60)
     def group_add_member(group_id):
         """Add a user to a group chat (owner or moderator only)."""
         user = get_current_user()
@@ -305,6 +311,7 @@ def register_group_routes(app):
 
     @app.route("/groups/<int:group_id>/leave", methods=["POST"])
     @login_required
+    @rate_limit(10, 60)
     def group_leave(group_id):
         """Leave a group chat (owners must transfer ownership first)."""
         user = get_current_user()
@@ -326,6 +333,7 @@ def register_group_routes(app):
 
     @app.route("/groups/<int:group_id>/kick", methods=["POST"])
     @login_required
+    @rate_limit(10, 60)
     def group_kick(group_id):
         """Kick (remove) a member from a group chat (owner/moderator or site admin only)."""
         user = get_current_user()
@@ -368,6 +376,7 @@ def register_group_routes(app):
 
     @app.route("/groups/<int:group_id>/promote", methods=["POST"])
     @login_required
+    @rate_limit(10, 60)
     def group_promote(group_id):
         """Promote a group member to moderator (owner only)."""
         user = get_current_user()
@@ -396,6 +405,7 @@ def register_group_routes(app):
 
     @app.route("/groups/<int:group_id>/demote", methods=["POST"])
     @login_required
+    @rate_limit(10, 60)
     def group_demote(group_id):
         """Demote a group moderator back to regular member (owner only)."""
         user = get_current_user()
@@ -453,6 +463,7 @@ def register_group_routes(app):
 
     @app.route("/groups/<int:group_id>/transfer", methods=["POST"])
     @login_required
+    @rate_limit(5, 60)
     def group_transfer(group_id):
         """Transfer group ownership to another member (current owner only)."""
         user = get_current_user()
@@ -484,6 +495,7 @@ def register_group_routes(app):
 
     @app.route("/groups/<int:group_id>/timeout", methods=["POST"])
     @login_required
+    @rate_limit(10, 60)
     def group_timeout(group_id):
         """Temporarily mute a group member for a specified number of minutes."""
         user = get_current_user()
@@ -538,6 +550,7 @@ def register_group_routes(app):
 
     @app.route("/groups/<int:group_id>/untimeout", methods=["POST"])
     @login_required
+    @rate_limit(10, 60)
     def group_untimeout(group_id):
         """Remove a timeout from a group member, restoring their ability to send messages."""
         user = get_current_user()
@@ -568,6 +581,7 @@ def register_group_routes(app):
 
     @app.route("/groups/<int:group_id>/delete_message", methods=["POST"])
     @login_required
+    @rate_limit(30, 60)
     def group_delete_message(group_id):
         """Delete a specific message from a group chat (moderator/owner or site admin only)."""
         user = get_current_user()
@@ -639,6 +653,7 @@ def register_group_routes(app):
 
     @app.route("/groups/<int:group_id>/unban", methods=["POST"])
     @login_required
+    @rate_limit(10, 60)
     def group_unban(group_id):
         """Revoke a ban and allow a previously banned user to rejoin a group."""
         user = get_current_user()
@@ -668,6 +683,7 @@ def register_group_routes(app):
 
     @app.route("/groups/<int:group_id>/regenerate_code", methods=["POST"])
     @login_required
+    @rate_limit(5, 60)
     def group_regenerate_code(group_id):
         """Generate a new invite code for a group chat (owner only).
 
@@ -714,13 +730,13 @@ def register_group_routes(app):
         if not group:
             abort(404)
 
-        # Check permissions: owner, moderator, or site admin only
+        # Check permissions: owner or site admin only
         my_role = db.get_group_member_role(group_id, user["id"])
         is_site_admin = user["role"] in ("admin", "protected_admin")
 
-        # Only owners, moderators, and site admins can export
-        if not is_site_admin and my_role not in ("owner", "moderator"):
-            flash("Only group owners and moderators can export chat data.", "error")
+        # Only owners and site admins can export
+        if not is_site_admin and my_role != "owner":
+            flash("Only group owners and site admins can export chat data.", "error")
             return redirect(url_for("group_view", group_id=group_id))
 
         # Get messages and group info
@@ -854,18 +870,18 @@ def register_group_routes(app):
     @login_required
     @rate_limit(5, 60)
     def group_clear(group_id):
-        """Clear all messages in a group chat. Only owners can clear."""
+        """Clear all messages in a group chat. Owners, moderators, and site admins can clear."""
         user = get_current_user()
         group = db.get_group_chat(group_id)
         if not group:
             abort(404)
 
-        # Check permissions: owner or site admin only
+        # Check permissions: owner, moderator, or site admin
         my_role = db.get_group_member_role(group_id, user["id"])
         is_site_admin = user["role"] in ("admin", "protected_admin")
 
-        if my_role != "owner" and not is_site_admin:
-            flash("Only the group owner can clear the chat.", "error")
+        if my_role not in ("owner", "moderator") and not is_site_admin:
+            flash("You do not have the required permissions to clear this chat.", "error")
             return redirect(url_for("group_view", group_id=group_id))
 
         # Delete all messages and attachments
@@ -888,6 +904,7 @@ def register_group_routes(app):
 
     @app.route("/groups/<int:group_id>/delete", methods=["POST"])
     @login_required
+    @rate_limit(5, 60)
     def group_delete(group_id):
         """Permanently delete a non-global group chat (owner or site admin only)."""
         user = get_current_user()
@@ -919,6 +936,7 @@ def register_group_routes(app):
     @app.route("/groups/<int:group_id>/toggle_active", methods=["POST"])
     @login_required
     @admin_required
+    @rate_limit(5, 60)
     def group_toggle_active(group_id):
         """Deactivate or reactivate the global group chat (site admins only).
 
@@ -943,6 +961,7 @@ def register_group_routes(app):
     @app.route("/admin/groups/<int:group_id>/delete", methods=["POST"])
     @login_required
     @admin_required
+    @rate_limit(5, 60)
     def admin_group_delete(group_id):
         """Admin: permanently delete any non-global group chat."""
         group = db.get_group_chat(group_id)
@@ -969,6 +988,7 @@ def register_group_routes(app):
     @app.route("/groups/<int:group_id>/admin_takeover", methods=["POST"])
     @login_required
     @admin_required
+    @rate_limit(5, 60)
     def group_admin_takeover(group_id):
         """Allow a site admin to take ownership of any group."""
         user = get_current_user()
@@ -993,6 +1013,7 @@ def register_group_routes(app):
     @app.route("/admin/users/<user_id>/toggle_chat", methods=["POST"])
     @login_required
     @admin_required
+    @rate_limit(10, 60)
     def admin_toggle_chat(user_id):
         """Toggle the chat disabled flag for a user."""
         target = db.get_user_by_id(user_id)
