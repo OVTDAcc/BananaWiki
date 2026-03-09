@@ -453,29 +453,6 @@
 
 // Chat settings auto-clear toggles
 (function() {
-    // Legacy settings (for backwards compatibility)
-    var msgCheckbox = document.querySelector('input[name="chat_auto_clear_messages"]');
-    var msgInput = document.querySelector('input[name="chat_message_retention_days"]');
-    var msgGroup = document.getElementById('message-retention-group');
-
-    var attCheckbox = document.querySelector('input[name="chat_auto_clear_attachments"]');
-    var attInput = document.querySelector('input[name="chat_attachment_retention_days"]');
-    var attGroup = document.getElementById('attachment-retention-group');
-
-    if (msgCheckbox && msgInput && msgGroup) {
-        msgCheckbox.addEventListener('change', function() {
-            msgInput.disabled = !this.checked;
-            msgGroup.style.opacity = this.checked ? '1' : '.5';
-        });
-    }
-
-    if (attCheckbox && attInput && attGroup) {
-        attCheckbox.addEventListener('change', function() {
-            attInput.disabled = !this.checked;
-            attGroup.style.opacity = this.checked ? '1' : '.5';
-        });
-    }
-
     // Global attachment settings
     var attachmentsEnabledCheckbox = document.querySelector('input[name="chat_attachments_enabled"]');
     var attachmentSettingsGroup = document.getElementById('attachment-settings-group');

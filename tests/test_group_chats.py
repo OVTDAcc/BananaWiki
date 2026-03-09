@@ -1628,3 +1628,169 @@ def test_sidebar_search_category_returns_correct_structure(admin_client, admin_u
     assert "id" in cat
     assert "name" in cat
     assert "parent_id" in cat
+
+
+# ---------------------------------------------------------------------------
+# GAP fixes – group clear by moderators, export restrictions, chat_disabled
+# on join, unread badges in sidebar, template variable ordering
+# ---------------------------------------------------------------------------
+
+
+def test_moderator_can_clear_group_chat(alice_uid, bob_uid):
+    """Moderators should be able to clear group chat messages."""
+    import db
+    from app import app
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
+    group = db.create_group_chat("ModClearTest", alice_uid)
+    db.add_group_member(group["id"], bob_uid, role="moderator")
+    db.send_group_message(group["id"], alice_uid, "test message")
+    with app.test_client() as c:
+        from werkzeug.security import generate_password_hash
+        c.post("/login", data={"username": "bob", "password": "bob123"})
+        resp = c.post(f"/groups/{group['id']}/clear", follow_redirects=True)
+        assert resp.status_code == 200
+        assert b"cleared successfully" in resp.data
+
+
+def test_regular_member_cannot_clear_group_chat(alice_uid, bob_uid):
+    """Regular members should not be able to clear group chat messages."""
+    import db
+    from app import app
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
+    group = db.create_group_chat("MemberClearTest", alice_uid)
+    db.add_group_member(group["id"], bob_uid)
+    with app.test_client() as c:
+        c.post("/login", data={"username": "bob", "password": "bob123"})
+        resp = c.post(f"/groups/{group['id']}/clear", follow_redirects=True)
+        assert resp.status_code == 200
+        assert b"required permissions" in resp.data
+
+
+def test_site_admin_can_clear_group_chat(admin_client, admin_uid, alice_uid):
+    """Site admins should be able to clear any group chat."""
+    import db
+    group = db.create_group_chat("AdminClearTest", alice_uid)
+    db.send_group_message(group["id"], alice_uid, "test message")
+    resp = admin_client.post(f"/groups/{group['id']}/clear", follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"cleared successfully" in resp.data
+
+
+def test_group_export_blocked_for_moderator(alice_uid, bob_uid):
+    """Moderators should not be able to export group chat data."""
+    import db
+    from app import app
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
+    group = db.create_group_chat("ExportTest", alice_uid)
+    db.add_group_member(group["id"], bob_uid, role="moderator")
+    db.send_group_message(group["id"], alice_uid, "export test msg")
+    with app.test_client() as c:
+        c.post("/login", data={"username": "bob", "password": "bob123"})
+        resp = c.get(f"/groups/{group['id']}/export", follow_redirects=True)
+        assert b"Only group owners and site admins can export" in resp.data
+
+
+def test_group_export_allowed_for_owner(alice_uid):
+    """Group owners should be able to export group chat data."""
+    import db
+    from app import app
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
+    group = db.create_group_chat("OwnerExportTest", alice_uid)
+    db.send_group_message(group["id"], alice_uid, "export msg")
+    with app.test_client() as c:
+        c.post("/login", data={"username": "alice", "password": "alice123"})
+        resp = c.get(f"/groups/{group['id']}/export")
+        assert resp.status_code == 200
+
+
+def test_group_export_allowed_for_site_admin(admin_client, admin_uid, alice_uid):
+    """Site admins should be able to export any group chat data."""
+    import db
+    group = db.create_group_chat("AdminExportTest", alice_uid)
+    db.send_group_message(group["id"], alice_uid, "export msg")
+    resp = admin_client.get(f"/groups/{group['id']}/export")
+    assert resp.status_code == 200
+
+
+def test_chat_disabled_user_cannot_join_group(alice_uid, bob_uid):
+    """Users with chat disabled should not be able to join groups."""
+    import db
+    from app import app
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
+    group = db.create_group_chat("JoinTest", alice_uid)
+    invite_code = group["invite_code"]
+    db.set_user_chat_disabled(bob_uid, True)
+    with app.test_client() as c:
+        c.post("/login", data={"username": "bob", "password": "bob123"})
+        resp = c.post("/groups/join", data={"invite_code": invite_code},
+                       follow_redirects=True)
+        assert b"chat privileges have been disabled" in resp.data
+        assert not db.is_group_member(group["id"], bob_uid)
+
+
+def test_sidebar_shows_unread_dm_badge(admin_client, admin_uid, alice_uid):
+    """Sidebar should display unread DM badge when there are unread messages."""
+    import db
+    chat = db.get_or_create_chat(admin_uid, alice_uid)
+    db.send_chat_message(chat["id"], alice_uid, "hello")
+    db.increment_unread_count(chat["id"], admin_uid)
+    resp = admin_client.get("/")
+    assert b"unread-badge" in resp.data
+
+
+def test_sidebar_shows_unread_group_badge(admin_client, admin_uid, alice_uid):
+    """Sidebar should display unread group badge when there are unread messages."""
+    import db
+    group = db.create_group_chat("BadgeTest", alice_uid)
+    db.add_group_member(group["id"], admin_uid)
+    db.send_group_message(group["id"], alice_uid, "hello group")
+    db.increment_group_unread_count(group["id"], admin_uid)
+    resp = admin_client.get("/")
+    assert b"unread-badge" in resp.data
+
+
+def test_group_chat_buttons_visible_to_owner(alice_uid):
+    """Export and Clear Chat buttons should be visible to group owner."""
+    import db
+    from app import app
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
+    group = db.create_group_chat("OwnerButtonsTest", alice_uid)
+    with app.test_client() as c:
+        c.post("/login", data={"username": "alice", "password": "alice123"})
+        resp = c.get(f"/groups/{group['id']}")
+        assert b"Export" in resp.data
+        assert b"Clear Chat" in resp.data
+
+
+def test_group_chat_clear_button_visible_to_moderator(alice_uid, bob_uid):
+    """Clear Chat button should be visible to group moderators."""
+    import db
+    from app import app
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
+    group = db.create_group_chat("ModButtonsTest", alice_uid)
+    db.add_group_member(group["id"], bob_uid, role="moderator")
+    with app.test_client() as c:
+        c.post("/login", data={"username": "bob", "password": "bob123"})
+        resp = c.get(f"/groups/{group['id']}")
+        assert b"Clear Chat" in resp.data
+
+
+def test_group_chat_export_button_hidden_from_moderator(alice_uid, bob_uid):
+    """Export button should not be visible to group moderators."""
+    import db
+    from app import app
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
+    group = db.create_group_chat("ModExportHiddenTest", alice_uid)
+    db.add_group_member(group["id"], bob_uid, role="moderator")
+    with app.test_client() as c:
+        c.post("/login", data={"username": "bob", "password": "bob123"})
+        resp = c.get(f"/groups/{group['id']}")
+        assert b"Export</a>" not in resp.data

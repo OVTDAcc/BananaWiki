@@ -89,6 +89,9 @@ def register_group_routes(app):
         """Join an existing group chat using an invite code."""
         user = get_current_user()
         if request.method == "POST":
+            if db.is_user_chat_disabled(user["id"]):
+                flash("Your chat privileges have been disabled by an administrator.", "error")
+                return redirect(url_for("group_list"))
             code = request.form.get("invite_code", "").strip()
             if not code:
                 flash("Please enter an invite code.", "error")
@@ -714,13 +717,13 @@ def register_group_routes(app):
         if not group:
             abort(404)
 
-        # Check permissions: owner, moderator, or site admin only
+        # Check permissions: owner or site admin only
         my_role = db.get_group_member_role(group_id, user["id"])
         is_site_admin = user["role"] in ("admin", "protected_admin")
 
-        # Only owners, moderators, and site admins can export
-        if not is_site_admin and my_role not in ("owner", "moderator"):
-            flash("Only group owners and moderators can export chat data.", "error")
+        # Only owners and site admins can export
+        if not is_site_admin and my_role != "owner":
+            flash("Only group owners and site admins can export chat data.", "error")
             return redirect(url_for("group_view", group_id=group_id))
 
         # Get messages and group info
@@ -854,18 +857,18 @@ def register_group_routes(app):
     @login_required
     @rate_limit(5, 60)
     def group_clear(group_id):
-        """Clear all messages in a group chat. Only owners can clear."""
+        """Clear all messages in a group chat. Owners, moderators, and site admins can clear."""
         user = get_current_user()
         group = db.get_group_chat(group_id)
         if not group:
             abort(404)
 
-        # Check permissions: owner or site admin only
+        # Check permissions: owner, moderator, or site admin
         my_role = db.get_group_member_role(group_id, user["id"])
         is_site_admin = user["role"] in ("admin", "protected_admin")
 
-        if my_role != "owner" and not is_site_admin:
-            flash("Only the group owner can clear the chat.", "error")
+        if my_role not in ("owner", "moderator") and not is_site_admin:
+            flash("You do not have the required permissions to clear this chat.", "error")
             return redirect(url_for("group_view", group_id=group_id))
 
         # Delete all messages and attachments
