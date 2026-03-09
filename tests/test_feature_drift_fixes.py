@@ -3,7 +3,7 @@ import pytest
 import os
 import config
 import db
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 
 @pytest.fixture(autouse=True)
@@ -68,7 +68,7 @@ def test_chat_cleanup_with_retention_period(alice_uid, bob_uid):
 
     # Manually update message 1 to be 35 days old
     conn = db.get_db()
-    old_date = (datetime.utcnow() - timedelta(days=35)).isoformat()
+    old_date = (datetime.now(timezone.utc) - timedelta(days=35)).isoformat()
     conn.execute(
         "UPDATE chat_messages SET created_at = ? WHERE id = ?",
         (old_date, msg1_id)
@@ -114,7 +114,7 @@ def test_group_chat_cleanup_with_retention(alice_uid):
 
     # Make message 1 old (35 days)
     conn = db.get_db()
-    old_date = (datetime.utcnow() - timedelta(days=35)).isoformat()
+    old_date = (datetime.now(timezone.utc) - timedelta(days=35)).isoformat()
     conn.execute(
         "UPDATE group_messages SET created_at = ? WHERE id = ?",
         (old_date, msg1_id)
@@ -143,7 +143,7 @@ def test_chat_cleanup_config_enabled_flag(app, alice_uid, bob_uid):
 
     # Make message old
     conn = db.get_db()
-    old_date = (datetime.utcnow() - timedelta(days=35)).isoformat()
+    old_date = (datetime.now(timezone.utc) - timedelta(days=35)).isoformat()
     conn.execute(
         "UPDATE chat_messages SET created_at = ?",
         (old_date,)
