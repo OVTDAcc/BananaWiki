@@ -572,3 +572,238 @@ def test_regular_user_cannot_transfer_draft(client, admin_uid, alice_uid, editor
     )
     # regular user should be forbidden (editor_required redirects or 403)
     assert resp.status_code in (302, 403)
+
+
+# ---------------------------------------------------------------------------
+# GAP-008: chat_dm_enabled setting disables DM access for non-admins.
+# ---------------------------------------------------------------------------
+
+def test_dm_disabled_blocks_chat_list(client, admin_uid, alice_uid):
+    """GAP-008: When chat_dm_enabled=0, non-admin users cannot access /chats."""
+    db.update_site_settings(chat_dm_enabled=0)
+    client.post("/login", data={"username": "alice", "password": "alice123"})
+    resp = client.get("/chats", follow_redirects=False)
+    assert resp.status_code in (302, 403)
+
+
+def test_dm_disabled_blocks_chat_new(client, admin_uid, alice_uid):
+    """GAP-008: When chat_dm_enabled=0, non-admin users cannot access /chats/new."""
+    db.update_site_settings(chat_dm_enabled=0)
+    client.post("/login", data={"username": "alice", "password": "alice123"})
+    resp = client.get("/chats/new", follow_redirects=False)
+    assert resp.status_code in (302, 403)
+
+
+def test_dm_disabled_blocks_chat_view(client, admin_uid, alice_uid, bob_uid):
+    """GAP-008: When chat_dm_enabled=0, non-admin users cannot view existing DMs."""
+    chat = db.get_or_create_chat(alice_uid, bob_uid)
+    db.update_site_settings(chat_dm_enabled=0)
+    client.post("/login", data={"username": "alice", "password": "alice123"})
+    resp = client.get(f"/chats/{chat['id']}", follow_redirects=False)
+    assert resp.status_code in (302, 403)
+
+
+def test_dm_disabled_admin_still_has_access(client, admin_uid, alice_uid):
+    """GAP-008: When chat_dm_enabled=0, admins are NOT blocked."""
+    db.update_site_settings(chat_dm_enabled=0)
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    resp = client.get("/chats", follow_redirects=True)
+    assert resp.status_code == 200
+
+
+def test_dm_enabled_allows_access(client, admin_uid, alice_uid):
+    """GAP-008: When chat_dm_enabled=1, users can access /chats normally."""
+    db.update_site_settings(chat_dm_enabled=1)
+    client.post("/login", data={"username": "alice", "password": "alice123"})
+    resp = client.get("/chats", follow_redirects=True)
+    assert resp.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# GAP-009: chat_allow_dm_creation setting prevents creating new DMs.
+# ---------------------------------------------------------------------------
+
+def test_dm_creation_disabled_blocks_new_dm(client, admin_uid, alice_uid, bob_uid):
+    """GAP-009: When chat_allow_dm_creation=0, non-admins cannot create new DMs."""
+    db.update_site_settings(chat_dm_enabled=1, chat_allow_dm_creation=0)
+    client.post("/login", data={"username": "alice", "password": "alice123"})
+    resp = client.get("/chats/new", follow_redirects=False)
+    assert resp.status_code in (302, 403)
+
+
+def test_dm_creation_disabled_admin_can_create(client, admin_uid, alice_uid):
+    """GAP-009: When chat_allow_dm_creation=0, admins can still create DMs."""
+    db.update_site_settings(chat_dm_enabled=1, chat_allow_dm_creation=0)
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    resp = client.get("/chats/new", follow_redirects=True)
+    assert resp.status_code == 200
+
+
+def test_dm_creation_enabled_allows_new_dm(client, admin_uid, alice_uid):
+    """GAP-009: When chat_allow_dm_creation=1, users can visit /chats/new."""
+    db.update_site_settings(chat_dm_enabled=1, chat_allow_dm_creation=1)
+    client.post("/login", data={"username": "alice", "password": "alice123"})
+    resp = client.get("/chats/new", follow_redirects=True)
+    assert resp.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# GAP-010: chat_group_enabled setting disables group chat access for non-admins.
+# ---------------------------------------------------------------------------
+
+def test_group_disabled_blocks_group_list(client, admin_uid, alice_uid):
+    """GAP-010: When chat_group_enabled=0, non-admins cannot access /groups."""
+    db.update_site_settings(chat_group_enabled=0)
+    client.post("/login", data={"username": "alice", "password": "alice123"})
+    resp = client.get("/groups", follow_redirects=False)
+    assert resp.status_code in (302, 403)
+
+
+def test_group_disabled_blocks_group_new(client, admin_uid, alice_uid):
+    """GAP-010: When chat_group_enabled=0, non-admins cannot access /groups/new."""
+    db.update_site_settings(chat_group_enabled=0)
+    client.post("/login", data={"username": "alice", "password": "alice123"})
+    resp = client.get("/groups/new", follow_redirects=False)
+    assert resp.status_code in (302, 403)
+
+
+def test_group_disabled_admin_still_has_access(client, admin_uid, alice_uid):
+    """GAP-010: When chat_group_enabled=0, admins are NOT blocked from /groups."""
+    db.update_site_settings(chat_group_enabled=0)
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    resp = client.get("/groups", follow_redirects=True)
+    assert resp.status_code == 200
+
+
+def test_group_enabled_allows_access(client, admin_uid, alice_uid):
+    """GAP-010: When chat_group_enabled=1, users can access /groups normally."""
+    db.update_site_settings(chat_group_enabled=1)
+    client.post("/login", data={"username": "alice", "password": "alice123"})
+    resp = client.get("/groups", follow_redirects=True)
+    assert resp.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# GAP-011: chat_allow_group_creation setting prevents creating new groups.
+# ---------------------------------------------------------------------------
+
+def test_group_creation_disabled_blocks_new_group(client, admin_uid, alice_uid):
+    """GAP-011: When chat_allow_group_creation=0, non-admins cannot create groups."""
+    db.update_site_settings(chat_group_enabled=1, chat_allow_group_creation=0)
+    client.post("/login", data={"username": "alice", "password": "alice123"})
+    resp = client.get("/groups/new", follow_redirects=False)
+    assert resp.status_code in (302, 403)
+
+
+def test_group_creation_disabled_admin_can_create(client, admin_uid, alice_uid):
+    """GAP-011: When chat_allow_group_creation=0, admins can still create groups."""
+    db.update_site_settings(chat_group_enabled=1, chat_allow_group_creation=0)
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    resp = client.get("/groups/new", follow_redirects=True)
+    assert resp.status_code == 200
+
+
+def test_group_creation_enabled_allows_new_group(client, admin_uid, alice_uid):
+    """GAP-011: When chat_allow_group_creation=1, users can visit /groups/new."""
+    db.update_site_settings(chat_group_enabled=1, chat_allow_group_creation=1)
+    client.post("/login", data={"username": "alice", "password": "alice123"})
+    resp = client.get("/groups/new", follow_redirects=True)
+    assert resp.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# GAP-012: chat_attachments_enabled setting blocks file attachments in DMs.
+# ---------------------------------------------------------------------------
+
+def test_dm_attachments_disabled_blocks_upload(client, admin_uid, alice_uid, bob_uid, tmp_path):
+    """GAP-012: When chat_attachments_enabled=0, non-admins cannot attach files to DMs."""
+    import io
+    chat = db.get_or_create_chat(alice_uid, bob_uid)
+    db.update_site_settings(chat_dm_enabled=1, chat_attachments_enabled=0)
+    client.post("/login", data={"username": "alice", "password": "alice123"})
+
+    fake_file = (io.BytesIO(b"fake file content"), "test.pdf")
+    resp = client.post(
+        f"/chats/{chat['id']}/send",
+        data={"content": "hello", "attachment": fake_file},
+        content_type="multipart/form-data",
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"attachments are currently disabled" in resp.data
+
+
+def test_dm_attachments_disabled_admin_can_upload(client, admin_uid, alice_uid, tmp_path):
+    """GAP-012: When chat_attachments_enabled=0, admins can still attach files."""
+    import io
+    chat = db.get_or_create_chat(admin_uid, alice_uid)
+    db.update_site_settings(chat_dm_enabled=1, chat_attachments_enabled=0)
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+
+    fake_file = (io.BytesIO(b"fake file content"), "test.pdf")
+    resp = client.post(
+        f"/chats/{chat['id']}/send",
+        data={"content": "hello", "attachment": fake_file},
+        content_type="multipart/form-data",
+        follow_redirects=True,
+    )
+    # Should succeed (not blocked by disabled check)
+    assert resp.status_code == 200
+    assert b"attachments are currently disabled" not in resp.data
+
+
+def test_dm_attachments_enabled_allows_upload(client, admin_uid, alice_uid, bob_uid):
+    """GAP-012: When chat_attachments_enabled=1, attachment upload is attempted normally."""
+    import io
+    chat = db.get_or_create_chat(alice_uid, bob_uid)
+    db.update_site_settings(chat_dm_enabled=1, chat_attachments_enabled=1)
+    client.post("/login", data={"username": "alice", "password": "alice123"})
+
+    fake_file = (io.BytesIO(b"fake file content"), "test.pdf")
+    resp = client.post(
+        f"/chats/{chat['id']}/send",
+        data={"content": "hello", "attachment": fake_file},
+        content_type="multipart/form-data",
+        follow_redirects=True,
+    )
+    # Should not show the disabled flash message
+    assert b"attachments are currently disabled" not in resp.data
+
+
+# ---------------------------------------------------------------------------
+# GAP-013: chat_attachments_enabled setting blocks file attachments in groups.
+# ---------------------------------------------------------------------------
+
+def test_group_attachments_disabled_blocks_upload(client, admin_uid, alice_uid, tmp_path):
+    """GAP-013: When chat_attachments_enabled=0, non-admins cannot attach files to groups."""
+    import io
+    group = db.create_group_chat("Test Group", alice_uid)
+    db.update_site_settings(chat_group_enabled=1, chat_attachments_enabled=0)
+    client.post("/login", data={"username": "alice", "password": "alice123"})
+
+    fake_file = (io.BytesIO(b"fake file content"), "test.pdf")
+    resp = client.post(
+        f"/groups/{group['id']}/send",
+        data={"content": "hello", "attachment": fake_file},
+        content_type="multipart/form-data",
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"attachments are currently disabled" in resp.data
+
+
+def test_group_attachments_enabled_allows_upload(client, admin_uid, alice_uid):
+    """GAP-013: When chat_attachments_enabled=1, attachment upload is attempted normally."""
+    import io
+    group = db.create_group_chat("Test Group 2", alice_uid)
+    db.update_site_settings(chat_group_enabled=1, chat_attachments_enabled=1)
+    client.post("/login", data={"username": "alice", "password": "alice123"})
+
+    fake_file = (io.BytesIO(b"fake file content"), "test.pdf")
+    resp = client.post(
+        f"/groups/{group['id']}/send",
+        data={"content": "hello", "attachment": fake_file},
+        content_type="multipart/form-data",
+        follow_redirects=True,
+    )
+    assert b"attachments are currently disabled" not in resp.data

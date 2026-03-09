@@ -36,6 +36,10 @@ def register_group_routes(app):
     def group_list():
         """List all group chats the current user belongs to."""
         user = get_current_user()
+        settings = db.get_site_settings()
+        if settings and not settings["chat_group_enabled"] and user["role"] not in ("admin", "protected_admin"):
+            flash("Group chats are currently disabled.", "error")
+            return redirect(url_for("home"))
         groups = db.get_user_groups(user["id"])
         total_unread_group = db.get_total_unread_group_count(user["id"])
         categories, uncategorized = db.get_category_tree()
@@ -48,6 +52,13 @@ def register_group_routes(app):
     def group_new():
         """Create a new group chat."""
         user = get_current_user()
+        settings = db.get_site_settings()
+        if settings and not settings["chat_group_enabled"] and user["role"] not in ("admin", "protected_admin"):
+            flash("Group chats are currently disabled.", "error")
+            return redirect(url_for("home"))
+        if settings and not settings["chat_allow_group_creation"] and user["role"] not in ("admin", "protected_admin"):
+            flash("Creating new group chats is currently disabled.", "error")
+            return redirect(url_for("group_list"))
         if db.is_user_chat_disabled(user["id"]):
             flash("Your chat privileges have been disabled by an administrator.", "error")
             return redirect(url_for("group_list"))
@@ -117,6 +128,10 @@ def register_group_routes(app):
     def group_view(group_id):
         """View messages and member list for a group chat."""
         user = get_current_user()
+        settings = db.get_site_settings()
+        if settings and not settings["chat_group_enabled"] and user["role"] not in ("admin", "protected_admin"):
+            flash("Group chats are currently disabled.", "error")
+            return redirect(url_for("home"))
         group = db.get_group_chat(group_id)
         if not group:
             abort(404)
@@ -142,6 +157,10 @@ def register_group_routes(app):
     def group_send(group_id):
         """Send a message (and optional file attachment) to a group chat."""
         user = get_current_user()
+        settings = db.get_site_settings()
+        if settings and not settings["chat_group_enabled"] and user["role"] not in ("admin", "protected_admin"):
+            flash("Group chats are currently disabled.", "error")
+            return redirect(url_for("home"))
         if db.is_user_chat_disabled(user["id"]):
             flash("Your chat privileges have been disabled by an administrator.", "error")
             return redirect(url_for("group_view", group_id=group_id))
@@ -164,7 +183,6 @@ def register_group_routes(app):
         if not content:
             flash("Message cannot be empty.", "error")
             return redirect(url_for("group_view", group_id=group_id))
-        settings = db.get_site_settings()
         max_msg_len = settings["chat_max_message_length"] if settings and settings["chat_max_message_length"] else 5000
         if len(content) > max_msg_len:
             flash(f"Message cannot exceed {max_msg_len} characters.", "error")
@@ -182,9 +200,11 @@ def register_group_routes(app):
         if "attachment" in request.files:
             f = request.files["attachment"]
             if f.filename:
+                # Check if attachments are enabled
+                if settings and not settings["chat_attachments_enabled"] and user["role"] not in ("admin", "protected_admin"):
+                    flash("File attachments are currently disabled.", "error")
+                    return redirect(url_for("group_view", group_id=group_id))
                 # Check daily limit from site settings
-                if not settings:
-                    settings = db.get_site_settings()
                 max_attachments = settings["chat_attachments_per_day_limit"] if settings and settings["chat_attachments_per_day_limit"] else 10
                 att_count = db.get_user_group_attachment_count_today(user["id"])
                 if att_count >= max_attachments:
