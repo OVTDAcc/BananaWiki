@@ -92,6 +92,7 @@ def register_user_routes(app):
 
     @app.route("/badges/notifications/dismiss", methods=["POST"])
     @login_required
+    @rate_limit(10, 60)
     def dismiss_badge_notifications():
         """Dismiss all badge notifications for the current user."""
         user = get_current_user()
