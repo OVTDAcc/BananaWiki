@@ -1793,3 +1793,136 @@ def test_group_chat_export_button_hidden_from_moderator(alice_uid, bob_uid):
         c.post("/login", data={"username": "bob", "password": "bob123"})
         resp = c.get(f"/groups/{group['id']}")
         assert b"Export</a>" not in resp.data
+
+
+def test_group_chat_export_button_hidden_from_regular_member(alice_uid, bob_uid):
+    """Export button should not be visible to regular group members."""
+    import db
+    from app import app
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
+    group = db.create_group_chat("MemberExportHiddenTest", alice_uid)
+    db.add_group_member(group["id"], bob_uid)
+    with app.test_client() as c:
+        c.post("/login", data={"username": "bob", "password": "bob123"})
+        resp = c.get(f"/groups/{group['id']}")
+        assert b"Export</a>" not in resp.data
+
+
+def test_chat_attachment_limits_from_settings(alice_uid, bob_uid):
+    """Chat templates should display attachment limits from site settings."""
+    import db
+    from app import app
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
+    db.update_site_settings(
+        chat_max_attachment_size_mb=10,
+        chat_attachments_per_day_limit=20,
+    )
+    chat = db.get_or_create_chat(alice_uid, bob_uid)
+    with app.test_client() as c:
+        c.post("/login", data={"username": "alice", "password": "alice123"})
+        resp = c.get(f"/chats/{chat['id']}")
+        assert b"Max 10 MB" in resp.data
+        assert b"20 attachments per day" in resp.data
+
+
+def test_group_chat_attachment_limits_from_settings(alice_uid, bob_uid):
+    """Group chat templates should display attachment limits from site settings."""
+    import db
+    from app import app
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
+    db.update_site_settings(
+        chat_max_attachment_size_mb=8,
+        chat_attachments_per_day_limit=15,
+    )
+    group = db.create_group_chat("AttachLimitsTest", alice_uid)
+    db.add_group_member(group["id"], bob_uid)
+    with app.test_client() as c:
+        c.post("/login", data={"username": "alice", "password": "alice123"})
+        resp = c.get(f"/groups/{group['id']}")
+        assert b"Max 8 MB" in resp.data
+        assert b"15 attachments per day" in resp.data
+
+
+def test_chat_cleanup_banner_hidden_when_disabled(alice_uid, bob_uid):
+    """Cleanup countdown banner should be hidden when cleanup is disabled."""
+    import db
+    from app import app
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
+    db.update_site_settings(
+        chat_cleanup_enabled=0,
+        chat_dm_auto_clear_messages=0,
+        chat_dm_auto_clear_attachments=0,
+        chat_auto_clear_messages=0,
+    )
+    chat = db.get_or_create_chat(alice_uid, bob_uid)
+    with app.test_client() as c:
+        c.post("/login", data={"username": "alice", "password": "alice123"})
+        resp = c.get(f"/chats/{chat['id']}")
+        assert b"Messages will be deleted" not in resp.data
+
+
+def test_group_chat_cleanup_banner_hidden_when_disabled(alice_uid, bob_uid):
+    """Group cleanup countdown banner should be hidden when cleanup is disabled."""
+    import db
+    from app import app
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
+    db.update_site_settings(
+        chat_cleanup_enabled=0,
+        chat_group_auto_clear_messages=0,
+        chat_group_auto_clear_attachments=0,
+        chat_auto_clear_messages=0,
+    )
+    group = db.create_group_chat("CleanupBannerTest", alice_uid)
+    db.add_group_member(group["id"], bob_uid)
+    with app.test_client() as c:
+        c.post("/login", data={"username": "alice", "password": "alice123"})
+        resp = c.get(f"/groups/{group['id']}")
+        assert b"Messages will be deleted" not in resp.data
+
+
+def test_chat_attachment_ui_hidden_when_disabled(alice_uid, bob_uid):
+    """Attachment upload UI should be hidden when attachments are disabled."""
+    import db
+    from app import app
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
+    db.update_site_settings(chat_attachments_enabled=0)
+    chat = db.get_or_create_chat(alice_uid, bob_uid)
+    with app.test_client() as c:
+        c.post("/login", data={"username": "alice", "password": "alice123"})
+        resp = c.get(f"/chats/{chat['id']}")
+        assert b"Attach file" not in resp.data
+
+
+def test_group_chat_attachment_ui_hidden_when_disabled(alice_uid, bob_uid):
+    """Group attachment upload UI should be hidden when attachments are disabled."""
+    import db
+    from app import app
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
+    db.update_site_settings(chat_attachments_enabled=0)
+    group = db.create_group_chat("AttachDisabledTest", alice_uid)
+    db.add_group_member(group["id"], bob_uid)
+    with app.test_client() as c:
+        c.post("/login", data={"username": "alice", "password": "alice123"})
+        resp = c.get(f"/groups/{group['id']}")
+        assert b"Attach file" not in resp.data
+
+
+def test_chat_message_maxlength_from_settings(alice_uid, bob_uid):
+    """Chat textarea maxlength should reflect the configured max message length."""
+    import db
+    from app import app
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
+    db.update_site_settings(chat_max_message_length=3000)
+    chat = db.get_or_create_chat(alice_uid, bob_uid)
+    with app.test_client() as c:
+        c.post("/login", data={"username": "alice", "password": "alice123"})
+        resp = c.get(f"/chats/{chat['id']}")
+        assert b'maxlength="3000"' in resp.data

@@ -684,3 +684,27 @@ def test_cleanup_called_in_get_all_active_reservations(editor_user, test_page, m
     conn.close()
     assert row is not None
     assert row["released_at"] is not None
+
+
+def test_admin_can_edit_page_reserved_by_editor(admin_user, editor_user, test_page):
+    """Test that admins can bypass reservation locks when editing a page."""
+    import db
+
+    db.reserve_page(test_page, editor_user)
+
+    # Admin should be able to edit even though the page is reserved by the editor
+    can_edit, reason = db.can_user_edit_page(test_page, admin_user)
+    assert can_edit is True
+    assert reason == ""
+
+
+def test_admin_can_edit_reserved_page_via_route(logged_in_admin, editor_user, test_page):
+    """Test that admins can access the edit page route for a reserved page."""
+    import db
+
+    db.reserve_page(test_page, editor_user)
+
+    # Admin should be able to GET the edit page
+    resp = logged_in_admin.get("/page/test-page/edit", follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"Cannot edit" not in resp.data

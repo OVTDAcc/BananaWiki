@@ -13,10 +13,12 @@
     </div>
 </div>
 
+{% if settings and settings.chat_cleanup_enabled and (settings.chat_dm_auto_clear_messages or settings.chat_dm_auto_clear_attachments or settings.chat_auto_clear_messages) %}
 <div style="background:rgba(255,160,0,.15);border:1px solid rgba(255,160,0,.4);border-radius:6px;padding:.6rem 1rem;margin-bottom:1rem;text-align:center;font-size:.9rem">
     ⚠️ <strong>Messages will be deleted {{ time_until_next_chat_cleanup() }}</strong><br>
     <small>Last cleanup: {{ time_since_last_chat_cleanup() }}</small>
 </div>
+{% endif %}
 
 <div class="chat-messages" id="chat-messages">
     {% if messages %}
@@ -44,17 +46,19 @@
 <form method="POST" action="{{ url_for('chat_send', chat_id=chat.id) }}" class="chat-input-form" enctype="multipart/form-data">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="chat-input-row">
-        <textarea name="content" class="input chat-input" placeholder="Type your message here…" required rows="2" maxlength="5000"></textarea>
+        <textarea name="content" class="input chat-input" placeholder="Type your message here…" required rows="2" maxlength="{{ settings.chat_max_message_length or 5000 }}"></textarea>
         <button type="submit" class="btn chat-send-btn">Send</button>
     </div>
+    {% if not settings or settings.chat_attachments_enabled %}
     <div class="chat-input-file">
         <label class="btn btn-sm btn-outline">
             📎 Attach file
             <input type="file" name="attachment" style="display:none" onchange="this.closest('label').querySelector('span').textContent=this.files[0]?.name||'Attach file'">
             <span></span>
         </label>
-        <small>Max 5 MB · 10 attachments per day</small>
+        <small>Max {{ settings.chat_max_attachment_size_mb or 5 }} MB · {{ settings.chat_attachments_per_day_limit or 10 }} attachments per day</small>
     </div>
+    {% endif %}
 </form>
 
 <script>
