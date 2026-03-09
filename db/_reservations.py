@@ -30,14 +30,24 @@ def reserve_page(page_id, user_id):
 
         # Check if page is already reserved (and not expired or released)
         existing = conn.execute(
-            "SELECT * FROM page_reservations WHERE page_id=? AND expires_at > ? AND released_at IS NULL",
+            "SELECT pr.*, u.role FROM page_reservations pr "
+            "LEFT JOIN users u ON pr.user_id = u.id "
+            "WHERE pr.page_id=? AND pr.expires_at > ? AND pr.released_at IS NULL",
             (page_id, now.isoformat()),
         ).fetchone()
 
         if existing:
-            conn.execute("ROLLBACK")
-            conn.close()
-            raise ValueError("Page is already reserved by another user")
+            # Auto-release if the reserving user was deleted or lost edit permissions
+            ex_role = existing["role"] if "role" in existing.keys() else None
+            if ex_role is None or ex_role not in ("editor", "admin", "protected_admin"):
+                conn.execute(
+                    "UPDATE page_reservations SET released_at=? WHERE id=?",
+                    (now.isoformat(), existing["id"]),
+                )
+            else:
+                conn.execute("ROLLBACK")
+                conn.close()
+                raise ValueError("Page is already reserved by another user")
 
         # Check if user is in cooldown for this page
         cooldown = conn.execute(
@@ -150,7 +160,7 @@ def get_page_reservation_status(page_id, user_id=None):
 
     # Check active reservation
     reservation = conn.execute(
-        "SELECT pr.*, u.username FROM page_reservations pr "
+        "SELECT pr.*, u.username, u.role FROM page_reservations pr "
         "LEFT JOIN users u ON pr.user_id = u.id "
         "WHERE pr.page_id=? AND pr.expires_at > ? AND pr.released_at IS NULL",
         (page_id, now.isoformat()),
@@ -164,6 +174,17 @@ def get_page_reservation_status(page_id, user_id=None):
         'expires_at': None,
         'time_remaining': None,
     }
+
+    if reservation:
+        # Auto-release if the reserving user was deleted or lost edit permissions
+        user_role = reservation["role"] if "role" in reservation.keys() else None
+        if user_role is None or user_role not in ("editor", "admin", "protected_admin"):
+            conn.execute(
+                "UPDATE page_reservations SET released_at=? WHERE id=?",
+                (now.isoformat(), reservation["id"]),
+            )
+            conn.commit()
+            reservation = None
 
     if reservation:
         expires = datetime.fromisoformat(reservation["expires_at"]).replace(tzinfo=timezone.utc)
@@ -301,10 +322,13 @@ def get_user_reservations(user_id):
 def get_all_active_reservations():
     """
     Get all active (non-expired, non-released) reservations across all pages.
+    Also cleans up expired reservations and cooldowns before returning.
 
     Returns:
         list: List of reservation dicts including page title/slug and username.
     """
+    cleanup_expired_reservations()
+
     conn = get_db()
     now = datetime.now(timezone.utc).isoformat()
 
