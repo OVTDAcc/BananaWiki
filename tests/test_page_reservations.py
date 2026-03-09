@@ -589,3 +589,98 @@ def test_page_deleted_removes_reservation(editor_user):
     ).fetchone()
     conn.close()
     assert row is None
+
+
+# ============================================================================
+# PERMISSION LOSS & CLEANUP TESTS
+# ============================================================================
+
+def test_reservation_auto_released_on_role_downgrade(editor_user, editor2_user, test_page):
+    """Test that a reservation is auto-released when the reserving user's role
+    is downgraded from editor to user (losing edit permissions)."""
+    import db
+
+    # Editor reserves the page
+    db.reserve_page(test_page, editor_user)
+
+    status = db.get_page_reservation_status(test_page, editor2_user)
+    assert status["is_reserved"] is True
+
+    # Admin downgrades editor to user
+    db.update_user(editor_user, role="user")
+
+    # Reservation should be auto-released when checked
+    status = db.get_page_reservation_status(test_page, editor2_user)
+    assert status["is_reserved"] is False
+
+
+def test_reservation_auto_released_allows_new_reservation(editor_user, editor2_user, test_page):
+    """Test that after auto-release due to role downgrade, another user can
+    reserve the same page."""
+    import db
+
+    # Editor reserves the page
+    db.reserve_page(test_page, editor_user)
+
+    # Admin downgrades editor to user
+    db.update_user(editor_user, role="user")
+
+    # Verify auto-release happened
+    status = db.get_page_reservation_status(test_page, editor2_user)
+    assert status["is_reserved"] is False
+
+    # Editor2 should be able to reserve now
+    reservation = db.reserve_page(test_page, editor2_user)
+    assert reservation is not None
+    assert reservation["user_id"] == editor2_user
+
+
+def test_can_user_edit_page_after_role_downgrade(editor_user, editor2_user, test_page):
+    """Test that can_user_edit_page returns True for other editors after the
+    reserving user is downgraded."""
+    import db
+
+    db.reserve_page(test_page, editor_user)
+
+    # Initially, editor2 cannot edit
+    can_edit, reason = db.can_user_edit_page(test_page, editor2_user)
+    assert can_edit is False
+
+    # Downgrade editor to user
+    db.update_user(editor_user, role="user")
+
+    # Now editor2 can edit (reservation is auto-released)
+    can_edit, reason = db.can_user_edit_page(test_page, editor2_user)
+    assert can_edit is True
+
+
+def test_cleanup_called_in_get_all_active_reservations(editor_user, test_page, monkeypatch):
+    """Test that get_all_active_reservations cleans up expired entries."""
+    import db
+
+    # Create a reservation and manually expire it
+    db.reserve_page(test_page, editor_user)
+
+    # Monkey-patch time so the reservation is expired
+    fake_now = datetime.now(timezone.utc) + timedelta(hours=49)
+    monkeypatch.setattr(
+        "db._reservations.datetime",
+        type("FakeDatetime", (), {
+            "now": staticmethod(lambda tz=None: fake_now),
+            "fromisoformat": datetime.fromisoformat,
+        })
+    )
+
+    # get_all_active_reservations should call cleanup and show no active reservations
+    active = db.get_all_active_reservations()
+    assert len(active) == 0
+
+    # Verify the expired reservation was marked as released
+    conn = db.get_db()
+    row = conn.execute(
+        "SELECT * FROM page_reservations WHERE page_id=?",
+        (test_page,)
+    ).fetchone()
+    conn.close()
+    assert row is not None
+    assert row["released_at"] is not None
