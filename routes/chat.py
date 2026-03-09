@@ -27,6 +27,10 @@ def register_chat_routes(app):
     def chat_list():
         """List all direct message conversations for the current user."""
         user = get_current_user()
+        settings = db.get_site_settings()
+        if settings and not settings["chat_dm_enabled"] and user["role"] not in ("admin", "protected_admin"):
+            flash("Direct messaging is currently disabled.", "error")
+            return redirect(url_for("home"))
         chats = db.get_user_chats(user["id"])
         total_unread_dm = db.get_total_unread_dm_count(user["id"])
         categories, uncategorized = db.get_category_tree()
@@ -39,6 +43,13 @@ def register_chat_routes(app):
     def chat_new():
         """Start a new direct message conversation with another user."""
         user = get_current_user()
+        settings = db.get_site_settings()
+        if settings and not settings["chat_dm_enabled"] and user["role"] not in ("admin", "protected_admin"):
+            flash("Direct messaging is currently disabled.", "error")
+            return redirect(url_for("home"))
+        if settings and not settings["chat_allow_dm_creation"] and user["role"] not in ("admin", "protected_admin"):
+            flash("Creating new direct message conversations is currently disabled.", "error")
+            return redirect(url_for("chat_list"))
         if db.is_user_chat_disabled(user["id"]):
             flash("Your chat privileges have been disabled by an administrator.", "error")
             return redirect(url_for("chat_list"))
@@ -66,6 +77,10 @@ def register_chat_routes(app):
     def chat_view(chat_id):
         """View and load messages in a direct message conversation."""
         user = get_current_user()
+        settings = db.get_site_settings()
+        if settings and not settings["chat_dm_enabled"] and user["role"] not in ("admin", "protected_admin"):
+            flash("Direct messaging is currently disabled.", "error")
+            return redirect(url_for("home"))
         if not db.is_chat_participant(chat_id, user["id"]):
             flash("Access denied.", "error")
             return redirect(url_for("chat_list"))
@@ -89,6 +104,10 @@ def register_chat_routes(app):
     def chat_send(chat_id):
         """Send a message (and optional file attachment) in a direct message conversation."""
         user = get_current_user()
+        settings = db.get_site_settings()
+        if settings and not settings["chat_dm_enabled"] and user["role"] not in ("admin", "protected_admin"):
+            flash("Direct messaging is currently disabled.", "error")
+            return redirect(url_for("home"))
         if db.is_user_chat_disabled(user["id"]):
             flash("Your chat privileges have been disabled by an administrator.", "error")
             return redirect(url_for("chat_view", chat_id=chat_id))
@@ -106,7 +125,6 @@ def register_chat_routes(app):
         if not content:
             flash("Message cannot be empty.", "error")
             return redirect(url_for("chat_view", chat_id=chat_id))
-        settings = db.get_site_settings()
         max_msg_len = settings["chat_max_message_length"] if settings and settings["chat_max_message_length"] else 5000
         if len(content) > max_msg_len:
             flash(f"Message cannot exceed {max_msg_len} characters.", "error")
@@ -122,9 +140,11 @@ def register_chat_routes(app):
         if "attachment" in request.files:
             f = request.files["attachment"]
             if f.filename:
+                # Check if attachments are enabled
+                if settings and not settings["chat_attachments_enabled"] and user["role"] not in ("admin", "protected_admin"):
+                    flash("File attachments are currently disabled.", "error")
+                    return redirect(url_for("chat_view", chat_id=chat_id))
                 # Check daily limit from site settings
-                if not settings:
-                    settings = db.get_site_settings()
                 max_attachments = settings["chat_attachments_per_day_limit"] if settings and settings["chat_attachments_per_day_limit"] else 10
                 att_count = db.get_user_chat_attachment_count_today(user["id"])
                 if att_count >= max_attachments:
