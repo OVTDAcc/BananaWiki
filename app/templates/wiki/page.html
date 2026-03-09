@@ -15,7 +15,12 @@
         <button class="btn-icon" onclick="document.getElementById('titleModal').style.display='flex'" title="Edit title">Edit title</button>
         <button class="btn-icon" onclick="document.getElementById('tagModal').style.display='flex'" title="Set tag">Tag</button>
         {% if not page.is_home %}
+        {% set edit_locked = reservation_status and reservation_status.is_reserved and reservation_status.reserved_by != current_user.id and current_user.role not in ('admin', 'protected_admin') %}
+        {% if edit_locked %}
+        <button class="btn btn-sm" disabled title="Page is reserved by {{ reservation_status.reserved_by_username }}">Edit</button>
+        {% else %}
         <a href="{{ url_for('edit_page', slug=page.slug) }}" class="btn btn-sm">Edit</a>
+        {% endif %}
         <button class="btn btn-sm btn-outline" onclick="document.getElementById('moveModal').style.display='flex'">Move</button>
         <button class="btn btn-sm btn-outline" onclick="document.getElementById('renameSlugModal').style.display='flex'" title="Change page URL">URL</button>
         <form method="POST" action="{{ url_for('toggle_page_deindex', slug=page.slug) }}" style="display:inline" data-confirm="{% if page.is_deindexed %}Reindex this page? It will appear in the site navigation and search again.{% else %}Deindex this page? It will be hidden from navigation and search, but still accessible via its URL.{% endif %}">

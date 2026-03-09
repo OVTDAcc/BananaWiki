@@ -139,7 +139,7 @@ def register_api_routes(app):
     @editor_required
     @rate_limit(30, 60)
     def api_transfer_draft():
-        """Admin: transfer another editor's draft to the current user."""
+        """Transfer another editor's draft to the current user (editor or admin)."""
         data = request.get_json(silent=True)
         if not data:
             return jsonify({"error": "invalid request"}), 400
@@ -152,9 +152,6 @@ def register_api_routes(app):
         if not from_user:
             return jsonify({"error": "invalid page_id or from_user_id"}), 400
         user = get_current_user()
-        # Only admins may transfer another user's draft
-        if user["role"] not in ("admin", "protected_admin"):
-            return jsonify({"error": "admin access required"}), 403
         if from_user == user["id"]:
             return jsonify({"error": "cannot transfer draft from yourself"}), 400
         source_draft = db.get_draft(page_id, from_user)

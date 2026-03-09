@@ -1361,3 +1361,34 @@ def register_admin_routes(app):
         flash(f"Badge '{badge['name']}' {action_type} revoked from all users.", "success")
 
         return redirect(url_for("admin_edit_badge", badge_id=badge_id))
+
+    # -----------------------------------------------------------------------
+    #  Page checkouts / reservations
+    # -----------------------------------------------------------------------
+
+    @app.route("/admin/checkouts")
+    @login_required
+    @admin_required
+    def admin_checkouts():
+        """Admin: view all active page reservations."""
+        reservations = db.get_all_active_reservations()
+        return render_template("admin/checkouts.html", reservations=reservations)
+
+    @app.route("/admin/checkouts/<int:page_id>/release", methods=["POST"])
+    @login_required
+    @admin_required
+    @rate_limit(20, 60)
+    def admin_force_release_reservation(page_id):
+        """Admin: force-release a page reservation, bypassing normal ownership checks."""
+        user = get_current_user()
+        page = db.get_page(page_id)
+        if not page:
+            abort(404)
+        released = db.force_release_reservation(page_id)
+        if released:
+            log_action("admin_force_release_checkout", request, user=user, page=page["slug"])
+            notify_change("reservation_release", f"Reservation on '{page['title']}' force-released by admin")
+            flash(f"Reservation on '{page['title']}' has been successfully released.", "success")
+        else:
+            flash("No active reservation found for that page.", "info")
+        return redirect(url_for("admin_checkouts"))

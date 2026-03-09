@@ -298,6 +298,30 @@ def get_user_reservations(user_id):
     return rows
 
 
+def get_all_active_reservations():
+    """
+    Get all active (non-expired, non-released) reservations across all pages.
+
+    Returns:
+        list: List of reservation dicts including page title/slug and username.
+    """
+    conn = get_db()
+    now = datetime.now(timezone.utc).isoformat()
+
+    rows = conn.execute(
+        "SELECT pr.*, p.title, p.slug, u.username "
+        "FROM page_reservations pr "
+        "JOIN pages p ON pr.page_id = p.id "
+        "JOIN users u ON pr.user_id = u.id "
+        "WHERE pr.expires_at > ? AND pr.released_at IS NULL "
+        "ORDER BY pr.reserved_at DESC",
+        (now,),
+    ).fetchall()
+
+    conn.close()
+    return rows
+
+
 def force_release_reservation(page_id):
     """
     Force release a reservation (admin action).

@@ -131,6 +131,15 @@
         <input type="text" name="edit_message" class="input" placeholder="Describe what you changed..." style="max-width:500px">
     </div>
 
+    {% if not page.is_home and reservation_status and not reservation_status.is_reserved and not reservation_status.get('user_in_cooldown') %}
+    <div class="form-group" style="margin-top:.5rem">
+        <label class="reservation-checkbox">
+            <input type="checkbox" name="reserve_after_commit" value="1">
+            <span>Reserve this page for exclusive editing after saving</span>
+        </label>
+    </div>
+    {% endif %}
+
     <div class="form-actions">
         <button type="submit" class="btn">Commit Changes</button>
         <button type="button" class="btn btn-outline" id="save-draft-close" data-redirect="{% if page.is_home %}{{ url_for('home') }}{% else %}{{ url_for('view_page', slug=page.slug) }}{% endif %}">Save Draft &amp; Close</button>

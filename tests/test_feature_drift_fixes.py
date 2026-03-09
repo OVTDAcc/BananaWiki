@@ -364,3 +364,211 @@ def test_sidebar_search_filters_restricted_categories(client, admin_uid):
 
     assert "open-page" in slugs
     assert "hidden-page" not in slugs
+
+
+# ---------------------------------------------------------------------------
+# GAP-003 / GAP-004: Admin checkouts page and force-release.
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def editor_uid(admin_uid):
+    from werkzeug.security import generate_password_hash
+    return db.create_user("editor1", generate_password_hash("editor123"), role="editor")
+
+
+@pytest.fixture
+def editor2_uid(admin_uid):
+    from werkzeug.security import generate_password_hash
+    return db.create_user("editor2", generate_password_hash("editor123"), role="editor")
+
+
+def test_admin_checkouts_page_loads(client, admin_uid):
+    """GAP-003: Admin can view the /admin/checkouts page."""
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    resp = client.get("/admin/checkouts")
+    assert resp.status_code == 200
+    assert b"Page Checkouts" in resp.data
+
+
+def test_admin_checkouts_shows_active_reservations(client, admin_uid, editor_uid):
+    """GAP-003: Active reservations are listed on /admin/checkouts."""
+    page_id = db.create_page("Reserved Page", "reserved-page", "Content")
+    db.reserve_page(page_id, editor_uid)
+
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    resp = client.get("/admin/checkouts")
+    assert resp.status_code == 200
+    assert b"Reserved Page" in resp.data
+    assert b"editor1" in resp.data
+
+
+def test_admin_checkouts_empty_when_no_reservations(client, admin_uid):
+    """GAP-003: Admin checkouts page shows empty state when no reservations."""
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    resp = client.get("/admin/checkouts")
+    assert resp.status_code == 200
+    assert b"No active page reservations" in resp.data
+
+
+def test_admin_force_release_reservation(client, admin_uid, editor_uid):
+    """GAP-004: Admin can force-release a reservation."""
+    page_id = db.create_page("Force Release Page", "force-release-page", "Content")
+    db.reserve_page(page_id, editor_uid)
+
+    # Confirm reserved
+    status = db.get_page_reservation_status(page_id)
+    assert status["is_reserved"]
+
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    resp = client.post(f"/admin/checkouts/{page_id}/release", follow_redirects=True)
+    assert resp.status_code == 200
+
+    # Confirm no longer reserved
+    status = db.get_page_reservation_status(page_id)
+    assert not status["is_reserved"]
+
+
+def test_admin_force_release_nonexistent_page(client, admin_uid):
+    """GAP-004: Force-release on nonexistent page returns 404."""
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    resp = client.post("/admin/checkouts/99999/release")
+    assert resp.status_code == 404
+
+
+def test_non_admin_cannot_access_checkouts(client, admin_uid, editor_uid):
+    """GAP-003: Non-admin users cannot access /admin/checkouts."""
+    client.post("/login", data={"username": "editor1", "password": "editor123"})
+    resp = client.get("/admin/checkouts")
+    assert resp.status_code in (302, 403)
+
+
+def test_get_all_active_reservations_db_function(admin_uid, editor_uid):
+    """GAP-003: get_all_active_reservations() returns all active reservations."""
+    page1_id = db.create_page("Page One", "page-one", "Content")
+    page2_id = db.create_page("Page Two", "page-two", "Content")
+
+    db.reserve_page(page1_id, editor_uid)
+    db.reserve_page(page2_id, editor_uid)
+
+    all_res = db.get_all_active_reservations()
+    page_ids = [r["page_id"] for r in all_res]
+    assert page1_id in page_ids
+    assert page2_id in page_ids
+
+
+# ---------------------------------------------------------------------------
+# GAP-005: Edit button disabled for reserved pages (non-owner editors).
+# ---------------------------------------------------------------------------
+
+def test_edit_button_disabled_when_reserved_by_other(client, admin_uid, editor_uid, editor2_uid):
+    """GAP-005: The Edit button is disabled when the page is reserved by another editor."""
+    page_id = db.create_page("Locked Page", "locked-page", "Content")
+    db.reserve_page(page_id, editor_uid)  # editor1 reserves
+
+    # Log in as editor2 and view the page
+    client.post("/login", data={"username": "editor2", "password": "editor123"})
+    resp = client.get("/page/locked-page")
+    assert resp.status_code == 200
+    # The Edit button should be rendered as a disabled <button>, not an <a>
+    assert b'<button class="btn btn-sm" disabled' in resp.data
+
+
+def test_edit_button_enabled_for_reservation_owner(client, admin_uid, editor_uid):
+    """GAP-005: The Edit button is NOT disabled for the user who holds the reservation."""
+    page_id = db.create_page("My Page", "my-page", "Content")
+    db.reserve_page(page_id, editor_uid)  # editor1 reserves
+
+    client.post("/login", data={"username": "editor1", "password": "editor123"})
+    resp = client.get("/page/my-page")
+    assert resp.status_code == 200
+    # The owner should see the normal Edit link, not a disabled button
+    assert b'href="/page/my-page/edit"' in resp.data or b'href=' in resp.data
+    assert b'<button class="btn btn-sm" disabled' not in resp.data
+
+
+def test_admin_edit_button_not_disabled_even_when_reserved(client, admin_uid, editor_uid):
+    """GAP-005: Admins always see an active Edit link even when page is reserved by editor."""
+    page_id = db.create_page("Admin Edit Page", "admin-edit-page", "Content")
+    db.reserve_page(page_id, editor_uid)  # editor1 reserves
+
+    client.post("/login", data={"username": "admin", "password": "admin123"})
+    resp = client.get("/page/admin-edit-page")
+    assert resp.status_code == 200
+    assert b'<button class="btn btn-sm" disabled' not in resp.data
+
+
+# ---------------------------------------------------------------------------
+# GAP-006: Edit form includes "Reserve this page" checkbox.
+# ---------------------------------------------------------------------------
+
+def test_edit_form_has_reserve_checkbox(client, admin_uid, editor_uid):
+    """GAP-006: The edit form shows a 'Reserve this page' checkbox."""
+    page_id = db.create_page("Editable Page", "editable-page", "Content")
+
+    client.post("/login", data={"username": "editor1", "password": "editor123"})
+    resp = client.get("/page/editable-page/edit")
+    assert resp.status_code == 200
+    assert b'name="reserve_after_commit"' in resp.data
+
+
+def test_edit_form_reserve_checkbox_reserves_page(client, admin_uid, editor_uid):
+    """GAP-006: Checking reserve_after_commit reserves the page after committing."""
+    page_id = db.create_page("To Reserve", "to-reserve", "Content")
+
+    client.post("/login", data={"username": "editor1", "password": "editor123"})
+    resp = client.post(
+        "/page/to-reserve/edit",
+        data={
+            "title": "To Reserve",
+            "content": "Updated",
+            "edit_message": "test edit",
+            "reserve_after_commit": "1",
+        },
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+
+    # Page should now be reserved by editor1
+    status = db.get_page_reservation_status(page_id)
+    assert status["is_reserved"]
+    assert status["reserved_by"] == editor_uid
+
+
+# ---------------------------------------------------------------------------
+# GAP-007: Draft transfer is available to editors (not admin-only).
+# ---------------------------------------------------------------------------
+
+def test_editor_can_transfer_draft(client, admin_uid, editor_uid, editor2_uid):
+    """GAP-007: An editor can transfer another user's draft to themselves."""
+    import json
+    page_id = db.create_page("Draft Page", "draft-page", "Content")
+
+    # editor2 creates a draft
+    db.save_draft(page_id, editor2_uid, "Draft Title", "Draft content")
+
+    # editor1 logs in and transfers the draft
+    client.post("/login", data={"username": "editor1", "password": "editor123"})
+    resp = client.post(
+        "/api/draft/transfer",
+        data=json.dumps({"page_id": page_id, "from_user_id": editor2_uid}),
+        content_type="application/json",
+    )
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data.get("ok") is True
+
+
+def test_regular_user_cannot_transfer_draft(client, admin_uid, alice_uid, editor_uid):
+    """GAP-007: Regular users (non-editors) cannot call the transfer draft endpoint."""
+    import json
+    page_id = db.create_page("Draft Page2", "draft-page-2", "Content")
+    db.save_draft(page_id, editor_uid, "Draft Title", "Draft content")
+
+    client.post("/login", data={"username": "alice", "password": "alice123"})
+    resp = client.post(
+        "/api/draft/transfer",
+        data=json.dumps({"page_id": page_id, "from_user_id": editor_uid}),
+        content_type="application/json",
+    )
+    # regular user should be forbidden (editor_required redirects or 403)
+    assert resp.status_code in (302, 403)

@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Page Checkouts – {{ settings.site_name }}{% endblock %}
+{% block content %}
+<h1>Page Checkouts</h1>
+<p style="opacity:.7;margin-bottom:1.2rem">Active page reservations. Admins can force-release any reservation here.</p>
+
+{% if reservations %}
+<table class="admin-table">
+    <thead>
+        <tr>
+            <th>Page</th>
+            <th>Reserved By</th>
+            <th>Reserved At</th>
+            <th>Expires</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for r in reservations %}
+        <tr>
+            <td><a href="{{ url_for('view_page', slug=r.slug) }}">{{ r.title }}</a></td>
+            <td>{{ r.username }}</td>
+            <td title="{{ format_datetime(r.reserved_at) }}">{{ time_ago(r.reserved_at) }}</td>
+            <td title="{{ format_datetime(r.expires_at) }}">{{ time_ago(r.expires_at) }}</td>
+            <td>
+                <form method="POST" action="{{ url_for('admin_force_release_reservation', page_id=r.page_id) }}" style="display:inline" data-confirm="Force-release the reservation on '{{ r.title }}'?">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-sm btn-danger">Force Release</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p style="opacity:.5">No active page reservations.</p>
+{% endif %}
+{% endblock %}

@@ -420,7 +420,15 @@ def register_wiki_routes(app):
             if newly_awarded:
                 session["badge_notifications"] = session.get("badge_notifications", 0) + len(newly_awarded)
 
-            flash("Page has been successfully updated.", "success")
+            # Reserve page if the editor requested it
+            if request.form.get("reserve_after_commit") == "1" and not page["is_home"]:
+                try:
+                    db.reserve_page(page["id"], user["id"])
+                    flash("Page has been successfully updated and reserved for your editing.", "success")
+                except ValueError:
+                    flash("Page has been successfully updated (reservation failed: page may already be reserved).", "success")
+            else:
+                flash("Page has been successfully updated.", "success")
             if page["is_home"]:
                 return redirect(url_for("home"))
             return redirect(url_for("view_page", slug=slug))
