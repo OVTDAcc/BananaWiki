@@ -5441,25 +5441,42 @@ def test_base_template_shows_customize_button(logged_in_admin):
 
 
 # -----------------------------------------------------------------------
-# Fix: draft transfer requires admin role (non-admin editors cannot
-# transfer other users' drafts)
+# Fix: draft transfer is available to editors (non-admin editors CAN
+# transfer other users' drafts; regular users with role "user" cannot)
 # -----------------------------------------------------------------------
-def test_draft_transfer_requires_admin(client, admin_user):
-    """An editor should be denied access to the draft transfer endpoint."""
+def test_draft_transfer_requires_editor_role(client, admin_user):
+    """A regular user (role=user) should be denied access to the draft transfer endpoint."""
     from werkzeug.security import generate_password_hash
     import db
-    # Create editor user
-    editor_id = db.create_user("editor1", generate_password_hash("editor123"), role="editor")
-    # Login as editor
-    client.post("/login", data={"username": "editor1", "password": "editor123"})
+    # Create a regular user
+    regular_id = db.create_user("regular1", generate_password_hash("regular123"), role="user")
+    # Login as regular user
+    client.post("/login", data={"username": "regular1", "password": "regular123"})
     resp = client.post(
         "/api/draft/transfer",
         json={"page_id": 1, "from_user_id": admin_user},
         content_type="application/json",
     )
-    assert resp.status_code == 403
-    data = resp.get_json()
-    assert "admin" in data["error"].lower()
+    # Non-editors should be redirected (editor_required decorator)
+    assert resp.status_code in (302, 403)
+
+
+def test_draft_transfer_allowed_for_editor(client, admin_user):
+    """An editor should be allowed to use the draft transfer endpoint."""
+    from werkzeug.security import generate_password_hash
+    import db
+    editor1_id = db.create_user("editor_a", generate_password_hash("editor123"), role="editor")
+    editor2_id = db.create_user("editor_b", generate_password_hash("editor123"), role="editor")
+    home = db.get_home_page()
+    db.save_draft(home["id"], editor2_id, "draft title", "draft content")
+    client.post("/login", data={"username": "editor_a", "password": "editor123"})
+    resp = client.post(
+        "/api/draft/transfer",
+        json={"page_id": home["id"], "from_user_id": editor2_id},
+        content_type="application/json",
+    )
+    assert resp.status_code == 200
+    assert resp.get_json()["ok"] is True
 
 
 def test_draft_transfer_allowed_for_admin(logged_in_admin, admin_user):
