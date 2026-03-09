@@ -1646,7 +1646,6 @@ def test_moderator_can_clear_group_chat(alice_uid, bob_uid):
     db.add_group_member(group["id"], bob_uid, role="moderator")
     db.send_group_message(group["id"], alice_uid, "test message")
     with app.test_client() as c:
-        from werkzeug.security import generate_password_hash
         c.post("/login", data={"username": "bob", "password": "bob123"})
         resp = c.post(f"/groups/{group['id']}/clear", follow_redirects=True)
         assert resp.status_code == 200
