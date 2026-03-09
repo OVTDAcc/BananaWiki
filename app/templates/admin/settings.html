@@ -507,16 +507,14 @@
         </div>
 
         <!-- Warning: users with OAuth-only accounts if provider is being disabled -->
-        {% set github_users_count = oauth_github_count %}
-        {% set google_users_count = oauth_google_count %}
-        {% if github_users_count > 0 or google_users_count > 0 %}
+        {% if oauth_github_count > 0 or oauth_google_count > 0 %}
         <div class="flash flash-info" style="margin-top:1rem">
             <strong>Note:</strong>
-            {% if github_users_count > 0 %}
-            {{ github_users_count }} user{{ 's' if github_users_count != 1 else '' }} signed up via GitHub.
+            {% if oauth_github_count > 0 %}
+            {{ oauth_github_count }} user{{ 's' if oauth_github_count != 1 else '' }} signed up via GitHub.
             {% endif %}
-            {% if google_users_count > 0 %}
-            {{ google_users_count }} user{{ 's' if google_users_count != 1 else '' }} signed up via Google.
+            {% if oauth_google_count > 0 %}
+            {{ oauth_google_count }} user{{ 's' if oauth_google_count != 1 else '' }} signed up via Google.
             {% endif %}
             If you disable a provider, those users will need a password set before they can log in.
             <a href="{{ url_for('admin_users') }}">Manage OAuth users →</a>

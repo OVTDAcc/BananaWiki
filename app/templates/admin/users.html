@@ -102,10 +102,10 @@
                     <!-- Change password / set OAuth password -->
                     <form method="POST" action="{{ url_for('admin_edit_user', user_id=u.id) }}" class="inline-form">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <input type="hidden" name="action" value="{% if u.oauth_provider and not u.password %}set_oauth_password{% else %}change_password{% endif %}">
+                        <input type="hidden" name="action" value="change_password">
                         <input type="password" name="password" placeholder="New password" class="input input-sm" style="width:120px" autocomplete="new-password">
                         <input type="password" name="confirm_password" placeholder="Confirm" class="input input-sm" style="width:120px" autocomplete="new-password">
-                        <button class="btn btn-sm">{% if u.oauth_provider %}Set PW{% else %}Set PW{% endif %}</button>
+                        <button class="btn btn-sm">{% if u.oauth_provider %}Set PW{% else %}Change PW{% endif %}</button>
                     </form>
                     <!-- Unlink OAuth provider -->
                     {% if u.oauth_provider %}

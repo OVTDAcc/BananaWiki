@@ -62,6 +62,7 @@ def test_create_oauth_user(isolated_db):
 
     # The stored password hash must NOT match any reasonable plain-text
     # (it was generated from a random 32-byte token)
+    assert user["password"]  # password field must be populated (non-empty hash)
     assert not check_password_hash(user["password"], "password")
     assert not check_password_hash(user["password"], "")
 
@@ -315,12 +316,12 @@ def test_admin_can_set_oauth_user_password(logged_in_admin):
     uid = db.create_oauth_user("oauthonly", "github", "555")
 
     resp = logged_in_admin.post(f"/admin/users/{uid}/edit", data={
-        "action": "set_oauth_password",
+        "action": "change_password",
         "password": "newpassword123",
         "confirm_password": "newpassword123",
     }, follow_redirects=True)
     assert resp.status_code == 200
-    assert b"successfully set" in resp.data
+    assert b"updated" in resp.data
 
     from werkzeug.security import check_password_hash
     updated = db.get_user_by_id(uid)

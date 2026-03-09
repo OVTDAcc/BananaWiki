@@ -5,6 +5,8 @@ import string
 import secrets
 from datetime import datetime, timedelta, timezone
 
+from werkzeug.security import generate_password_hash
+
 from ._connection import get_db
 
 
@@ -180,10 +182,8 @@ def create_oauth_user(username, oauth_provider, oauth_id, role="user"):
     no plain-text password can ever match it, preventing password-based login
     until an admin explicitly sets one.
     """
-    import secrets as _secrets
-    from werkzeug.security import generate_password_hash as _gph
     # Random 32-byte hex – discarded immediately, never stored in plaintext
-    sentinel_hash = _gph(_secrets.token_hex(32))
+    sentinel_hash = generate_password_hash(secrets.token_hex(32))
     conn = get_db()
     try:
         cur = conn.cursor()

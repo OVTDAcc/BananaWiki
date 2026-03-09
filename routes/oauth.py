@@ -20,11 +20,13 @@ Security notes
 """
 
 import secrets
+import sqlite3
 import uuid
 import urllib.request
 import urllib.parse
 import json
 import re
+import logging
 from datetime import datetime, timezone
 
 from flask import (
@@ -49,8 +51,9 @@ _USERNAME_CLEANUP_RE = re.compile(r"[^a-zA-Z0-9_-]")
 
 def _sanitize_oauth_username(raw: str) -> str:
     """Turn a provider display name into a valid BananaWiki username."""
-    cleaned = _USERNAME_CLEANUP_RE.sub("_", raw or "").strip("_")
-    return cleaned[:50] if cleaned else "user"
+    cleaned = _USERNAME_CLEANUP_RE.sub("_", raw or "")
+    cleaned = cleaned.strip("_")
+    return (cleaned[:50] or "user")
 
 
 def _unique_username(base: str) -> str:
@@ -58,16 +61,19 @@ def _unique_username(base: str) -> str:
     base = _sanitize_oauth_username(base)
     if len(base) < 3:
         base = (base + "___")[:3]
-    candidate = base
+    candidate = base[:50]
     counter = 1
     while db.get_user_by_username(candidate):
-        candidate = f"{base}_{counter}"
+        candidate = f"{base}_{counter}"[:50]
         counter += 1
         if counter > 9999:
-            # Extreme fallback – generate random suffix
-            candidate = f"{base[:20]}_{secrets.token_hex(4)}"
+            # Extreme fallback – generate random suffix and verify uniqueness
+            for _ in range(10):
+                candidate = f"{base[:20]}_{secrets.token_hex(4)}"[:50]
+                if not db.get_user_by_username(candidate):
+                    break
             break
-    return candidate[:50]
+    return candidate
 
 
 def _http_post_json(url: str, data: dict, headers: dict = None) -> dict:
@@ -251,8 +257,10 @@ def register_oauth_routes(app):
                 primary = next((e for e in emails if e.get("primary") and e.get("verified")), None)
                 if primary:
                     github_email = primary.get("email", "")
-            except RuntimeError:
-                pass  # email is non-essential
+            except RuntimeError as exc:
+                logging.getLogger(__name__).debug(
+                    "GitHub email fetch failed (non-fatal): %s", exc
+                )
 
         return _handle_oauth_callback(
             provider="github",
@@ -414,7 +422,12 @@ def register_oauth_routes(app):
 
             try:
                 user_id = db.create_oauth_user(username, provider, provider_id, role=role)
-            except Exception:
+            except sqlite3.IntegrityError:
+                flash("Username already taken. Please choose another.", "error")
+                return render_template("auth/oauth_signup.html",
+                                       pending=pending, settings=settings)
+            except Exception as exc:
+                logging.getLogger(__name__).error("OAuth signup failed: %s", exc)
                 flash("Could not create account. Please try again.", "error")
                 return render_template("auth/oauth_signup.html",
                                        pending=pending, settings=settings)
