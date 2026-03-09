@@ -278,11 +278,22 @@ def can_user_edit_page(page_id, user_id):
     """
     Check if a user can edit a page based on reservation status.
 
+    Admins and protected admins can always edit, even if the page is
+    reserved by someone else (consistent with the template-level bypass).
+
     Returns:
         tuple: (can_edit: bool, reason: str)
         - (True, "") if user can edit
         - (False, reason) if user cannot edit
     """
+    # Admins/protected admins bypass reservation locks
+    from ._connection import get_db as _get_db
+    conn = _get_db()
+    user = conn.execute("SELECT role FROM users WHERE id=?", (user_id,)).fetchone()
+    conn.close()
+    if user and user["role"] in ("admin", "protected_admin"):
+        return (True, "")
+
     status = get_page_reservation_status(page_id, user_id)
 
     if not status['is_reserved']:
