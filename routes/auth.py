@@ -69,7 +69,7 @@ def register_auth_routes(app):
             db.update_site_settings(setup_done=1)
             log_action("setup_complete", request, username=username)
             notify_change("setup_complete", f"Admin account '{username}' created")
-            flash("Administrator account created. You can sign in now.", "success")
+            flash("Admin account created. You can sign in now.", "success")
             return redirect(url_for("login"))
 
         return render_template("auth/setup.html")
