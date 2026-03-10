@@ -7,7 +7,7 @@ BananaWiki now includes a comprehensive custom permission system that allows adm
 ## Key Features
 
 - **38 individual permissions** across 10 categories (pages, categories, history, drafts, attachments, tags, profiles, chat, search, invites)
-- **Separate read and write category restrictions** - users can have different read vs write access to categories
+- **Separate read and write category restrictions** - read access remains distinct, while editor write access automatically includes read access to the same categories
 - **Default permission sets** - reasonable defaults for editors and users that can be customized
 - **Permission-based deindexed page visibility** - control who can see hidden pages
 - **Admin interface** - easy-to-use UI for configuring permissions
@@ -24,13 +24,13 @@ BananaWiki now includes a comprehensive custom permission system that allows adm
 - **Default permissions**: 22 enabled (page creation, editing, viewing deindexed pages, draft management, file uploads, etc.)
 - Can have **custom permissions** configured by admin
 - Can have **write access** restricted to specific categories
-- Can have **read access** restricted to specific categories (independent of write access)
+- Can have **read access** restricted to specific categories, but any category with write access is always readable too
 
 ### User
 - **Default permissions**: 11 enabled (viewing pages, viewing profiles, chat, search, etc.)
 - Can have **custom permissions** configured by admin
 - Can have **read access** restricted to specific categories
-- Cannot write pages by default (can be granted via custom permissions)
+- Cannot receive editor/admin capabilities from custom permissions; change the role to editor/admin instead
 
 ## Permission Categories
 
@@ -104,7 +104,7 @@ BananaWiki now includes a comprehensive custom permission system that allows adm
 - Controls which categories an editor can **create/edit** pages in
 - **Unrestricted**: Editor can edit pages in all categories
 - **Restricted**: Editor can only edit pages in specifically allowed categories
-- Read and write restrictions are **independent** - an editor can have different read vs write access
+- Any category an editor can write to is also automatically readable
 
 ## Admin Interface
 
@@ -120,8 +120,9 @@ BananaWiki now includes a comprehensive custom permission system that allows adm
 The permission configuration page shows:
 
 1. **Permission Categories** - All available permissions grouped by function
-   - Check/uncheck individual permissions
-   - Permissions auto-enable dependencies (e.g., enabling "View Deindexed Pages" auto-enables "View All Pages")
+    - Check/uncheck individual permissions
+    - Permissions auto-enable dependencies (e.g., enabling "View Deindexed Pages" auto-enables "View All Pages")
+    - Regular users only see permissions that do not grant editor/admin capabilities
 
 2. **Category Access - Read** - Configure which categories the user can view
    - **All categories**: Unrestricted read access

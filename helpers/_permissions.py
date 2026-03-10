@@ -114,6 +114,48 @@ PERMISSIONS = {
     },
 }
 
+EDITOR_ONLY_PERMISSION_KEYS = {
+    "page.create",
+    "page.edit_all",
+    "page.delete",
+    "page.edit_metadata",
+    "page.deindex",
+    "category.create",
+    "category.edit",
+    "category.delete",
+    "category.reorder",
+    "category.manage_sequential",
+    "history.revert",
+    "history.delete",
+    "history.transfer",
+    "draft.create",
+    "draft.view_own",
+    "draft.delete_own",
+    "draft.transfer",
+    "attachment.upload",
+    "attachment.delete_own",
+    "attachment.delete_any",
+    "tag.edit_difficulty",
+    "tag.edit_custom",
+    "invite.generate",
+    "invite.view",
+    "invite.delete",
+}
+
+PERMISSION_IMPLICATIONS = {
+    "page.view_deindexed": {"page.view_all"},
+    "page.create": {"page.view_all"},
+    "page.edit_all": {"page.view_all"},
+    "page.delete": {"page.view_all"},
+    "page.edit_metadata": {"page.view_all"},
+    "page.deindex": {"page.view_all"},
+    "category.create": {"category.view_all"},
+    "category.edit": {"category.view_all"},
+    "category.delete": {"category.view_all"},
+    "category.reorder": {"category.view_all"},
+    "category.manage_sequential": {"category.view_all"},
+}
+
 # Shortcut to get all permission keys
 def get_all_permission_keys():
     """Return a list of all permission keys."""
@@ -122,6 +164,40 @@ def get_all_permission_keys():
         for perm in category["permissions"]:
             keys.append(perm[0])
     return keys
+
+
+def get_assignable_permission_keys(role):
+    """Return permission keys that may be assigned to the given role."""
+    all_keys = set(get_all_permission_keys())
+    if role == "editor":
+        return all_keys
+    if role == "user":
+        return all_keys - EDITOR_ONLY_PERMISSION_KEYS
+    return set()
+
+
+def is_permission_assignable_to_role(permission_key, role):
+    """Return True if a permission may be assigned to the given role."""
+    return permission_key in get_assignable_permission_keys(role)
+
+
+def normalize_permission_keys(permission_keys):
+    """Return permission keys with implied dependencies applied."""
+    normalized = set(permission_keys)
+    stack = list(normalized)
+    while stack:
+        key = stack.pop()
+        for implied_key in PERMISSION_IMPLICATIONS.get(key, set()):
+            if implied_key not in normalized:
+                normalized.add(implied_key)
+                stack.append(implied_key)
+    return normalized
+
+
+def sanitize_permission_keys(role, permission_keys):
+    """Filter a permission selection down to the permissions valid for *role*."""
+    allowed = get_assignable_permission_keys(role)
+    return normalize_permission_keys(set(permission_keys) & allowed)
 
 def get_default_permissions(role):
     """Return default permissions for a role.
@@ -162,6 +238,20 @@ def get_permission_description(key):
                 return perm[2]
     return ""
 
-def group_permissions_by_category():
+def group_permissions_by_category(role=None):
     """Return permissions grouped by category for UI display."""
-    return PERMISSIONS
+    if role is None:
+        return PERMISSIONS
+
+    allowed = get_assignable_permission_keys(role)
+    grouped = {}
+    for key, category in PERMISSIONS.items():
+        category_permissions = [
+            perm for perm in category["permissions"] if perm[0] in allowed
+        ]
+        if category_permissions:
+            grouped[key] = {
+                "label": category["label"],
+                "permissions": category_permissions,
+            }
+    return grouped

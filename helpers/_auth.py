@@ -73,8 +73,14 @@ def editor_has_category_access(user, category_id):
     For backward compatibility, it falls back to the old editor_category_access system
     if no custom permissions are set.
     """
+    if not user:
+        return False
+
     if user["role"] in ("admin", "protected_admin"):
         return True
+
+    if user["role"] != "editor":
+        return False
 
     # Use new permission system
     return db.has_category_write_access(user, category_id)
@@ -84,7 +90,8 @@ def user_can_view_category(user, category_id):
     """Return True if *user* can view pages in the given *category_id*.
 
     Admins always have access. Regular users and editors check their
-    custom permissions for read access.
+    custom permissions for read access. Editors may always view any category
+    they are allowed to write to.
     """
     if not user:
         return False
@@ -120,4 +127,3 @@ def user_can_view_page(user, page):
     # Check category read access
     category_id = page["category_id"] if "category_id" in page.keys() else None
     return user_can_view_category(user, category_id)
-

@@ -103,6 +103,27 @@ def set_user_permissions(user_id, permission_keys,
     conn = get_db()
     cur = conn.cursor()
 
+    user_row = cur.execute(
+        "SELECT role FROM users WHERE id = ?",
+        (user_id,)
+    ).fetchone()
+    role = user_row["role"] if user_row else None
+
+    from helpers._permissions import sanitize_permission_keys
+
+    permission_keys = sanitize_permission_keys(role, permission_keys)
+    read_category_ids = list(dict.fromkeys(read_category_ids or []))
+    write_category_ids = list(dict.fromkeys(write_category_ids or []))
+
+    if role != "editor":
+        write_restricted = False
+        write_category_ids = []
+    elif not write_restricted:
+        read_restricted = False
+        read_category_ids = []
+    elif read_restricted:
+        read_category_ids = list(dict.fromkeys(read_category_ids + write_category_ids))
+
     # Clear existing permissions
     cur.execute("DELETE FROM user_permissions WHERE user_id = ?", (user_id,))
     cur.execute("DELETE FROM user_category_access WHERE user_id = ?", (user_id,))
@@ -162,6 +183,11 @@ def has_permission(user, permission_key):
     if role in ("admin", "protected_admin"):
         return True
 
+    from helpers._permissions import is_permission_assignable_to_role
+
+    if not is_permission_assignable_to_role(permission_key, role):
+        return False
+
     # Regular users and editors use custom permissions
     permissions = get_user_permissions(user["id"])
     return permission_key in permissions['enabled_permissions']
@@ -201,7 +227,10 @@ def has_category_read_access(user, category_id):
     if category_id is None:
         return False
 
-    return int(category_id) in cat_access['allowed_category_ids']
+    if int(category_id) in cat_access['allowed_category_ids']:
+        return True
+
+    return has_category_write_access(user, category_id)
 
 
 def has_category_write_access(user, category_id):
@@ -221,6 +250,8 @@ def has_category_write_access(user, category_id):
     role = user["role"] if "role" in user.keys() else None
     if role in ("admin", "protected_admin"):
         return True
+    if role != "editor":
+        return False
 
     user_id = user["id"] if "id" in user.keys() else None
     if not user_id:
