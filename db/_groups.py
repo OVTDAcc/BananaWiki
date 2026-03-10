@@ -8,6 +8,9 @@ from datetime import datetime, timezone
 from ._connection import get_db
 
 
+DELETED_MESSAGE_PLACEHOLDER = "This message was deleted."
+
+
 # ---------------------------------------------------------------------------
 #  Group Chats
 # ---------------------------------------------------------------------------
@@ -200,7 +203,8 @@ def get_user_groups(user_id):
     conn = get_db()
     rows = conn.execute(
         "SELECT gc.*, gm.role AS my_role, gm.unread_count, "
-        "  m.content AS last_message, m.created_at AS last_message_at, "
+        "  CASE WHEN m.is_deleted=1 THEN ? ELSE m.content END AS last_message, "
+        "  m.created_at AS last_message_at, "
         "  (SELECT COUNT(*) FROM group_members WHERE group_id=gc.id) AS member_count "
         "FROM group_chats gc "
         "JOIN group_members gm ON gc.id=gm.group_id AND gm.user_id=? "
@@ -208,7 +212,7 @@ def get_user_groups(user_id):
         "  SELECT id FROM group_messages WHERE group_id=gc.id ORDER BY created_at DESC LIMIT 1"
         ") "
         "ORDER BY COALESCE(m.created_at, gc.created_at) DESC",
-        (user_id,),
+        (DELETED_MESSAGE_PLACEHOLDER, user_id),
     ).fetchall()
     conn.close()
     return rows
@@ -290,7 +294,7 @@ def get_group_attachment(attachment_id):
     """Return a single group attachment row with group_id and sender_id, or None."""
     conn = get_db()
     row = conn.execute(
-        "SELECT ga.*, gm.group_id, gm.sender_id "
+        "SELECT ga.*, gm.group_id, gm.sender_id, gm.is_deleted "
         "FROM group_attachments ga "
         "JOIN group_messages gm ON ga.message_id=gm.id "
         "WHERE ga.id=?",
@@ -301,16 +305,19 @@ def get_group_attachment(attachment_id):
 
 
 def delete_group_message(message_id):
-    """Delete a single group message (attachments cascade). Returns list of attachment filenames."""
+    """Soft-delete a group message while preserving content and attachments.
+
+    Deleted attachments stay linked to the message so admins can continue to
+    review them, and they are still removed by the existing clear/export/age-
+    based cleanup flows when those run.
+    """
     conn = get_db()
-    filenames = conn.execute(
-        "SELECT filename FROM group_attachments WHERE message_id=?", (message_id,)
-    ).fetchall()
-    files = [r["filename"] for r in filenames]
-    conn.execute("DELETE FROM group_messages WHERE id=?", (message_id,))
+    conn.execute(
+        "UPDATE group_messages SET is_deleted=1, deleted_at=? WHERE id=?",
+        (datetime.now(timezone.utc).isoformat(), message_id),
+    )
     conn.commit()
     conn.close()
-    return files
 
 
 def get_group_message_by_id(message_id):

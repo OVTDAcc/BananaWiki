@@ -654,6 +654,10 @@ h1 .unread-badge{font-size:.9rem;padding:.2rem .6rem;vertical-align:middle}
 .chat-msg-attachments{margin-top:.3rem;display:flex;gap:.35rem;flex-wrap:wrap}
 .chat-attachment-link{display:inline-block;font-size:.8rem;color:var(--accent);text-decoration:none;margin-right:.25rem}
 .chat-attachment-link:hover{text-decoration:underline}
+.chat-msg-deleted{border-style:dashed;opacity:.9}
+.chat-msg-deleted-note{font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:#ff9b9b}
+.chat-msg-deleted-placeholder{font-style:italic;opacity:.75}
+.chat-msg-deleted-original .chat-msg-body,.chat-msg-deleted-original .chat-attachment-link{text-decoration:line-through;opacity:.72}
 .chat-msg-actions{display:flex;justify-content:flex-end;margin-top:.35rem;opacity:0;transition:opacity .15s ease}
 .chat-msg:hover .chat-msg-actions,.chat-msg:focus-within .chat-msg-actions{opacity:1}
 .chat-msg-delete-btn{font-size:.72rem;padding:.18rem .45rem}

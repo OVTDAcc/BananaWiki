@@ -177,6 +177,8 @@ def init_db():
         chat_id     INTEGER NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
         sender_id   TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         content     TEXT    NOT NULL DEFAULT '',
+        is_deleted  INTEGER NOT NULL DEFAULT 0,
+        deleted_at  TEXT,
         ip_address  TEXT    NOT NULL DEFAULT '',
         created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
     );
@@ -217,6 +219,8 @@ def init_db():
         sender_id   TEXT    REFERENCES users(id) ON DELETE SET NULL,
         content     TEXT    NOT NULL DEFAULT '',
         is_system   INTEGER NOT NULL DEFAULT 0,
+        is_deleted  INTEGER NOT NULL DEFAULT 0,
+        deleted_at  TEXT,
         ip_address  TEXT    NOT NULL DEFAULT '',
         created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
     );
@@ -480,9 +484,21 @@ def init_db():
     if "unread_count_user2" not in chat_cols:
         cur.execute("ALTER TABLE chats ADD COLUMN unread_count_user2 INTEGER NOT NULL DEFAULT 0")
 
+    chat_msg_cols = [r[1] for r in cur.execute("PRAGMA table_info(chat_messages)").fetchall()]
+    if "is_deleted" not in chat_msg_cols:
+        cur.execute("ALTER TABLE chat_messages ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0")
+    if "deleted_at" not in chat_msg_cols:
+        cur.execute("ALTER TABLE chat_messages ADD COLUMN deleted_at TEXT")
+
     # Add unread_count to group_members if missing
     if "unread_count" not in gm_cols:
         cur.execute("ALTER TABLE group_members ADD COLUMN unread_count INTEGER NOT NULL DEFAULT 0")
+
+    group_msg_cols = [r[1] for r in cur.execute("PRAGMA table_info(group_messages)").fetchall()]
+    if "is_deleted" not in group_msg_cols:
+        cur.execute("ALTER TABLE group_messages ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0")
+    if "deleted_at" not in group_msg_cols:
+        cur.execute("ALTER TABLE group_messages ADD COLUMN deleted_at TEXT")
 
     # Add sequential_nav to categories if missing
     cat_cols = [r[1] for r in cur.execute("PRAGMA table_info(categories)").fetchall()]

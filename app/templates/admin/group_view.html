@@ -36,16 +36,19 @@
                 </div>
             </div>
             {% else %}
-            <div class="chat-msg">
+            <div class="chat-msg{% if msg.is_deleted %} chat-msg-deleted chat-msg-deleted-original{% endif %}">
                 <div class="chat-msg-meta">
                     <strong>{{ msg.sender_name or 'System' }}</strong>
                     <span class="chat-msg-time">{{ format_datetime(msg.created_at) }}</span>
                     <span class="chat-msg-ip">IP: {{ msg.ip_address }}</span>
+                    {% if msg.is_deleted %}
+                    <span class="chat-msg-deleted-note">Deleted</span>
+                    {% endif %}
                 </div>
-                <div class="chat-msg-body">{{ msg.content }}</div>
-                {% if msg.attachments %}
+                <div class="chat-msg-body">{{ msg.display_content }}</div>
+                {% if msg.display_attachments %}
                 <div class="chat-msg-attachments">
-                    {% for att in msg.attachments %}
+                    {% for att in msg.display_attachments %}
                     <a href="{{ url_for('group_attachment_download', attachment_id=att.id) }}" class="chat-attachment-link">📎 {{ att.original_name }} ({{ (att.file_size / 1024)|round(1) }} KB)</a>
                     {% endfor %}
                 </div>

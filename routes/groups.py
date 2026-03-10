@@ -22,6 +22,8 @@ from helpers import login_required, admin_required, get_current_user, rate_limit
 from wiki_logger import log_action
 from sync import notify_change
 
+DELETED_MESSAGE_PLACEHOLDER = "This message was deleted."
+
 
 def _chat_allowed_file(filename):
     """Return True if the extension is in CHAT_ALLOWED_EXTENSIONS."""
@@ -48,20 +50,53 @@ def register_group_routes(app):
         _, is_site_admin, can_delete_any_message = _group_message_permissions(group, user)
         messages = db.get_group_messages(group["id"])
         attachment_count = sum(len(msg.get("attachments") or []) for msg in messages)
-        latest_message_id = messages[-1]["id"] if messages else 0
+        rendered_messages = _prepare_group_messages(messages, include_deleted_content=is_site_admin)
+        latest_message_id = rendered_messages[-1]["id"] if rendered_messages else 0
         html = render_template(
             "groups/_messages.html",
             group=group,
-            messages=messages,
+            messages=rendered_messages,
             can_delete_any_message=can_delete_any_message,
             is_site_admin=is_site_admin,
         )
-        return messages, {
+        return rendered_messages, {
             "html": html,
-            "message_count": len(messages),
+            "message_count": len(rendered_messages),
             "attachment_count": attachment_count,
             "latest_message_id": latest_message_id,
         }, can_delete_any_message
+
+    def _prepare_group_messages(messages, include_deleted_content=False):
+        """Return group messages annotated for display.
+
+        When ``include_deleted_content`` is False, deleted non-system messages
+        are replaced with a placeholder and their attachments are hidden.
+        When True, the original deleted content and attachments remain visible
+        for site-admin monitoring views.
+        """
+        prepared_messages = []
+        for msg in messages:
+            prepared = dict(msg)
+            if prepared.get("is_system"):
+                prepared["display_content"] = prepared.get("content", "")
+                prepared["display_attachments"] = list(prepared.get("attachments") or [])
+                prepared["show_deleted_original"] = False
+                prepared_messages.append(prepared)
+                continue
+            is_deleted = bool(prepared.get("is_deleted"))
+            prepared["show_deleted_original"] = is_deleted and include_deleted_content
+            prepared["display_content"] = (
+                prepared.get("content", "")
+                if not is_deleted or include_deleted_content
+                else DELETED_MESSAGE_PLACEHOLDER
+            )
+            prepared["display_attachments"] = (
+                list(prepared.get("attachments") or [])
+                if not is_deleted or include_deleted_content
+                else []
+            )
+            prepared_messages.append(prepared)
+        return prepared_messages
 
     @app.route("/groups")
     @login_required
@@ -333,6 +368,8 @@ def register_group_routes(app):
         if db.is_user_chat_disabled(user["id"]):
             return _chat_disabled_redirect()
         is_admin = user["role"] in ("admin", "protected_admin")
+        if att["is_deleted"] and not is_admin:
+            abort(403)
         if not is_admin and not db.is_group_member(att["group_id"], user["id"]):
             abort(403)
         att_dir = os.path.abspath(config.CHAT_ATTACHMENT_FOLDER)
@@ -694,20 +731,12 @@ def register_group_routes(app):
             )
             flash(error_message, "error")
             return redirect(url_for("group_view", group_id=group_id))
-        files = db.delete_group_message(message_id)
-        for fname in files:
-            try:
-                fpath = os.path.join(config.CHAT_ATTACHMENT_FOLDER, fname)
-                if os.path.isfile(fpath):
-                    os.remove(fpath)
-            except OSError:
-                pass
+        if msg.get("is_deleted"):
+            flash("Message has already been deleted.", "info")
+            return redirect(url_for("group_view", group_id=group_id))
+        db.delete_group_message(message_id)
         db.send_group_system_message(group_id, f"A message was deleted by {user['username']}")
-        flash(
-            f"Message deleted successfully. Removed {len(files)} attachment"
-            f"{'' if len(files) == 1 else 's'}.",
-            "success",
-        )
+        flash("Message deleted successfully.", "success")
         log_action("group_delete_message", request, user=user, group_id=group_id, message_id=message_id)
         return redirect(url_for("group_view", group_id=group_id))
 
@@ -733,7 +762,7 @@ def register_group_routes(app):
         group = db.get_group_chat(group_id)
         if not group:
             abort(404)
-        messages = db.get_group_messages(group_id)
+        messages = _prepare_group_messages(db.get_group_messages(group_id), include_deleted_content=True)
         members = db.get_group_members(group_id)
         categories, uncategorized = db.get_category_tree()
         return render_template("admin/group_view.html", group=group,
@@ -839,6 +868,7 @@ def register_group_routes(app):
 
         # Get messages and group info
         messages, group_info = db.get_group_messages_for_export(group_id)
+        messages = _prepare_group_messages(messages, include_deleted_content=is_site_admin)
 
         if not messages:
             flash("No messages to export.", "info")
@@ -859,7 +889,7 @@ def register_group_routes(app):
         for msg in messages:
             sender = msg.get("sender_name") or "System"
             timestamp = msg["created_at"]
-            content = msg["content"]
+            content = msg["display_content"]
             is_system = msg.get("is_system", False)
 
             if is_system:
@@ -870,9 +900,9 @@ def register_group_routes(app):
                 text_lines.append(f"  {content}")
 
             # Handle attachments
-            if msg.get("attachments"):
+            if msg.get("display_attachments"):
                 text_lines.append("  Attachments:")
-                for att in msg["attachments"]:
+                for att in msg["display_attachments"]:
                     att_name = att["original_name"]
                     att_size = att["file_size"]
                     att_filename = att["filename"]
