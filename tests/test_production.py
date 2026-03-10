@@ -512,9 +512,68 @@ def test_api_transfer_draft_missing_source_returns_404(logged_in_admin):
     home = db.get_home_page()
     resp = logged_in_admin.post("/api/draft/transfer",
                                 json={"page_id": home["id"],
-                                      "from_user_id": 99999},
+                                       "from_user_id": 99999},
                                 content_type="application/json")
     assert resp.status_code == 404
+
+
+@pytest.mark.parametrize(
+    ("method", "url_builder", "payload"),
+    [
+        ("post", lambda page_id: "/api/draft/save",
+         lambda page_id: {"page_id": page_id, "title": "Blocked", "content": "blocked"}),
+        ("get", lambda page_id: f"/api/draft/load/{page_id}", None),
+        ("get", lambda page_id: f"/api/draft/others/{page_id}", None),
+    ],
+)
+def test_restricted_editor_draft_endpoints_require_category_access(
+    client, editor_user, admin_user, method, url_builder, payload
+):
+    """Restricted editors cannot use draft APIs for pages in disallowed categories."""
+    import db
+
+    allowed_cat = db.create_category("Allowed Drafts")
+    blocked_cat = db.create_category("Blocked Drafts")
+    blocked_page_id = db.create_page(
+        "Blocked Draft Page", "blocked-draft-page", "content", blocked_cat, admin_user
+    )
+    db.set_editor_access(editor_user, restricted=True, category_ids=[allowed_cat])
+
+    client.post("/login", data={"username": "editor", "password": "editor123"})
+    kwargs = {"content_type": "application/json"}
+    if payload is not None:
+        kwargs["json"] = payload(blocked_page_id)
+    resp = getattr(client, method)(url_builder(blocked_page_id), **kwargs)
+
+    assert resp.status_code == 403
+    assert "permission" in resp.get_json()["error"].lower()
+    assert db.get_draft(blocked_page_id, editor_user) is None
+
+
+def test_restricted_editor_cannot_transfer_draft_in_disallowed_category(client, editor_user, admin_user):
+    """Restricted editors cannot take over drafts for pages outside their allowed categories."""
+    import db
+    from werkzeug.security import generate_password_hash
+
+    allowed_cat = db.create_category("Allowed Transfer")
+    blocked_cat = db.create_category("Blocked Transfer")
+    blocked_page_id = db.create_page(
+        "Blocked Transfer Page", "blocked-transfer-page", "content", blocked_cat, admin_user
+    )
+    source_user_id = db.create_user("editor_transfer_src", generate_password_hash("pw"), role="editor")
+    db.save_draft(blocked_page_id, source_user_id, "Transfer Draft", "secret draft")
+    db.set_editor_access(editor_user, restricted=True, category_ids=[allowed_cat])
+
+    client.post("/login", data={"username": "editor", "password": "editor123"})
+    resp = client.post(
+        "/api/draft/transfer",
+        json={"page_id": blocked_page_id, "from_user_id": source_user_id},
+        content_type="application/json",
+    )
+
+    assert resp.status_code == 403
+    assert db.get_draft(blocked_page_id, editor_user) is None
+    assert db.get_draft(blocked_page_id, source_user_id)["content"] == "secret draft"
 
 
 # ---------------------------------------------------------------------------
