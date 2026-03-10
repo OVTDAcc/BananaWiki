@@ -86,6 +86,14 @@ def init_db():
         text_color       TEXT NOT NULL DEFAULT '#c8ccd8',
         sidebar_color    TEXT NOT NULL DEFAULT '#1a1a24',
         bg_color         TEXT NOT NULL DEFAULT '#16161f',
+        light_primary_color   TEXT NOT NULL DEFAULT '#4b63b6',
+        light_secondary_color TEXT NOT NULL DEFAULT '#ffffff',
+        light_accent_color    TEXT NOT NULL DEFAULT '#3553c7',
+        light_text_color      TEXT NOT NULL DEFAULT '#202534',
+        light_sidebar_color   TEXT NOT NULL DEFAULT '#e9edf5',
+        light_bg_color        TEXT NOT NULL DEFAULT '#f6f7fb',
+        default_theme_mode    TEXT NOT NULL DEFAULT 'dark'
+                              CHECK(default_theme_mode IN ('dark','light')),
         setup_done  INTEGER NOT NULL DEFAULT 0,
         timezone    TEXT    NOT NULL DEFAULT 'UTC',
         session_limit_enabled INTEGER NOT NULL DEFAULT 1,
@@ -342,6 +350,20 @@ def init_db():
         cur.execute("ALTER TABLE site_settings ADD COLUMN session_limit_enabled INTEGER NOT NULL DEFAULT 1")
     if "about_page_initialized" not in ss_cols:
         cur.execute("ALTER TABLE site_settings ADD COLUMN about_page_initialized INTEGER NOT NULL DEFAULT 0")
+    if "light_primary_color" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN light_primary_color TEXT NOT NULL DEFAULT '#4b63b6'")
+    if "light_secondary_color" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN light_secondary_color TEXT NOT NULL DEFAULT '#ffffff'")
+    if "light_accent_color" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN light_accent_color TEXT NOT NULL DEFAULT '#3553c7'")
+    if "light_text_color" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN light_text_color TEXT NOT NULL DEFAULT '#202534'")
+    if "light_sidebar_color" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN light_sidebar_color TEXT NOT NULL DEFAULT '#e9edf5'")
+    if "light_bg_color" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN light_bg_color TEXT NOT NULL DEFAULT '#f6f7fb'")
+    if "default_theme_mode" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN default_theme_mode TEXT NOT NULL DEFAULT 'dark'")
 
     # Migrate old default colors to improved, more readable defaults.
     # Column names come from a hardcoded list – validated against the allowed
@@ -760,4 +782,3 @@ def _migrate_user_id_to_text(conn, cur):
     cur.execute("ALTER TABLE drafts_new RENAME TO drafts")
 
     conn.execute("PRAGMA foreign_keys=ON")
-

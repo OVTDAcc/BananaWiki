@@ -1,4 +1,4 @@
-/* BananaWiki – Dark Professional Theme */
+/* BananaWiki – Customizable Professional Theme */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{font-size:16px}
 :root{color-scheme:dark}
@@ -417,10 +417,10 @@ select.input{appearance:auto}
 .a11y-section{display:flex;flex-direction:column;gap:.5rem}
 .a11y-label{font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;opacity:.7}
 .a11y-hint{font-size:.75rem;opacity:.65;margin:0;line-height:1.4}
-.a11y-font-btns,.a11y-contrast-btns{display:flex;gap:.3rem;flex-wrap:wrap}
-.a11y-font-btn,.a11y-contrast-btn{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:var(--text);cursor:pointer;padding:.4rem .5rem;border-radius:4px;font-size:.82rem;transition:all .15s;flex:1;min-width:38px;text-align:center}
-.a11y-font-btn:hover,.a11y-contrast-btn:hover{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.2)}
-.a11y-font-btn.active,.a11y-contrast-btn.active{background:var(--primary);border-color:var(--primary);color:#0d0d14;font-weight:700}
+.a11y-theme-btns,.a11y-font-btns,.a11y-contrast-btns{display:flex;gap:.3rem;flex-wrap:wrap}
+.a11y-theme-btn,.a11y-font-btn,.a11y-contrast-btn{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:var(--text);cursor:pointer;padding:.4rem .5rem;border-radius:4px;font-size:.82rem;transition:all .15s;flex:1;min-width:38px;text-align:center}
+.a11y-theme-btn:hover,.a11y-font-btn:hover,.a11y-contrast-btn:hover{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.2)}
+.a11y-theme-btn.active,.a11y-font-btn.active,.a11y-contrast-btn.active{background:var(--primary);border-color:var(--primary);color:#0d0d14;font-weight:700}
 .a11y-color-row{display:flex;align-items:center;gap:.5rem;padding:.2rem 0}
 .a11y-color-label{flex:1;font-size:.82rem;opacity:.8}
 .a11y-color-input{width:36px;height:26px;border:none;background:none;cursor:pointer;padding:0;border-radius:3px}
@@ -439,6 +439,58 @@ select.input{appearance:auto}
 .a11y-switch input:checked + .a11y-switch-slider{background:var(--primary);border-color:var(--primary)}
 .a11y-switch input:checked + .a11y-switch-slider:before{transform:translateX(16px);opacity:1}
 .a11y-reduce-motion,.a11y-reduce-motion *{animation:none !important;transition:none !important}
+
+/* Light theme polish */
+html[data-theme="light"] .topbar{border-bottom-color:rgba(32,37,52,.12)}
+html[data-theme="light"] .sidebar{border-right-color:rgba(32,37,52,.12)}
+html[data-theme="light"] .sidebar-header,
+html[data-theme="light"] .sidebar-search,
+html[data-theme="light"] .sidebar-chat-links,
+html[data-theme="light"] .sidebar-people,
+html[data-theme="light"] .page-header .edit-info{border-color:rgba(32,37,52,.12)}
+html[data-theme="light"] .btn-outline{border-color:rgba(32,37,52,.16)}
+html[data-theme="light"] .btn-outline:hover{background:rgba(32,37,52,.05)}
+html[data-theme="light"] .btn-icon:hover{background:rgba(32,37,52,.08)}
+html[data-theme="light"] .input,
+html[data-theme="light"] .sidebar-search-input-wrap .input{background:rgba(32,37,52,.04);border-color:rgba(32,37,52,.12)}
+html[data-theme="light"] .input:focus,
+html[data-theme="light"] .sidebar-search-input-wrap .input:focus{background:rgba(32,37,52,.06)}
+html[data-theme="light"] .nav-item:hover,
+html[data-theme="light"] .sidebar-chat-links .nav-item:hover,
+html[data-theme="light"] .user-list-item:hover{background:rgba(32,37,52,.05)}
+html[data-theme="light"] .nav-item.active,
+html[data-theme="light"] .sidebar-chat-links .nav-item.active{background:rgba(32,37,52,.08)}
+html[data-theme="light"] .wiki-content h2,
+html[data-theme="light"] .preview-content h2,
+html[data-theme="light"] .edit-info,
+html[data-theme="light"] .users-list,
+html[data-theme="light"] .user-list-item,
+html[data-theme="light"] .attachments-section,
+html[data-theme="light"] .editor-container,
+html[data-theme="light"] .editor-pane-header,
+html[data-theme="light"] .editor-divider,
+html[data-theme="light"] .editor-resize-handle,
+html[data-theme="light"] .a11y-panel,
+html[data-theme="light"] .a11y-panel-header{border-color:rgba(32,37,52,.12)}
+html[data-theme="light"] .wiki-content pre,
+html[data-theme="light"] .wiki-content code,
+html[data-theme="light"] .attachments-section,
+html[data-theme="light"] .attachment-item,
+html[data-theme="light"] .contribution-section,
+html[data-theme="light"] .contribution-item,
+html[data-theme="light"] .editor-container,
+html[data-theme="light"] .editor-pane-header,
+html[data-theme="light"] .sidebar-person,
+html[data-theme="light"] .sidebar-person-more,
+html[data-theme="light"] .user-list-avatar,
+html[data-theme="light"] .user-profile-avatar-placeholder,
+html[data-theme="light"] .a11y-theme-btn,
+html[data-theme="light"] .a11y-font-btn,
+html[data-theme="light"] .a11y-contrast-btn,
+html[data-theme="light"] .a11y-line-btn,
+html[data-theme="light"] .a11y-spacing-btn,
+html[data-theme="light"] .a11y-switch-slider{background:rgba(32,37,52,.05);border-color:rgba(32,37,52,.12)}
+html[data-theme="light"] .sidebar-search-results{border-color:rgba(32,37,52,.14);box-shadow:0 4px 16px rgba(32,37,52,.14)}
 
 /* High contrast modes – filter applied to content containers (not body) to
    prevent GPU compositing failures on Mac/Linux in Firefox and Chrome that

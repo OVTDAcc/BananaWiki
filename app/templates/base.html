@@ -1,8 +1,26 @@
+{% set site_theme_mode = settings.default_theme_mode if settings.default_theme_mode in ('dark', 'light') else 'dark' %}
+{% set user_theme_mode = user_accessibility.theme_mode if current_user and user_accessibility and user_accessibility.theme_mode in ('dark', 'light') else 'default' %}
+{% set effective_theme_mode = user_theme_mode if user_theme_mode != 'default' else site_theme_mode %}
+{% if effective_theme_mode == 'light' %}
+    {% set theme_primary = settings.light_primary_color %}
+    {% set theme_secondary = settings.light_secondary_color %}
+    {% set theme_accent = settings.light_accent_color %}
+    {% set theme_text = settings.light_text_color %}
+    {% set theme_sidebar = settings.light_sidebar_color %}
+    {% set theme_bg = settings.light_bg_color %}
+{% else %}
+    {% set theme_primary = settings.primary_color %}
+    {% set theme_secondary = settings.secondary_color %}
+    {% set theme_accent = settings.accent_color %}
+    {% set theme_text = settings.text_color %}
+    {% set theme_sidebar = settings.sidebar_color %}
+    {% set theme_bg = settings.bg_color %}
+{% endif %}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="{{ effective_theme_mode }}">
 <head>
     <meta charset="UTF-8">
-    <meta name="color-scheme" content="dark">
+    <meta name="color-scheme" content="{{ effective_theme_mode }}">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}{{ settings.site_name }}{% endblock %}</title>
     <meta name="csrf-token" content="{{ csrf_token() }}">
@@ -16,12 +34,13 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <style>
         :root {
-            --primary: {{ settings.primary_color }};
-            --secondary: {{ settings.secondary_color }};
-            --accent: {{ settings.accent_color }};
-            --text: {{ settings.text_color }};
-            --sidebar: {{ settings.sidebar_color }};
-            --bg: {{ settings.bg_color }};
+            color-scheme: {{ effective_theme_mode }};
+            --primary: {{ theme_primary }};
+            --secondary: {{ theme_secondary }};
+            --accent: {{ theme_accent }};
+            --text: {{ theme_text }};
+            --sidebar: {{ theme_sidebar }};
+            --bg: {{ theme_bg }};
         }
     </style>
     {% if current_user and user_accessibility %}
@@ -222,6 +241,15 @@
         </div>
         <div class="a11y-panel-body">
             <div class="a11y-section">
+                <label class="a11y-label">Theme Mode</label>
+                <p class="a11y-hint">Choose a personal theme or follow the site default (currently {{ site_theme_mode | capitalize }}).</p>
+                <div class="a11y-theme-btns" role="group" aria-label="Theme mode">
+                    <button class="a11y-theme-btn" data-theme-mode="default" title="Use the site default theme">Site Default</button>
+                    <button class="a11y-theme-btn" data-theme-mode="dark" title="Always use the dark theme">Dark</button>
+                    <button class="a11y-theme-btn" data-theme-mode="light" title="Always use the light theme">Light</button>
+                </div>
+            </div>
+            <div class="a11y-section">
                 <label class="a11y-label">Text Size</label>
                 <div class="a11y-font-btns" role="group" aria-label="Text size">
                     <button class="a11y-font-btn" data-scale="0.85" title="Extra small text">XS</button>
@@ -319,6 +347,29 @@
         </div>
     </div>
 
+    <script>
+    window.BW_THEME_CONFIG = {{ {
+        "default_mode": site_theme_mode,
+        "palettes": {
+            "dark": {
+                "primary": settings.primary_color,
+                "secondary": settings.secondary_color,
+                "accent": settings.accent_color,
+                "text": settings.text_color,
+                "sidebar": settings.sidebar_color,
+                "bg": settings.bg_color,
+            },
+            "light": {
+                "primary": settings.light_primary_color,
+                "secondary": settings.light_secondary_color,
+                "accent": settings.light_accent_color,
+                "text": settings.light_text_color,
+                "sidebar": settings.light_sidebar_color,
+                "bg": settings.light_bg_color,
+            },
+        },
+    } | tojson }};
+    </script>
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
     <script>
     // Auto-inject CSRF token into all forms that don't already have one

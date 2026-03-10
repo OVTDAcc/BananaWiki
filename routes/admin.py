@@ -739,6 +739,9 @@ def register_admin_routes(app):
             if len(site_name) > 100:
                 flash("Site name cannot exceed 100 characters.", "error")
                 return redirect(url_for("admin_settings"))
+            default_theme_mode = request.form.get("default_theme_mode", "dark").strip().lower()
+            if default_theme_mode not in {"dark", "light"}:
+                default_theme_mode = "dark"
             color_fields = {
                 "primary_color": request.form.get("primary_color", "#7c8dc6"),
                 "secondary_color": request.form.get("secondary_color", "#151520"),
@@ -746,6 +749,12 @@ def register_admin_routes(app):
                 "text_color": request.form.get("text_color", "#b8bcc8"),
                 "sidebar_color": request.form.get("sidebar_color", "#111118"),
                 "bg_color": request.form.get("bg_color", "#0d0d14"),
+                "light_primary_color": request.form.get("light_primary_color", "#4b63b6"),
+                "light_secondary_color": request.form.get("light_secondary_color", "#ffffff"),
+                "light_accent_color": request.form.get("light_accent_color", "#3553c7"),
+                "light_text_color": request.form.get("light_text_color", "#202534"),
+                "light_sidebar_color": request.form.get("light_sidebar_color", "#e9edf5"),
+                "light_bg_color": request.form.get("light_bg_color", "#f6f7fb"),
             }
             for name, val in color_fields.items():
                 if not _is_valid_hex_color(val):
@@ -803,6 +812,7 @@ def register_admin_routes(app):
                 favicon_enabled=favicon_enabled,
                 favicon_type=favicon_type,
                 favicon_custom=favicon_custom,
+                default_theme_mode=default_theme_mode,
                 lockdown_mode=1 if request.form.get("lockdown_mode") else 0,
                 lockdown_message=request.form.get("lockdown_message", "").strip()[:1000],
                 session_limit_enabled=1 if request.form.get("session_limit_enabled") else 0,

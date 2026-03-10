@@ -16,7 +16,10 @@ def get_site_settings():
 
 _ALLOWED_SETTINGS_COLUMNS = {
     "site_name", "primary_color", "secondary_color", "accent_color",
-    "text_color", "sidebar_color", "bg_color", "setup_done", "timezone",
+    "text_color", "sidebar_color", "bg_color",
+    "light_primary_color", "light_secondary_color", "light_accent_color",
+    "light_text_color", "light_sidebar_color", "light_bg_color",
+    "default_theme_mode", "setup_done", "timezone",
     "favicon_enabled", "favicon_type", "favicon_custom",
     "lockdown_mode", "lockdown_message",
     "session_limit_enabled", "last_chat_cleanup_at",
@@ -57,4 +60,3 @@ def update_site_settings(**kwargs):
         conn.commit()
     finally:
         conn.close()
-

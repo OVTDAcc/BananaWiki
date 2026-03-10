@@ -26,8 +26,19 @@
     </div>
 
     <div class="settings-section">
-        <h3>Theme Colors</h3>
-        <p class="a11y-hint" style="margin-bottom:.8rem">Site-wide default colors. Users can override these in their Accessibility settings.</p>
+        <h3>Theme Defaults</h3>
+        <p class="a11y-hint" style="margin-bottom:.8rem">Set the site-wide default theme and both color palettes. Users can still override these from their customization settings.</p>
+        <div class="form-group">
+            <label>Default Theme Mode</label>
+            <select name="default_theme_mode" class="input" style="max-width:220px">
+                <option value="dark"{% if settings.default_theme_mode != 'light' %} selected{% endif %}>Dark</option>
+                <option value="light"{% if settings.default_theme_mode == 'light' %} selected{% endif %}>Light</option>
+            </select>
+            <small style="opacity:.7;display:block;margin-top:.3rem">
+                New visitors and users without a personal override will use this theme by default.
+            </small>
+        </div>
+        <h4 style="margin:1rem 0 .6rem">Dark Theme Colors</h4>
         <div class="settings-color-preview" id="admin-color-preview"></div>
         <div class="color-group">
             <label class="color-group-label">Background</label>
@@ -76,6 +87,55 @@
             <input type="text" value="{{ settings.sidebar_color }}" class="input input-sm"
                    oninput="this.previousElementSibling.value=this.value;syncAdminColor(this.previousElementSibling,'prev-sidebar')"
                    onchange="this.previousElementSibling.value=this.value;syncAdminColor(this.previousElementSibling,'prev-sidebar')">
+        </div>
+        <h4 style="margin:1.25rem 0 .6rem">Light Theme Colors</h4>
+        <div class="color-group">
+            <label class="color-group-label">Background</label>
+            <input type="color" name="light_bg_color" value="{{ settings.light_bg_color }}"
+                   oninput="this.nextElementSibling.value=this.value">
+            <input type="text" value="{{ settings.light_bg_color }}" class="input input-sm"
+                   oninput="this.previousElementSibling.value=this.value"
+                   onchange="this.previousElementSibling.value=this.value">
+        </div>
+        <div class="color-group">
+            <label class="color-group-label">Text</label>
+            <input type="color" name="light_text_color" value="{{ settings.light_text_color }}"
+                   oninput="this.nextElementSibling.value=this.value">
+            <input type="text" value="{{ settings.light_text_color }}" class="input input-sm"
+                   oninput="this.previousElementSibling.value=this.value"
+                   onchange="this.previousElementSibling.value=this.value">
+        </div>
+        <div class="color-group">
+            <label class="color-group-label">Primary (highlights, logo)</label>
+            <input type="color" name="light_primary_color" value="{{ settings.light_primary_color }}"
+                   oninput="this.nextElementSibling.value=this.value">
+            <input type="text" value="{{ settings.light_primary_color }}" class="input input-sm"
+                   oninput="this.previousElementSibling.value=this.value"
+                   onchange="this.previousElementSibling.value=this.value">
+        </div>
+        <div class="color-group">
+            <label class="color-group-label">Secondary (header, cards)</label>
+            <input type="color" name="light_secondary_color" value="{{ settings.light_secondary_color }}"
+                   oninput="this.nextElementSibling.value=this.value">
+            <input type="text" value="{{ settings.light_secondary_color }}" class="input input-sm"
+                   oninput="this.previousElementSibling.value=this.value"
+                   onchange="this.previousElementSibling.value=this.value">
+        </div>
+        <div class="color-group">
+            <label class="color-group-label">Accent (links)</label>
+            <input type="color" name="light_accent_color" value="{{ settings.light_accent_color }}"
+                   oninput="this.nextElementSibling.value=this.value">
+            <input type="text" value="{{ settings.light_accent_color }}" class="input input-sm"
+                   oninput="this.previousElementSibling.value=this.value"
+                   onchange="this.previousElementSibling.value=this.value">
+        </div>
+        <div class="color-group">
+            <label class="color-group-label">Sidebar</label>
+            <input type="color" name="light_sidebar_color" value="{{ settings.light_sidebar_color }}"
+                   oninput="this.nextElementSibling.value=this.value">
+            <input type="text" value="{{ settings.light_sidebar_color }}" class="input input-sm"
+                   oninput="this.previousElementSibling.value=this.value"
+                   onchange="this.previousElementSibling.value=this.value">
         </div>
     </div>
 
