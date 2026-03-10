@@ -29,9 +29,11 @@ def register_wiki_routes(app):
     _ADMIN_ROLES = ("admin", "protected_admin")
 
     def _page_reservations_enabled():
+        """Return True when the page reservation feature is enabled."""
         return db.reservations_enabled()
 
     def _get_reservation_context(page, user):
+        """Return reservation metadata for *page* as seen by *user*."""
         if not page or page["is_home"] or not user or user["role"] not in _EDITOR_ROLES:
             return None
         if not _page_reservations_enabled():
@@ -47,6 +49,7 @@ def register_wiki_routes(app):
         }
 
     def _reservation_block_message(status, action_text):
+        """Build the flash message shown when a reservation blocks an action."""
         reserved_by = status["reserved_by_username"] or "another editor"
         return (
             f"You cannot {action_text} because this page is currently reserved by {reserved_by}. "
@@ -55,6 +58,7 @@ def register_wiki_routes(app):
         )
 
     def _guard_destructive_page_edit(page, user, action_text):
+        """Redirect away from a destructive edit action when reservations forbid it."""
         reservation_context = _get_reservation_context(page, user)
         if reservation_context and reservation_context["edit_locked"]:
             flash(_reservation_block_message(reservation_context["status"], action_text), "error")
@@ -62,6 +66,7 @@ def register_wiki_routes(app):
         return None
 
     def _build_reservable_page(page, category_label, user):
+        """Return template-ready reservation data for a page list entry."""
         reservation_context = _get_reservation_context(page, user)
         return {
             "id": page["id"],
@@ -72,9 +77,11 @@ def register_wiki_routes(app):
         }
 
     def _iter_reservable_pages(category_nodes, uncategorized, user):
+        """Flatten category trees into a filtered list of reservable pages."""
         pages = []
 
         def visit(nodes, parent_label=""):
+            """Recursively collect reservable pages from nested category nodes."""
             for node in nodes:
                 category_label = f"{parent_label} / {node['name']}" if parent_label else node["name"]
                 for page in node["pages"]:
