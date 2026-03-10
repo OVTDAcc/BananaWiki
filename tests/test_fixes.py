@@ -2050,6 +2050,7 @@ def test_session_conflict_force_requires_credentials_message(client, admin_user)
     resp = client.post("/session-conflict/force", data={}, follow_redirects=True)
     assert resp.status_code == 200
     assert b"Enter your username and password to continue." in resp.data
+    assert resp.data.count(b"Enter your username and password to continue.") == 1
 
 
 # -----------------------------------------------------------------------

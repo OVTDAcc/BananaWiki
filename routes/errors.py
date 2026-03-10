@@ -29,7 +29,7 @@ def register_error_handlers(app):
     @app.errorhandler(413)
     def request_entity_too_large(e):
         """Redirect back with a flash message when the upload exceeds the size limit."""
-        max_mb = max(1, int(config.MAX_CONTENT_LENGTH / (1024 * 1024)))
+        max_mb = (config.MAX_CONTENT_LENGTH + (1024 * 1024) - 1) // (1024 * 1024)
         flash(f"This upload is too large. The maximum allowed size is {max_mb} MB.", "error")
         return redirect(_safe_referrer() or url_for("home"))
 

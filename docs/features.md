@@ -486,7 +486,7 @@ Messages are sent via POST to `/chats/<chat_id>/send`. Each message records:
 
 ### File attachments in direct messages
 Users can attach files to direct messages (PDF, documents, images, archives). Each attachment:
-- Uses the site-wide chat attachment size limit configured in **Admin → Settings**
+- Uses the site-wide chat attachment size limit configured in **Admin → Settings** (separate from the page attachment limit)
 - Is stored in the `CHAT_ATTACHMENT_FOLDER` with a UUID-based filename
 - Retains its original filename for display
 - Is accessible only to the two conversation participants via an authenticated download route
