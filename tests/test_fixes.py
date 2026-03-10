@@ -2002,6 +2002,34 @@ def test_login_required_no_duplicate_flash(client, admin_user):
     assert b"Please log in to continue" not in resp.data
 
 
+def test_login_page_deduplicates_identical_flash_messages(client, admin_user):
+    """The login page should render repeated flashed messages only once."""
+    with client.session_transaction() as sess:
+        sess["_flashes"] = [
+            ("error", "Invalid username or password."),
+            ("error", "Invalid username or password."),
+        ]
+
+    resp = client.get("/login")
+    assert resp.status_code == 200
+    assert resp.data.count(b"Invalid username or password.") == 1
+
+
+def test_base_template_deduplicates_identical_flash_messages(logged_in_admin):
+    """Base layout pages should also suppress repeated flashed messages."""
+    with logged_in_admin.session_transaction() as sess:
+        sess["_flashes"] = [
+            ("info", "Saved successfully."),
+            ("info", "Saved successfully."),
+            ("error", "A different message."),
+        ]
+
+    resp = logged_in_admin.get("/")
+    assert resp.status_code == 200
+    assert resp.data.count(b"Saved successfully.") == 1
+    assert resp.data.count(b"A different message.") == 1
+
+
 # -----------------------------------------------------------------------
 # Announcements – DB helpers
 # -----------------------------------------------------------------------

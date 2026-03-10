@@ -20,7 +20,7 @@
         <div class="auth-box">
             <h1>{{ settings.site_name }}</h1>
             <p class="subtitle">Create a new account</p>
-            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% with messages = dedupe_flashed_messages(get_flashed_messages(with_categories=true)) %}
             {% if messages %}
             {% for category, message in messages %}
             <div class="flash flash-{{ category }}">{{ message }}</div>
