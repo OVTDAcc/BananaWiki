@@ -1134,6 +1134,19 @@ def test_chat_disabled_user_cannot_create_group(alice_uid):
         assert b"chat privileges have been disabled" in resp.data
 
 
+def test_chat_disabled_user_cannot_access_group_list(alice_uid):
+    """A user with chat disabled should not be able to access the group list."""
+    import db
+    from app import app
+    db.set_user_chat_disabled(alice_uid, True)
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
+    with app.test_client() as c:
+        c.post("/login", data={"username": "alice", "password": "alice123"})
+        resp = c.get("/groups", follow_redirects=True)
+        assert b"chat privileges have been disabled" in resp.data
+
+
 def test_chat_disabled_user_cannot_send_group_message(alice_uid, bob_uid):
     """A user with chat disabled should not be able to send group messages."""
     import db
@@ -1149,6 +1162,65 @@ def test_chat_disabled_user_cannot_send_group_message(alice_uid, bob_uid):
                       data={"content": "test message"},
                       follow_redirects=True)
         assert b"chat privileges have been disabled" in resp.data
+
+
+def test_chat_disabled_user_cannot_view_group(alice_uid, bob_uid):
+    """A user with chat disabled should not be able to open an existing group."""
+    import db
+    from app import app
+    group = db.create_group_chat("Test", bob_uid)
+    db.add_group_member(group["id"], alice_uid)
+    db.set_user_chat_disabled(alice_uid, True)
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
+    with app.test_client() as c:
+        c.post("/login", data={"username": "alice", "password": "alice123"})
+        resp = c.get(f"/groups/{group['id']}", follow_redirects=True)
+        assert b"chat privileges have been disabled" in resp.data
+
+
+def test_chat_disabled_user_cannot_join_global_chat(alice_uid):
+    """A user with chat disabled should not be able to auto-join the global chat."""
+    import db
+    from app import app
+    group = db.get_or_create_global_chat()
+    db.set_user_chat_disabled(alice_uid, True)
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
+    with app.test_client() as c:
+        c.post("/login", data={"username": "alice", "password": "alice123"})
+        resp = c.get("/groups/global", follow_redirects=True)
+        assert b"chat privileges have been disabled" in resp.data
+    assert not db.is_group_member(group["id"], alice_uid)
+
+
+def test_banned_user_cannot_rejoin_global_chat(alice_uid):
+    """A banned user should not be able to rejoin the global chat through auto-join."""
+    import db
+    from app import app
+    group = db.get_or_create_global_chat()
+    db.add_group_member(group["id"], alice_uid)
+    db.ban_group_member(group["id"], alice_uid)
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
+    with app.test_client() as c:
+        c.post("/login", data={"username": "alice", "password": "alice123"})
+        resp = c.get("/groups/global", follow_redirects=True)
+        assert b"currently banned" in resp.data
+    assert db.is_group_member_banned(group["id"], alice_uid)
+
+
+def test_group_global_route_respects_group_disable_setting(alice_uid):
+    """Non-admin users should be blocked from the global chat when groups are disabled."""
+    import db
+    from app import app
+    db.update_site_settings(chat_group_enabled=0)
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
+    with app.test_client() as c:
+        c.post("/login", data={"username": "alice", "password": "alice123"})
+        resp = c.get("/groups/global", follow_redirects=True)
+        assert b"Group chats are currently disabled" in resp.data
 
 
 def test_admin_can_toggle_chat(admin_client, admin_uid, alice_uid):

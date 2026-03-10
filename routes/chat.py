@@ -22,6 +22,11 @@ def register_chat_routes(app):
         """Return True if the extension is in CHAT_ALLOWED_EXTENSIONS."""
         return "." in filename and filename.rsplit(".", 1)[1].lower() in config.CHAT_ALLOWED_EXTENSIONS
 
+    def _chat_disabled_redirect(endpoint="home", **values):
+        """Redirect users whose chat access has been disabled."""
+        flash("Your chat privileges have been disabled by an administrator.", "error")
+        return redirect(url_for(endpoint, **values))
+
     @app.route("/chats")
     @login_required
     def chat_list():
@@ -31,6 +36,8 @@ def register_chat_routes(app):
         if settings and not settings["chat_dm_enabled"] and user["role"] not in ("admin", "protected_admin"):
             flash("Direct messaging is currently disabled.", "error")
             return redirect(url_for("home"))
+        if db.is_user_chat_disabled(user["id"]):
+            return _chat_disabled_redirect()
         chats = db.get_user_chats(user["id"])
         total_unread_dm = db.get_total_unread_dm_count(user["id"])
         categories, uncategorized = db.get_category_tree()
@@ -52,8 +59,7 @@ def register_chat_routes(app):
             flash("Creating new direct message conversations is currently disabled.", "error")
             return redirect(url_for("chat_list"))
         if db.is_user_chat_disabled(user["id"]):
-            flash("Your chat privileges have been disabled by an administrator.", "error")
-            return redirect(url_for("chat_list"))
+            return _chat_disabled_redirect()
         if request.method == "POST":
             target_username = request.form.get("username", "").strip()
             if not target_username:
@@ -82,6 +88,8 @@ def register_chat_routes(app):
         if settings and not settings["chat_dm_enabled"] and user["role"] not in ("admin", "protected_admin"):
             flash("Direct messaging is currently disabled.", "error")
             return redirect(url_for("home"))
+        if db.is_user_chat_disabled(user["id"]):
+            return _chat_disabled_redirect()
         if not db.is_chat_participant(chat_id, user["id"]):
             flash("Access denied.", "error")
             return redirect(url_for("chat_list"))
@@ -110,8 +118,7 @@ def register_chat_routes(app):
             flash("Direct messaging is currently disabled.", "error")
             return redirect(url_for("home"))
         if db.is_user_chat_disabled(user["id"]):
-            flash("Your chat privileges have been disabled by an administrator.", "error")
-            return redirect(url_for("chat_view", chat_id=chat_id))
+            return _chat_disabled_redirect()
         if not db.is_chat_participant(chat_id, user["id"]):
             flash("Access denied.", "error")
             return redirect(url_for("chat_list"))
@@ -195,6 +202,8 @@ def register_chat_routes(app):
         if not att:
             abort(404)
         user = get_current_user()
+        if db.is_user_chat_disabled(user["id"]):
+            return _chat_disabled_redirect()
         is_admin = user["role"] in ("admin", "protected_admin")
         if not is_admin and not db.is_chat_participant(att["chat_id"], user["id"]):
             abort(403)
@@ -217,6 +226,8 @@ def register_chat_routes(app):
         Both participants can export their chat history.
         """
         user = get_current_user()
+        if db.is_user_chat_disabled(user["id"]):
+            return _chat_disabled_redirect()
         chat = db.get_chat_by_id(chat_id)
         if not chat:
             abort(404)
@@ -319,6 +330,8 @@ def register_chat_routes(app):
     def chat_clear(chat_id):
         """Clear all messages in a direct message chat. Both participants can clear the chat."""
         user = get_current_user()
+        if db.is_user_chat_disabled(user["id"]):
+            return _chat_disabled_redirect()
         chat = db.get_chat_by_id(chat_id)
         if not chat:
             abort(404)

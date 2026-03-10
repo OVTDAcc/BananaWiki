@@ -464,6 +464,19 @@ def test_chat_disabled_user_cannot_start_dm(alice_uid, bob_uid):
         assert b"chat privileges have been disabled" in resp.data
 
 
+def test_chat_disabled_user_cannot_access_chat_list(alice_uid):
+    """A user with chat disabled should not be able to access the DM list."""
+    import db
+    from app import app
+    db.set_user_chat_disabled(alice_uid, True)
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
+    with app.test_client() as c:
+        c.post("/login", data={"username": "alice", "password": "alice123"})
+        resp = c.get("/chats", follow_redirects=True)
+        assert b"chat privileges have been disabled" in resp.data
+
+
 def test_chat_disabled_user_cannot_send_dm(alice_uid, bob_uid):
     """A user with chat disabled should not be able to send DMs."""
     import db
@@ -477,4 +490,18 @@ def test_chat_disabled_user_cannot_send_dm(alice_uid, bob_uid):
         resp = c.post(f"/chats/{chat['id']}/send",
                       data={"content": "test"},
                       follow_redirects=True)
+        assert b"chat privileges have been disabled" in resp.data
+
+
+def test_chat_disabled_user_cannot_view_existing_dm(alice_uid, bob_uid):
+    """A user with chat disabled should not be able to view an existing DM."""
+    import db
+    from app import app
+    chat = db.get_or_create_chat(alice_uid, bob_uid)
+    db.set_user_chat_disabled(alice_uid, True)
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
+    with app.test_client() as c:
+        c.post("/login", data={"username": "alice", "password": "alice123"})
+        resp = c.get(f"/chats/{chat['id']}", follow_redirects=True)
         assert b"chat privileges have been disabled" in resp.data
