@@ -40,10 +40,7 @@ def register_group_routes(app):
         """Return moderation flags for group message controls."""
         my_role = db.get_group_member_role(group["id"], user["id"])
         is_site_admin = user["role"] in ("admin", "protected_admin")
-        can_delete_any_message = (
-            is_site_admin if group["is_global"]
-            else my_role in ("owner", "moderator")
-        )
+        can_delete_any_message = is_site_admin or my_role in ("owner", "moderator")
         return my_role, is_site_admin, can_delete_any_message
 
     def _group_message_state(group, user):
@@ -186,11 +183,14 @@ def register_group_routes(app):
         group = db.get_group_chat(group_id)
         if not group:
             abort(404)
-        if not db.is_group_member(group_id, user["id"]):
+        is_group_member = db.is_group_member(group_id, user["id"])
+        is_site_admin = user["role"] in ("admin", "protected_admin")
+        if not is_group_member and not is_site_admin:
             flash("You are not a member of this group.", "error")
             return redirect(url_for("group_list"))
         # Reset unread count when viewing the group
-        db.reset_group_unread_count(group_id, user["id"])
+        if is_group_member:
+            db.reset_group_unread_count(group_id, user["id"])
         my_role, is_site_admin, can_delete_any_message = _group_message_permissions(group, user)
         messages, message_state, _ = _group_message_state(group, user)
         members = db.get_group_members(group_id)
@@ -202,7 +202,7 @@ def register_group_routes(app):
                                members=members, banned_members=banned_members,
                                my_membership=my_membership, all_users=all_users,
                                message_state=message_state, can_delete_any_message=can_delete_any_message,
-                               is_site_admin=is_site_admin, my_role=my_role,
+                               is_site_admin=is_site_admin, is_group_member=is_group_member, my_role=my_role,
                                clear_attachment_count=message_state["attachment_count"],
                                categories=categories, uncategorized=uncategorized)
 
@@ -219,9 +219,12 @@ def register_group_routes(app):
         group = db.get_group_chat(group_id)
         if not group:
             abort(404)
-        if not db.is_group_member(group_id, user["id"]):
+        is_group_member = db.is_group_member(group_id, user["id"])
+        is_site_admin = user["role"] in ("admin", "protected_admin")
+        if not is_group_member and not is_site_admin:
             return jsonify({"error": "You are not a member of this group."}), 403
-        db.reset_group_unread_count(group_id, user["id"])
+        if is_group_member:
+            db.reset_group_unread_count(group_id, user["id"])
         _, message_state, _ = _group_message_state(group, user)
         return jsonify(message_state)
 
@@ -350,13 +353,14 @@ def register_group_routes(app):
     @login_required
     @rate_limit(10, 60)
     def group_add_member(group_id):
-        """Add a user to a group chat (owner or moderator only)."""
+        """Add a user to a group chat (owner, moderator, or site admin only)."""
         user = get_current_user()
         group = db.get_group_chat(group_id)
         if not group:
             abort(404)
         my_role = db.get_group_member_role(group_id, user["id"])
-        if my_role not in ("owner", "moderator"):
+        is_site_admin = user["role"] in ("admin", "protected_admin")
+        if my_role not in ("owner", "moderator") and not is_site_admin:
             flash("You do not have permission to add members.", "error")
             return redirect(url_for("group_view", group_id=group_id))
         username = request.form.get("username", "").strip()
@@ -376,6 +380,7 @@ def register_group_routes(app):
         db.add_group_member(group_id, target["id"])
         db.send_group_system_message(group_id, f"{target['username']} was added by {user['username']}")
         notify_change("group_add_member", f"{target['username']} added to group '{group['name']}' by {user['username']}")
+        log_action("group_add_member", request, user=user, group_id=group_id, target_user_id=target["id"])
         flash(f"{target['username']} has been added to the group.", "success")
         return redirect(url_for("group_view", group_id=group_id))
 
@@ -417,7 +422,7 @@ def register_group_routes(app):
                 flash("Permission denied.", "error")
                 return redirect(url_for("group_view", group_id=group_id))
         else:
-            if my_role not in ("owner", "moderator"):
+            if my_role not in ("owner", "moderator") and not is_site_admin:
                 flash("Permission denied.", "error")
                 return redirect(url_for("group_view", group_id=group_id))
         target_id = request.form.get("user_id", "")
@@ -436,12 +441,14 @@ def register_group_routes(app):
             db.ban_group_member(group_id, target_id)
             db.send_group_system_message(group_id, f"{target_name} was banned by {user['username']}")
             notify_change("group_ban", f"{target_name} banned from group '{group['name']}' by {user['username']}")
-            flash(f"{target_name} has been banned.", "success")
+            log_action("group_ban", request, user=user, group_id=group_id, target_user_id=target_id)
+            flash(f"{target_name} has been banned from the group. They cannot rejoin until the ban is revoked.", "success")
         else:
             db.remove_group_member(group_id, target_id)
             db.send_group_system_message(group_id, f"{target_name} was removed by {user['username']}")
             notify_change("group_kick", f"{target_name} removed from group '{group['name']}' by {user['username']}")
-            flash(f"{target_name} has been removed.", "success")
+            log_action("group_kick", request, user=user, group_id=group_id, target_user_id=target_id)
+            flash(f"{target_name} has been removed from the group. They can be added back later if needed.", "success")
         return redirect(url_for("group_view", group_id=group_id))
 
     @app.route("/groups/<int:group_id>/promote", methods=["POST"])
@@ -470,6 +477,7 @@ def register_group_routes(app):
         db.set_group_member_role(group_id, target_id, "moderator")
         db.send_group_system_message(group_id, f"{target_name} was promoted to moderator by {user['username']}")
         notify_change("group_promote", f"{target_name} promoted to moderator in '{group['name']}' by {user['username']}")
+        log_action("group_promote", request, user=user, group_id=group_id, target_user_id=target_id)
         flash(f"{target_name} is now a moderator.", "success")
         return redirect(url_for("group_view", group_id=group_id))
 
@@ -496,6 +504,7 @@ def register_group_routes(app):
         db.set_group_member_role(group_id, target_id, "member")
         db.send_group_system_message(group_id, f"{target_name} was demoted to member by {user['username']}")
         notify_change("group_demote", f"{target_name} demoted in '{group['name']}' by {user['username']}")
+        log_action("group_demote", request, user=user, group_id=group_id, target_user_id=target_id)
         flash(f"{target_name} is no longer a moderator.", "success")
         return redirect(url_for("group_view", group_id=group_id))
 
@@ -560,6 +569,7 @@ def register_group_routes(app):
         db.transfer_group_ownership(group_id, user["id"], target_id)
         db.send_group_system_message(group_id, f"{user['username']} transferred ownership to {target_name}")
         notify_change("group_transfer", f"Ownership of '{group['name']}' transferred to {target_name} by {user['username']}")
+        log_action("group_transfer", request, user=user, group_id=group_id, target_user_id=target_id)
         flash(f"Ownership transferred to {target_name}. You are now a moderator.", "success")
         return redirect(url_for("group_view", group_id=group_id))
 
@@ -580,7 +590,7 @@ def register_group_routes(app):
                 flash("Only site admins can moderate the global chat.", "error")
                 return redirect(url_for("group_view", group_id=group_id))
         else:
-            if my_role not in ("owner", "moderator"):
+            if my_role not in ("owner", "moderator") and not is_site_admin:
                 flash("Permission denied.", "error")
                 return redirect(url_for("group_view", group_id=group_id))
         target_id = request.form.get("user_id", "")
@@ -615,6 +625,7 @@ def register_group_routes(app):
             flash("Please specify a duration.", "error")
             return redirect(url_for("group_view", group_id=group_id))
         notify_change("group_timeout", f"{target_name} timed out in '{group['name']}' by {user['username']}")
+        log_action("group_timeout", request, user=user, group_id=group_id, target_user_id=target_id)
         flash(f"{target_name} has been timed out.", "success")
         return redirect(url_for("group_view", group_id=group_id))
 
@@ -634,7 +645,7 @@ def register_group_routes(app):
                 flash("Only site admins can moderate the global chat.", "error")
                 return redirect(url_for("group_view", group_id=group_id))
         else:
-            if my_role not in ("owner", "moderator"):
+            if my_role not in ("owner", "moderator") and not is_site_admin:
                 flash("Permission denied.", "error")
                 return redirect(url_for("group_view", group_id=group_id))
         target_id = request.form.get("user_id", "")
@@ -646,6 +657,7 @@ def register_group_routes(app):
         target_name = target_user["username"] if target_user else "Unknown"
         db.set_group_member_timeout(group_id, target_id, None)
         db.send_group_system_message(group_id, f"{target_name}'s timeout was removed by {user['username']}")
+        log_action("group_untimeout", request, user=user, group_id=group_id, target_user_id=target_id)
         flash(f"{target_name}'s timeout has been removed.", "success")
         return redirect(url_for("group_view", group_id=group_id))
 
@@ -659,7 +671,7 @@ def register_group_routes(app):
         if not group:
             abort(404)
         my_role, is_site_admin, can_delete_any_message = _group_message_permissions(group, user)
-        if not db.is_group_member(group_id, user["id"]):
+        if not db.is_group_member(group_id, user["id"]) and not is_site_admin:
             flash("You are not a member of this group.", "error")
             return redirect(url_for("group_list"))
         message_id = request.form.get("message_id", type=int)
@@ -748,7 +760,7 @@ def register_group_routes(app):
                 flash("Only site admins can moderate the global chat.", "error")
                 return redirect(url_for("group_view", group_id=group_id))
         else:
-            if my_role not in ("owner", "moderator"):
+            if my_role not in ("owner", "moderator") and not is_site_admin:
                 flash("Permission denied.", "error")
                 return redirect(url_for("group_view", group_id=group_id))
         target_id = request.form.get("user_id", "")
@@ -759,6 +771,7 @@ def register_group_routes(app):
         target_name = target_user["username"] if target_user else "Unknown"
         db.unban_group_member(group_id, target_id)
         db.send_group_system_message(group_id, f"{target_name}'s ban was revoked by {user['username']}")
+        log_action("group_unban", request, user=user, group_id=group_id, target_user_id=target_id)
         flash(f"{target_name}'s ban has been revoked.", "success")
         return redirect(url_for("group_view", group_id=group_id))
 
@@ -777,8 +790,9 @@ def register_group_routes(app):
         if not group:
             abort(404)
         my_role = db.get_group_member_role(group_id, user["id"])
-        if my_role != "owner":
-            flash("Only the group owner can regenerate the invite code.", "error")
+        is_site_admin = user["role"] in ("admin", "protected_admin")
+        if my_role != "owner" and not is_site_admin:
+            flash("Only the group owner or a site admin can regenerate the invite code.", "error")
             return redirect(url_for("group_view", group_id=group_id))
         custom_code = request.form.get("custom_code", "").strip()
         if custom_code:
@@ -794,6 +808,7 @@ def register_group_routes(app):
         else:
             new_code = db.regenerate_group_invite_code(group_id)
         db.send_group_system_message(group_id, f"Invite code was regenerated by {user['username']}")
+        log_action("group_regenerate_code", request, user=user, group_id=group_id)
         flash(f"Invite code regenerated: {new_code}", "success")
         return redirect(url_for("group_view", group_id=group_id))
 
@@ -1101,6 +1116,7 @@ def register_group_routes(app):
         db.set_group_member_role(group_id, user["id"], "owner")
         db.send_group_system_message(group_id, f"{user['username']} (admin) took ownership of the group")
         notify_change("group_admin_takeover", f"{user['username']} took ownership of group '{group['name']}'")
+        log_action("group_admin_takeover", request, user=user, group_id=group_id)
         flash("You are now the owner of this group.", "success")
         return redirect(url_for("group_view", group_id=group_id))
 

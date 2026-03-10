@@ -4,7 +4,10 @@
 <div class="chat-header">
     <a href="{{ url_for('admin_groups') }}" class="btn btn-sm btn-outline">← Back</a>
     <h1>{% if group.is_global %}🌍{% endif %} {{ group.name }}</h1>
+    <a href="{{ url_for('group_view', group_id=group.id) }}" class="btn btn-sm btn-outline">Open Moderation Panel</a>
 </div>
+
+<p class="help-text">Site admins can use the moderation panel to manage bans, timeouts, invite codes, and removals without taking ownership of the group.</p>
 
 <details style="margin-bottom:1rem">
     <summary class="btn btn-sm btn-outline">Members ({{ members|length }})</summary>

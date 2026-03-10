@@ -1123,6 +1123,49 @@ def test_admin_can_take_ownership(admin_client, admin_uid, alice_uid):
     assert db.get_group_member_role(group["id"], alice_uid) == "moderator"
 
 
+def test_admin_can_view_group_without_joining(admin_client, alice_uid, admin_uid):
+    """Admins can open the moderation panel without joining or taking ownership."""
+    import db
+    group = db.create_group_chat("Test", alice_uid)
+    resp = admin_client.get(f"/groups/{group['id']}")
+    assert resp.status_code == 200
+    assert b"Site admin override active" in resp.data
+    assert db.get_group_member_role(group["id"], admin_uid) is None
+    assert db.get_group_member_role(group["id"], alice_uid) == "owner"
+
+
+def test_admin_can_kick_without_takeover(admin_client, admin_uid, alice_uid, bob_uid):
+    """Admins can remove members from regular groups without changing ownership."""
+    import db
+    group = db.create_group_chat("Test", alice_uid)
+    db.add_group_member(group["id"], bob_uid)
+    resp = admin_client.post(
+        f"/groups/{group['id']}/kick",
+        data={"user_id": bob_uid},
+        follow_redirects=True,
+    )
+    assert b"can be added back later if needed" in resp.data
+    assert not db.is_group_member(group["id"], bob_uid)
+    assert db.get_group_member_role(group["id"], admin_uid) is None
+    assert db.get_group_member_role(group["id"], alice_uid) == "owner"
+
+
+def test_admin_can_ban_without_takeover(admin_client, admin_uid, alice_uid, bob_uid):
+    """Admins can ban members from regular groups without changing ownership."""
+    import db
+    group = db.create_group_chat("Test", alice_uid)
+    db.add_group_member(group["id"], bob_uid)
+    resp = admin_client.post(
+        f"/groups/{group['id']}/kick",
+        data={"user_id": bob_uid, "permanent": "1"},
+        follow_redirects=True,
+    )
+    assert b"cannot rejoin until the ban is revoked" in resp.data
+    assert db.is_group_member_banned(group["id"], bob_uid)
+    assert db.get_group_member_role(group["id"], admin_uid) is None
+    assert db.get_group_member_role(group["id"], alice_uid) == "owner"
+
+
 def test_admin_can_take_ownership_of_global(admin_client, admin_uid):
     """Admin should be able to take ownership of the global chat."""
     import db

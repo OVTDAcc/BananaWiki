@@ -4,6 +4,7 @@
 {% set my_role = my_membership.role if my_membership else 'member' %}
 {% set is_mod = my_role in ('owner', 'moderator') %}
 {% set is_owner = my_role == 'owner' %}
+{% set can_manage_members = is_mod or is_site_admin %}
 {% set clear_prompt = "Clear " ~ message_state.message_count ~ " message" ~ ("" if message_state.message_count == 1 else "s") ~ " and " ~ clear_attachment_count ~ " attachment" ~ ("" if clear_attachment_count == 1 else "s") ~ " in this group? This cannot be undone." %}
 
 <div class="chat-shell">
@@ -27,6 +28,12 @@
 {% if group.is_global and not group.is_active %}
 <div class="chat-status-banner chat-status-banner-essential">
     <div><strong>Global chat is paused.</strong> Messages can still be read, but new messages cannot be sent right now.</div>
+</div>
+{% endif %}
+
+{% if is_site_admin and not is_group_member %}
+<div class="chat-status-banner">
+    <div><strong>Site admin override active.</strong> You can moderate this group, manage bans, and update the invite code without taking ownership. Message posting still requires group membership.</div>
 </div>
 {% endif %}
 
@@ -57,7 +64,7 @@
         {% endif %}
         {% endif %}
 
-        {% if is_mod or (group.is_global and is_site_admin) %}
+        {% if can_manage_members %}
         <form method="POST" action="{{ url_for('group_add_member', group_id=group.id) }}" style="display:flex;gap:.5rem;margin-bottom:.5rem;flex-wrap:wrap">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="text" name="username" class="input input-sm" placeholder="Enter username to add" style="width:180px" autocomplete="off" list="user-list-add">
@@ -76,7 +83,7 @@
         <form method="POST" action="{{ url_for('group_admin_takeover', group_id=group.id) }}" style="margin-bottom:.5rem"
               onsubmit="return confirm('Take ownership of this group? The current owner will become a moderator.')">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button class="btn btn-sm" title="Admin: Take ownership">🛡️ Take Ownership</button>
+            <button class="btn btn-sm btn-outline" title="Admin: Take ownership only when moderation alone is not enough">🛡️ Take Ownership</button>
         </form>
         {% endif %}
 
@@ -106,6 +113,12 @@
         {% elif is_owner or is_site_admin %}
         {# Export button for owners/admins who can't delete (global group case) #}
         <a href="{{ url_for('group_export', group_id=group.id) }}" class="btn btn-sm btn-outline" style="margin-bottom:.5rem" title="Export chat history">💾 Export Chat</a>
+        {% endif %}
+
+        {% if can_manage_members %}
+        <p class="moderation-guide">
+            <strong>Moderation guide:</strong> Timeout = temporary posting restriction. Remove = member leaves now but can rejoin. Ban = member stays blocked until the ban is revoked.
+        </p>
         {% endif %}
 
         <table class="admin-table" style="font-size:.85rem">
@@ -146,13 +159,13 @@
                         {% endif %}
 
                         {# Mod/Owner timeout controls (or site admin for global) #}
-                        {% if (is_mod and not group.is_global) or (group.is_global and is_site_admin) %}
-                            {% if not (my_role == 'moderator' and m.role in ('owner', 'moderator')) %}
+                        {% if can_manage_members %}
+                            {% if is_site_admin or not (my_role == 'moderator' and m.role in ('owner', 'moderator')) %}
                                 {% if m.timed_out_until %}
                                 <form method="POST" action="{{ url_for('group_untimeout', group_id=group.id) }}" style="display:inline">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                     <input type="hidden" name="user_id" value="{{ m.user_id }}">
-                                    <button class="btn btn-sm btn-outline" title="Remove timeout">✅</button>
+                                    <button class="btn btn-sm btn-outline" title="Remove timeout">✅ Remove Timeout</button>
                                 </form>
                                 {% else %}
                                 <form method="POST" action="{{ url_for('group_timeout', group_id=group.id) }}" style="display:inline">
@@ -165,22 +178,22 @@
                                         <option value="1440">1 day</option>
                                         <option value="indefinite">Indefinite</option>
                                     </select>
-                                    <button class="btn btn-sm btn-outline" title="Timeout">⏳</button>
+                                    <button class="btn btn-sm btn-outline" title="Timeout">Timeout</button>
                                 </form>
                                 {% endif %}
                             {% endif %}
                         {% endif %}
 
                         {# Kick / Ban (mod/owner for regular, site admin for global) #}
-                        {% if (is_mod and not group.is_global and not (my_role == 'moderator' and m.role in ('owner', 'moderator'))) or (group.is_global and is_site_admin) %}
+                        {% if can_manage_members and (is_site_admin or not (my_role == 'moderator' and m.role in ('owner', 'moderator'))) %}
                         <details style="display:inline-block;vertical-align:middle">
-                            <summary class="btn btn-sm btn-danger-outline" title="Remove options">✕</summary>
+                            <summary class="btn btn-sm btn-danger-outline" title="Removal and ban options">✕ Remove / Ban</summary>
                             <div style="display:flex;gap:.3rem;margin-top:.3rem">
                                 <form method="POST" action="{{ url_for('group_kick', group_id=group.id) }}" style="display:inline"
                                       onsubmit="return confirm('Remove ' + {{ m.username|tojson }} + '? They can rejoin later.')">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                     <input type="hidden" name="user_id" value="{{ m.user_id }}">
-                                    <button class="btn btn-sm btn-outline" title="Remove (can rejoin)">Kick</button>
+                                    <button class="btn btn-sm btn-outline" title="Remove now, allow rejoin later">Remove</button>
                                 </form>
                                 <form method="POST" action="{{ url_for('group_kick', group_id=group.id) }}" style="display:inline"
                                       onsubmit="return confirm('Ban ' + {{ m.username|tojson }} + ' permanently? They cannot rejoin until unbanned.')">
@@ -209,15 +222,17 @@
         </table>
 
         {# Banned members section #}
-        {% if banned_members and (is_mod or (group.is_global and is_site_admin)) %}
+        {% if banned_members and can_manage_members %}
         <details style="margin-top:.75rem">
-            <summary class="btn btn-sm btn-danger-outline">🚫 Banned Users ({{ banned_members|length }})</summary>
+            <summary class="btn btn-sm btn-danger-outline">🚫 Ban List ({{ banned_members|length }})</summary>
+            <p style="margin:.4rem 0 .2rem 0;font-size:.85rem">Banned users are permanently blocked from rejoining until a moderator or site admin revokes the ban.</p>
             <table class="admin-table" style="font-size:.85rem;margin-top:.3rem">
-                <thead><tr><th>User</th><th>Action</th></tr></thead>
+                <thead><tr><th>User</th><th>Previous Role</th><th>Action</th></tr></thead>
                 <tbody>
                 {% for bm in banned_members %}
                 <tr>
                     <td>{{ bm.username }}</td>
+                    <td>{{ bm.role or 'N/A' }}</td>
                     <td>
                         <form method="POST" action="{{ url_for('group_unban', group_id=group.id) }}" style="display:inline"
                               onsubmit="return confirm('Revoke ban for ' + {{ bm.username|tojson }} + '?')">
@@ -233,7 +248,7 @@
         </details>
         {% endif %}
 
-        {% if not (is_owner and not group.is_global) %}
+        {% if is_group_member and not (is_owner and not group.is_global) %}
         <form method="POST" action="{{ url_for('group_leave', group_id=group.id) }}" style="margin-top:.5rem"
               onsubmit="return confirm('Leave this group?')">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -261,7 +276,7 @@
     {% include "groups/_messages.html" %}
 </div>
 
-{% if not (group.is_global and not group.is_active) %}
+{% if is_group_member and not (group.is_global and not group.is_active) %}
 <form method="POST" action="{{ url_for('group_send', group_id=group.id) }}" class="chat-input-form" enctype="multipart/form-data">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="chat-input-row">
