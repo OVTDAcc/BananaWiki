@@ -649,6 +649,66 @@ function initImageUpload(contentEl) {
 var _imgModalUrl = '', _imgModalInsertPos = 0, _imgModalEl = null;
 // 'insert' = new image, 'edit' = update existing image properties
 var _imgModalMode = 'insert', _imgModalOrigSrc = '';
+var _videoModalEl = null, _videoModalMode = 'insert', _videoModalOrigUrl = '';
+// Keep this in sync with helpers/_markdown.py:_VIDEO_PADDING_BY_RATIO.
+var VIDEO_RATIO_PADDING_MAP = { '16:9': 56.25, '4:3': 75, '1:1': 100 };
+
+function escapeRegexChars(str) {
+    return String(str || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function setActiveOptionButton(buttonSelector, attrName, value, fallbackValue) {
+    var match = null;
+    document.querySelectorAll(buttonSelector).forEach(function(btn) {
+        var isActive = btn.dataset[attrName] === value;
+        btn.classList.toggle('active', isActive);
+        btn.classList.toggle('btn-outline', !isActive);
+        if (isActive) match = btn;
+    });
+    if (!match && fallbackValue !== undefined) {
+        document.querySelectorAll(buttonSelector).forEach(function(btn) {
+            var isActive = btn.dataset[attrName] === fallbackValue;
+            btn.classList.toggle('active', isActive);
+            btn.classList.toggle('btn-outline', !isActive);
+        });
+    }
+}
+
+function bindHorizontalResize(handle, getStartWidth, onMoveWidth, onCommit) {
+    if (!handle) return;
+    handle.style.touchAction = 'none';
+    handle.addEventListener('pointerdown', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        var startX = e.clientX;
+        var startW = getStartWidth();
+        document.body.style.userSelect = 'none';
+        document.body.style.cursor = 'ew-resize';
+
+        function onMove(ev) {
+            onMoveWidth(Math.round(startW + (ev.clientX - startX)));
+        }
+
+        function onUp() {
+            document.removeEventListener('pointermove', onMove);
+            document.removeEventListener('pointerup', onUp);
+            document.removeEventListener('pointercancel', onUp);
+            document.body.style.userSelect = '';
+            document.body.style.cursor = '';
+            if (onCommit) onCommit();
+        }
+
+        document.addEventListener('pointermove', onMove);
+        document.addEventListener('pointerup', onUp);
+        document.addEventListener('pointercancel', onUp);
+    });
+}
+
+function resetImageOptionsModal() {
+    var widthInput = document.getElementById('img-width-input');
+    if (widthInput) widthInput.value = '';
+    setActiveOptionButton('.img-align-btn', 'align', 'none', 'none');
+}
 
 function openImageOptionsModal(url, filename, contentEl) {
     _imgModalUrl = url;
@@ -660,14 +720,7 @@ function openImageOptionsModal(url, filename, contentEl) {
     if (preview) { preview.src = url; preview.style.display = ''; }
     var altInput = document.getElementById('img-alt-input');
     if (altInput) altInput.value = filename ? filename.replace(/\.[^.]+$/, '') : '';
-    var widthInput = document.getElementById('img-width-input');
-    if (widthInput) widthInput.value = '';
-    document.querySelectorAll('.img-align-btn').forEach(function(b) {
-        b.classList.remove('active');
-        b.classList.add('btn-outline');
-    });
-    var noneBtn = document.querySelector('.img-align-btn[data-align="none"]');
-    if (noneBtn) { noneBtn.classList.add('active'); noneBtn.classList.remove('btn-outline'); }
+    resetImageOptionsModal();
     var modal = document.getElementById('image-options-modal');
     if (modal) {
         var h3 = modal.querySelector('h3');
@@ -690,13 +743,7 @@ function openEditImageModal(src, alt, width, align, textareaEl) {
     if (altInput) altInput.value = alt || '';
     var widthInput = document.getElementById('img-width-input');
     if (widthInput) widthInput.value = width || '';
-    document.querySelectorAll('.img-align-btn').forEach(function(b) {
-        b.classList.remove('active');
-        b.classList.add('btn-outline');
-    });
-    var alignBtn = document.querySelector('.img-align-btn[data-align="' + (align || 'none') + '"]');
-    if (!alignBtn) alignBtn = document.querySelector('.img-align-btn[data-align="none"]');
-    if (alignBtn) { alignBtn.classList.add('active'); alignBtn.classList.remove('btn-outline'); }
+    setActiveOptionButton('.img-align-btn', 'align', align || 'none', 'none');
     var modal = document.getElementById('image-options-modal');
     if (modal) {
         var h3 = modal.querySelector('h3');
@@ -710,6 +757,77 @@ function openEditImageModal(src, alt, width, align, textareaEl) {
 function closeImageOptionsModal() {
     var modal = document.getElementById('image-options-modal');
     if (modal) modal.style.display = 'none';
+}
+
+function resetVideoOptionsModal() {
+    var urlInput = document.getElementById('video-url-input');
+    var widthInput = document.getElementById('video-width-input');
+    if (urlInput && _videoModalMode !== 'edit') urlInput.value = '';
+    if (widthInput) widthInput.value = '';
+    setActiveOptionButton('.video-align-btn', 'align', 'center', 'center');
+    setActiveOptionButton('.video-ratio-btn', 'ratio', '16:9', '16:9');
+}
+
+function openVideoOptionsModal(url, width, align, ratio, textareaEl) {
+    _videoModalEl = textareaEl || document.getElementById('edit-content');
+    _videoModalOrigUrl = url || '';
+    _videoModalMode = url ? 'edit' : 'insert';
+    var modal = document.getElementById('video-embed-modal');
+    var title = modal ? modal.querySelector('h3') : null;
+    var insertBtn = document.getElementById('video-insert-btn');
+    resetVideoOptionsModal();
+    var urlInput = document.getElementById('video-url-input');
+    var widthInput = document.getElementById('video-width-input');
+    if (urlInput) urlInput.value = url || '';
+    if (widthInput) widthInput.value = width || '';
+    setActiveOptionButton('.video-align-btn', 'align', align || 'center', 'center');
+    setActiveOptionButton('.video-ratio-btn', 'ratio', ratio || '16:9', '16:9');
+    if (title) title.textContent = _videoModalMode === 'edit' ? 'Edit Video' : 'Embed Video';
+    if (insertBtn) insertBtn.textContent = _videoModalMode === 'edit' ? 'Update' : 'Insert';
+    if (modal) modal.style.display = 'flex';
+}
+
+function closeVideoOptionsModal() {
+    var modal = document.getElementById('video-embed-modal');
+    if (modal) modal.style.display = 'none';
+}
+
+function buildVideoShortcode(url, width, align, ratio) {
+    var cleanUrl = (url || '').trim();
+    if (!cleanUrl) return '';
+    var parts = ['[[video url="' + escapeHtml(cleanUrl) + '"'];
+    if (width) parts.push('width="' + escapeHtml(width) + '"');
+    if (align && align !== 'center') parts.push('align="' + escapeHtml(align) + '"');
+    if (ratio && ratio !== '16:9') parts.push('ratio="' + escapeHtml(ratio) + '"');
+    return parts.join(' ') + ']]';
+}
+
+function confirmVideoInsert() {
+    var urlInput = document.getElementById('video-url-input');
+    var widthInput = document.getElementById('video-width-input');
+    var activeAlign = document.querySelector('.video-align-btn.active');
+    var activeRatio = document.querySelector('.video-ratio-btn.active');
+    var url = urlInput ? urlInput.value.trim() : '';
+    var width = widthInput ? widthInput.value.trim() : '';
+    var align = activeAlign ? activeAlign.dataset.align : 'center';
+    var ratio = activeRatio ? activeRatio.dataset.ratio : '16:9';
+    var shortcode = buildVideoShortcode(url, width, align, ratio);
+    var ta = _videoModalEl || document.getElementById('edit-content');
+    if (!ta || !shortcode) return;
+    if (_videoModalMode === 'edit' && _videoModalOrigUrl) {
+        updateVideoInEditor(ta, _videoModalOrigUrl, shortcode);
+    } else {
+        var pos = ta.selectionStart || ta.value.length;
+        var before = ta.value.substring(0, pos);
+        var after = ta.value.substring(pos);
+        var prefix = (before.length && before[before.length - 1] !== '\n') ? '\n' : '';
+        var suffix = (after.length && after[0] !== '\n') ? '\n' : '';
+        ta.value = before + prefix + shortcode + suffix + after;
+        ta.selectionStart = ta.selectionEnd = pos + prefix.length + shortcode.length + suffix.length;
+    }
+    ta.focus();
+    ta.dispatchEvent(new Event('input'));
+    closeVideoOptionsModal();
 }
 
 function confirmImageInsert() {
@@ -746,20 +864,27 @@ function confirmImageInsert() {
 document.addEventListener('DOMContentLoaded', function() {
     var insertBtn = document.getElementById('img-insert-btn');
     var cancelBtn = document.getElementById('img-cancel-btn');
+    var resetBtn = document.getElementById('img-reset-btn');
     var modal = document.getElementById('image-options-modal');
     if (insertBtn) insertBtn.addEventListener('click', confirmImageInsert);
     if (cancelBtn) cancelBtn.addEventListener('click', closeImageOptionsModal);
+    if (resetBtn) resetBtn.addEventListener('click', resetImageOptionsModal);
     if (modal) {
         modal.addEventListener('click', function(e) { if (e.target === this) closeImageOptionsModal(); });
     }
     document.querySelectorAll('.img-align-btn').forEach(function(btn) {
         btn.addEventListener('click', function() {
-            document.querySelectorAll('.img-align-btn').forEach(function(b) {
-                b.classList.remove('active');
-                b.classList.add('btn-outline');
-            });
-            btn.classList.add('active');
-            btn.classList.remove('btn-outline');
+            setActiveOptionButton('.img-align-btn', 'align', btn.dataset.align, 'none');
+        });
+    });
+    document.querySelectorAll('.video-align-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            setActiveOptionButton('.video-align-btn', 'align', btn.dataset.align, 'center');
+        });
+    });
+    document.querySelectorAll('.video-ratio-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            setActiveOptionButton('.video-ratio-btn', 'ratio', btn.dataset.ratio, '16:9');
         });
     });
 });
@@ -1585,32 +1710,19 @@ function initResizableImages(previewEl, textareaEl) {
             openEditImageModal(src, alt, widthAttr, align, textareaEl);
         });
 
-        handle.addEventListener('mousedown', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            var startX = e.clientX;
-            var startW = img.getBoundingClientRect().width;
-            document.body.style.userSelect = 'none';
-            document.body.style.cursor = 'ew-resize';
-
-            function onMove(ev) {
-                var newW = Math.max(50, Math.round(startW + (ev.clientX - startX)));
+        bindHorizontalResize(
+            handle,
+            function() { return img.getBoundingClientRect().width; },
+            function(nextWidth) {
+                var newW = Math.max(50, nextWidth);
                 img.style.width = newW + 'px';
                 img.style.maxWidth = 'none';
-            }
-
-            function onUp() {
-                document.removeEventListener('mousemove', onMove);
-                document.removeEventListener('mouseup', onUp);
-                document.body.style.userSelect = '';
-                document.body.style.cursor = '';
+            },
+            function() {
                 var finalW = Math.round(img.getBoundingClientRect().width);
                 updateImageWidthInEditor(textareaEl, img.getAttribute('src'), finalW);
             }
-
-            document.addEventListener('mousemove', onMove);
-            document.addEventListener('mouseup', onUp);
-        });
+        );
     });
 
     // Make embedded videos resizable in the preview pane
@@ -1620,6 +1732,7 @@ function initResizableImages(previewEl, textareaEl) {
 
         // Ensure the iframe doesn't steal pointer events from the resize handle
         var iframe = embed.querySelector('iframe');
+        if (iframe) iframe.style.pointerEvents = 'none';
         var handle = document.createElement('span');
         handle.className = 'preview-img-resize-handle';
         handle.title = 'Drag to resize video';
@@ -1629,35 +1742,46 @@ function initResizableImages(previewEl, textareaEl) {
         embed.appendChild(handle);
         embed.addEventListener('mouseenter', function() { handle.style.opacity = '.85'; });
         embed.addEventListener('mouseleave', function() { handle.style.opacity = '0'; });
-
-        handle.addEventListener('mousedown', function(e) {
+        embed.style.cursor = 'pointer';
+        embed.title = 'Click to edit video size / position';
+        embed.addEventListener('click', function(e) {
+            if (e.target === handle) return;
             e.preventDefault();
             e.stopPropagation();
-            var startX = e.clientX;
-            var startW = embed.getBoundingClientRect().width;
-            document.body.style.userSelect = 'none';
-            document.body.style.cursor = 'ew-resize';
-            // Disable iframe pointer events during drag to prevent stealing mousemove
-            if (iframe) iframe.style.pointerEvents = 'none';
-
-            function onMove(ev) {
-                var newW = Math.max(200, Math.round(startW + (ev.clientX - startX)));
-                embed.style.width = newW + 'px';
-                embed.style.maxWidth = '100%';
-                embed.style.paddingBottom = Math.round(newW * 0.5625) + 'px';
-            }
-
-            function onUp() {
-                document.removeEventListener('mousemove', onMove);
-                document.removeEventListener('mouseup', onUp);
-                document.body.style.userSelect = '';
-                document.body.style.cursor = '';
-                if (iframe) iframe.style.pointerEvents = '';
-            }
-
-            document.addEventListener('mousemove', onMove);
-            document.addEventListener('mouseup', onUp);
+            openVideoOptionsModal(
+                embed.dataset.bwSourceUrl || '',
+                embed.dataset.bwWidth || '',
+                embed.dataset.bwAlign || 'center',
+                embed.dataset.bwRatio || '16:9',
+                textareaEl
+            );
         });
+
+        bindHorizontalResize(
+            handle,
+            function() { return embed.getBoundingClientRect().width; },
+            function(nextWidth) {
+                var ratio = embed.dataset.bwRatio || '16:9';
+                var newW = Math.max(200, nextWidth);
+                embed.dataset.bwWidth = String(newW);
+                embed.style.width = 'min(' + newW + 'px,100%)';
+                embed.style.maxWidth = '100%';
+                embed.style.paddingBottom = VIDEO_RATIO_PADDING_MAP[ratio] + '%';
+                if (iframe) iframe.style.pointerEvents = 'none';
+            },
+            function() {
+                updateVideoInEditor(
+                    textareaEl,
+                    embed.dataset.bwSourceUrl || '',
+                    buildVideoShortcode(
+                        embed.dataset.bwSourceUrl || '',
+                        embed.dataset.bwWidth || '',
+                        embed.dataset.bwAlign || 'center',
+                        embed.dataset.bwRatio || '16:9'
+                    )
+                );
+            }
+        );
     });
 }
 
@@ -1679,7 +1803,7 @@ function updateImageWidthInEditor(textarea, src, width) {
 
     // If no HTML <img> was matched, the image may be in Markdown format: ![alt](src)
     if (updated === content) {
-        var escapedSrc = src.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        var escapedSrc = escapeRegexChars(src);
         updated = content.replace(
             new RegExp('!\\[([^\\]]*)\\]\\(' + escapedSrc + '\\)', 'g'),
             function(match, alt) {
@@ -1701,7 +1825,7 @@ function updateImageInEditor(textarea, src, newMarkdown) {
     if (!textarea || !src) return;
     var content = textarea.value;
     var updated = content;
-    var escapedSrc = src.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    var escapedSrc = escapeRegexChars(src);
 
     // 1. <figure ...><img src="src"...>...</figure>  (only double- or single-quoted src)
     var figRe = new RegExp('<figure[^>]*>\\s*<img[^>]+src=(?:"' + escapedSrc + '"|\''+escapedSrc+'\'\\b)[^>]*>(?:\\s*<figcaption>[^]*?</figcaption>)?\\s*</figure>', 'i');
@@ -1729,6 +1853,32 @@ function updateImageInEditor(textarea, src, newMarkdown) {
         }
     }
 
+    if (updated !== content) {
+        textarea.value = updated;
+        textarea.dispatchEvent(new Event('input'));
+    }
+}
+
+function updateVideoInEditor(textarea, sourceUrl, newMarkup) {
+    if (!textarea || !sourceUrl || !newMarkup) return;
+    var content = textarea.value;
+    var escapedSourceUrl = escapeRegexChars(sourceUrl);
+    // Keep this shortcode matcher aligned with helpers/_markdown.py:_CUSTOM_VIDEO_RE.
+    var shortcodeRe = new RegExp(
+        '\\[\\[video\\s+url="' + escapedSourceUrl + '"(?:\\s+width="\\d{2,4}")?(?:\\s+align="(?:none|left|right|center)")?(?:\\s+ratio="(?:16:9|4:3|1:1)")?\\s*\\]\\]',
+        'gi'
+    );
+    var bareUrlRe = new RegExp('(^|\\n)(' + escapedSourceUrl + ')(?=\\n|$)', 'g');
+    var angleUrlRe = new RegExp('<' + escapedSourceUrl + '>', 'g');
+    var updated = content.replace(shortcodeRe, newMarkup);
+    if (updated === content) {
+        updated = content.replace(bareUrlRe, function(match, prefix) {
+            return prefix + newMarkup;
+        });
+    }
+    if (updated === content) {
+        updated = content.replace(angleUrlRe, newMarkup);
+    }
     if (updated !== content) {
         textarea.value = updated;
         textarea.dispatchEvent(new Event('input'));

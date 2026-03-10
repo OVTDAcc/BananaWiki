@@ -1,6 +1,7 @@
 """Markdown rendering and video embed helpers."""
 
 import re
+from html import escape
 
 import markdown
 import bleach
@@ -50,13 +51,96 @@ _VIMEO_BARE_RE = re.compile(
     r'<p>\s*(https?://(?:www\.)?vimeo\.com/(\d+)[^\s<>]*)\s*</p>',
     re.IGNORECASE,
 )
+_CUSTOM_VIDEO_RE = re.compile(
+    r"""
+    <p>\s*
+    \[\[video
+    \s+url="(?P<url>[^"]+)"
+    (?:\s+width="(?P<width>\d{2,4})")?
+    (?:\s+align="(?P<align>none|left|right|center)")?
+    (?:\s+ratio="(?P<ratio>16:9|4:3|1:1)")?
+    \s*\]\]
+    \s*</p>
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
+_VIDEO_WIDTH_RE = re.compile(r"^\d{2,4}$")
+_VIDEO_PADDING_BY_RATIO = {
+    "16:9": "56.25%",
+    "4:3": "75%",
+    "1:1": "100%",
+}
 
 
-def _make_video_iframe(embed_src):
+def _get_video_embed_src(url):
+    """Return the canonical embed URL for a supported video URL, or None."""
+    if not url:
+        return None
+    yt_watch = re.search(r"[?&]v=([A-Za-z0-9_-]{11})", url, re.IGNORECASE)
+    if yt_watch:
+        return f"https://www.youtube.com/embed/{yt_watch.group(1)}"
+    yt_short = re.search(r"youtu\.be/([A-Za-z0-9_-]{11})", url, re.IGNORECASE)
+    if yt_short:
+        return f"https://www.youtube.com/embed/{yt_short.group(1)}"
+    vimeo = re.search(r"vimeo\.com/(\d+)", url, re.IGNORECASE)
+    if vimeo:
+        return f"https://player.vimeo.com/video/{vimeo.group(1)}"
+    return None
+
+
+def _normalize_video_options(width=None, align=None, ratio=None):
+    """Return sanitised video sizing options."""
+    width = str(width).strip() if width is not None else ""
+    if not _VIDEO_WIDTH_RE.match(width):
+        width = ""
+    align = (align or "center").strip().lower()
+    if align not in {"none", "left", "right", "center"}:
+        align = "center"
+    ratio = (ratio or "16:9").strip()
+    if ratio not in _VIDEO_PADDING_BY_RATIO:
+        ratio = "16:9"
+    return width, align, ratio
+
+
+def _make_video_iframe(embed_src, source_url=None, width=None, align="center", ratio="16:9"):
     """Return a responsive iframe HTML string for the given embed URL."""
+    width, align, ratio = _normalize_video_options(width=width, align=align, ratio=ratio)
+    classes = ["video-embed", f"video-embed-{align}"]
+    styles = [
+        "position:relative",
+        f"padding-bottom:{_VIDEO_PADDING_BY_RATIO[ratio]}",
+        "height:0",
+        "overflow:hidden",
+        "max-width:100%",
+    ]
+    if width:
+        styles.append(f"width:min({width}px,100%)")
+    elif align == "none":
+        styles.append("width:100%")
+    if align == "center":
+        styles.append("margin:1rem auto")
+    elif align == "left":
+        styles.append("float:left")
+        styles.append("clear:left")
+        styles.append("margin:0 1.5rem 1rem 0")
+    elif align == "right":
+        styles.append("float:right")
+        styles.append("clear:right")
+        styles.append("margin:0 0 1rem 1.5rem")
+    else:
+        styles.append("margin:1rem 0")
+    attrs = [
+        f'class="{" ".join(classes)}"',
+        f'data-bw-source-url="{escape(source_url if source_url is not None else embed_src, quote=True)}"',
+        f'data-bw-align="{align}"',
+        f'data-bw-ratio="{ratio}"',
+        f'style="{";".join(styles)}"',
+    ]
+    if width:
+        attrs.append(f'data-bw-width="{width}"')
     return (
-        '<div class="video-embed" style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;margin:1rem 0">'
-        f'<iframe src="{embed_src}" style="position:absolute;top:0;left:0;width:100%;height:100%;border:0" '
+        f'<div {" ".join(attrs)}>'
+        f'<iframe src="{escape(embed_src, quote=True)}" style="position:absolute;top:0;left:0;width:100%;height:100%;border:0" '
         'allowfullscreen loading="lazy"></iframe>'
         '</div>'
     )
@@ -64,31 +148,45 @@ def _make_video_iframe(embed_src):
 
 def _embed_videos_in_html(html):
     """Replace bare YouTube/Vimeo anchor links with responsive iframe embeds."""
-    _yt_vid_re = re.compile(r'[?&]v=([A-Za-z0-9_-]{11})', re.IGNORECASE)
-    _yt_short_re = re.compile(r'youtu\.be/([A-Za-z0-9_-]{11})', re.IGNORECASE)
-    _vimeo_vid_re = re.compile(r'vimeo\.com/(\d+)', re.IGNORECASE)
-
     def _yt_watch_replace(m):
         """Replace a YouTube watch-URL match with an iframe embed."""
-        vid_m = _yt_vid_re.search(m.group(1))
-        if not vid_m:
+        source_url = m.group(1)
+        embed_src = _get_video_embed_src(source_url)
+        if not embed_src:
             return m.group(0)
-        return _make_video_iframe(f"https://www.youtube.com/embed/{vid_m.group(1)}")
+        return _make_video_iframe(embed_src, source_url=source_url)
 
     def _yt_short_replace(m):
         """Replace a youtu.be short-URL match with an iframe embed."""
-        vid_m = _yt_short_re.search(m.group(1))
-        if not vid_m:
+        source_url = m.group(1)
+        embed_src = _get_video_embed_src(source_url)
+        if not embed_src:
             return m.group(0)
-        return _make_video_iframe(f"https://www.youtube.com/embed/{vid_m.group(1)}")
+        return _make_video_iframe(embed_src, source_url=source_url)
 
     def _vimeo_replace(m):
         """Replace a Vimeo URL match with an iframe embed."""
-        vid_m = _vimeo_vid_re.search(m.group(1))
-        if not vid_m:
+        source_url = m.group(1)
+        embed_src = _get_video_embed_src(source_url)
+        if not embed_src:
             return m.group(0)
-        return _make_video_iframe(f"https://player.vimeo.com/video/{vid_m.group(1)}")
+        return _make_video_iframe(embed_src, source_url=source_url)
 
+    def _custom_video_replace(m):
+        """Replace a persisted video shortcode with a configurable iframe embed."""
+        source_url = m.group("url")
+        embed_src = _get_video_embed_src(source_url)
+        if not embed_src:
+            return m.group(0)
+        return _make_video_iframe(
+            embed_src,
+            source_url=source_url,
+            width=m.group("width"),
+            align=m.group("align") or "center",
+            ratio=m.group("ratio") or "16:9",
+        )
+
+    html = _CUSTOM_VIDEO_RE.sub(_custom_video_replace, html)
     # Handle linked URLs (markdown angle-bracket or explicit link syntax)
     html = _YT_WATCH_RE.sub(_yt_watch_replace, html)
     html = _YT_SHORT_RE.sub(_yt_short_replace, html)
