@@ -148,14 +148,14 @@ BananaWiki is a lightweight, private wiki you can host on your own server. No cl
 
 **Option 1: Using Make (simplest)**
 ```bash
-git clone https://github.com/ovtdadt/BananaWiki.git
+git clone https://github.com/OVTDAcc/BananaWiki.git
 cd BananaWiki
 make dev
 ```
 
 **Option 2: Using the dev script directly**
 ```bash
-git clone https://github.com/ovtdadt/BananaWiki.git
+git clone https://github.com/OVTDAcc/BananaWiki.git
 cd BananaWiki
 ./dev.sh
 ```
@@ -167,7 +167,7 @@ Both methods automatically set up the virtual environment, install dependencies,
 **Option 1: Automated Installation (Recommended)**
 
 ```bash
-git clone https://github.com/ovtdadt/BananaWiki.git
+git clone https://github.com/OVTDAcc/BananaWiki.git
 cd BananaWiki
 sudo make install
 # or: sudo ./install.sh
@@ -183,7 +183,7 @@ The installation script will guide you through an interactive setup that:
 **Option 2: Manual Setup**
 
 ```bash
-git clone https://github.com/ovtdadt/BananaWiki.git
+git clone https://github.com/OVTDAcc/BananaWiki.git
 cd BananaWiki
 python -m venv venv
 source venv/bin/activate        # Windows: venv\Scripts\activate
@@ -224,45 +224,31 @@ New users who sign up with an invite code receive the **user** role by default. 
 
 ```
 BananaWiki/
-├── app.py              # Flask app: all routes, middleware, and request handling
-├── db.py               # Database layer: schema, migrations, and all queries
-├── config.py           # Configuration — edit this to customize your instance
+├── app.py              # Flask app factory: middleware, hooks, and startup logic
+├── config.py           # Configuration file for the instance
 ├── sync.py             # Telegram backup/sync module
 ├── wiki_logger.py      # Request and action logging
-├── wsgi.py             # WSGI entry point for Gunicorn
-├── gunicorn.conf.py    # Gunicorn server configuration
-├── Makefile            # Convenient shortcuts: make dev, make start, make install
-├── dev.sh              # Quick start script for local development
-├── start.sh            # Production start script with Gunicorn
+├── wsgi.py             # Gunicorn entry point
+├── db/                 # Database access layer (one module per feature area)
+├── helpers/            # Shared utilities: auth, markdown, validation, time, permissions
+├── routes/             # Flask route handlers grouped by feature
+├── app/                # Templates, CSS, JS, favicons, and runtime uploads
+├── docs/               # User and operator documentation
+├── tests/              # Pytest suite
+├── Makefile            # Shortcuts: make dev, make start, make install, make test
+├── dev.sh              # Local development helper
+├── start.sh            # Production start helper
 ├── install.sh          # Automated production installation script
-├── update.sh           # Automated update script (NEW)
-├── bananawiki.service  # systemd service file for production
-├── setup.py            # Advanced server provisioning wizard (systemd + nginx + certbot)
-├── reset_password.py   # CLI tool for resetting a user password outside the web UI
-├── requirements.txt    # Python dependencies
+├── update.sh           # Automated update script
+├── setup.py            # Provisioning wizard (systemd + nginx + certbot)
+├── reset_password.py   # CLI password reset helper
+├── requirements.txt    # Runtime Python dependencies
 ├── app/
-│   ├── static/
-│   │   ├── css/        # Stylesheets
-│   │   ├── js/         # Client-side JavaScript (editor, sidebar, drafts, easter egg)
-│   │   ├── favicons/   # Preset and custom favicon images
-│   │   └── uploads/    # User-uploaded images and avatars (runtime, gitignored)
-│   └── templates/
-│       ├── base.html                  # Base layout with sidebar and announcement bar
-│       ├── _announcements_bar.html    # Announcement banner partial
-│       ├── auth/       # login.html, signup.html, setup.html, lockdown.html
-│       ├── wiki/       # page.html, edit.html, create_page.html, history.html,
-│       │               # history_entry.html, announcement.html, easter_egg.html,
-│       │               # _category.html (recursive sidebar partial),
-│       │               # 403.html, 404.html, 429.html, 500.html
-│       ├── account/    # settings.html
-│       ├── users/      # list.html, profile.html
-│       └── admin/      # users.html, codes.html, codes_expired.html,
-│                       # settings.html, announcements.html, audit.html,
-│                       # editor_access.html, migration.html
-├── docs/               # Detailed documentation
-├── instance/           # Database, attachments, secret key — created at runtime (gitignored)
-├── logs/               # Application logs — created at runtime (gitignored)
-└── tests/              # Test suite (606 tests across 9 files)
+│   ├── templates/      # Jinja templates for auth, wiki, admin, chats, groups, users
+│   └── static/         # CSS, JavaScript, favicons, and gitignored uploads
+├── instance/           # Database, attachments, and secret key (runtime, gitignored)
+├── logs/               # Application logs (runtime, gitignored)
+└── bananawiki.service  # systemd service file
 ```
 
 ---
@@ -270,11 +256,10 @@ BananaWiki/
 ## 🧪 Running Tests
 
 ```bash
-pip install pytest
-python -m pytest tests/ -v
+make test
 ```
 
-Tests use isolated temporary databases and cover routes, database logic, rate limiting, networking/proxy configuration, and Telegram sync behavior.
+`make test` creates `./venv`, installs the runtime dependencies plus `pytest`, and runs the full test suite. If you prefer to run tests manually, activate `venv` and use `python -m pytest tests/ -v`.
 
 ---
 

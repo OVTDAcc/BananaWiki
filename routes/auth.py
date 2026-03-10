@@ -37,7 +37,7 @@ def register_auth_routes(app):
             confirm = request.form.get("confirm_password", "")
 
             if not username or not password:
-                flash("Please provide both a username and password to continue.", "error")
+                flash("Enter both a username and password to continue.", "error")
                 return render_template("auth/setup.html")
             if len(username) < 3:
                 flash("Username must be at least 3 characters long.", "error")
@@ -64,12 +64,12 @@ def register_auth_routes(app):
             try:
                 db.create_user(username, hashed, role="admin")
             except sqlite3.IntegrityError:
-                flash("Username already taken. Please choose another.", "error")
+                flash("That username is already taken. Please choose another one.", "error")
                 return render_template("auth/setup.html")
             db.update_site_settings(setup_done=1)
             log_action("setup_complete", request, username=username)
             notify_change("setup_complete", f"Admin account '{username}' created")
-            flash("Admin account created. You may now log in.", "success")
+            flash("Admin account created. You can sign in now.", "success")
             return redirect(url_for("login"))
 
         return render_template("auth/setup.html")
@@ -86,7 +86,7 @@ def register_auth_routes(app):
         if request.method == "POST":
             if not _check_login_rate_limit():
                 log_action("login_rate_limited", request)
-                flash("Too many login attempts detected. Please wait one minute before trying again.", "error")
+                flash("Too many login attempts were detected. Please wait one minute and try again.", "error")
                 return render_template("auth/login.html", lockdown=lockdown), 429
 
             username = request.form.get("username", "").strip()
@@ -109,12 +109,12 @@ def register_auth_routes(app):
 
             if user["suspended"]:
                 log_action("login_suspended", request, username=username)
-                flash("Your account has been suspended. Please contact a site administrator for assistance.", "error")
+                flash("Your account is suspended. Please contact a site administrator for help.", "error")
                 return render_template("auth/login.html", lockdown=lockdown)
 
             if lockdown and user["role"] not in ("admin", "protected_admin"):
                 log_action("login_blocked_lockdown", request, username=username)
-                flash("This wiki is currently in lockdown mode. Only administrators can access the site at this time.", "error")
+                flash("This wiki is temporarily restricted to administrators. Please try again later or contact an administrator.", "error")
                 return render_template("auth/login.html", lockdown=lockdown)
 
             session.clear()
@@ -179,28 +179,28 @@ def register_auth_routes(app):
             code_row = db.validate_invite_code(invite)
             if not code_row:
                 log_action("signup_invalid_code", request, code=invite, username=username)
-                flash("The invite code you entered is invalid or has expired.", "error")
+                flash("The invite code you entered is invalid or has expired. Please ask an administrator for a new one.", "error")
                 return render_template("auth/signup.html")
 
             if db.get_user_by_username(username):
-                flash("Username already taken. Please choose another.", "error")
+                flash("That username is already taken. Please choose another one.", "error")
                 return render_template("auth/signup.html")
 
             hashed = generate_password_hash(password)
             try:
                 user_id = db.create_user(username, hashed, invite_code=invite)
             except sqlite3.IntegrityError:
-                flash("Username already taken. Please choose another.", "error")
+                flash("That username is already taken. Please choose another one.", "error")
                 return render_template("auth/signup.html")
             if not db.use_invite_code(invite, user_id):
                 # Race condition: code was used by another user concurrently
                 db.delete_user(user_id)
-                flash("This invite code was just used by another person. Please request a new code.", "error")
+                flash("That invite code was just used. Please request a new invite code.", "error")
                 return render_template("auth/signup.html")
 
             log_action("signup_success", request, username=username, invite_code=invite)
             notify_change("user_signup", f"New user '{username}' registered")
-            flash("Account created. You may now log in.", "success")
+            flash("Account created. You can sign in now.", "success")
             return redirect(url_for("login"))
 
         return render_template("auth/signup.html")
@@ -212,7 +212,7 @@ def register_auth_routes(app):
         if user:
             log_action("logout", request, user=user)
         session.clear()
-        flash("You have been successfully logged out.", "info")
+        flash("You have been logged out.", "info")
         return redirect(url_for("login"))
 
     @app.route("/session-conflict")
@@ -229,14 +229,14 @@ def register_auth_routes(app):
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "").strip()
         if not username or not password:
-            flash("Please enter your username and password to re-authenticate.", "error")
+            flash("Enter your username and password to continue.", "error")
             return redirect(url_for("session_conflict"))
         user = db.get_user_by_username(username)
         if not user or not check_password_hash(user["password"], password):
             flash("Invalid username or password.", "error")
             return redirect(url_for("session_conflict"))
         if user["suspended"]:
-            flash("Your account is currently suspended.", "error")
+            flash("Your account is suspended. Please contact a site administrator for help.", "error")
             return redirect(url_for("session_conflict"))
         # Issue a new session token so all other sessions are invalidated
         token = uuid.uuid4().hex
@@ -246,7 +246,7 @@ def register_auth_routes(app):
         session["user_id"] = user["id"]
         session["session_token"] = token
         log_action("session_conflict_force", request, user=user)
-        flash("All other sessions have been logged out. You are now signed in here.", "info")
+        flash("Your other active sessions have been signed out. You are now signed in on this device.", "info")
         return redirect(url_for("home"))
 
     @app.route("/lockdown")

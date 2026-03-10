@@ -43,6 +43,13 @@ All configuration lives in `config.py` at the root of the project. Edit it direc
 | `MAX_ATTACHMENT_SIZE` | `5 * 1024 * 1024` | Maximum size per attachment (5 MB). |
 | `ATTACHMENT_ALLOWED_EXTENSIONS` | *(see config.py)* | Permitted attachment file types: documents, archives, images, audio/video, and source code files. |
 
+## Chat Attachments
+
+| Setting | Default | Description |
+|---|---|---|
+| `CHAT_ATTACHMENT_FOLDER` | `instance/chat_attachments` | Directory where direct-message and group-chat attachments are stored. Outside `static/` so downloads always go through authenticated routes. |
+| `CHAT_ALLOWED_EXTENSIONS` | *(see config.py)* | Permitted chat attachment file types. The allowed list is intentionally narrower than page attachments. |
+
 ## Logging
 
 | Setting | Default | Description |
@@ -63,6 +70,24 @@ Logs record every request (IP, method, path, user) and every significant action 
 | Setting | Default | Description |
 |---|---|---|
 | `INVITE_CODE_EXPIRY_HOURS` | `48` | How long a generated invite code is valid before it expires. |
+
+## Page Reservations
+
+| Setting | Default | Description |
+|---|---|---|
+| `PAGE_RESERVATION_DURATION_HOURS` | `48` | How long a page checkout remains active before it expires automatically. |
+| `PAGE_RESERVATION_COOLDOWN_HOURS` | `72` | How long a user must wait after a reservation ends before reserving the same page again. |
+
+## Settings Managed in the Admin UI
+
+Not every adjustable setting lives in `config.py`. The following options are stored in the database and should be managed from **Admin → Settings** so they can be changed without editing files:
+
+- chat attachment size limits and daily upload quotas
+- chat cleanup schedule and retention settings
+- site name, timezone, and color palette
+- lockdown mode and the lockdown message
+- one-session-per-user enforcement
+- OAuth provider settings
 
 ## Telegram Sync / Backup
 

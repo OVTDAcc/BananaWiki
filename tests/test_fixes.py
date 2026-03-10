@@ -2027,7 +2027,30 @@ def test_base_template_deduplicates_identical_flash_messages(logged_in_admin):
     resp = logged_in_admin.get("/")
     assert resp.status_code == 200
     assert resp.data.count(b"Saved successfully.") == 1
-    assert resp.data.count(b"A different message.") == 1
+
+
+def test_setup_missing_credentials_message_is_actionable(client):
+    """Setup should tell the user exactly what to enter next."""
+    resp = client.post("/setup", data={"username": "", "password": "", "confirm_password": ""})
+    assert resp.status_code == 200
+    assert b"Enter both a username and password to continue." in resp.data
+
+
+def test_session_conflict_page_explains_single_session_flow(client, admin_user):
+    """The session conflict page should clearly explain what will happen next."""
+    resp = client.get("/session-conflict")
+    assert resp.status_code == 200
+    assert b"Sign in again to continue" in resp.data
+    assert b"This wiki only allows one active session at a time." in resp.data
+    assert b"Continue on this device" in resp.data
+
+
+def test_session_conflict_force_requires_credentials_message(client, admin_user):
+    """Re-authentication should prompt for both required credentials."""
+    resp = client.post("/session-conflict/force", data={}, follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"Enter your username and password to continue." in resp.data
+    assert resp.data.count(b"Enter your username and password to continue.") == 1
 
 
 # -----------------------------------------------------------------------

@@ -569,7 +569,7 @@ function discardDraftFromSettings(pageId, btn) {
         }
     }).catch(function() {
         btn.disabled = false;
-        alert('Failed to discard draft.');
+        alert('We could not discard this draft. Please try again.');
     });
     });
 }
@@ -596,7 +596,7 @@ function initImageUpload(contentEl) {
             .then(function(r) { return r.json().then(function(data) { return { ok: r.ok, data: data }; }); })
             .then(function(result) {
                 if (!result.ok || result.data.error) {
-                    alert('Upload failed: ' + (result.data.error || 'Unknown error'));
+                    alert('Upload failed. ' + (result.data.error || 'Please try again.'));
                     return result.data;
                 }
                 if (result.data.url) {
@@ -606,7 +606,7 @@ function initImageUpload(contentEl) {
             })
             .catch(function(err) {
                 console.error('Upload error:', err);
-                alert('Upload failed: could not reach server.');
+                alert('Upload failed because the server could not be reached. Please try again.');
             });
     }
 

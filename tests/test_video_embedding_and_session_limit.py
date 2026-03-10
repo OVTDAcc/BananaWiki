@@ -307,13 +307,14 @@ class TestSessionConflictPage:
     def test_session_conflict_page_loads(self, client, admin_user):
         resp = client.get("/session-conflict")
         assert resp.status_code == 200
-        assert b"Active Session Detected" in resp.data
+        assert b"Sign in again to continue" in resp.data
+        assert b"one active session at a time" in resp.data
 
     def test_session_conflict_page_has_form(self, client, admin_user):
         resp = client.get("/session-conflict")
         assert resp.status_code == 200
         assert b"session-conflict/force" in resp.data
-        assert b"Log Out Other Sessions" in resp.data
+        assert b"Continue on this device" in resp.data
 
     def test_session_conflict_force_with_wrong_password(self, client, admin_user):
         resp = client.post("/session-conflict/force", data={

@@ -430,6 +430,6 @@ If you encounter issues during updates:
 1. Check the [Troubleshooting](#troubleshooting) section above
 2. Review service logs: `sudo journalctl -u bananawiki -f`
 3. Restore from backup if needed
-4. Report issues on GitHub: https://github.com/ovtdadt/BananaWiki/issues
+4. Report issues on GitHub: https://github.com/OVTDAcc/BananaWiki/issues
 
 Remember: **Always keep backups**, and test updates in a development environment first when possible.
