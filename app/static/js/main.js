@@ -138,9 +138,7 @@ function initLiveChat() {
             var nextLatestMessageId = parseInt(data.latest_message_id || '0', 10);
             var nextMessageCount = parseInt(data.message_count || '0', 10);
             var hadNewContent = nextLatestMessageId !== latestMessageId || nextMessageCount !== messageCount;
-            if (nextLatestMessageId === latestMessageId && nextMessageCount === messageCount) {
-                return;
-            }
+            if (!hadNewContent) return;
             latestMessageId = nextLatestMessageId;
             messageCount = nextMessageCount;
             container.innerHTML = data.html || '';

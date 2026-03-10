@@ -263,10 +263,9 @@ def register_chat_routes(app):
             return redirect(url_for("chat_view", chat_id=chat_id))
         files = db.delete_chat_message(message_id)
         _remove_chat_files(files)
-        attachment_count = len(msg.get("attachments") or [])
         flash(
-            f"Message has been successfully deleted. Removed {attachment_count} attachment"
-            f"{'' if attachment_count == 1 else 's'}.",
+            f"Message has been successfully deleted. Removed {len(files)} attachment"
+            f"{'' if len(files) == 1 else 's'}.",
             "success",
         )
         log_action("chat_delete_message", request, user=user, chat_id=chat_id, message_id=message_id)

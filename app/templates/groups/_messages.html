@@ -8,7 +8,6 @@
             </div>
         </div>
         {% else %}
-        {% set attachment_count = msg.attachments|length %}
         {% set can_delete_message = can_delete_any_message or msg.sender_id == current_user.id %}
         <article class="chat-msg {% if msg.sender_id == current_user.id %}chat-msg-mine{% else %}chat-msg-theirs{% endif %}" data-message-id="{{ msg.id }}">
             <div class="chat-msg-meta">
@@ -24,6 +23,7 @@
             </div>
             {% endif %}
             {% if can_delete_message %}
+            {% set attachment_count = msg.attachments|length %}
             <div class="chat-msg-actions">
                 <form method="POST" action="{{ url_for('group_delete_message', group_id=group.id) }}" class="chat-msg-action-form"
                       data-confirm="Delete this message{% if attachment_count %} and {{ attachment_count }} attachment{{ '' if attachment_count == 1 else 's' }}{% endif %}? This cannot be undone.">

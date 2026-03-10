@@ -669,7 +669,10 @@ def register_group_routes(app):
         if not msg or msg["group_id"] != group_id:
             flash("The specified message was not found.", "error")
             return redirect(url_for("group_view", group_id=group_id))
-        is_own_message = msg["sender_id"] == user["id"] and not msg["is_system"]
+        if msg["is_system"]:
+            flash("System messages cannot be deleted.", "error")
+            return redirect(url_for("group_view", group_id=group_id))
+        is_own_message = msg["sender_id"] == user["id"]
         if not can_delete_any_message and not is_own_message:
             if group["is_global"] and not is_site_admin:
                 flash("Only site admins can delete other members' messages in the global chat.", "error")
