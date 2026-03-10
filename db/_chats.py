@@ -6,6 +6,9 @@ from datetime import datetime, timezone
 from ._connection import get_db
 
 
+DELETED_MESSAGE_PLACEHOLDER = "This message was deleted."
+
+
 # ---------------------------------------------------------------------------
 #  Chat helpers
 # ---------------------------------------------------------------------------
@@ -64,7 +67,7 @@ def get_user_chats(user_id):
         "  CASE WHEN c.user1_id=? THEN u2.username ELSE u1.username END AS other_username, "
         "  CASE WHEN c.user1_id=? THEN c.user2_id ELSE c.user1_id END AS other_user_id, "
         "  CASE WHEN c.user1_id=? THEN c.unread_count_user1 ELSE c.unread_count_user2 END AS unread_count, "
-        "  m.content AS last_message, "
+        "  CASE WHEN m.is_deleted=1 THEN ? ELSE m.content END AS last_message, "
         "  m.created_at AS last_message_at "
         "FROM chats c "
         "JOIN users u1 ON c.user1_id=u1.id "
@@ -74,7 +77,7 @@ def get_user_chats(user_id):
         ") "
         "WHERE c.user1_id=? OR c.user2_id=? "
         "ORDER BY COALESCE(m.created_at, c.created_at) DESC",
-        (user_id, user_id, user_id, user_id, user_id),
+        (user_id, user_id, user_id, DELETED_MESSAGE_PLACEHOLDER, user_id, user_id),
     ).fetchall()
     conn.close()
     return rows
@@ -177,7 +180,7 @@ def get_chat_attachment(attachment_id):
     """Return a single chat attachment row or None."""
     conn = get_db()
     row = conn.execute(
-        "SELECT ca.*, cm.chat_id, cm.sender_id "
+        "SELECT ca.*, cm.chat_id, cm.sender_id, cm.is_deleted "
         "FROM chat_attachments ca "
         "JOIN chat_messages cm ON ca.message_id=cm.id "
         "WHERE ca.id=?",
@@ -339,17 +342,14 @@ def clear_chat_messages(chat_id):
 
 
 def delete_chat_message(message_id):
-    """Delete a single chat message and return attachment filenames for disk cleanup."""
+    """Soft-delete a single chat message while preserving its content for admins."""
     conn = get_db()
-    filenames = conn.execute(
-        "SELECT filename FROM chat_attachments WHERE message_id=?",
-        (message_id,),
-    ).fetchall()
-    files = [r["filename"] for r in filenames]
-    conn.execute("DELETE FROM chat_messages WHERE id=?", (message_id,))
+    conn.execute(
+        "UPDATE chat_messages SET is_deleted=1, deleted_at=? WHERE id=?",
+        (datetime.now(timezone.utc).isoformat(), message_id),
+    )
     conn.commit()
     conn.close()
-    return files
 
 
 def increment_unread_count(chat_id, for_user_id):

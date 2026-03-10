@@ -409,7 +409,10 @@ def test_sender_can_delete_own_chat_message(alice_client, alice_uid, bob_uid):
                              data={"message_id": msg_id},
                              follow_redirects=True)
     assert b"successfully deleted" in resp.data
-    assert db.get_chat_messages(chat["id"]) == []
+    messages = db.get_chat_messages(chat["id"])
+    assert len(messages) == 1
+    assert messages[0]["is_deleted"] == 1
+    assert messages[0]["content"] == "delete me"
 
 
 def test_participant_cannot_delete_other_users_chat_message(bob_client, alice_uid, bob_uid):
@@ -421,6 +424,56 @@ def test_participant_cannot_delete_other_users_chat_message(bob_client, alice_ui
                            follow_redirects=True)
     assert b"required permissions" in resp.data
     assert len(db.get_chat_messages(chat["id"])) == 1
+
+
+def test_deleted_chat_message_shows_placeholder_to_participants(alice_uid, bob_uid):
+    import db
+    from app import app
+    chat = db.get_or_create_chat(alice_uid, bob_uid)
+    msg_id = db.send_chat_message(chat["id"], alice_uid, "hidden after delete")
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
+    alice = app.test_client()
+    bob = app.test_client()
+    alice.post("/login", data={"username": "alice", "password": "alice123"})
+    bob.post("/login", data={"username": "bob", "password": "bob123"})
+    alice.post(f"/chats/{chat['id']}/delete_message", data={"message_id": msg_id}, follow_redirects=True)
+    resp = bob.get(f"/chats/{chat['id']}")
+    assert resp.status_code == 200
+    assert b"This message was deleted." in resp.data
+    assert b"hidden after delete" not in resp.data
+
+
+def test_deleted_chat_attachment_hidden_from_participants_but_visible_to_admin(alice_uid, bob_uid, admin_uid):
+    import db
+    from app import app
+    chat = db.get_or_create_chat(alice_uid, bob_uid)
+    msg_id = db.send_chat_message(chat["id"], alice_uid, "Attachment message")
+    os.makedirs(config.CHAT_ATTACHMENT_FOLDER, exist_ok=True)
+    fpath = os.path.join(config.CHAT_ATTACHMENT_FOLDER, "deleted-chat-file.txt")
+    with open(fpath, "w", encoding="utf-8") as handle:
+        handle.write("content")
+    att_id = db.add_chat_attachment(msg_id, "deleted-chat-file.txt", "report.txt", 7)
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
+    alice = app.test_client()
+    bob = app.test_client()
+    admin = app.test_client()
+    alice.post("/login", data={"username": "alice", "password": "alice123"})
+    bob.post("/login", data={"username": "bob", "password": "bob123"})
+    admin.post("/login", data={"username": "admin", "password": "admin123"})
+    alice.post(f"/chats/{chat['id']}/delete_message", data={"message_id": msg_id}, follow_redirects=True)
+
+    participant_view = bob.get(f"/chats/{chat['id']}")
+    assert b"This message was deleted." in participant_view.data
+    assert b"report.txt" not in participant_view.data
+    assert bob.get(f"/chats/attachments/{att_id}/download").status_code == 403
+
+    admin_view = admin.get(f"/admin/chats/{chat['id']}")
+    assert admin_view.status_code == 200
+    assert b"Attachment message" in admin_view.data
+    assert b"report.txt" in admin_view.data
+    assert admin.get(f"/chats/attachments/{att_id}/download").status_code == 200
 
 
 def test_db_cleanup_old_chat_messages(alice_uid, bob_uid):

@@ -8,22 +8,25 @@
             </div>
         </div>
         {% else %}
-        {% set can_delete_message = can_delete_any_message or msg.sender_id == current_user.id %}
-        <article class="chat-msg {% if msg.sender_id == current_user.id %}chat-msg-mine{% else %}chat-msg-theirs{% endif %}" data-message-id="{{ msg.id }}">
+        {% set can_delete_message = (can_delete_any_message or msg.sender_id == current_user.id) and not msg.is_deleted %}
+        <article class="chat-msg {% if msg.sender_id == current_user.id %}chat-msg-mine{% else %}chat-msg-theirs{% endif %}{% if msg.is_deleted %} chat-msg-deleted{% endif %}{% if msg.show_deleted_original %} chat-msg-deleted-original{% endif %}" data-message-id="{{ msg.id }}">
             <div class="chat-msg-meta">
                 <strong>{{ msg.sender_name or 'Unknown' }}</strong>
                 <span class="chat-msg-time" title="{{ format_datetime(msg.created_at) }}">{{ time_ago(msg.created_at) }}</span>
+                {% if msg.is_deleted %}
+                <span class="chat-msg-deleted-note">Deleted</span>
+                {% endif %}
             </div>
-            <div class="chat-msg-body">{{ msg.content }}</div>
-            {% if msg.attachments %}
+            <div class="chat-msg-body{% if msg.is_deleted and not msg.show_deleted_original %} chat-msg-deleted-placeholder{% endif %}">{{ msg.display_content }}</div>
+            {% if msg.display_attachments %}
             <div class="chat-msg-attachments">
-                {% for att in msg.attachments %}
+                {% for att in msg.display_attachments %}
                 <a href="{{ url_for('group_attachment_download', attachment_id=att.id) }}" class="chat-attachment-link">📎 {{ att.original_name }} ({{ (att.file_size / 1024)|round(1) }} KB)</a>
                 {% endfor %}
             </div>
             {% endif %}
             {% if can_delete_message %}
-            {% set attachment_count = msg.attachments|length %}
+            {% set attachment_count = msg.display_attachments|length %}
             <div class="chat-msg-actions">
                 <form method="POST" action="{{ url_for('group_delete_message', group_id=group.id) }}" class="chat-msg-action-form"
                       data-confirm="Delete this message{% if attachment_count %} and {{ attachment_count }} attachment{{ '' if attachment_count == 1 else 's' }}{% endif %}? This cannot be undone.">

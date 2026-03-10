@@ -14,6 +14,8 @@ from helpers import login_required, admin_required, get_current_user, rate_limit
 from wiki_logger import log_action
 from sync import backup_chats_before_cleanup, backup_group_chats_before_cleanup
 
+DELETED_MESSAGE_PLACEHOLDER = "This message was deleted."
+
 
 def register_chat_routes(app):
     """Register direct messaging routes on the Flask app."""
@@ -31,14 +33,35 @@ def register_chat_routes(app):
         """Return rendered chat HTML and lightweight counters for live refresh."""
         messages = db.get_chat_messages(chat["id"])
         attachment_count = sum(len(msg.get("attachments") or []) for msg in messages)
-        latest_message_id = messages[-1]["id"] if messages else 0
-        html = render_template("chats/_messages.html", chat=chat, messages=messages)
-        return messages, {
+        rendered_messages = _prepare_chat_messages(messages)
+        latest_message_id = rendered_messages[-1]["id"] if rendered_messages else 0
+        html = render_template("chats/_messages.html", chat=chat, messages=rendered_messages)
+        return rendered_messages, {
             "html": html,
-            "message_count": len(messages),
+            "message_count": len(rendered_messages),
             "attachment_count": attachment_count,
             "latest_message_id": latest_message_id,
         }
+
+    def _prepare_chat_messages(messages, include_deleted_content=False):
+        """Return chat messages annotated for regular-user or admin display."""
+        prepared_messages = []
+        for msg in messages:
+            prepared = dict(msg)
+            is_deleted = bool(prepared.get("is_deleted"))
+            prepared["show_deleted_original"] = is_deleted and include_deleted_content
+            prepared["display_content"] = (
+                prepared.get("content", "")
+                if not is_deleted or include_deleted_content
+                else DELETED_MESSAGE_PLACEHOLDER
+            )
+            prepared["display_attachments"] = (
+                list(prepared.get("attachments") or [])
+                if not is_deleted or include_deleted_content
+                else []
+            )
+            prepared_messages.append(prepared)
+        return prepared_messages
 
     def _remove_chat_files(filenames):
         """Delete chat attachment files from disk, ignoring missing files."""
@@ -262,13 +285,11 @@ def register_chat_routes(app):
         if msg["sender_id"] != user["id"]:
             flash("You do not have the required permissions to delete this message.", "error")
             return redirect(url_for("chat_view", chat_id=chat_id))
-        files = db.delete_chat_message(message_id)
-        _remove_chat_files(files)
-        flash(
-            f"Message has been successfully deleted. Removed {len(files)} attachment"
-            f"{'' if len(files) == 1 else 's'}.",
-            "success",
-        )
+        if msg.get("is_deleted"):
+            flash("Message has already been deleted.", "info")
+            return redirect(url_for("chat_view", chat_id=chat_id))
+        db.delete_chat_message(message_id)
+        flash("Message has been successfully deleted.", "success")
         log_action("chat_delete_message", request, user=user, chat_id=chat_id, message_id=message_id)
         return redirect(url_for("chat_view", chat_id=chat_id))
 
@@ -283,6 +304,8 @@ def register_chat_routes(app):
         if db.is_user_chat_disabled(user["id"]):
             return _chat_disabled_redirect()
         is_admin = user["role"] in ("admin", "protected_admin")
+        if att["is_deleted"] and not is_admin:
+            abort(403)
         if not is_admin and not db.is_chat_participant(att["chat_id"], user["id"]):
             abort(403)
         att_dir = os.path.abspath(config.CHAT_ATTACHMENT_FOLDER)
@@ -316,7 +339,7 @@ def register_chat_routes(app):
             return redirect(url_for("chat_list"))
 
         # Get messages and chat info
-        messages = db.get_chat_messages(chat_id)
+        messages = _prepare_chat_messages(db.get_chat_messages(chat_id))
         user1 = db.get_user_by_id(chat["user1_id"])
         user2 = db.get_user_by_id(chat["user2_id"])
 
@@ -340,16 +363,16 @@ def register_chat_routes(app):
         for msg in messages:
             sender = msg.get("sender_name", "Unknown")
             timestamp = msg["created_at"]
-            content = msg["content"]
+            content = msg["display_content"]
             ip = msg.get("ip_address", "N/A")
 
             text_lines.append(f"[{timestamp}] {sender} (IP: {ip})")
             text_lines.append(f"  {content}")
 
             # Handle attachments
-            if msg.get("attachments"):
+            if msg.get("display_attachments"):
                 text_lines.append("  Attachments:")
-                for att in msg["attachments"]:
+                for att in msg["display_attachments"]:
                     att_name = att["original_name"]
                     att_size = att["file_size"]
                     att_filename = att["filename"]
@@ -464,7 +487,7 @@ def register_chat_routes(app):
         chat = db.get_chat_by_id(chat_id)
         if not chat:
             abort(404)
-        messages = db.get_chat_messages(chat_id)
+        messages = _prepare_chat_messages(db.get_chat_messages(chat_id), include_deleted_content=True)
         user1 = db.get_user_by_id(chat["user1_id"])
         user2 = db.get_user_by_id(chat["user2_id"])
         categories, uncategorized = db.get_category_tree()

@@ -407,7 +407,9 @@ def test_owner_can_delete_message(alice_client, alice_uid, bob_uid):
     assert b"Message deleted" in resp.data
     messages = db.get_group_messages(group["id"])
     user_msgs = [m for m in messages if not m["is_system"]]
-    assert not any(m["content"] == "delete me" for m in user_msgs)
+    assert len(user_msgs) == 1
+    assert user_msgs[0]["is_deleted"] == 1
+    assert user_msgs[0]["content"] == "delete me"
 
 
 def test_member_can_delete_own_group_message(alice_uid, bob_uid):
@@ -425,7 +427,9 @@ def test_member_can_delete_own_group_message(alice_uid, bob_uid):
                       follow_redirects=True)
         assert b"Message deleted" in resp.data
     user_msgs = [m for m in db.get_group_messages(group["id"]) if not m["is_system"]]
-    assert not any(m["content"] == "my own message" for m in user_msgs)
+    assert len(user_msgs) == 1
+    assert user_msgs[0]["is_deleted"] == 1
+    assert user_msgs[0]["content"] == "my own message"
 
 
 def test_member_cannot_delete_message(alice_uid, bob_uid):
@@ -442,6 +446,58 @@ def test_member_cannot_delete_message(alice_uid, bob_uid):
                       data={"message_id": msg_id},
                       follow_redirects=True)
         assert b"required permissions" in resp.data
+
+
+def test_deleted_group_message_shows_placeholder_to_members(alice_uid, bob_uid):
+    import db
+    from app import app
+    group = db.create_group_chat("DeletedPlaceholder", alice_uid)
+    db.add_group_member(group["id"], bob_uid)
+    msg_id = db.send_group_message(group["id"], bob_uid, "remove me from member view")
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
+    alice = app.test_client()
+    bob = app.test_client()
+    alice.post("/login", data={"username": "alice", "password": "alice123"})
+    bob.post("/login", data={"username": "bob", "password": "bob123"})
+    bob.post(f"/groups/{group['id']}/delete_message", data={"message_id": msg_id}, follow_redirects=True)
+    resp = alice.get(f"/groups/{group['id']}")
+    assert resp.status_code == 200
+    assert b"This message was deleted." in resp.data
+    assert b"remove me from member view" not in resp.data
+
+
+def test_deleted_group_attachment_hidden_from_members_but_visible_to_admin(alice_uid, bob_uid, admin_uid):
+    import db
+    from app import app
+    group = db.create_group_chat("DeletedAttachment", alice_uid)
+    db.add_group_member(group["id"], bob_uid)
+    msg_id = db.send_group_message(group["id"], bob_uid, "Attachment message")
+    os.makedirs(config.CHAT_ATTACHMENT_FOLDER, exist_ok=True)
+    fpath = os.path.join(config.CHAT_ATTACHMENT_FOLDER, "deleted-group-file.txt")
+    with open(fpath, "w", encoding="utf-8") as handle:
+        handle.write("content")
+    att_id = db.add_group_attachment(msg_id, "deleted-group-file.txt", "group-report.txt", 7)
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
+    alice = app.test_client()
+    bob = app.test_client()
+    admin = app.test_client()
+    alice.post("/login", data={"username": "alice", "password": "alice123"})
+    bob.post("/login", data={"username": "bob", "password": "bob123"})
+    admin.post("/login", data={"username": "admin", "password": "admin123"})
+    bob.post(f"/groups/{group['id']}/delete_message", data={"message_id": msg_id}, follow_redirects=True)
+
+    member_view = alice.get(f"/groups/{group['id']}")
+    assert b"This message was deleted." in member_view.data
+    assert b"group-report.txt" not in member_view.data
+    assert alice.get(f"/groups/attachments/{att_id}/download").status_code == 403
+
+    admin_view = admin.get(f"/admin/groups/{group['id']}")
+    assert admin_view.status_code == 200
+    assert b"Attachment message" in admin_view.data
+    assert b"group-report.txt" in admin_view.data
+    assert admin.get(f"/groups/attachments/{att_id}/download").status_code == 200
 
 
 def test_group_messages_partial_for_member(alice_client, alice_uid, bob_uid):
@@ -826,9 +882,10 @@ def test_db_delete_group_message(alice_uid):
     group = db.create_group_chat("Test", alice_uid)
     msg_id = db.send_group_message(group["id"], alice_uid, "to delete")
     db.add_group_attachment(msg_id, "del.txt", "del.txt", 50)
-    files = db.delete_group_message(msg_id)
-    assert "del.txt" in files
-    assert db.get_group_message_by_id(msg_id) is None
+    db.delete_group_message(msg_id)
+    msg = db.get_group_message_by_id(msg_id)
+    assert msg is not None
+    assert msg["is_deleted"] == 1
 
 
 def test_db_transfer_ownership(alice_uid, bob_uid):
