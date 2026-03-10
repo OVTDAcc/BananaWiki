@@ -287,5 +287,6 @@ Full documentation lives in the [`docs/`](docs/) directory:
 | [Features](docs/features.md) | Complete feature catalogue with code references |
 | [Configuration](docs/configuration.md) | Every `config.py` setting with defaults and usage notes |
 | [Deployment](docs/deployment.md) | systemd, manual Gunicorn, Cloudflare, nginx, Caddy, and direct SSL/TLS setups |
+| [FAQ](docs/faq.md) | Short answers about production readiness, safety, and quantum-resistance questions |
 | [Updates](docs/updates.md) | How to safely update BananaWiki to the latest version |
 | [Architecture](docs/architecture.md) | Codebase structure, request lifecycle, security model, and database schema |
