@@ -27,10 +27,11 @@
             <td>{{ time_ago(g.last_message_at) if g.last_message_at else '–' }}</td>
             <td>
                 <a href="{{ url_for('admin_group_view', group_id=g.id) }}" class="btn btn-sm">Read</a>
+                <a href="{{ url_for('group_view', group_id=g.id) }}" class="btn btn-sm btn-outline" title="Open the live moderation panel">Moderate</a>
                 <form method="POST" action="{{ url_for('group_admin_takeover', group_id=g.id) }}" style="display:inline"
-                      onsubmit="return confirm('Take ownership of this group?')">
+                      onsubmit="return confirm('Take ownership of this group? Use Moderate when you only need admin controls without changing ownership.')">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <button class="btn btn-sm btn-outline" title="Take ownership">🛡️</button>
+                    <button class="btn btn-sm btn-outline" title="Take ownership only when admin moderation is not enough">🛡️ Take Ownership</button>
                 </form>
                 {% if not g.is_global %}
                 <form method="POST" action="{{ url_for('admin_group_delete', group_id=g.id) }}" style="display:inline"
