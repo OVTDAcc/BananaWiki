@@ -24,7 +24,7 @@
                 Your account is currently signed in on another device or browser tab.<br>
                 Only one session is permitted at a time.
             </p>
-            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% with messages = dedupe_flashed_messages(get_flashed_messages(with_categories=true)) %}
             {% if messages %}
             {% for category, message in messages %}
             <div class="flash flash-{{ category }}">{{ message }}</div>

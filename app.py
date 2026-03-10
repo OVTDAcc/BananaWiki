@@ -77,6 +77,19 @@ def render_md_filter(text):
     return Markup(render_markdown(text or ""))
 
 
+def dedupe_flashed_messages(messages):
+    """Return flashed messages without duplicate category/message pairs."""
+    unique_messages = []
+    seen = set()
+    for message in messages or []:
+        key = tuple(message) if isinstance(message, (list, tuple)) else message
+        if key in seen:
+            continue
+        seen.add(key)
+        unique_messages.append(message)
+    return unique_messages
+
+
 # ---------------------------------------------------------------------------
 #  Context processors
 # ---------------------------------------------------------------------------
@@ -108,6 +121,7 @@ def inject_globals():
         "time_until_next_chat_cleanup": get_time_until_next_chat_cleanup,
         "total_unread_dm": total_unread_dm,
         "total_unread_group": total_unread_group,
+        "dedupe_flashed_messages": dedupe_flashed_messages,
     }
 
 

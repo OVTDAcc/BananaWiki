@@ -165,7 +165,7 @@
         <div class="sidebar-overlay" id="sidebar-overlay"></div>
         {% endif %}
         <main class="content" id="main-content">
-            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% with messages = dedupe_flashed_messages(get_flashed_messages(with_categories=true)) %}
             {% if messages %}
             <div class="flash-messages">
                 {% for category, message in messages %}
