@@ -1,6 +1,6 @@
 {% set site_theme_mode = settings.default_theme_mode if settings.default_theme_mode in ('dark', 'light') else 'dark' %}
 {% set user_theme_mode = user_accessibility.theme_mode if current_user and user_accessibility and user_accessibility.theme_mode in ('dark', 'light') else 'default' %}
-{% set effective_theme_mode = user_theme_mode if user_theme_mode in ('dark', 'light') else site_theme_mode %}
+{% set effective_theme_mode = user_theme_mode if user_theme_mode != 'default' else site_theme_mode %}
 {% if effective_theme_mode == 'light' %}
     {% set theme_primary = settings.light_primary_color %}
     {% set theme_secondary = settings.light_secondary_color %}

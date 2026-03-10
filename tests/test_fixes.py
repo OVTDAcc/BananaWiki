@@ -5299,6 +5299,8 @@ def test_accessibility_theme_mode_persisted(logged_in_admin):
 
 def test_accessibility_invalid_theme_mode_falls_back_to_default(logged_in_admin):
     """Invalid theme modes fall back to using the site default."""
+    import db
+    db.update_site_settings(default_theme_mode="light")
     resp = logged_in_admin.post(
         "/api/accessibility",
         json={"theme_mode": "sepia"},
@@ -5307,6 +5309,8 @@ def test_accessibility_invalid_theme_mode_falls_back_to_default(logged_in_admin)
     assert resp.status_code == 200
     prefs = logged_in_admin.get("/api/accessibility").get_json()
     assert prefs["theme_mode"] == "default"
+    page = logged_in_admin.get("/")
+    assert b'<html lang="en" data-theme="light">' in page.data
 
 
 def test_css_no_body_level_contrast_filter():

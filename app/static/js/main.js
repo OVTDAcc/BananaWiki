@@ -1384,32 +1384,32 @@ function applyA11yPrefs(prefs) {
     if (prefs.custom_bg) {
         root.style.setProperty('--bg', prefs.custom_bg);
     } else {
-        root.style.removeProperty('--bg');
+        root.style.setProperty('--bg', palette.bg);
     }
     if (prefs.custom_text) {
         root.style.setProperty('--text', prefs.custom_text);
     } else {
-        root.style.removeProperty('--text');
+        root.style.setProperty('--text', palette.text);
     }
     if (prefs.custom_primary) {
         root.style.setProperty('--primary', prefs.custom_primary);
     } else {
-        root.style.removeProperty('--primary');
+        root.style.setProperty('--primary', palette.primary);
     }
     if (prefs.custom_secondary) {
         root.style.setProperty('--secondary', prefs.custom_secondary);
     } else {
-        root.style.removeProperty('--secondary');
+        root.style.setProperty('--secondary', palette.secondary);
     }
     if (prefs.custom_accent) {
         root.style.setProperty('--accent', prefs.custom_accent);
     } else {
-        root.style.removeProperty('--accent');
+        root.style.setProperty('--accent', palette.accent);
     }
     if (prefs.custom_sidebar) {
         root.style.setProperty('--sidebar', prefs.custom_sidebar);
     } else {
-        root.style.removeProperty('--sidebar');
+        root.style.setProperty('--sidebar', palette.sidebar);
     }
 
     // Line height
@@ -1453,10 +1453,6 @@ function _syncA11yStyleBlock() {
     var el = document.getElementById('a11y-style');
     if (!el) return;
     var rules = [];
-    var themeMode = _a11yPrefs.theme_mode || 'default';
-    if (themeMode === 'dark' || themeMode === 'light') {
-        rules.push('color-scheme:' + themeMode);
-    }
     if (_a11yPrefs.custom_bg)        rules.push('--bg:'        + _a11yPrefs.custom_bg);
     if (_a11yPrefs.custom_text)      rules.push('--text:'      + _a11yPrefs.custom_text);
     if (_a11yPrefs.custom_primary)   rules.push('--primary:'   + _a11yPrefs.custom_primary);
@@ -1516,7 +1512,7 @@ function initAccessibility(prefs) {
         }
     });
 
-    // Font size buttons
+    // Theme mode buttons
     panel.querySelectorAll('.a11y-theme-btn').forEach(function(btn) {
         btn.addEventListener('click', function() {
             var mode = btn.dataset.themeMode || 'default';
