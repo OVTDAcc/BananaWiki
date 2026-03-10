@@ -174,7 +174,7 @@ Page history can be globally disabled by setting `PAGE_HISTORY_ENABLED = False` 
 ## Drafts and collaboration
 
 ### Auto-saving drafts
-While editing, the browser saves a draft to the server every few seconds via `/api/draft/save`. On next visit the draft is restored automatically so unsaved work is never lost.
+While editing, the browser saves a draft to the server every few seconds via `/api/draft/save`. On next visit the draft is restored automatically so unsaved work is never lost. These draft APIs enforce the same category write-access rules as the full editor, so restricted editors cannot save, inspect, or transfer drafts for pages outside their allowed categories.
 
 > `routes/api.py` → `api_save_draft`, `api_load_draft`, `app/static/js/main.js`
 

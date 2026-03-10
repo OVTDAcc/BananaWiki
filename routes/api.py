@@ -19,6 +19,23 @@ from routes.uploads import cleanup_unused_uploads
 def register_api_routes(app):
     """Register JSON API routes on the Flask app."""
 
+    def _get_editable_page_or_response(page_id, user):
+        """Return *(page, None)* when the editor may work on *page_id*.
+
+        Draft-related editor APIs should enforce the same category write-access
+        checks as the full edit page route so restricted editors cannot bypass
+        category restrictions through background AJAX calls.
+        """
+        page = db.get_page(page_id)
+        if not page:
+            return None, (jsonify({"error": "page not found"}), 404)
+        if not editor_has_category_access(user, page["category_id"]):
+            return None, (
+                jsonify({"error": "You do not have permission to edit pages in this category"}),
+                403,
+            )
+        return page, None
+
     @app.route("/api/pages/search")
     @login_required
     @rate_limit(60, 60)
@@ -102,9 +119,9 @@ def register_api_routes(app):
         title = data.get("title", "")
         content = data.get("content", "")
         user = get_current_user()
-        page = db.get_page(page_id)
-        if not page:
-            return jsonify({"error": "page not found"}), 404
+        _, error_response = _get_editable_page_or_response(page_id, user)
+        if error_response:
+            return error_response
         db.save_draft(page_id, user["id"], title, content)
         return jsonify({"ok": True})
 
@@ -114,6 +131,9 @@ def register_api_routes(app):
     def api_load_draft(page_id):
         """Return the current user's saved draft for *page_id*, or nulls if none exists."""
         user = get_current_user()
+        _, error_response = _get_editable_page_or_response(page_id, user)
+        if error_response:
+            return error_response
         draft = db.get_draft(page_id, user["id"])
         if draft:
             return jsonify({"title": draft["title"], "content": draft["content"],
@@ -126,9 +146,9 @@ def register_api_routes(app):
     def api_other_drafts(page_id):
         """Return a list of other editors' drafts for *page_id* (conflict detection)."""
         user = get_current_user()
-        page = db.get_page(page_id)
-        if not page:
-            return jsonify({"error": "page not found"}), 404
+        page, error_response = _get_editable_page_or_response(page_id, user)
+        if error_response:
+            return error_response
         drafts = db.get_drafts_for_page(page_id)
         others = [{"username": d["username"], "user_id": d["user_id"],
                    "updated_at": d["updated_at"]} for d in drafts if d["user_id"] != user["id"]]
@@ -152,6 +172,9 @@ def register_api_routes(app):
         if not from_user:
             return jsonify({"error": "invalid page_id or from_user_id"}), 400
         user = get_current_user()
+        _, error_response = _get_editable_page_or_response(page_id, user)
+        if error_response:
+            return error_response
         if from_user == user["id"]:
             return jsonify({"error": "cannot transfer draft from yourself"}), 400
         source_draft = db.get_draft(page_id, from_user)

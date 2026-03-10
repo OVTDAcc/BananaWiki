@@ -2436,6 +2436,16 @@ def test_edit_page_has_discard_draft_button(logged_in_admin):
     assert b'class="btn btn-outline">Cancel</a>' not in resp.data
 
 
+def test_edit_page_removes_legacy_replace_image_input(logged_in_admin):
+    """Edit page should only render the active replace-image upload input."""
+    import db
+    home = db.get_home_page()
+    resp = logged_in_admin.get(f"/page/{home['slug']}/edit")
+    assert resp.status_code == 200
+    assert b"replace-img-upload-input" in resp.data
+    assert b"replace-img-file-input" not in resp.data
+
+
 def test_account_settings_has_my_drafts_section(logged_in_admin):
     """Account settings must include the My Drafts section."""
     resp = logged_in_admin.get("/account")
