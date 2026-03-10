@@ -306,7 +306,7 @@ For a typical page view (`GET /page/<slug>`):
 
 | Mechanism | Where |
 |---|---|
-| Password hashing | `werkzeug.security.generate_password_hash` (bcrypt) |
+| Password hashing | `werkzeug.security.generate_password_hash` / `check_password_hash` |
 | CSRF protection | Flask-WTF, applied to all POST forms and AJAX requests |
 | HTML sanitization | Bleach with an explicit tag/attribute allowlist after every Markdown render |
 | Session fixation prevention | `session.clear()` before setting `user_id` on login |

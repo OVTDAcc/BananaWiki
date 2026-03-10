@@ -882,7 +882,7 @@ Session cookies are set with `HttpOnly` and `SameSite=Lax`. When running with SS
 > `app.py` → `app.config["SESSION_COOKIE_HTTPONLY"]`, `SESSION_COOKIE_SAMESITE`, `SESSION_COOKIE_SECURE`
 
 ### Password hashing
-Passwords are hashed with Werkzeug's `generate_password_hash` (bcrypt-based). Plain-text passwords are never stored.
+Passwords are hashed with Werkzeug's `generate_password_hash`. Plain-text passwords are never stored.
 
 > `routes/auth.py` → `generate_password_hash`, `check_password_hash`
 
