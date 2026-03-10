@@ -1,277 +1,207 @@
-# 🍌 BananaWiki
+# BananaWiki
 
-> A self-hosted wiki built with Flask and SQLite — clean, fast, and ready to run in minutes.
+BananaWiki is a self-hosted knowledge base built with Flask and SQLite. It is designed for private teams that want a wiki with strong editing tools, granular permissions, built-in collaboration features, and simple operations: one Python app, one SQLite database, no external services required.
 
 ![Python](https://img.shields.io/badge/python-3.9%2B-blue?logo=python&logoColor=white)
 ![Flask](https://img.shields.io/badge/flask-3.1-lightgrey?logo=flask&logoColor=white)
 ![SQLite](https://img.shields.io/badge/database-SQLite-003B57?logo=sqlite&logoColor=white)
-![License](https://img.shields.io/badge/license-MIT-green)
+![Runtime](https://img.shields.io/badge/runtime-Flask%20%2B%20Gunicorn-brightgreen)
 
-BananaWiki is a lightweight, private wiki you can host on your own server. No cloud services, no external databases — just a Python app, a single SQLite file, and full control over your knowledge base.
+## What BananaWiki includes
 
----
+- Markdown pages with live preview, image insertion, attachment uploads, video embedding, and page history
+- Hierarchical categories with drag-to-reorder navigation and optional sequential reading mode
+- Draft autosave, concurrent-edit awareness, page reservations, and attribution tracking
+- Profiles, direct messages, group chats, announcements, badges, and user data export
+- Four-tier roles plus fine-grained permissions and category-level access controls
+- Production helpers for local development, Gunicorn startup, installation, updates, and backups
 
-## 📸 Screenshots
+## Screenshots
 
-<table>
-<tr>
-<td align="center">
-  <strong>Home — wiki view</strong><br>
-  <img src="https://github.com/user-attachments/assets/ab13800e-08c4-425e-809c-05b1d1ef3599" alt="Home page" width="420">
-</td>
-<td align="center">
-  <strong>Split-pane Markdown editor</strong><br>
-  <img src="https://github.com/user-attachments/assets/e02c2bad-b065-4131-a869-1c2b15cb3219" alt="Markdown editor" width="420">
-</td>
-</tr>
-<tr>
-<td align="center">
-  <strong>Page revision history</strong><br>
-  <img src="https://github.com/user-attachments/assets/b60f7a48-eb1a-4bd2-8cb7-8d220d364559" alt="Page history" width="420">
-</td>
-<td align="center">
-  <strong>User profile with contribution heatmap</strong><br>
-  <img src="https://github.com/user-attachments/assets/e6e11b2e-dc9b-4a36-ba80-1014c7838bcf" alt="User profile" width="420">
-</td>
-</tr>
-<tr>
-<td align="center">
-  <strong>People sidebar &amp; member directory</strong><br>
-  <img src="https://github.com/user-attachments/assets/377a09a3-0515-4dbb-8d8a-9632940ce45b" alt="People sidebar" width="420">
-</td>
-<td align="center">
-  <strong>Account settings &amp; admin shortcuts</strong><br>
-  <img src="https://github.com/user-attachments/assets/05afee31-38cb-47b3-8c01-45f89052207e" alt="Account settings" width="420">
-</td>
-</tr>
-<tr>
-<td align="center">
-  <strong>Admin — manage users</strong><br>
-  <img src="https://github.com/user-attachments/assets/c2385adb-c6bb-46ee-86d0-ceb55f16a2c4" alt="Admin users" width="420">
-</td>
-<td align="center">
-  <strong>Admin — site settings &amp; theme colors</strong><br>
-  <img src="https://github.com/user-attachments/assets/9f2cdf61-c944-4f3b-91f0-b2cc006bead5" alt="Admin settings" width="420">
-</td>
-</tr>
-<tr>
-<td align="center">
-  <strong>Admin — announcement manager</strong><br>
-  <img src="https://github.com/user-attachments/assets/3438ed27-4b4e-4f2d-b76c-ece9e537419a" alt="Admin announcements" width="420">
-</td>
-<td align="center">
-  <strong>Login page</strong><br>
-  <img src="https://github.com/user-attachments/assets/d9fad2c1-ced2-4320-9c1b-f03603df5d11" alt="Login page" width="420">
-</td>
-</tr>
-<tr>
-<td colspan="2" align="center">
-  <strong>Announcement banner — color variants with navigation</strong><br>
-  <img src="https://github.com/user-attachments/assets/1be5bb61-7ae5-48aa-9bbd-47c513b581d0" alt="Announcement banner" width="860">
-</td>
-</tr>
-</table>
+| Setup | Wiki home |
+| --- | --- |
+| ![Setup wizard](docs/images/setup-wizard.png) | ![Wiki home](docs/images/wiki-home.png) |
 
----
+| Editor | Admin settings |
+| --- | --- |
+| ![Split-pane editor](docs/images/editor.png) | ![Admin settings](docs/images/admin-settings.png) |
 
-## ✨ Features
+## Architecture at a glance
 
-### 📝 Writing & Editing
-| Feature | Details |
-|---|---|
-| **Markdown editor** | Full Markdown support: tables, fenced code blocks, `[TOC]` table of contents, newline-to-`<br>` rendering |
-| **Split-pane live preview** | Editor and rendered output side by side; drag the divider to resize; formatting toolbar for quick shortcuts |
-| **Draft autosave** | Browser autosaves every few seconds; restores on re-open; conflict warning when two editors are on the same page at once |
-| **Image uploads** | Drag-and-drop or file picker; modal to set alt text, position (inline / float left / float right / center), and optional pixel width |
-| **Page attachments** | Attach PDFs, archives, and other files to any page; served through an authenticated route — not public static files |
-| **Internal link picker** | Link dialog includes a Wiki Page tab with autocomplete so editors can link without knowing the exact URL |
-| **URL slug rename** | Rename a page's slug after creation; all internal links across every page and open draft are rewritten atomically |
-| **Difficulty tags** | Tag pages as `Beginner`, `Easy`, `Intermediate`, `Expert`, `Extra`, or a custom label with a custom color |
+![Architecture overview](docs/images/architecture-overview.png)
 
-### 🗂️ Organisation
-| Feature | Details |
-|---|---|
-| **Hierarchical categories** | Unlimited nesting depth; collapsible tree in the sidebar; drag-to-reorder pages and categories |
-| **Sequential navigation** | Per-category Prev/Next buttons let readers walk through a category in order, like chapters in a book |
-| **Page deindexing** | Editors can hide any page from the sidebar and search (while keeping it accessible via its URL) with a single toggle; admins and editors can still see and navigate to deindexed pages |
-| **Page history** | Every save is a versioned snapshot; view any past state, read edit summaries, and revert with one click — nothing is ever deleted from history |
+BananaWiki keeps its moving parts intentionally small:
 
-### 👥 People
-| Feature | Details |
-|---|---|
-| **User profiles** | Public profile with real name, bio, and avatar (max 1 MB); publish, hide, or delete from the profile page directly |
-| **Contribution heatmap** | GitHub-style yearly heatmap of wiki edits on every profile |
-| **People directory** | Searchable member list at `/users`; sidebar widget shows the most active members |
-| **Contributor attribution** | "Last edit by" links on every page and in every history row go directly to that user's profile |
-| **Admin profile moderation** | Admins can edit any user's profile data, remove avatars, and disable or delete profile pages |
+- **Flask app:** routes live in `routes/`, helpers in `helpers/`, startup/security hooks in `app.py`
+- **Database layer:** all SQL is isolated under `db/`
+- **UI:** Jinja templates plus one CSS file and one JavaScript file, with no frontend build step
+- **Runtime data:** SQLite database, attachments, chat files, and logs live under `instance/` and `logs/`
 
-### 🔐 Accounts & Access
-| Feature | Details |
-|---|---|
-| **Four-tier roles** | `user` (read-only) → `editor` → `admin` → `protected_admin` |
-| **Invite code signup** | Time-limited single-use codes generated by admins; race-condition-safe consumption |
-| **Protected admin mode** | Self-toggleable hardening: other admins cannot rename, demote, suspend, or delete a protected admin |
-| **User data export** | Download all personal data (account info, contributions, drafts, history) as a ZIP from Account Settings |
+For deeper reference, see:
 
-### ♿ Accessibility
-| Feature | Details |
-|---|---|
-| **Per-user preferences** | Text size (6 steps), high-contrast mode (6 levels), line/letter spacing, reduce-motion, six color overrides, sidebar width |
-| **Accessibility panel** | One-click ♿ button in the topbar opens a drawer with all controls — available on every page including the editor |
+- [`docs/getting-started.md`](docs/getting-started.md)
+- [`docs/feature-reference.md`](docs/feature-reference.md)
+- [`docs/operations.md`](docs/operations.md)
+- [`docs/architecture-and-security.md`](docs/architecture-and-security.md)
 
-### 🛠️ Admin & Operations
-| Feature | Details |
-|---|---|
-| **Announcement banners** | Site-wide banners with five color themes, three text sizes, per-audience visibility, expiry dates, and Markdown support |
-| **Customizable appearance** | Site name, six CSS color palette fields, favicon (eight preset colors or custom upload) |
-| **Lockdown mode** | Instantly blocks all non-admin access with a configurable message |
-| **Video embedding** | Bare YouTube and Vimeo URLs pasted on their own line are automatically rendered as responsive embedded players |
-| **Session limit** | Enforce one active session per user — signing in on a new device invalidates the previous session (opt-in per-site setting) |
-| **Site migration** | Full export/import as a ZIP; three conflict modes: delete all, override, or keep existing data |
-| **Telegram backup** | Debounced automatic backups of the DB, config, logs, and uploads to a Telegram chat; exponential-backoff retries |
+## Quick start
 
-### 🔒 Security
-- CSRF protection on every form and AJAX call (Flask-WTF)
-- HTML sanitization with Bleach after every Markdown render
-- Login rate limiting shared across all Gunicorn workers (SQLite-backed, 5 attempts / 60 s)
-- Per-route rate limiting on all mutation endpoints
-- Security headers on every response (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Content-Security-Policy`)
-- Constant-time login checks to prevent username enumeration
+### Requirements
 
----
+- Python **3.9+**
+- A POSIX-like shell for the helper scripts (`dev.sh`, `start.sh`, `install.sh`, `update.sh`)
+- For production automation: Debian/Ubuntu with `sudo`, optional nginx, optional Let's Encrypt
 
-## 🚀 Quick Start
+### Local development or evaluation
 
-**Requirements:** Python 3.9+
-
-### For Local Development / Testing
-
-**Option 1: Using Make (simplest)**
 ```bash
 git clone https://github.com/OVTDAcc/BananaWiki.git
 cd BananaWiki
 make dev
 ```
 
-**Option 2: Using the dev script directly**
+`make dev` creates `./venv`, installs `requirements.txt`, and starts the Flask development server at `http://127.0.0.1:5001`.
+
+Alternative commands:
+
 ```bash
-git clone https://github.com/OVTDAcc/BananaWiki.git
-cd BananaWiki
 ./dev.sh
+./dev.sh --host 0.0.0.0 --port 5001
 ```
 
-Both methods automatically set up the virtual environment, install dependencies, and start the Flask development server. Open **http://localhost:5001** to access BananaWiki.
-
-### For Production Deployment
-
-**Option 1: Automated Installation (Recommended)**
-
-```bash
-git clone https://github.com/OVTDAcc/BananaWiki.git
-cd BananaWiki
-sudo make install
-# or: sudo ./install.sh
-```
-
-The installation script will guide you through an interactive setup that:
-- Installs system dependencies
-- Sets up the application with proper permissions
-- Configures systemd service for automatic startup
-- Optionally sets up nginx reverse proxy
-- Optionally obtains SSL certificate with Let's Encrypt
-
-**Option 2: Manual Setup**
-
-```bash
-git clone https://github.com/OVTDAcc/BananaWiki.git
-cd BananaWiki
-python -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
-pip install -r requirements.txt
-make start                       # or: ./start.sh or: gunicorn wsgi:app -c gunicorn.conf.py
-```
-
-**On first visit**, you'll be redirected to the setup wizard to create the first admin account.
-
----
-
-## ⚙️ Initial Setup
-
-On first run, BananaWiki shows a one-time setup wizard:
-
-1. Choose a **username** (3–50 characters, letters/digits/underscores/hyphens only)
-2. Set a **password** (minimum 6 characters)
-3. Confirm the password
-
-This creates the first admin account and marks setup as complete. All subsequent users are added via **invite codes** or directly from the **Admin → Manage Users** panel.
-
----
-
-## 👤 User Roles
-
-| Role | Permissions |
-|---|---|
-| `user` | Read pages |
-| `editor` | Read, create, edit, and delete pages; manage categories; revert history; upload images and attachments |
-| `admin` | Everything editors can do, plus: manage users, generate invite codes, configure settings, post announcements, moderate profiles |
-| `protected_admin` | Same as admin, but shielded from modification by other admins |
-
-New users who sign up with an invite code receive the **user** role by default. Admins can change roles from **Admin → Manage Users**. The `protected_admin` role can only be toggled by the account owner from their own Account Settings page.
-
----
-
-## 🗄️ Project Structure
-
-```
-BananaWiki/
-├── app.py              # Flask app factory: middleware, hooks, and startup logic
-├── config.py           # Configuration file for the instance
-├── sync.py             # Telegram backup/sync module
-├── wiki_logger.py      # Request and action logging
-├── wsgi.py             # Gunicorn entry point
-├── db/                 # Database access layer (one module per feature area)
-├── helpers/            # Shared utilities: auth, markdown, validation, time, permissions
-├── routes/             # Flask route handlers grouped by feature
-├── app/                # Templates, CSS, JS, favicons, and runtime uploads
-├── docs/               # User and operator documentation
-├── tests/              # Pytest suite
-├── Makefile            # Shortcuts: make dev, make start, make install, make test
-├── dev.sh              # Local development helper
-├── start.sh            # Production start helper
-├── install.sh          # Automated production installation script
-├── update.sh           # Automated update script
-├── setup.py            # Provisioning wizard (systemd + nginx + certbot)
-├── reset_password.py   # CLI password reset helper
-├── requirements.txt    # Runtime Python dependencies
-├── app/
-│   ├── templates/      # Jinja templates for auth, wiki, admin, chats, groups, users
-│   └── static/         # CSS, JavaScript, favicons, and gitignored uploads
-├── instance/           # Database, attachments, and secret key (runtime, gitignored)
-├── logs/               # Application logs (runtime, gitignored)
-└── bananawiki.service  # systemd service file
-```
-
----
-
-## 🧪 Running Tests
+### Run the test suite
 
 ```bash
 make test
 ```
 
-`make test` creates `./venv`, installs the runtime dependencies plus `pytest`, and runs the full test suite. If you prefer to run tests manually, activate `venv` and use `python -m pytest tests/ -v`.
+Manual equivalent after activating the virtualenv:
 
----
+```bash
+. venv/bin/activate
+python -m pytest tests/ -v
+```
 
-## 📚 Documentation
+### Production start without installation automation
 
-Full documentation lives in the [`docs/`](docs/) directory:
+```bash
+python3 -m venv venv
+. venv/bin/activate
+pip install -r requirements.txt
+./start.sh
+```
 
-| Doc | What's in it |
-|---|---|
-| [Features](docs/features.md) | Complete feature catalogue with code references |
-| [Configuration](docs/configuration.md) | Every `config.py` setting with defaults and usage notes |
-| [Deployment](docs/deployment.md) | systemd, manual Gunicorn, Cloudflare, nginx, Caddy, and direct SSL/TLS setups |
-| [FAQ](docs/faq.md) | Short answers about production readiness, safety, and quantum-resistance questions |
-| [Updates](docs/updates.md) | How to safely update BananaWiki to the latest version |
-| [Architecture](docs/architecture.md) | Codebase structure, request lifecycle, security model, and database schema |
+You can also run Gunicorn directly:
+
+```bash
+gunicorn wsgi:app -c gunicorn.conf.py
+```
+
+### Fully automated production install
+
+```bash
+sudo ./install.sh
+```
+
+Common non-interactive form:
+
+```bash
+sudo ./install.sh --non-interactive --domain wiki.example.com --email admin@example.com --ssl
+```
+
+## First-run flow
+
+1. Start the app.
+2. Visit the site in a browser.
+3. BananaWiki redirects to `/setup` until `setup_done` is recorded.
+4. Create the first administrator account.
+5. Sign in and begin configuring the wiki from **Admin → Site Settings**.
+
+New users are normally added by invite code or from the admin panel.
+
+## Core features
+
+### Writing and content management
+
+- Markdown editor with live preview, formatting toolbar, image upload modal, and internal-link picker
+- Page attachments served through authenticated routes instead of public static URLs
+- Full page history with edit summaries, snapshot viewing, and revert
+- Difficulty tags, URL slug rename, and deindexing for pages that should stay accessible but hidden from navigation/search
+- Sequential navigation for categories that should read like chapters
+
+### Collaboration and community
+
+- Browser draft autosave and conflict detection
+- User profiles with avatars, bios, and contribution heatmaps
+- Direct messages and moderated group chats with attachment support
+- Badge system with notifications and auto-award triggers
+- Site-wide announcements and people sidebar widgets
+
+### Admin and governance
+
+- Roles: `user`, `editor`, `admin`, `protected_admin`
+- Fine-grained permissions and category-specific access restrictions
+- Lockdown mode, one-session-per-user enforcement, invite code management, and audit history
+- Full-site export/import plus optional Telegram backup sync
+
+## Configuration summary
+
+Most static instance configuration lives in [`config.py`](config.py), including:
+
+- bind host/port and proxy mode
+- database and filesystem paths
+- upload/attachment limits
+- page history and reservation durations
+- Telegram sync settings
+- logging path and verbosity
+
+Many day-to-day runtime controls are managed in the database from **Admin → Site Settings**, including:
+
+- theme defaults and light/dark palettes
+- favicon selection or custom upload
+- lockdown mode message
+- session limit toggle
+- chat enablement, quotas, and cleanup schedule
+- page reservation enablement
+
+## Repository layout
+
+```text
+BananaWiki/
+├── app.py                 Flask application entry point
+├── config.py              Static configuration values
+├── db/                    Database access layer and migrations
+├── helpers/               Authentication, markdown, validation, time, permissions
+├── routes/                Feature route modules
+├── app/templates/         Jinja templates
+├── app/static/            CSS, JavaScript, favicons, runtime uploads (gitignored)
+├── docs/                  Rewritten user and operator documentation
+├── tests/                 Pytest suite
+├── dev.sh                 Local development launcher
+├── start.sh               Gunicorn startup wrapper
+├── install.sh             Automated production installer
+├── update.sh              Backup-aware updater
+├── setup.py               Server provisioning wizard
+└── reset_password.py      CLI password reset tool
+```
+
+## Troubleshooting
+
+### The app keeps redirecting to `/setup`
+The wiki has not finished first-run provisioning yet. Create the initial admin account in the browser.
+
+### Login sessions do not persist behind a reverse proxy
+Check `PROXY_MODE` in `config.py`. When enabled, BananaWiki trusts forwarded headers and marks cookies secure.
+
+### Chat quotas or cleanup timing do not match `config.py`
+Those settings are managed from **Admin → Site Settings** in the current codebase, not as constants in `config.py`.
+
+### I need a production-safe update path
+Use `sudo ./update.sh`. It creates backups, pulls changes, refreshes dependencies, restarts the service, and verifies the deployment.
+
+## Contributing
+
+1. Create or activate the local virtual environment.
+2. Run `make test` before and after your change.
+3. Keep SQL in `db/`, route handlers in `routes/`, and pure helpers in `helpers/`.
+4. Preserve the security model: CSRF on mutations, sanitized Markdown output, parameterized SQL, and authenticated attachment downloads.
