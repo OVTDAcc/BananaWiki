@@ -4,11 +4,18 @@ from datetime import datetime, timedelta, timezone
 
 import config
 from ._connection import get_db
+from ._settings import get_site_settings
 
 
 # ---------------------------------------------------------------------------
 #  Reservation helpers
 # ---------------------------------------------------------------------------
+def reservations_enabled():
+    """Return True when the page reservation system is enabled site-wide."""
+    settings = get_site_settings()
+    return bool(settings and settings["page_reservations_enabled"])
+
+
 def reserve_page(page_id, user_id):
     """
     Reserve a page for the given user.
@@ -20,6 +27,9 @@ def reserve_page(page_id, user_id):
     Raises:
         ValueError: If page is already reserved or user is in cooldown
     """
+    if not reservations_enabled():
+        raise ValueError("Page reservations are currently disabled")
+
     conn = get_db()
     now = datetime.now(timezone.utc)
     expires = now + timedelta(hours=config.PAGE_RESERVATION_DURATION_HOURS)
@@ -102,6 +112,9 @@ def release_page_reservation(page_id, user_id=None):
     Returns:
         bool: True if reservation was released, False if no active reservation found
     """
+    if not reservations_enabled():
+        return False
+
     conn = get_db()
     now = datetime.now(timezone.utc)
 
@@ -155,6 +168,23 @@ def get_page_reservation_status(page_id, user_id=None):
             'cooldown_remaining': timedelta or None (only if user_id provided),
         }
     """
+    if not reservations_enabled():
+        result = {
+            'is_reserved': False,
+            'reserved_by': None,
+            'reserved_by_username': None,
+            'reserved_at': None,
+            'expires_at': None,
+            'time_remaining': None,
+        }
+        if user_id:
+            result.update({
+                'user_in_cooldown': False,
+                'cooldown_until': None,
+                'cooldown_remaining': None,
+            })
+        return result
+
     conn = get_db()
     now = datetime.now(timezone.utc)
 
@@ -260,6 +290,9 @@ def can_user_reserve_page(page_id, user_id):
         - (True, "") if user can reserve
         - (False, reason) if user cannot reserve
     """
+    if not reservations_enabled():
+        return (False, "Page reservations are currently disabled")
+
     status = get_page_reservation_status(page_id, user_id)
 
     if status['is_reserved']:
@@ -286,6 +319,9 @@ def can_user_edit_page(page_id, user_id):
         - (True, "") if user can edit
         - (False, reason) if user cannot edit
     """
+    if not reservations_enabled():
+        return (True, "")
+
     status = get_page_reservation_status(page_id, user_id)
 
     if not status['is_reserved']:
@@ -313,6 +349,9 @@ def get_user_reservations(user_id):
     Returns:
         list: List of reservation dicts with page info
     """
+    if not reservations_enabled():
+        return []
+
     conn = get_db()
     now = datetime.now(timezone.utc).isoformat()
 
@@ -336,6 +375,9 @@ def get_all_active_reservations():
     Returns:
         list: List of reservation dicts including page title/slug and username.
     """
+    if not reservations_enabled():
+        return []
+
     cleanup_expired_reservations()
 
     conn = get_db()

@@ -25,6 +25,69 @@ from routes.uploads import cleanup_unused_uploads
 def register_wiki_routes(app):
     """Register wiki page and category routes on the Flask app."""
 
+    _EDITOR_ROLES = ("editor", "admin", "protected_admin")
+    _ADMIN_ROLES = ("admin", "protected_admin")
+
+    def _page_reservations_enabled():
+        return db.reservations_enabled()
+
+    def _get_reservation_context(page, user):
+        if not page or page["is_home"] or not user or user["role"] not in _EDITOR_ROLES:
+            return None
+        if not _page_reservations_enabled():
+            return None
+        status = db.get_page_reservation_status(page["id"], user["id"])
+        reserved_by_other = status["is_reserved"] and status["reserved_by"] != user["id"]
+        admin_override = reserved_by_other and user["role"] in _ADMIN_ROLES
+        return {
+            "status": status,
+            "reserved_by_other": reserved_by_other,
+            "edit_locked": reserved_by_other and not admin_override,
+            "admin_override": admin_override,
+        }
+
+    def _reservation_block_message(status, action_text):
+        reserved_by = status["reserved_by_username"] or "another editor"
+        return (
+            f"You cannot {action_text} because this page is currently reserved by {reserved_by}. "
+            "Only administrators can override active reservations. Please wait for the reservation "
+            "to expire or ask them to release it."
+        )
+
+    def _guard_destructive_page_edit(page, user, action_text):
+        reservation_context = _get_reservation_context(page, user)
+        if reservation_context and reservation_context["edit_locked"]:
+            flash(_reservation_block_message(reservation_context["status"], action_text), "error")
+            return redirect(url_for("view_page", slug=page["slug"]))
+        return None
+
+    def _build_reservable_page(page, category_label, user):
+        reservation_context = _get_reservation_context(page, user)
+        return {
+            "id": page["id"],
+            "slug": page["slug"],
+            "title": page["title"],
+            "category_label": category_label,
+            "reservation_status": reservation_context["status"] if reservation_context else None,
+        }
+
+    def _iter_reservable_pages(category_nodes, uncategorized, user):
+        pages = []
+
+        def visit(nodes, parent_label=""):
+            for node in nodes:
+                category_label = f"{parent_label} / {node['name']}" if parent_label else node["name"]
+                for page in node["pages"]:
+                    if editor_has_category_access(user, page["category_id"]):
+                        pages.append(_build_reservable_page(page, category_label, user))
+                visit(node["children"], category_label)
+
+        visit(category_nodes)
+        for page in uncategorized:
+            if editor_has_category_access(user, page["category_id"]):
+                pages.append(_build_reservable_page(page, "Uncategorized", user))
+        return pages
+
     @app.route("/")
     @login_required
     def home():
@@ -84,8 +147,9 @@ def register_wiki_routes(app):
 
         # Get reservation status if user is an editor
         reservation_status = None
-        if user and user["role"] in ("editor", "admin", "protected_admin"):
-            reservation_status = db.get_page_reservation_status(page["id"], user["id"])
+        reservation_context = _get_reservation_context(page, user)
+        if reservation_context:
+            reservation_status = reservation_context["status"]
 
         return render_template(
             "wiki/page.html",
@@ -98,7 +162,79 @@ def register_wiki_routes(app):
             prev_page=prev_page,
             next_page=next_page,
             reservation_status=reservation_status,
+            reservation_context=reservation_context,
         )
+
+    @app.route("/reservations")
+    @login_required
+    @editor_required
+    def reservation_directory():
+        """List reservable pages and their current reservation state."""
+        if not _page_reservations_enabled():
+            flash("Page reservations are currently disabled.", "error")
+            return redirect(url_for("home"))
+        user = get_current_user()
+        categories, uncategorized = db.get_category_tree()
+        reservable_pages = _iter_reservable_pages(categories, uncategorized, user)
+        return render_template(
+            "wiki/reservations.html",
+            reservable_pages=reservable_pages,
+            categories=categories,
+            uncategorized=uncategorized,
+        )
+
+    @app.route("/page/<slug>/reserve", methods=["POST"])
+    @login_required
+    @editor_required
+    @rate_limit(30, 60)
+    def reserve_page_route(slug):
+        """Reserve a page from the standard web UI."""
+        if not _page_reservations_enabled():
+            flash("Page reservations are currently disabled.", "error")
+            return redirect(_safe_referrer() or url_for("home"))
+        page = db.get_page_by_slug(slug)
+        if not page:
+            abort(404)
+        if page["is_home"]:
+            flash("The home page cannot be reserved.", "error")
+            return redirect(url_for("home"))
+        user = get_current_user()
+        if not editor_has_category_access(user, page["category_id"]):
+            flash("You do not have permission to edit pages in this category.", "error")
+            return redirect(url_for("view_page", slug=slug))
+        try:
+            db.reserve_page(page["id"], user["id"])
+        except ValueError as exc:
+            flash(str(exc), "error")
+        else:
+            log_action("reserve_page", request, user=user, page=slug)
+            notify_change("page_reservation", f"Page '{page['title']}' reserved by {user['username']}")
+            flash("Page has been successfully reserved for your editing.", "success")
+        return redirect(_safe_referrer() or url_for("view_page", slug=slug))
+
+    @app.route("/page/<slug>/reservation/release", methods=["POST"])
+    @login_required
+    @editor_required
+    @rate_limit(30, 60)
+    def release_page_reservation_route(slug):
+        """Release a page reservation from the standard web UI."""
+        if not _page_reservations_enabled():
+            flash("Page reservations are currently disabled.", "error")
+            return redirect(_safe_referrer() or url_for("home"))
+        page = db.get_page_by_slug(slug)
+        if not page:
+            abort(404)
+        user = get_current_user()
+        if not editor_has_category_access(user, page["category_id"]):
+            flash("You do not have permission to edit pages in this category.", "error")
+            return redirect(url_for("view_page", slug=slug))
+        if db.release_page_reservation(page["id"], user["id"]):
+            log_action("release_page_reservation", request, user=user, page=slug)
+            notify_change("page_reservation", f"Page '{page['title']}' reservation released by {user['username']}")
+            flash("Page reservation has been successfully released.", "success")
+        else:
+            flash("You do not currently hold an active reservation for this page.", "error")
+        return redirect(_safe_referrer() or url_for("view_page", slug=slug))
 
     @app.route("/page/<slug>/history")
     @login_required
@@ -330,11 +466,11 @@ def register_wiki_routes(app):
             return redirect(url_for("view_page", slug=slug))
 
         # Check reservation status
-        reservation_status = db.get_page_reservation_status(page["id"], user["id"])
-        can_edit, edit_reason = db.can_user_edit_page(page["id"], user["id"])
+        reservation_context = _get_reservation_context(page, user)
+        reservation_status = reservation_context["status"] if reservation_context else None
 
-        if not can_edit:
-            flash(f"Cannot edit: {edit_reason}", "error")
+        if reservation_context and reservation_context["edit_locked"]:
+            flash(_reservation_block_message(reservation_status, "edit this page"), "error")
             return redirect(url_for("view_page", slug=slug))
 
         categories, uncategorized = db.get_category_tree()
@@ -346,9 +482,10 @@ def register_wiki_routes(app):
 
         if request.method == "POST":
             # Verify user still has edit access (reservation may have expired)
-            can_edit, edit_reason = db.can_user_edit_page(page["id"], user["id"])
-            if not can_edit:
-                flash(f"Cannot save: {edit_reason}", "error")
+            reservation_context = _get_reservation_context(page, user)
+            reservation_status = reservation_context["status"] if reservation_context else None
+            if reservation_context and reservation_context["edit_locked"]:
+                flash(_reservation_block_message(reservation_status, "save changes to this page"), "error")
                 return redirect(url_for("view_page", slug=slug))
 
             title = request.form.get("title", page["title"]).strip()
@@ -421,7 +558,7 @@ def register_wiki_routes(app):
                 session["badge_notifications"] = session.get("badge_notifications", 0) + len(newly_awarded)
 
             # Reserve page if the editor requested it
-            if request.form.get("reserve_after_commit") == "1" and not page["is_home"]:
+            if _page_reservations_enabled() and request.form.get("reserve_after_commit") == "1" and not page["is_home"]:
                 try:
                     db.reserve_page(page["id"], user["id"])
                     flash("Page has been successfully updated and reserved for your editing.", "success")
@@ -445,6 +582,7 @@ def register_wiki_routes(app):
             uncategorized=uncategorized,
             attachments=attachments,
             reservation_status=reservation_status,
+            reservation_context=reservation_context,
         )
 
     @app.route("/page/<slug>/edit/title", methods=["POST"])
@@ -462,6 +600,9 @@ def register_wiki_routes(app):
             if page["is_home"]:
                 return redirect(url_for("home"))
             return redirect(url_for("view_page", slug=slug))
+        blocked_response = _guard_destructive_page_edit(page, user, "change this page title")
+        if blocked_response:
+            return blocked_response
         new_title = request.form.get("title", "").strip()
         if not new_title:
             flash("Title is required.", "error")
@@ -572,6 +713,9 @@ def register_wiki_routes(app):
         if not editor_has_category_access(user, page["category_id"]):
             flash("You do not have permission to delete pages in this category.", "error")
             return redirect(url_for("view_page", slug=slug))
+        blocked_response = _guard_destructive_page_edit(page, user, "delete this page")
+        if blocked_response:
+            return blocked_response
         db.delete_page(page["id"])
         cleanup_unused_uploads()
         log_action("delete_page", request, user=user, page=slug)
@@ -625,6 +769,9 @@ def register_wiki_routes(app):
             if page["is_home"]:
                 return redirect(url_for("home"))
             return redirect(url_for("view_page", slug=slug))
+        blocked_response = _guard_destructive_page_edit(page, user, "change this page tag")
+        if blocked_response:
+            return blocked_response
         tag = request.form.get("difficulty_tag", "").strip().lower()
         if tag not in db.VALID_DIFFICULTY_TAGS:
             flash("Invalid difficulty tag.", "error")

@@ -136,6 +136,9 @@
                 {% endif %}
             </nav>
             <div class="sidebar-chat-links">
+                {% if current_user and current_user.role in ('editor', 'admin', 'protected_admin') and settings.page_reservations_enabled %}
+                <a href="{{ url_for('reservation_directory') }}" class="nav-item {% if request.path.startswith('/reservations') %}active{% endif %}">🔒 Reservations</a>
+                {% endif %}
                 <a href="{{ url_for('chat_list') }}" class="nav-item {% if request.path.startswith('/chats') %}active{% endif %}">💬 Chats{% if total_unread_dm %} <span class="unread-badge">{{ total_unread_dm }}</span>{% endif %}</a>
                 <a href="{{ url_for('group_list') }}" class="nav-item {% if request.path.startswith('/groups') %}active{% endif %}">👥 Groups{% if total_unread_group %} <span class="unread-badge">{{ total_unread_group }}</span>{% endif %}</a>
             </div>

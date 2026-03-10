@@ -1,6 +1,16 @@
 {% extends "base.html" %}
 {% block title %}{{ page.title }} – {{ settings.site_name }}{% endblock %}
 {% block content %}
+{% set reservation_enabled = settings.page_reservations_enabled and current_user and current_user.role in ('editor', 'admin', 'protected_admin') and not page.is_home %}
+{% set reservation_edit_locked = reservation_context.edit_locked if reservation_context else false %}
+{% set reservation_admin_override = reservation_context.admin_override if reservation_context else false %}
+{% if reservation_edit_locked %}
+{% set destructive_button_title = 'This page is reserved by ' ~ reservation_status.reserved_by_username %}
+{% elif reservation_admin_override %}
+{% set destructive_button_title = 'Admin override: this page is reserved by ' ~ reservation_status.reserved_by_username %}
+{% else %}
+{% set destructive_button_title = '' %}
+{% endif %}
 <div class="page-header">
     <h1>{{ page.title }}</h1>
     {% if page.difficulty_tag == 'custom' and page.tag_custom_label %}
@@ -12,11 +22,10 @@
     <span class="deindexed-badge">Deindexed</span>
     {% endif %}
     {% if current_user and current_user.role in ('editor', 'admin', 'protected_admin') %}
-        <button class="btn-icon" onclick="document.getElementById('titleModal').style.display='flex'" title="Edit title">Edit title</button>
-        <button class="btn-icon" onclick="document.getElementById('tagModal').style.display='flex'" title="Set tag">Tag</button>
+        <button class="btn-icon" onclick="document.getElementById('titleModal').style.display='flex'" title="{{ destructive_button_title or 'Edit title' }}" {% if reservation_edit_locked %}disabled{% endif %}>Edit title</button>
+        <button class="btn-icon" onclick="document.getElementById('tagModal').style.display='flex'" title="{{ destructive_button_title or 'Set tag' }}" {% if reservation_edit_locked %}disabled{% endif %}>Tag</button>
         {% if not page.is_home %}
-        {% set edit_locked = reservation_status and reservation_status.is_reserved and reservation_status.reserved_by != current_user.id and current_user.role not in ('admin', 'protected_admin') %}
-        {% if edit_locked %}
+        {% if reservation_edit_locked %}
         <button class="btn btn-sm" disabled title="Page is reserved by {{ reservation_status.reserved_by_username }}">Edit</button>
         {% else %}
         <a href="{{ url_for('edit_page', slug=page.slug) }}" class="btn btn-sm">Edit</a>
@@ -27,10 +36,14 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button class="btn btn-sm btn-outline">{% if page.is_deindexed %}Reindex{% else %}Deindex{% endif %}</button>
         </form>
-        <form method="POST" action="{{ url_for('delete_page_route', slug=page.slug) }}" style="display:inline" data-confirm="Delete this page?">
+        {% if reservation_edit_locked %}
+        <button class="btn btn-sm btn-danger" disabled title="This page is reserved by {{ reservation_status.reserved_by_username }}">Delete</button>
+        {% else %}
+        <form method="POST" action="{{ url_for('delete_page_route', slug=page.slug) }}" style="display:inline" data-confirm="{% if reservation_admin_override %}This page is reserved by {{ reservation_status.reserved_by_username }}. As an administrator, deleting it will override their in-progress work. Continue?{% else %}Delete this page?{% endif %}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button class="btn btn-sm btn-danger">Delete</button>
         </form>
+        {% endif %}
         {% else %}
         <a href="{{ url_for('edit_page', slug=page.slug) }}" class="btn btn-sm">Edit</a>
         {% endif %}
@@ -52,26 +65,49 @@
 </div>
 {% endif %}
 
-{% if reservation_status and current_user and current_user.role in ('editor', 'admin', 'protected_admin') %}
+{% if reservation_enabled %}
 <div class="reservation-panel">
+    <div class="reservation-panel-header">
+        <div>
+            <h3>Page reservation</h3>
+            <p>
+                Reserve pages before making destructive edits so other editors know work is in progress.
+                Moves, URL changes, and navigation changes stay available even while a reservation is active.
+            </p>
+        </div>
+        <a href="{{ url_for('reservation_directory') }}" class="btn btn-sm btn-outline">View reservation directory</a>
+    </div>
     {% if reservation_status.is_reserved %}
-        <div class="reservation-status reserved">
+        <div class="reservation-status reserved{% if reservation_admin_override %} reservation-status-warning{% endif %}">
             <span class="reservation-icon">🔒</span>
             {% if reservation_status.reserved_by == current_user.id %}
-                <span class="reservation-text">You have reserved this page for editing</span>
+                <span class="reservation-text">You have reserved this page for editing.</span>
                 <span class="reservation-expires">Expires {{ time_ago(reservation_status.expires_at) }}</span>
-                <button class="btn btn-sm btn-outline" onclick="releaseReservation({{ page.id }})">Release Reservation</button>
+                <form method="POST" action="{{ url_for('release_page_reservation_route', slug=page.slug) }}" class="reservation-inline-form" data-confirm="Release your reservation? Other editors will be able to make destructive changes immediately.">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-sm btn-outline">Release reservation</button>
+                </form>
             {% else %}
-                <span class="reservation-text">Reserved by <strong>{{ reservation_status.reserved_by_username }}</strong></span>
+                <span class="reservation-text">Reserved by <strong>{{ reservation_status.reserved_by_username }}</strong>.</span>
                 <span class="reservation-expires">Expires {{ time_ago(reservation_status.expires_at) }}</span>
+                {% if reservation_admin_override %}
+                <div class="reservation-help">
+                    You can still edit as an administrator, but any content, title, tag, or delete action could override their in-progress work.
+                </div>
+                {% else %}
+                <div class="reservation-help">
+                    Destructive edits are temporarily blocked for non-admins. You can still move the page or change navigation settings.
+                </div>
+                {% endif %}
             {% endif %}
         </div>
     {% else %}
         <div class="reservation-controls">
-            <label class="reservation-checkbox">
-                <input type="checkbox" id="reserveCheckbox" onchange="toggleReservation({{ page.id }}, this.checked)" {% if reservation_status.user_in_cooldown %}disabled{% endif %}>
-                <span>Reserve this page for exclusive editing</span>
-            </label>
+            <form method="POST" action="{{ url_for('reserve_page_route', slug=page.slug) }}" class="reservation-inline-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-sm" {% if reservation_status.user_in_cooldown %}disabled title="You are in cooldown for this page"{% endif %}>Reserve page</button>
+            </form>
+            <div class="reservation-help">Use a reservation when you are about to make substantial edits and want to prevent accidental overlap.</div>
             {% if reservation_status.user_in_cooldown %}
             <span class="cooldown-notice">⏱ Cooldown: available {{ time_ago(reservation_status.cooldown_until) }}</span>
             {% endif %}
@@ -304,50 +340,6 @@ document.addEventListener('DOMContentLoaded', function() {
     buildPresets('tagModalPresets','tagModalColorPicker','tagModalColorHex','tagModalPreview','tagModalLabel');
 });
 
-// ----- Page Reservation -----
-function toggleReservation(pageId, checked) {
-    if (checked) {
-        // Reserve the page
-        fetch('/api/pages/' + pageId + '/reservation', {
-            method: 'POST',
-            headers: { 'X-CSRFToken': getCsrfToken() }
-        })
-        .then(function(r) { return r.json(); })
-        .then(function(d) {
-            if (d.ok) {
-                location.reload();
-            } else {
-                alert(d.error || 'Failed to reserve page.');
-                document.getElementById('reserveCheckbox').checked = false;
-            }
-        })
-        .catch(function() {
-            alert('Failed to reserve page.');
-            document.getElementById('reserveCheckbox').checked = false;
-        });
-    }
-}
-
-function releaseReservation(pageId) {
-    if (!confirm('Are you sure you want to release your reservation? Others will be able to edit this page immediately.')) {
-        return;
-    }
-    fetch('/api/pages/' + pageId + '/reservation', {
-        method: 'DELETE',
-        headers: { 'X-CSRFToken': getCsrfToken() }
-    })
-    .then(function(r) { return r.json(); })
-    .then(function(d) {
-        if (d.ok) {
-            location.reload();
-        } else {
-            alert(d.error || 'Failed to release reservation.');
-        }
-    })
-    .catch(function() {
-        alert('Failed to release reservation.');
-    });
-}
 </script>
 {% endif %}
 {% endblock %}

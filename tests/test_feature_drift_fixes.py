@@ -35,7 +35,7 @@ def client():
 def admin_uid():
     from werkzeug.security import generate_password_hash
     uid = db.create_user("admin", generate_password_hash("admin123"), role="admin")
-    db.update_site_settings(setup_done=1)
+    db.update_site_settings(setup_done=1, page_reservations_enabled=1)
     return uid
 
 

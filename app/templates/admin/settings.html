@@ -228,6 +228,20 @@
     </div>
 
     <div class="settings-section">
+        <h3>Page Reservations</h3>
+        <div class="form-group">
+            <label>
+                <input type="checkbox" name="page_reservations_enabled" value="1"{% if settings.page_reservations_enabled %} checked{% endif %}>
+                Enable the page reservation system
+            </label>
+            <small style="opacity:.7;display:block;margin-top:.3rem">
+                When enabled, editors can reserve pages before making destructive changes. Non-admins are blocked from
+                editing reserved pages, while administrators can still override reservations with a clear warning.
+            </small>
+        </div>
+    </div>
+
+    <div class="settings-section">
         <h3>Chat Settings</h3>
 
         <!-- Global Chat Settings -->

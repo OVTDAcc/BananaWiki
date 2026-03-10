@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Page Reservations – {{ settings.site_name }}{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Page Reservations</h1>
+</div>
+
+<div class="reservation-panel">
+    <div class="reservation-panel-header">
+        <div>
+            <h3>How reservations work</h3>
+            <p>
+                Reserve a page before making destructive edits. While a reservation is active, non-admins cannot edit
+                the page content, title, tag, or delete the page. Administrators can still override the reservation if needed.
+            </p>
+        </div>
+    </div>
+</div>
+
+{% if reservable_pages %}
+<table class="admin-table reservation-directory-table">
+    <thead>
+        <tr>
+            <th>Page</th>
+            <th>Category</th>
+            <th>Status</th>
+            <th>Action</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for page in reservable_pages %}
+        {% set status = page.reservation_status %}
+        <tr>
+            <td><a href="{{ url_for('view_page', slug=page.slug) }}">{{ page.title }}</a></td>
+            <td>{{ page.category_label }}</td>
+            <td>
+                {% if status and status.is_reserved %}
+                    {% if status.reserved_by == current_user.id %}
+                    <strong>Reserved by you</strong><br>
+                    <span class="reservation-table-meta">Expires {{ time_ago(status.expires_at) }}</span>
+                    {% else %}
+                    <strong>Reserved by {{ status.reserved_by_username }}</strong><br>
+                    <span class="reservation-table-meta">Expires {{ time_ago(status.expires_at) }}</span>
+                    {% endif %}
+                {% elif status and status.user_in_cooldown %}
+                    <strong>Cooldown</strong><br>
+                    <span class="reservation-table-meta">Available {{ time_ago(status.cooldown_until) }}</span>
+                {% else %}
+                    <strong>Available</strong>
+                {% endif %}
+            </td>
+            <td>
+                {% if status and status.is_reserved and status.reserved_by == current_user.id %}
+                <form method="POST" action="{{ url_for('release_page_reservation_route', slug=page.slug) }}" class="reservation-inline-form" data-confirm="Release your reservation on '{{ page.title|e }}'?">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-sm btn-outline">Release</button>
+                </form>
+                {% elif status and (status.is_reserved or status.user_in_cooldown) %}
+                <button class="btn btn-sm" disabled title="{% if status.is_reserved %}Reserved by {{ status.reserved_by_username }}{% else %}You are in cooldown for this page{% endif %}">Reserve</button>
+                {% else %}
+                <form method="POST" action="{{ url_for('reserve_page_route', slug=page.slug) }}" class="reservation-inline-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-sm">Reserve</button>
+                </form>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p style="opacity:.6">There are no pages you can currently reserve.</p>
+{% endif %}
+{% endblock %}
