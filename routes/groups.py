@@ -448,7 +448,7 @@ def register_group_routes(app):
             db.send_group_system_message(group_id, f"{target_name} was removed by {user['username']}")
             notify_change("group_kick", f"{target_name} removed from group '{group['name']}' by {user['username']}")
             log_action("group_kick", request, user=user, group_id=group_id, target_user_id=target_id)
-            flash(f"{target_name} has been removed from the group. They can rejoin with a valid invite code.", "success")
+            flash(f"{target_name} has been removed from the group. They can be added back later if needed.", "success")
         return redirect(url_for("group_view", group_id=group_id))
 
     @app.route("/groups/<int:group_id>/promote", methods=["POST"])

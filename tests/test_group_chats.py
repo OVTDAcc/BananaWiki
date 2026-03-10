@@ -1144,7 +1144,7 @@ def test_admin_can_kick_without_takeover(admin_client, admin_uid, alice_uid, bob
         data={"user_id": bob_uid},
         follow_redirects=True,
     )
-    assert b"can rejoin with a valid invite code" in resp.data
+    assert b"can be added back later if needed" in resp.data
     assert not db.is_group_member(group["id"], bob_uid)
     assert db.get_group_member_role(group["id"], admin_uid) is None
     assert db.get_group_member_role(group["id"], alice_uid) == "owner"

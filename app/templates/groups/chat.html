@@ -1,7 +1,6 @@
 {% extends "base.html" %}
 {% block title %}{{ group.name }} – {{ settings.site_name }}{% endblock %}
 {% block content %}
-{% set is_group_member = is_group_member if is_group_member is defined else (my_membership is not none) %}
 {% set my_role = my_membership.role if my_membership else 'member' %}
 {% set is_mod = my_role in ('owner', 'moderator') %}
 {% set is_owner = my_role == 'owner' %}
@@ -117,11 +116,8 @@
         {% endif %}
 
         {% if can_manage_members %}
-        <p style="margin:.35rem 0 .75rem 0;font-size:.9rem">
-            <strong>Moderation guide:</strong>
-            <span>Timeout = temporary posting restriction,</span>
-            <span>Remove = member leaves now but can rejoin,</span>
-            <span>Ban = member stays blocked until the ban is revoked.</span>
+        <p class="moderation-guide">
+            <strong>Moderation guide:</strong> Timeout = temporary posting restriction. Remove = member leaves now but can rejoin. Ban = member stays blocked until the ban is revoked.
         </p>
         {% endif %}
 
@@ -164,12 +160,12 @@
 
                         {# Mod/Owner timeout controls (or site admin for global) #}
                         {% if can_manage_members %}
-                            {% if not (not is_site_admin and my_role == 'moderator' and m.role in ('owner', 'moderator')) %}
+                            {% if is_site_admin or not (my_role == 'moderator' and m.role in ('owner', 'moderator')) %}
                                 {% if m.timed_out_until %}
                                 <form method="POST" action="{{ url_for('group_untimeout', group_id=group.id) }}" style="display:inline">
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                     <input type="hidden" name="user_id" value="{{ m.user_id }}">
-                                    <button class="btn btn-sm btn-outline" title="Remove timeout">✅ Timeout Off</button>
+                                    <button class="btn btn-sm btn-outline" title="Remove timeout">✅ Remove Timeout</button>
                                 </form>
                                 {% else %}
                                 <form method="POST" action="{{ url_for('group_timeout', group_id=group.id) }}" style="display:inline">
@@ -189,7 +185,7 @@
                         {% endif %}
 
                         {# Kick / Ban (mod/owner for regular, site admin for global) #}
-                        {% if can_manage_members and not (not is_site_admin and my_role == 'moderator' and m.role in ('owner', 'moderator')) %}
+                        {% if can_manage_members and (is_site_admin or not (my_role == 'moderator' and m.role in ('owner', 'moderator'))) %}
                         <details style="display:inline-block;vertical-align:middle">
                             <summary class="btn btn-sm btn-danger-outline" title="Removal and ban options">✕ Remove / Ban</summary>
                             <div style="display:flex;gap:.3rem;margin-top:.3rem">
@@ -236,7 +232,7 @@
                 {% for bm in banned_members %}
                 <tr>
                     <td>{{ bm.username }}</td>
-                    <td>{{ bm.role }}</td>
+                    <td>{{ bm.role or 'N/A' }}</td>
                     <td>
                         <form method="POST" action="{{ url_for('group_unban', group_id=group.id) }}" style="display:inline"
                               onsubmit="return confirm('Revoke ban for ' + {{ bm.username|tojson }} + '?')">
