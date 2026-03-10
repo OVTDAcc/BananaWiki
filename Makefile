@@ -40,8 +40,8 @@ test:
 	@if [ ! -d "venv" ]; then \
 		echo "Setting up virtual environment..."; \
 		python3 -m venv venv; \
-		. venv/bin/activate && pip install -q -r requirements.txt; \
 	fi
+	@. venv/bin/activate && pip install -q -r requirements.txt pytest
 	@. venv/bin/activate && python -m pytest tests/ -v
 
 # Clean up

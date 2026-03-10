@@ -486,14 +486,14 @@ Messages are sent via POST to `/chats/<chat_id>/send`. Each message records:
 
 ### File attachments in direct messages
 Users can attach files to direct messages (PDF, documents, images, archives). Each attachment:
-- Has a maximum size of 5 MB
+- Uses the site-wide chat attachment size limit configured in **Admin → Settings**
 - Is stored in the `CHAT_ATTACHMENT_FOLDER` with a UUID-based filename
 - Retains its original filename for display
 - Is accessible only to the two conversation participants via an authenticated download route
 
-Users have a daily attachment limit (default: 10 files per day) to prevent abuse.
+Users also have a configurable daily attachment limit to prevent abuse.
 
-> `routes/chat.py` → `chat_send` (file upload), `chat_attachment_download`, `config.py` → `MAX_CHAT_ATTACHMENT_SIZE`, `CHAT_ATTACHMENT_FOLDER`, `MAX_CHAT_ATTACHMENTS_PER_DAY`, `db/_chats.py` → `chat_attachments` table, `count_user_chat_attachments_today()`
+> `routes/chat.py` → `chat_send` (file upload), `chat_attachment_download`; `routes/groups.py` → group attachment handling; `config.py` → `CHAT_ATTACHMENT_FOLDER`; `db/_settings.py` → chat attachment limits stored in `site_settings`; `db/_chats.py` → `chat_attachments` table, `count_user_chat_attachments_today()`
 
 ### Admin chat oversight
 Admins can view a list of all direct message conversations and access any conversation's message history from **Admin → Chats**. This is for moderation purposes.
@@ -1188,13 +1188,13 @@ This system is separate from but complementary to the existing `editor_category_
 
 ### Scheduled automatic deletion
 Direct messages and group chat messages are automatically deleted on a configurable schedule to prevent the database from growing unbounded. The cleanup system:
-- Runs on a weekly schedule by default (configurable via `CHAT_CLEANUP_FREQUENCY_DAYS`)
-- Executes at a specific time each day (default: 3 AM, configurable via `CHAT_CLEANUP_HOUR`)
+- Runs on a weekly schedule by default
+- Executes at a configurable hour of day
 - Deletes messages older than the retention period
 - Preserves system messages and recent messages
 - Logs all cleanup operations
 
-> `config.py` → `CHAT_CLEANUP_ENABLED`, `CHAT_CLEANUP_FREQUENCY_DAYS`, `CHAT_CLEANUP_HOUR`, `CHAT_CLEANUP_RETENTION_DAYS`, `routes/chat.py` → `_schedule_chat_cleanup()`, `_run_chat_cleanup()`, `_cleanup_old_messages()`
+> `routes/chat.py` → `_schedule_chat_cleanup()`, `_run_chat_cleanup()`, `_cleanup_old_messages()`; `db/_settings.py` → cleanup schedule values stored in `site_settings`
 
 ### Cleanup countdown display
 Chat pages display countdown information to help users understand when messages will be deleted:
@@ -1206,15 +1206,15 @@ The countdown banners appear on both direct message and group chat pages, calcul
 > `app/templates/chats/chat.html` (lines 9-12, DM countdown), `app/templates/groups/chat.html` (lines 21-25, group countdown), `helpers/_time.py` → `time_until_next_chat_cleanup()` (lines 137-151), `time_since_last_chat_cleanup()` (lines 154-164)
 
 ### Cleanup configuration
-Cleanup behavior is controlled by several config settings:
-- **CHAT_CLEANUP_ENABLED** — Master switch (default: True)
-- **CHAT_CLEANUP_FREQUENCY_DAYS** — How often cleanup runs (default: 7 days)
-- **CHAT_CLEANUP_HOUR** — Time of day to run cleanup (default: 3 AM, 0-23)
-- **CHAT_CLEANUP_RETENTION_DAYS** — How long to keep messages (default: 30 days)
+Cleanup behavior is controlled from **Admin → Settings**:
+- **Enable automatic chat cleanup** — Master switch
+- **Cleanup frequency (days)** — How often cleanup runs
+- **Cleanup hour** — Time of day to run cleanup
+- **Retention days** — How long to keep messages
 
 When cleanup is disabled, messages are never automatically deleted, but the countdown banners still display based on the configured schedule.
 
-> `config.py` → lines 102-105 (cleanup settings), `routes/chat.py` → lines 210-294 (scheduler implementation)
+> `routes/chat.py` → scheduler implementation; `db/_schema.py` / `db/_settings.py` → settings persistence
 
 ### Backup integration
 Before messages are deleted, they are automatically backed up via the Telegram sync system (if enabled). This ensures deleted messages can be recovered if needed. The backup ZIP includes message content, sender info, timestamps, and attachments (when size permits).

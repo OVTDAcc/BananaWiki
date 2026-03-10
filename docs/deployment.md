@@ -28,12 +28,12 @@ This guide covers all the ways to run BananaWiki in production.
 
 ---
 
-## Quick automated installation (NEW)
+## Quick automated installation
 
 The easiest way to deploy BananaWiki on a VPS is with the new `install.sh` script:
 
 ```bash
-git clone https://github.com/ovtdadt/BananaWiki.git
+git clone https://github.com/OVTDAcc/BananaWiki.git
 cd BananaWiki
 sudo ./install.sh
 ```
@@ -97,7 +97,7 @@ A systemd service keeps BananaWiki running continuously and restarts it automati
 sudo mkdir -p /opt/BananaWiki
 sudo chown www-data:www-data /opt/BananaWiki
 cd /opt/BananaWiki
-git clone https://github.com/ovtdadt/BananaWiki.git .
+git clone https://github.com/OVTDAcc/BananaWiki.git .
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
@@ -181,9 +181,9 @@ Cloudflare is the easiest way to get a real domain and HTTPS in front of BananaW
 |---|---|---|---|
 | `A` | `wiki` | `YOUR_SERVER_IP` | Proxied (orange cloud) |
 
-**3.** Set Cloudflare's SSL/TLS mode to **Flexible** (Cloudflare ↔ browser is HTTPS; Cloudflare ↔ your server is HTTP).
+**3.** Set Cloudflare's SSL/TLS mode to **Full (Strict)** whenever possible.
 
-> For higher security, use **Full** or **Full (Strict)** mode with a certificate on your server.
+> Avoid **Flexible** mode for normal production use. It leaves the Cloudflare → origin connection on HTTP, which weakens end-to-end transport security and can cause confusing redirect behaviour.
 
 **4.** Set `config.py`:
 ```python

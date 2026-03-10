@@ -4,6 +4,7 @@ BananaWiki – Error handler routes.
 
 from flask import render_template, flash, redirect, url_for
 
+import config
 import db
 from helpers import _safe_referrer
 
@@ -28,7 +29,8 @@ def register_error_handlers(app):
     @app.errorhandler(413)
     def request_entity_too_large(e):
         """Redirect back with a flash message when the upload exceeds the size limit."""
-        flash("File too large. Maximum upload size is 16 MB.", "error")
+        max_mb = max(1, int(config.MAX_CONTENT_LENGTH / (1024 * 1024)))
+        flash(f"This upload is too large. The maximum allowed size is {max_mb} MB.", "error")
         return redirect(_safe_referrer() or url_for("home"))
 
     @app.errorhandler(429)
