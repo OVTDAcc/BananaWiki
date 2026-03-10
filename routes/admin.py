@@ -535,12 +535,14 @@ def register_admin_routes(app):
         from helpers._permissions import (
             group_permissions_by_category,
             get_default_permissions,
+            sanitize_permission_keys,
         )
         from helpers._constants import ROLE_LABELS
 
         if request.method == "POST":
             # Get selected permissions
             selected_perms = request.form.getlist("permissions")
+            sanitized_perms = sanitize_permission_keys(target["role"], selected_perms)
 
             # Get category access settings
             read_restricted = request.form.get("read_restricted") == "1"
@@ -558,7 +560,7 @@ def register_admin_routes(app):
             # Save permissions
             db.set_user_permissions(
                 user_id,
-                selected_perms,
+                sanitized_perms,
                 read_restricted=read_restricted,
                 read_category_ids=read_category_ids,
                 write_restricted=write_restricted,
@@ -568,7 +570,7 @@ def register_admin_routes(app):
             log_action(
                 "admin_set_user_permissions", request, user=current_user,
                 target_user=target["username"],
-                permission_count=len(selected_perms),
+                permission_count=len(sanitized_perms),
                 read_restricted=read_restricted,
                 write_restricted=write_restricted,
             )
@@ -588,7 +590,7 @@ def register_admin_routes(app):
             "admin/user_permissions.html",
             target=target,
             role_label=ROLE_LABELS.get(target["role"], target["role"]),
-            permissions=group_permissions_by_category(),
+            permissions=group_permissions_by_category(target["role"]),
             enabled_permissions=perms['enabled_permissions'],
             read_restricted=perms['category_access']['restricted'],
             read_allowed_categories=perms['category_access']['allowed_category_ids'],

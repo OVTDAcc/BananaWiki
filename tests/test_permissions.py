@@ -134,6 +134,22 @@ def test_permission_checking():
     assert db.has_permission(admin, "category.delete")
 
 
+def test_user_cannot_receive_editor_only_permissions():
+    """Test that editor-only permissions are ignored for regular users."""
+    import db
+
+    user_id = db.create_user("user_editorish", generate_password_hash("pass123"), role="user")
+    db.set_user_permissions(user_id, {"page.create", "page.edit_all", "page.view_all"})
+
+    user = {"id": user_id, "role": "user"}
+    perms = db.get_user_permissions(user_id)
+
+    assert perms["enabled_permissions"] == {"page.view_all"}
+    assert db.has_permission(user, "page.view_all")
+    assert not db.has_permission(user, "page.create")
+    assert not db.has_permission(user, "page.edit_all")
+
+
 def test_category_read_access():
     """Test category read access restrictions."""
     import db
@@ -392,8 +408,8 @@ def test_user_can_view_page_helper():
         assert user_can_view_page(editor, deindexed_page)
 
 
-def test_separate_read_write_restrictions():
-    """Test that read and write restrictions are independent."""
+def test_write_access_also_grants_read_access():
+    """Test that editor write access is always reflected in read access."""
     import db
     from helpers._permissions import get_default_permissions
 
@@ -417,6 +433,8 @@ def test_separate_read_write_restrictions():
 
     editor = {"id": editor_id, "role": "editor"}
 
+    perms = db.get_user_permissions(editor_id)
+
     # cat1: read yes, write no
     assert db.has_category_read_access(editor, cat1)
     assert not db.has_category_write_access(editor, cat1)
@@ -425,9 +443,81 @@ def test_separate_read_write_restrictions():
     assert db.has_category_read_access(editor, cat2)
     assert db.has_category_write_access(editor, cat2)
 
-    # cat3: read no, write yes
-    assert not db.has_category_read_access(editor, cat3)
+    # cat3: write yes, so read is also granted
+    assert db.has_category_read_access(editor, cat3)
     assert db.has_category_write_access(editor, cat3)
+    assert cat3 in perms["category_access"]["allowed_category_ids"]
+
+
+def test_editor_write_unrestricted_clears_restricted_read_access():
+    """Test that unrestricted editor write access also yields unrestricted read access."""
+    import db
+    from helpers._permissions import get_default_permissions
+
+    cat1 = db.create_category("Category 1")
+    cat2 = db.create_category("Category 2")
+
+    editor_id = db.create_user("editor_unrestricted", generate_password_hash("pass123"), role="editor")
+    db.set_user_permissions(
+        editor_id,
+        get_default_permissions("editor"),
+        read_restricted=True,
+        read_category_ids=[cat1],
+        write_restricted=False,
+    )
+
+    editor = {"id": editor_id, "role": "editor"}
+    perms = db.get_user_permissions(editor_id)
+
+    assert not perms["category_access"]["restricted"]
+    assert db.has_category_read_access(editor, cat1)
+    assert db.has_category_read_access(editor, cat2)
+
+
+def test_user_permission_page_hides_editor_only_permissions(logged_in_admin):
+    """Test that the admin UI does not offer editor-only permissions to users."""
+    import db
+
+    user_id = db.create_user("plainuser", generate_password_hash("pass123"), role="user")
+
+    resp = logged_in_admin.get(f"/admin/users/{user_id}/permissions")
+
+    assert resp.status_code == 200
+    assert b"Editor and admin capabilities require changing the account role." in resp.data
+    assert b'value="page.edit_all"' not in resp.data
+    assert b'value="page.create"' not in resp.data
+    assert b'name="write_restricted"' not in resp.data
+
+
+def test_user_permission_post_ignores_editor_only_permissions_and_write_access(logged_in_admin):
+    """Test that backend permission saves ignore editor-only values for users."""
+    import db
+
+    cat_id = db.create_category("Restricted Category")
+    user_id = db.create_user("backenduser", generate_password_hash("pass123"), role="user")
+
+    resp = logged_in_admin.post(
+        f"/admin/users/{user_id}/permissions",
+        data={
+            "permissions": ["page.view_all", "page.edit_all", "page.create"],
+            "read_restricted": "1",
+            "read_category_ids": [str(cat_id)],
+            "write_restricted": "1",
+            "write_category_ids": [str(cat_id)],
+        }
+    )
+
+    assert resp.status_code == 302
+
+    perms = db.get_user_permissions(user_id)
+    user = {"id": user_id, "role": "user"}
+
+    assert perms["enabled_permissions"] == {"page.view_all"}
+    assert perms["category_access"]["restricted"]
+    assert perms["category_access"]["allowed_category_ids"] == [cat_id]
+    assert not perms["category_write_access"]["restricted"]
+    assert perms["category_write_access"]["allowed_category_ids"] == []
+    assert not db.has_category_write_access(user, cat_id)
 
 
 if __name__ == "__main__":
