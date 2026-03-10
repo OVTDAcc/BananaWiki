@@ -5246,11 +5246,67 @@ def test_accessibility_page_no_a11y_style_after_clear(logged_in_admin):
         assert '--bg' not in a11y_match.group(1)
 
 
-def test_base_html_has_color_scheme_dark(logged_in_admin):
-    """Every page includes <meta name='color-scheme' content='dark'>."""
+def test_base_html_uses_dark_theme_by_default(logged_in_admin):
+    """Pages default to the dark site theme until an admin changes it."""
     resp = logged_in_admin.get("/")
     assert resp.status_code == 200
+    assert b'<html lang="en" data-theme="dark">' in resp.data
     assert b'<meta name="color-scheme" content="dark">' in resp.data
+
+
+def test_base_html_uses_light_theme_when_admin_default_changes(logged_in_admin):
+    """The site-wide default theme mode can switch the rendered palette to light."""
+    import db
+    db.update_site_settings(
+        default_theme_mode="light",
+        light_bg_color="#f4f5f9",
+        light_text_color="#1e2433",
+    )
+    resp = logged_in_admin.get("/")
+    assert resp.status_code == 200
+    assert b'<html lang="en" data-theme="light">' in resp.data
+    assert b'<meta name="color-scheme" content="light">' in resp.data
+    assert b"--bg: #f4f5f9" in resp.data or b"--bg:#f4f5f9" in resp.data
+
+
+def test_user_theme_override_beats_site_default(logged_in_admin):
+    """A user's saved theme mode overrides the site default for that account."""
+    import db
+    db.update_site_settings(default_theme_mode="light")
+    save_resp = logged_in_admin.post(
+        "/api/accessibility",
+        json={"theme_mode": "dark"},
+        content_type="application/json",
+    )
+    assert save_resp.status_code == 200
+    resp = logged_in_admin.get("/")
+    assert resp.status_code == 200
+    assert b'<html lang="en" data-theme="dark">' in resp.data
+    assert b'<meta name="color-scheme" content="dark">' in resp.data
+
+
+def test_accessibility_theme_mode_persisted(logged_in_admin):
+    """theme_mode is saved and returned by the accessibility API."""
+    resp = logged_in_admin.post(
+        "/api/accessibility",
+        json={"theme_mode": "light"},
+        content_type="application/json",
+    )
+    assert resp.status_code == 200
+    prefs = logged_in_admin.get("/api/accessibility").get_json()
+    assert prefs["theme_mode"] == "light"
+
+
+def test_accessibility_invalid_theme_mode_falls_back_to_default(logged_in_admin):
+    """Invalid theme modes fall back to using the site default."""
+    resp = logged_in_admin.post(
+        "/api/accessibility",
+        json={"theme_mode": "sepia"},
+        content_type="application/json",
+    )
+    assert resp.status_code == 200
+    prefs = logged_in_admin.get("/api/accessibility").get_json()
+    assert prefs["theme_mode"] == "default"
 
 
 def test_css_no_body_level_contrast_filter():
@@ -5459,6 +5515,7 @@ def test_account_settings_shows_customization_label(logged_in_admin):
     assert resp.status_code == 200
     assert b"Customization Settings" in resp.data
     assert b"Accessibility Settings" not in resp.data
+    assert b"theme mode" in resp.data.lower()
 
 
 def test_base_template_shows_customize_button(logged_in_admin):

@@ -1263,6 +1263,39 @@ document.addEventListener('DOMContentLoaded', initAnnouncements);
 var _a11yPrefs = {};
 var _a11ySaveTimer = null;
 
+function getThemeConfig() {
+    var fallback = {
+        default_mode: 'dark',
+        palettes: {
+            dark: {
+                primary: '#8fa0d4',
+                secondary: '#1e1e2c',
+                accent: '#7e9ada',
+                text: '#c8ccd8',
+                sidebar: '#1a1a24',
+                bg: '#16161f'
+            },
+            light: {
+                primary: '#4b63b6',
+                secondary: '#ffffff',
+                accent: '#3553c7',
+                text: '#202534',
+                sidebar: '#e9edf5',
+                bg: '#f6f7fb'
+            }
+        }
+    };
+    if (!window.BW_THEME_CONFIG || !window.BW_THEME_CONFIG.palettes) return fallback;
+    return window.BW_THEME_CONFIG;
+}
+
+function getEffectiveThemeMode(prefs) {
+    var themeConfig = getThemeConfig();
+    var mode = prefs && prefs.theme_mode ? String(prefs.theme_mode).toLowerCase() : 'default';
+    if (mode === 'dark' || mode === 'light') return mode;
+    return themeConfig.default_mode === 'light' ? 'light' : 'dark';
+}
+
 function saveA11ySetting(key, value) {
     _a11yPrefs[key] = value;
     if (_a11ySaveTimer) clearTimeout(_a11ySaveTimer);
@@ -1276,9 +1309,25 @@ function saveA11ySetting(key, value) {
 }
 
 function applyA11yPrefs(prefs) {
+    var root = document.documentElement;
+    var themeConfig = getThemeConfig();
+    var effectiveThemeMode = getEffectiveThemeMode(prefs);
+    var palette = themeConfig.palettes[effectiveThemeMode] || themeConfig.palettes.dark;
+
+    root.dataset.theme = effectiveThemeMode;
+    root.style.setProperty('color-scheme', effectiveThemeMode);
+    root.style.setProperty('--primary', palette.primary);
+    root.style.setProperty('--secondary', palette.secondary);
+    root.style.setProperty('--accent', palette.accent);
+    root.style.setProperty('--text', palette.text);
+    root.style.setProperty('--sidebar', palette.sidebar);
+    root.style.setProperty('--bg', palette.bg);
+    var colorSchemeMeta = document.querySelector('meta[name="color-scheme"]');
+    if (colorSchemeMeta) colorSchemeMeta.setAttribute('content', effectiveThemeMode);
+
     // Font scale
     var scale = prefs.font_scale || 1.0;
-    document.documentElement.style.setProperty('--a11y-font-scale', scale);
+    root.style.setProperty('--a11y-font-scale', scale);
 
     // Contrast: remove old classes and set new one
     for (var i = 0; i <= 5; i++) {
@@ -1296,7 +1345,6 @@ function applyA11yPrefs(prefs) {
     }
 
     // Content max width
-    var root = document.documentElement;
     if (prefs.content_max_width && prefs.content_max_width > 0) {
         root.style.setProperty('--content-max-width', prefs.content_max_width + 'px');
     } else {
@@ -1405,6 +1453,10 @@ function _syncA11yStyleBlock() {
     var el = document.getElementById('a11y-style');
     if (!el) return;
     var rules = [];
+    var themeMode = _a11yPrefs.theme_mode || 'default';
+    if (themeMode === 'dark' || themeMode === 'light') {
+        rules.push('color-scheme:' + themeMode);
+    }
     if (_a11yPrefs.custom_bg)        rules.push('--bg:'        + _a11yPrefs.custom_bg);
     if (_a11yPrefs.custom_text)      rules.push('--text:'      + _a11yPrefs.custom_text);
     if (_a11yPrefs.custom_primary)   rules.push('--primary:'   + _a11yPrefs.custom_primary);
@@ -1462,6 +1514,19 @@ function initAccessibility(prefs) {
         if (e.key === 'Escape' && panel.style.display !== 'none') {
             closePanel();
         }
+    });
+
+    // Font size buttons
+    panel.querySelectorAll('.a11y-theme-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var mode = btn.dataset.themeMode || 'default';
+            _a11yPrefs.theme_mode = mode;
+            applyA11yPrefs(_a11yPrefs);
+            saveA11ySetting('theme_mode', mode);
+            _syncA11yStyleBlock();
+            syncThemeBtns();
+            syncColorInputs();
+        });
     });
 
     // Font size buttons
@@ -1586,6 +1651,13 @@ function initAccessibility(prefs) {
         });
     }
 
+    function syncThemeBtns() {
+        var mode = (_a11yPrefs.theme_mode || 'default').toLowerCase();
+        panel.querySelectorAll('.a11y-theme-btn').forEach(function(btn) {
+            btn.classList.toggle('active', (btn.dataset.themeMode || 'default') === mode);
+        });
+    }
+
     function syncContrastBtns() {
         var level = _a11yPrefs.contrast || 0;
         panel.querySelectorAll('.a11y-contrast-btn').forEach(function(btn) {
@@ -1655,6 +1727,7 @@ function initAccessibility(prefs) {
     }
 
     function syncPanelUI() {
+        syncThemeBtns();
         syncFontBtns();
         syncContrastBtns();
         syncLineBtns();

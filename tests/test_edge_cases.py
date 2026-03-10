@@ -489,6 +489,34 @@ def test_admin_settings_invalid_color_formats(logged_in_admin):
             assert b"invalid" in response.data.lower() or b"must be" in response.data.lower()
 
 
+def test_admin_settings_updates_theme_defaults(logged_in_admin):
+    """Admin settings persists the site theme mode and light palette colors."""
+    import db
+
+    response = logged_in_admin.post("/admin/settings", data={
+        "site_name": "Test Wiki",
+        "timezone": "UTC",
+        "default_theme_mode": "light",
+        "primary_color": "#8fa0d4",
+        "secondary_color": "#1e1e2c",
+        "text_color": "#c8ccd8",
+        "bg_color": "#16161f",
+        "sidebar_color": "#1a1a24",
+        "accent_color": "#7e9ada",
+        "light_primary_color": "#4b63b6",
+        "light_secondary_color": "#ffffff",
+        "light_text_color": "#202534",
+        "light_bg_color": "#f6f7fb",
+        "light_sidebar_color": "#e9edf5",
+        "light_accent_color": "#3553c7",
+    }, follow_redirects=False)
+
+    assert response.status_code == 302
+    settings = db.get_site_settings()
+    assert settings["default_theme_mode"] == "light"
+    assert settings["light_bg_color"] == "#f6f7fb"
+
+
 # ============================================================================
 # EDGE CASE TESTS: Search Functionality
 # ============================================================================

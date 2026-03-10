@@ -165,6 +165,7 @@ def set_easter_egg_found(user_id):
 #  Accessibility / user preferences
 # ---------------------------------------------------------------------------
 _A11Y_DEFAULTS = {
+    "theme_mode": "default",
     "font_scale": 1.0,
     "contrast": 0,
     "sidebar_width": 250,
@@ -351,4 +352,3 @@ def set_editor_access(user_id, restricted, category_ids=None):
             )
     conn.commit()
     conn.close()
-

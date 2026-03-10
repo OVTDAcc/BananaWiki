@@ -283,7 +283,12 @@ def register_api_routes(app):
                 return val
             return ""
 
+        theme_mode = str(data.get("theme_mode", current.get("theme_mode", "default"))).strip().lower()
+        if theme_mode not in {"default", "dark", "light"}:
+            theme_mode = "default"
+
         prefs = {
+            "theme_mode": theme_mode,
             "font_scale": font_scale,
             "contrast": contrast,
             "sidebar_width": sidebar_width,
