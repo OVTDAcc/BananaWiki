@@ -79,6 +79,7 @@ def editor_has_category_access(user, category_id):
     if user["role"] in ("admin", "protected_admin"):
         return True
 
+    # Custom permissions never elevate a regular user into editor-level write access.
     if user["role"] != "editor":
         return False
 

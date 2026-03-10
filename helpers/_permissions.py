@@ -169,7 +169,7 @@ def get_all_permission_keys():
 def get_assignable_permission_keys(role):
     """Return permission keys that may be assigned to the given role."""
     all_keys = set(get_all_permission_keys())
-    if role == "editor":
+    if role in ("admin", "protected_admin", "editor"):
         return all_keys
     if role == "user":
         return all_keys - EDITOR_ONLY_PERMISSION_KEYS

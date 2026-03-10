@@ -107,7 +107,10 @@ def set_user_permissions(user_id, permission_keys,
         "SELECT role FROM users WHERE id = ?",
         (user_id,)
     ).fetchone()
-    role = user_row["role"] if user_row else None
+    if not user_row:
+        conn.close()
+        raise ValueError("User not found")
+    role = user_row["role"]
 
     from helpers._permissions import sanitize_permission_keys
 
