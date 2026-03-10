@@ -2,7 +2,12 @@
 {% block title %}Page Checkouts – {{ settings.site_name }}{% endblock %}
 {% block content %}
 <h1>Page Checkouts</h1>
-<p style="opacity:.7;margin-bottom:1.2rem">Active page reservations. Admins can force-release any reservation here.</p>
+<p style="opacity:.7;margin-bottom:1.2rem">
+    Active page reservations. Admins can force-release any reservation here.
+    {% if not settings.page_reservations_enabled %}
+    The reservation system is currently disabled, so these entries are informational only and do not block editing.
+    {% endif %}
+</p>
 
 {% if reservations %}
 <table class="admin-table">

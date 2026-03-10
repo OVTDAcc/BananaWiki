@@ -266,6 +266,7 @@ from ._badges import (  # noqa: F401
 
 # Page reservations
 from ._reservations import (  # noqa: F401
+    reservations_enabled,
     reserve_page,
     release_page_reservation,
     get_page_reservation_status,

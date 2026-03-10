@@ -22,7 +22,7 @@ _ALLOWED_SETTINGS_COLUMNS = {
     "default_theme_mode", "setup_done", "timezone",
     "favicon_enabled", "favicon_type", "favicon_custom",
     "lockdown_mode", "lockdown_message",
-    "session_limit_enabled", "last_chat_cleanup_at",
+    "session_limit_enabled", "page_reservations_enabled", "last_chat_cleanup_at",
     # Legacy chat settings (backwards compatibility)
     "chat_attachments_per_day_limit", "chat_auto_clear_messages",
     "chat_auto_clear_attachments", "chat_message_retention_days",

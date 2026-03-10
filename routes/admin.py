@@ -733,7 +733,7 @@ def register_admin_routes(app):
     @admin_required
     @rate_limit(10, 60)
     def admin_settings():
-        """Admin site settings page: site name, colors, timezone, favicon, lockdown mode, and session limit."""
+        """Admin site settings page: site name, theme, security, and feature toggles."""
         if request.method == "POST":
             site_name = request.form.get("site_name", "").strip() or "BananaWiki"
             if len(site_name) > 100:
@@ -816,6 +816,7 @@ def register_admin_routes(app):
                 lockdown_mode=1 if request.form.get("lockdown_mode") else 0,
                 lockdown_message=request.form.get("lockdown_message", "").strip()[:1000],
                 session_limit_enabled=1 if request.form.get("session_limit_enabled") else 0,
+                page_reservations_enabled=1 if request.form.get("page_reservations_enabled") else 0,
                 # Global chat settings
                 chat_max_message_length=max(100, min(50000, int(request.form.get("chat_max_message_length", 5000) or 5000))),
                 chat_attachments_enabled=1 if request.form.get("chat_attachments_enabled") else 0,

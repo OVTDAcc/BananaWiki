@@ -38,6 +38,11 @@
     <span class="reservation-icon">🔒</span>
     You have reserved this page. Your reservation expires {{ time_ago(reservation_status.expires_at) }}.
 </div>
+{% elif reservation_context and reservation_context.admin_override %}
+<div class="draft-notice">
+    ⚠ This page is reserved by <strong>{{ reservation_status.reserved_by_username }}</strong> until {{ format_datetime(reservation_status.expires_at) }}.
+    You are editing as an administrator, so your changes can override their in-progress work.
+</div>
 {% endif %}
 
 <form method="POST" id="editForm">
@@ -131,7 +136,7 @@
         <input type="text" name="edit_message" class="input" placeholder="Describe what you changed..." style="max-width:500px">
     </div>
 
-    {% if not page.is_home and reservation_status and not reservation_status.is_reserved and not reservation_status.get('user_in_cooldown') %}
+    {% if settings.page_reservations_enabled and not page.is_home and reservation_status and not reservation_status.is_reserved and not reservation_status.get('user_in_cooldown') %}
     <div class="form-group" style="margin-top:.5rem">
         <label class="reservation-checkbox">
             <input type="checkbox" name="reserve_after_commit" value="1">

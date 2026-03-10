@@ -389,6 +389,8 @@ def register_api_routes(app):
     def api_page_reservation_status(page_id):
         """Get current reservation status for a page."""
         user = get_current_user()
+        if not db.reservations_enabled():
+            return jsonify({"error": "Page reservations are currently disabled"}), 403
         page = db.get_page(page_id)
         if not page:
             return jsonify({"error": "Page not found"}), 404
@@ -437,6 +439,8 @@ def register_api_routes(app):
     def api_reserve_page(page_id):
         """Reserve a page for exclusive editing."""
         user = get_current_user()
+        if not db.reservations_enabled():
+            return jsonify({"error": "Page reservations are currently disabled"}), 403
         page = db.get_page(page_id)
         if not page:
             return jsonify({"error": "Page not found"}), 404
@@ -467,6 +471,8 @@ def register_api_routes(app):
     def api_release_page_reservation(page_id):
         """Release a page reservation."""
         user = get_current_user()
+        if not db.reservations_enabled():
+            return jsonify({"error": "Page reservations are currently disabled"}), 403
         page = db.get_page(page_id)
         if not page:
             return jsonify({"error": "Page not found"}), 404

@@ -54,7 +54,7 @@ def admin_user():
     """Create an admin user and mark setup as done."""
     import db
     uid = db.create_user("admin", generate_password_hash("admin123"), role="admin")
-    db.update_site_settings(setup_done=1)
+    db.update_site_settings(setup_done=1, page_reservations_enabled=1)
     return uid
 
 
@@ -62,7 +62,7 @@ def admin_user():
 def editor_user():
     """Create an editor user."""
     import db
-    db.update_site_settings(setup_done=1)
+    db.update_site_settings(setup_done=1, page_reservations_enabled=1)
     uid = db.create_user("editor", generate_password_hash("editor123"), role="editor")
     return uid
 
@@ -93,6 +93,7 @@ def logged_in_editor(client, editor_user):
 def test_page():
     """Create a test page."""
     import db
+    db.update_site_settings(page_reservations_enabled=1)
     page_id = db.create_page("Test Page", "test-page", "Test content")
     return page_id
 
@@ -100,6 +101,13 @@ def test_page():
 # ============================================================================
 # UNIT TESTS: Database Functions
 # ============================================================================
+
+def test_reservations_disabled_by_default(isolated_db):
+    """The reservation feature flag should default to off."""
+    import db
+
+    settings = db.get_site_settings()
+    assert settings["page_reservations_enabled"] == 0
 
 def test_reserve_page_success(editor_user, test_page):
     """Test successful page reservation."""
@@ -432,6 +440,43 @@ def test_api_reservation_requires_editor_role(client, test_page):
     assert response.status_code == 302  # Redirect due to @editor_required
 
 
+def test_api_reservation_returns_403_when_disabled(logged_in_editor, test_page):
+    """Reservation API access is blocked when the feature is disabled."""
+    import db
+
+    db.update_site_settings(page_reservations_enabled=0)
+
+    response = logged_in_editor.post(f"/api/pages/{test_page}/reservation")
+    assert response.status_code == 403
+    assert b"currently disabled" in response.data
+
+
+def test_admin_can_enable_page_reservations_from_settings(logged_in_admin):
+    """Admins can toggle page reservations on from the settings screen."""
+    import db
+
+    response = logged_in_admin.post("/admin/settings", data={
+        "site_name": "BananaWiki",
+        "timezone": "UTC",
+        "primary_color": "#7c8dc6",
+        "secondary_color": "#151520",
+        "accent_color": "#6e8aca",
+        "text_color": "#b8bcc8",
+        "sidebar_color": "#111118",
+        "bg_color": "#0d0d14",
+        "page_reservations_enabled": "1",
+    })
+    assert response.status_code in (200, 302)
+    assert db.get_site_settings()["page_reservations_enabled"] == 1
+
+
+def test_settings_page_has_page_reservations_checkbox(logged_in_admin):
+    """The settings page exposes the reservation feature toggle."""
+    response = logged_in_admin.get("/admin/settings")
+    assert response.status_code == 200
+    assert b"page_reservations_enabled" in response.data
+
+
 # ============================================================================
 # INTEGRATION TESTS: Edit Workflow
 # ============================================================================
@@ -464,6 +509,80 @@ def test_edit_page_reserved_by_other(logged_in_editor, test_page, editor2_user):
     # Try to edit
     response = logged_in_editor.get("/page/test-page/edit", follow_redirects=True)
     assert b"Cannot edit" in response.data or b"reserved by" in response.data.lower()
+
+
+def test_edit_page_title_reserved_by_other_is_blocked(logged_in_editor, test_page, editor2_user):
+    """Inline destructive edits are blocked for non-admins when reserved by another editor."""
+    import db
+
+    db.reserve_page(test_page, editor2_user)
+
+    response = logged_in_editor.post(
+        "/page/test-page/edit/title",
+        data={"title": "Blocked Title"},
+        follow_redirects=True,
+    )
+    assert b"currently reserved by" in response.data
+    assert db.get_page(test_page)["title"] == "Test Page"
+
+
+def test_move_page_is_still_allowed_when_reserved(logged_in_editor, test_page, editor2_user):
+    """Moves remain available because they do not change page content."""
+    import db
+
+    destination = db.create_category("Moved")
+    db.reserve_page(test_page, editor2_user)
+
+    response = logged_in_editor.post(
+        "/page/test-page/move",
+        data={"category_id": str(destination)},
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+    assert b"Page moved." in response.data
+    assert db.get_page(test_page)["category_id"] == destination
+
+
+def test_admin_reserved_edit_page_shows_override_warning(logged_in_admin, editor_user, test_page):
+    """Admins are warned when they open a reserved page for editing."""
+    import db
+
+    db.reserve_page(test_page, editor_user)
+
+    response = logged_in_admin.get("/page/test-page/edit")
+    assert response.status_code == 200
+    assert b"You are editing as an administrator" in response.data
+
+
+def test_reservation_directory_lists_pages_and_actions(logged_in_editor, test_page):
+    """Editors can discover reservable pages from the reservation directory."""
+    response = logged_in_editor.get("/reservations")
+    assert response.status_code == 200
+    assert b"Page Reservations" in response.data
+    assert b"Test Page" in response.data
+    assert b"Reserve" in response.data
+
+
+def test_reservation_directory_redirects_when_disabled(logged_in_editor, test_page):
+    """The directory should redirect with guidance when reservations are disabled."""
+    import db
+
+    db.update_site_settings(page_reservations_enabled=0)
+
+    response = logged_in_editor.get("/reservations", follow_redirects=True)
+    assert response.status_code == 200
+    assert b"currently disabled" in response.data
+
+
+def test_reserved_page_is_editable_when_feature_disabled(logged_in_editor, test_page, editor2_user):
+    """Disabling reservations should stop them from blocking edits."""
+    import db
+
+    db.reserve_page(test_page, editor2_user)
+    db.update_site_settings(page_reservations_enabled=0)
+
+    response = logged_in_editor.get("/page/test-page/edit")
+    assert response.status_code == 200
 
 
 def test_save_page_verifies_reservation(logged_in_editor, test_page, editor2_user):
