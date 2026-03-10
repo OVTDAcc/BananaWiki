@@ -52,8 +52,17 @@ _VIMEO_BARE_RE = re.compile(
     re.IGNORECASE,
 )
 _CUSTOM_VIDEO_RE = re.compile(
-    r'<p>\s*\[\[video\s+url="([^"]+)"(?:\s+width="(\d{2,4})")?(?:\s+align="(none|left|right|center)")?(?:\s+ratio="(16:9|4:3|1:1)")?\s*\]\]\s*</p>',
-    re.IGNORECASE,
+    r"""
+    <p>\s*
+    \[\[video
+    \s+url="(?P<url>[^"]+)"
+    (?:\s+width="(?P<width>\d{2,4})")?
+    (?:\s+align="(?P<align>none|left|right|center)")?
+    (?:\s+ratio="(?P<ratio>16:9|4:3|1:1)")?
+    \s*\]\]
+    \s*</p>
+    """,
+    re.IGNORECASE | re.VERBOSE,
 )
 _VIDEO_WIDTH_RE = re.compile(r"^\d{2,4}$")
 _VIDEO_PADDING_BY_RATIO = {
@@ -122,7 +131,7 @@ def _make_video_iframe(embed_src, source_url=None, width=None, align="center", r
         styles.append("margin:1rem 0")
     attrs = [
         f'class="{" ".join(classes)}"',
-        f'data-bw-source-url="{escape(source_url or embed_src, quote=True)}"',
+        f'data-bw-source-url="{escape(source_url if source_url is not None else embed_src, quote=True)}"',
         f'data-bw-align="{align}"',
         f'data-bw-ratio="{ratio}"',
         f'style="{";".join(styles)}"',
@@ -165,16 +174,16 @@ def _embed_videos_in_html(html):
 
     def _custom_video_replace(m):
         """Replace a persisted video shortcode with a configurable iframe embed."""
-        source_url = m.group(1)
+        source_url = m.group("url")
         embed_src = _get_video_embed_src(source_url)
         if not embed_src:
             return m.group(0)
         return _make_video_iframe(
             embed_src,
             source_url=source_url,
-            width=m.group(2),
-            align=m.group(3) or "center",
-            ratio=m.group(4) or "16:9",
+            width=m.group("width"),
+            align=m.group("align") or "center",
+            ratio=m.group("ratio") or "16:9",
         )
 
     html = _CUSTOM_VIDEO_RE.sub(_custom_video_replace, html)

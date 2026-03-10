@@ -650,6 +650,12 @@ var _imgModalUrl = '', _imgModalInsertPos = 0, _imgModalEl = null;
 // 'insert' = new image, 'edit' = update existing image properties
 var _imgModalMode = 'insert', _imgModalOrigSrc = '';
 var _videoModalEl = null, _videoModalMode = 'insert', _videoModalOrigUrl = '';
+// Keep this in sync with helpers/_markdown.py:_VIDEO_PADDING_BY_RATIO.
+var VIDEO_RATIO_PADDING_MAP = { '16:9': 56.25, '4:3': 75, '1:1': 100 };
+
+function escapeRegexChars(str) {
+    return String(str || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
 function setActiveOptionButton(buttonSelector, attrName, value, fallbackValue) {
     var match = null;
@@ -1756,16 +1762,14 @@ function initResizableImages(previewEl, textareaEl) {
             function() { return embed.getBoundingClientRect().width; },
             function(nextWidth) {
                 var ratio = embed.dataset.bwRatio || '16:9';
-                var ratioMap = { '16:9': 56.25, '4:3': 75, '1:1': 100 };
                 var newW = Math.max(200, nextWidth);
                 embed.dataset.bwWidth = String(newW);
                 embed.style.width = 'min(' + newW + 'px,100%)';
                 embed.style.maxWidth = '100%';
-                embed.style.paddingBottom = ratioMap[ratio] + '%';
+                embed.style.paddingBottom = VIDEO_RATIO_PADDING_MAP[ratio] + '%';
                 if (iframe) iframe.style.pointerEvents = 'none';
             },
             function() {
-                if (iframe) iframe.style.pointerEvents = 'none';
                 updateVideoInEditor(
                     textareaEl,
                     embed.dataset.bwSourceUrl || '',
@@ -1799,7 +1803,7 @@ function updateImageWidthInEditor(textarea, src, width) {
 
     // If no HTML <img> was matched, the image may be in Markdown format: ![alt](src)
     if (updated === content) {
-        var escapedSrc = src.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        var escapedSrc = escapeRegexChars(src);
         updated = content.replace(
             new RegExp('!\\[([^\\]]*)\\]\\(' + escapedSrc + '\\)', 'g'),
             function(match, alt) {
@@ -1821,7 +1825,7 @@ function updateImageInEditor(textarea, src, newMarkdown) {
     if (!textarea || !src) return;
     var content = textarea.value;
     var updated = content;
-    var escapedSrc = src.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    var escapedSrc = escapeRegexChars(src);
 
     // 1. <figure ...><img src="src"...>...</figure>  (only double- or single-quoted src)
     var figRe = new RegExp('<figure[^>]*>\\s*<img[^>]+src=(?:"' + escapedSrc + '"|\''+escapedSrc+'\'\\b)[^>]*>(?:\\s*<figcaption>[^]*?</figcaption>)?\\s*</figure>', 'i');
@@ -1858,7 +1862,8 @@ function updateImageInEditor(textarea, src, newMarkdown) {
 function updateVideoInEditor(textarea, sourceUrl, newMarkup) {
     if (!textarea || !sourceUrl || !newMarkup) return;
     var content = textarea.value;
-    var escapedSourceUrl = sourceUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    var escapedSourceUrl = escapeRegexChars(sourceUrl);
+    // Keep this shortcode matcher aligned with helpers/_markdown.py:_CUSTOM_VIDEO_RE.
     var shortcodeRe = new RegExp(
         '\\[\\[video\\s+url="' + escapedSourceUrl + '"(?:\\s+width="\\d{2,4}")?(?:\\s+align="(?:none|left|right|center)")?(?:\\s+ratio="(?:16:9|4:3|1:1)")?\\s*\\]\\]',
         'gi'
