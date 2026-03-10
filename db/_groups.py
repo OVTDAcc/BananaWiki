@@ -305,7 +305,12 @@ def get_group_attachment(attachment_id):
 
 
 def delete_group_message(message_id):
-    """Soft-delete a single group message while preserving its content for admins."""
+    """Soft-delete a group message while preserving content and attachments.
+
+    Deleted attachments stay linked to the message so admins can continue to
+    review them, and they are still removed by the existing clear/export/age-
+    based cleanup flows when those run.
+    """
     conn = get_db()
     conn.execute(
         "UPDATE group_messages SET is_deleted=1, deleted_at=? WHERE id=?",

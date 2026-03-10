@@ -342,7 +342,12 @@ def clear_chat_messages(chat_id):
 
 
 def delete_chat_message(message_id):
-    """Soft-delete a single chat message while preserving its content for admins."""
+    """Soft-delete a chat message while preserving content and attachments.
+
+    Deleted attachments stay linked to the message so admins can continue to
+    review them, and they are still removed by the existing clear/export/age-
+    based cleanup flows when those run.
+    """
     conn = get_db()
     conn.execute(
         "UPDATE chat_messages SET is_deleted=1, deleted_at=? WHERE id=?",

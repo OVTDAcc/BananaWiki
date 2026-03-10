@@ -44,7 +44,13 @@ def register_chat_routes(app):
         }
 
     def _prepare_chat_messages(messages, include_deleted_content=False):
-        """Return chat messages annotated for regular-user or admin display."""
+        """Return chat messages annotated for display.
+
+        When ``include_deleted_content`` is False, deleted messages are
+        replaced with a placeholder and their attachments are hidden.
+        When True, the original deleted content and attachments remain visible
+        for admin monitoring views.
+        """
         prepared_messages = []
         for msg in messages:
             prepared = dict(msg)

@@ -67,7 +67,13 @@ def register_group_routes(app):
         }, can_delete_any_message
 
     def _prepare_group_messages(messages, include_deleted_content=False):
-        """Return group messages annotated for member or admin display."""
+        """Return group messages annotated for display.
+
+        When ``include_deleted_content`` is False, deleted non-system messages
+        are replaced with a placeholder and their attachments are hidden.
+        When True, the original deleted content and attachments remain visible
+        for site-admin monitoring views.
+        """
         prepared_messages = []
         for msg in messages:
             prepared = dict(msg)

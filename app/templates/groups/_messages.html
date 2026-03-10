@@ -29,7 +29,7 @@
             {% set attachment_count = msg.display_attachments|length %}
             <div class="chat-msg-actions">
                 <form method="POST" action="{{ url_for('group_delete_message', group_id=group.id) }}" class="chat-msg-action-form"
-                      data-confirm="Delete this message{% if attachment_count %} and {{ attachment_count }} attachment{{ '' if attachment_count == 1 else 's' }}{% endif %}? This cannot be undone.">
+                      data-confirm="Delete this message{% if attachment_count %} and {{ attachment_count }} attachment{{ '' if attachment_count == 1 else 's' }}{% endif %}? It will be hidden from regular users.">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="message_id" value="{{ msg.id }}">
                     <button class="btn btn-sm btn-danger-outline chat-msg-delete-btn" title="Delete message">Delete</button>
