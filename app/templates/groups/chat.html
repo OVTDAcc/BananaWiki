@@ -4,19 +4,20 @@
 {% set my_role = my_membership.role if my_membership else 'member' %}
 {% set is_mod = my_role in ('owner', 'moderator') %}
 {% set is_owner = my_role == 'owner' %}
-{% set is_site_admin = current_user.role in ('admin', 'protected_admin') %}
+{% set clear_prompt = "Clear " ~ message_state.message_count ~ " message" ~ ("" if message_state.message_count == 1 else "s") ~ " and " ~ clear_attachment_count ~ " attachment" ~ ("" if clear_attachment_count == 1 else "s") ~ " in this group? This cannot be undone." %}
 
+<div class="chat-shell">
 <div class="chat-header">
     <a href="{{ url_for('group_list') }}" class="btn btn-sm btn-outline">← Back</a>
     <h1>{% if group.is_global %}🌍{% endif %} {{ group.name }}</h1>
-    <div style="margin-left:auto;display:flex;gap:.5rem">
+    <div class="chat-header-actions">
         {% if is_owner or is_site_admin %}
         <a href="{{ url_for('group_export', group_id=group.id) }}" class="btn btn-sm btn-outline">📥 Export</a>
         {% endif %}
         {% if is_mod or is_site_admin %}
-        <form method="POST" action="{{ url_for('group_clear', group_id=group.id) }}" style="display:inline" onsubmit="return confirm('Are you sure you want to clear all messages in this group? This cannot be undone.')">
+        <form method="POST" action="{{ url_for('group_clear', group_id=group.id) }}" class="chat-toolbar-form" data-confirm="{{ clear_prompt }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button type="submit" class="btn btn-sm btn-outline" style="background:rgba(220,38,38,.1);border-color:rgba(220,38,38,.3);color:#dc2626">🗑️ Clear Chat</button>
+            <button type="submit" class="btn btn-sm btn-outline btn-danger-subtle">🗑️ Clear Chat</button>
         </form>
         {% endif %}
     </div>
@@ -24,16 +25,19 @@
 
 {# Deactivated global chat banner #}
 {% if group.is_global and not group.is_active %}
-<div style="background:rgba(255,160,0,.15);border:1px solid rgba(255,160,0,.4);border-radius:6px;padding:.6rem 1rem;margin-bottom:1rem;text-align:center;font-size:.9rem">
-    ⚠️ The global chat is currently <strong>deactivated</strong>. Messages can be read but no new messages can be sent.
+<div class="chat-status-banner chat-status-banner-essential">
+    <div><strong>Global chat is paused.</strong> Messages can still be read, but new messages cannot be sent right now.</div>
 </div>
 {% endif %}
 
 {# Chat cleanup countdown banner #}
 {% if settings and settings.chat_cleanup_enabled and (settings.chat_group_auto_clear_messages or settings.chat_group_auto_clear_attachments or settings.chat_auto_clear_messages) %}
-<div style="background:rgba(255,160,0,.15);border:1px solid rgba(255,160,0,.4);border-radius:6px;padding:.6rem 1rem;margin-bottom:1rem;text-align:center;font-size:.9rem">
-    ⚠️ <strong>Messages will be deleted {{ time_until_next_chat_cleanup() }}</strong><br>
+<div class="chat-status-banner js-dismissible-banner" data-dismiss-key="group-cleanup-{{ group.id }}">
+    <button type="button" class="chat-status-dismiss" aria-label="Dismiss group cleanup notice">×</button>
+    <div>
+    <strong>Auto-cleanup runs {{ time_until_next_chat_cleanup() }}</strong><br>
     <small>Last cleanup: {{ time_since_last_chat_cleanup() }}</small>
+    </div>
 </div>
 {% endif %}
 
@@ -241,7 +245,7 @@
 
 {# Timeout countdown for current user #}
 {% if my_membership and my_membership.timed_out_until and my_membership.timed_out_until > utcnow %}
-<div class="chat-timeout-banner" style="background:rgba(255,80,80,.15);border:1px solid rgba(255,80,80,.3);border-radius:6px;padding:.6rem 1rem;margin-bottom:1rem;text-align:center;font-size:.9rem">
+<div class="chat-status-banner chat-status-banner-essential">
     ⏳ You are timed out.
     {% if my_membership.timed_out_until.startswith('9999') %}
         <strong>Duration: Indefinite</strong>
@@ -251,44 +255,10 @@
 </div>
 {% endif %}
 
-<div class="chat-messages" id="chat-messages">
-    {% if messages %}
-        {% for msg in messages %}
-            {% if msg.is_system %}
-            <div class="chat-msg chat-msg-system">
-                <div class="chat-msg-body" style="text-align:center;opacity:.7;font-style:italic">
-                    ℹ️ {{ msg.content }}
-                    <span class="chat-msg-time">{{ time_ago(msg.created_at) }}</span>
-                </div>
-            </div>
-            {% else %}
-            <div class="chat-msg {% if msg.sender_id == current_user.id %}chat-msg-mine{% else %}chat-msg-theirs{% endif %}">
-                <div class="chat-msg-meta">
-                    <strong>{{ msg.sender_name or 'Unknown' }}</strong>
-                    <span class="chat-msg-time">{{ time_ago(msg.created_at) }}</span>
-                </div>
-                <div class="chat-msg-body">{{ msg.content }}</div>
-                {% if msg.attachments %}
-                <div class="chat-msg-attachments">
-                    {% for att in msg.attachments %}
-                    <a href="{{ url_for('group_attachment_download', attachment_id=att.id) }}" class="chat-attachment-link">📎 {{ att.original_name }} ({{ (att.file_size / 1024)|round(1) }} KB)</a>
-                    {% endfor %}
-                </div>
-                {% endif %}
-                {% if (is_mod and not group.is_global) or (group.is_global and is_site_admin) %}
-                <form method="POST" action="{{ url_for('group_delete_message', group_id=group.id) }}" style="display:inline"
-                      onsubmit="return confirm('Delete this message?')">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <input type="hidden" name="message_id" value="{{ msg.id }}">
-                    <button class="btn btn-sm btn-danger-outline" style="font-size:.7rem" title="Delete message">🗑</button>
-                </form>
-                {% endif %}
-            </div>
-            {% endif %}
-        {% endfor %}
-    {% else %}
-        <p class="chat-empty">No messages yet. Say hello!</p>
-    {% endif %}
+<div class="chat-messages" id="chat-messages" data-chat-poll-url="{{ url_for('group_messages_partial', group_id=group.id) }}"
+     data-latest-message-id="{{ message_state.latest_message_id }}" data-message-count="{{ message_state.message_count }}"
+     data-chat-poll-interval="2500">
+    {% include "groups/_messages.html" %}
 </div>
 
 {% if not (group.is_global and not group.is_active) %}
@@ -310,12 +280,10 @@
     {% endif %}
 </form>
 {% endif %}
+</div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    var el = document.getElementById('chat-messages');
-    if (el) el.scrollTop = el.scrollHeight;
-
     // Timeout countdown
     var countdownEl = document.getElementById('timeout-countdown');
     if (countdownEl) {

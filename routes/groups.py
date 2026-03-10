@@ -13,7 +13,7 @@ from werkzeug.utils import secure_filename
 
 from flask import (
     render_template, request, redirect, url_for, session, flash,
-    send_file, send_from_directory, abort,
+    send_file, send_from_directory, abort, jsonify,
 )
 
 import db
@@ -35,6 +35,36 @@ def register_group_routes(app):
         """Redirect users whose chat access has been disabled."""
         flash("Your chat privileges have been disabled by an administrator.", "error")
         return redirect(url_for(endpoint, **values))
+
+    def _group_message_permissions(group, user):
+        """Return moderation flags for group message controls."""
+        my_role = db.get_group_member_role(group["id"], user["id"])
+        is_site_admin = user["role"] in ("admin", "protected_admin")
+        can_delete_any_message = (
+            is_site_admin if group["is_global"]
+            else my_role in ("owner", "moderator")
+        )
+        return my_role, is_site_admin, can_delete_any_message
+
+    def _group_message_state(group, user):
+        """Return rendered group message HTML and lightweight counters for live refresh."""
+        _, is_site_admin, can_delete_any_message = _group_message_permissions(group, user)
+        messages = db.get_group_messages(group["id"])
+        attachment_count = sum(len(msg.get("attachments") or []) for msg in messages)
+        latest_message_id = messages[-1]["id"] if messages else 0
+        html = render_template(
+            "groups/_messages.html",
+            group=group,
+            messages=messages,
+            can_delete_any_message=can_delete_any_message,
+            is_site_admin=is_site_admin,
+        )
+        return messages, {
+            "html": html,
+            "message_count": len(messages),
+            "attachment_count": attachment_count,
+            "latest_message_id": latest_message_id,
+        }, can_delete_any_message
 
     @app.route("/groups")
     @login_required
@@ -161,7 +191,8 @@ def register_group_routes(app):
             return redirect(url_for("group_list"))
         # Reset unread count when viewing the group
         db.reset_group_unread_count(group_id, user["id"])
-        messages = db.get_group_messages(group_id)
+        my_role, is_site_admin, can_delete_any_message = _group_message_permissions(group, user)
+        messages, message_state, _ = _group_message_state(group, user)
         members = db.get_group_members(group_id)
         banned_members = db.get_group_banned_members(group_id)
         my_membership = db.get_group_member(group_id, user["id"])
@@ -170,7 +201,29 @@ def register_group_routes(app):
         return render_template("groups/chat.html", group=group, messages=messages,
                                members=members, banned_members=banned_members,
                                my_membership=my_membership, all_users=all_users,
+                               message_state=message_state, can_delete_any_message=can_delete_any_message,
+                               is_site_admin=is_site_admin, my_role=my_role,
+                               clear_attachment_count=message_state["attachment_count"],
                                categories=categories, uncategorized=uncategorized)
+
+    @app.route("/groups/<int:group_id>/messages")
+    @login_required
+    def group_messages_partial(group_id):
+        """Return the latest group chat HTML for live refresh."""
+        user = get_current_user()
+        settings = db.get_site_settings()
+        if settings and not settings["chat_group_enabled"] and user["role"] not in ("admin", "protected_admin"):
+            return jsonify({"error": "Group chats are currently disabled."}), 403
+        if db.is_user_chat_disabled(user["id"]):
+            return jsonify({"error": "Chat access disabled."}), 403
+        group = db.get_group_chat(group_id)
+        if not group:
+            abort(404)
+        if not db.is_group_member(group_id, user["id"]):
+            return jsonify({"error": "You are not a member of this group."}), 403
+        db.reset_group_unread_count(group_id, user["id"])
+        _, message_state, _ = _group_message_state(group, user)
+        return jsonify(message_state)
 
     @app.route("/groups/<int:group_id>/send", methods=["POST"])
     @login_required
@@ -605,23 +658,29 @@ def register_group_routes(app):
         group = db.get_group_chat(group_id)
         if not group:
             abort(404)
-        my_role = db.get_group_member_role(group_id, user["id"])
-        is_site_admin = user["role"] in ("admin", "protected_admin")
-        if group["is_global"]:
-            if not is_site_admin:
-                flash("Only site admins can delete messages in the global chat.", "error")
-                return redirect(url_for("group_view", group_id=group_id))
-        else:
-            if my_role not in ("owner", "moderator"):
-                flash("Permission denied.", "error")
-                return redirect(url_for("group_view", group_id=group_id))
+        my_role, is_site_admin, can_delete_any_message = _group_message_permissions(group, user)
+        if not db.is_group_member(group_id, user["id"]):
+            flash("You are not a member of this group.", "error")
+            return redirect(url_for("group_list"))
         message_id = request.form.get("message_id", type=int)
         if not message_id:
             flash("The specified message is invalid.", "error")
             return redirect(url_for("group_view", group_id=group_id))
         msg = db.get_group_message_by_id(message_id)
         if not msg or msg["group_id"] != group_id:
-            flash("The specified Message was not found.", "error")
+            flash("The specified message was not found.", "error")
+            return redirect(url_for("group_view", group_id=group_id))
+        if msg["is_system"]:
+            flash("System messages cannot be deleted.", "error")
+            return redirect(url_for("group_view", group_id=group_id))
+        is_own_message = msg["sender_id"] == user["id"]
+        if not can_delete_any_message and not is_own_message:
+            error_message = (
+                "Only site admins can delete other members' messages in the global chat."
+                if group["is_global"]
+                else "You do not have the required permissions to delete this message."
+            )
+            flash(error_message, "error")
             return redirect(url_for("group_view", group_id=group_id))
         files = db.delete_group_message(message_id)
         for fname in files:
@@ -632,7 +691,12 @@ def register_group_routes(app):
             except OSError:
                 pass
         db.send_group_system_message(group_id, f"A message was deleted by {user['username']}")
-        flash("Message deleted.", "success")
+        flash(
+            f"Message deleted successfully. Removed {len(files)} attachment"
+            f"{'' if len(files) == 1 else 's'}.",
+            "success",
+        )
+        log_action("group_delete_message", request, user=user, group_id=group_id, message_id=message_id)
         return redirect(url_for("group_view", group_id=group_id))
 
     # ---------------------------------------------------------------------------
@@ -905,6 +969,9 @@ def register_group_routes(app):
             flash("You do not have the required permissions to clear this chat.", "error")
             return redirect(url_for("group_view", group_id=group_id))
 
+        messages = db.get_group_messages(group_id)
+        message_count = len(messages)
+        attachment_count = sum(len(msg.get("attachments") or []) for msg in messages)
         # Delete all messages and attachments
         files_to_delete = db.clear_group_messages(group_id)
         att_dir = config.CHAT_ATTACHMENT_FOLDER
@@ -919,8 +986,14 @@ def register_group_routes(app):
         # Send system message
         db.send_group_system_message(group_id, f"Chat cleared by {user['username']}")
         notify_change("group_clear", f"Group '{group['name']}' chat cleared by {user['username']}")
-        flash("Group chat has been cleared successfully.", "success")
-        log_action("group_clear", request, user=user, group_id=group_id)
+        flash(
+            f"Group chat has been cleared successfully. Removed {message_count} message"
+            f"{'' if message_count == 1 else 's'} and {attachment_count} attachment"
+            f"{'' if attachment_count == 1 else 's'}.",
+            "success",
+        )
+        log_action("group_clear", request, user=user, group_id=group_id,
+                   message_count=message_count, attachment_count=attachment_count)
         return redirect(url_for("group_view", group_id=group_id))
 
     @app.route("/groups/<int:group_id>/delete", methods=["POST"])

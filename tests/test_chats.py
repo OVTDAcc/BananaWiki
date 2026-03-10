@@ -211,6 +211,18 @@ def test_view_chat(alice_client, bob_uid):
     assert b"bob" in resp.data
 
 
+def test_chat_messages_partial_for_participant(alice_client, alice_uid, bob_uid):
+    import db
+    chat = db.get_or_create_chat(alice_uid, bob_uid)
+    db.send_chat_message(chat["id"], alice_uid, "Live hello")
+    resp = alice_client.get(f"/chats/{chat['id']}/messages")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["message_count"] == 1
+    assert data["latest_message_id"] > 0
+    assert "Live hello" in data["html"]
+
+
 def test_non_participant_cannot_view(alice_client, bob_uid, admin_uid):
     import db
     chat = db.get_or_create_chat(bob_uid, admin_uid)
@@ -389,6 +401,28 @@ def test_db_chat_messages_order(alice_uid, bob_uid):
     assert msgs[1]["content"] == "second"
 
 
+def test_sender_can_delete_own_chat_message(alice_client, alice_uid, bob_uid):
+    import db
+    chat = db.get_or_create_chat(alice_uid, bob_uid)
+    msg_id = db.send_chat_message(chat["id"], alice_uid, "delete me")
+    resp = alice_client.post(f"/chats/{chat['id']}/delete_message",
+                             data={"message_id": msg_id},
+                             follow_redirects=True)
+    assert b"successfully deleted" in resp.data
+    assert db.get_chat_messages(chat["id"]) == []
+
+
+def test_participant_cannot_delete_other_users_chat_message(bob_client, alice_uid, bob_uid):
+    import db
+    chat = db.get_or_create_chat(alice_uid, bob_uid)
+    msg_id = db.send_chat_message(chat["id"], alice_uid, "keep me")
+    resp = bob_client.post(f"/chats/{chat['id']}/delete_message",
+                           data={"message_id": msg_id},
+                           follow_redirects=True)
+    assert b"required permissions" in resp.data
+    assert len(db.get_chat_messages(chat["id"])) == 1
+
+
 def test_db_cleanup_old_chat_messages(alice_uid, bob_uid):
     import db
     import sqlite3
@@ -406,6 +440,21 @@ def test_db_cleanup_old_chat_messages(alice_uid, bob_uid):
     files = db.cleanup_old_chat_messages()
     assert "stored.txt" in files
     assert len(db.get_chat_messages(chat["id"])) == 0
+
+
+def test_chat_clear_removes_attachment_file(alice_client, alice_uid, bob_uid):
+    import db
+    chat = db.get_or_create_chat(alice_uid, bob_uid)
+    msg_id = db.send_chat_message(chat["id"], alice_uid, "with file")
+    filepath = os.path.join(config.CHAT_ATTACHMENT_FOLDER, "clear-me.txt")
+    with open(filepath, "w", encoding="utf-8") as handle:
+        handle.write("content")
+    db.add_chat_attachment(msg_id, "clear-me.txt", "clear-me.txt", 7)
+    resp = alice_client.post(f"/chats/{chat['id']}/clear", follow_redirects=True)
+    assert resp.status_code == 200
+    assert b"successfully cleared" in resp.data
+    assert not os.path.exists(filepath)
+    assert db.get_chat_messages(chat["id"]) == []
 
 
 def test_db_get_all_messages_for_backup(alice_uid, bob_uid):

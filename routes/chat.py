@@ -27,6 +27,29 @@ def register_chat_routes(app):
         flash("Your chat privileges have been disabled by an administrator.", "error")
         return redirect(url_for(endpoint, **values))
 
+    def _chat_message_state(chat):
+        """Return rendered chat HTML and lightweight counters for live refresh."""
+        messages = db.get_chat_messages(chat["id"])
+        attachment_count = sum(len(msg.get("attachments") or []) for msg in messages)
+        latest_message_id = messages[-1]["id"] if messages else 0
+        html = render_template("chats/_messages.html", chat=chat, messages=messages)
+        return messages, {
+            "html": html,
+            "message_count": len(messages),
+            "attachment_count": attachment_count,
+            "latest_message_id": latest_message_id,
+        }
+
+    def _remove_chat_files(filenames):
+        """Delete chat attachment files from disk, ignoring missing files."""
+        for fname in filenames:
+            try:
+                fpath = os.path.join(config.CHAT_ATTACHMENT_FOLDER, fname)
+                if os.path.isfile(fpath):
+                    os.remove(fpath)
+            except OSError:
+                pass
+
     @app.route("/chats")
     @login_required
     def chat_list():
@@ -101,11 +124,31 @@ def register_chat_routes(app):
         # Determine other user
         other_id = chat["user2_id"] if chat["user1_id"] == user["id"] else chat["user1_id"]
         other_user = db.get_user_by_id(other_id)
-        messages = db.get_chat_messages(chat_id)
+        messages, message_state = _chat_message_state(chat)
         categories, uncategorized = db.get_category_tree()
         return render_template("chats/chat.html", chat=chat, messages=messages,
-                               other_user=other_user,
+                               other_user=other_user, message_state=message_state,
+                               clear_attachment_count=message_state["attachment_count"],
                                categories=categories, uncategorized=uncategorized)
+
+    @app.route("/chats/<int:chat_id>/messages")
+    @login_required
+    def chat_messages_partial(chat_id):
+        """Return the latest direct-message HTML for live refresh."""
+        user = get_current_user()
+        settings = db.get_site_settings()
+        if settings and not settings["chat_dm_enabled"] and user["role"] not in ("admin", "protected_admin"):
+            return jsonify({"error": "Direct messaging is currently disabled."}), 403
+        if db.is_user_chat_disabled(user["id"]):
+            return jsonify({"error": "Chat access disabled."}), 403
+        if not db.is_chat_participant(chat_id, user["id"]):
+            return jsonify({"error": "Access denied."}), 403
+        chat = db.get_chat_by_id(chat_id)
+        if not chat:
+            abort(404)
+        db.reset_unread_count(chat_id, user["id"])
+        _, message_state = _chat_message_state(chat)
+        return jsonify(message_state)
 
     @app.route("/chats/<int:chat_id>/send", methods=["POST"])
     @login_required
@@ -192,6 +235,41 @@ def register_chat_routes(app):
                 db.add_chat_attachment(msg_id, stored_name, original_name, file_size)
 
         log_action("chat_send", request, user=user, chat_id=chat_id)
+        return redirect(url_for("chat_view", chat_id=chat_id))
+
+    @app.route("/chats/<int:chat_id>/delete_message", methods=["POST"])
+    @login_required
+    @rate_limit(30, 60)
+    def chat_delete_message(chat_id):
+        """Delete a specific direct message from a chat."""
+        user = get_current_user()
+        if db.is_user_chat_disabled(user["id"]):
+            return _chat_disabled_redirect()
+        chat = db.get_chat_by_id(chat_id)
+        if not chat:
+            abort(404)
+        if not db.is_chat_participant(chat_id, user["id"]):
+            flash("Access denied.", "error")
+            return redirect(url_for("chat_list"))
+        message_id = request.form.get("message_id", type=int)
+        if not message_id:
+            flash("The specified message is invalid.", "error")
+            return redirect(url_for("chat_view", chat_id=chat_id))
+        msg = db.get_chat_message_by_id(message_id)
+        if not msg or msg["chat_id"] != chat_id:
+            flash("The specified message was not found.", "error")
+            return redirect(url_for("chat_view", chat_id=chat_id))
+        if msg["sender_id"] != user["id"]:
+            flash("You do not have the required permissions to delete this message.", "error")
+            return redirect(url_for("chat_view", chat_id=chat_id))
+        files = db.delete_chat_message(message_id)
+        _remove_chat_files(files)
+        flash(
+            f"Message has been successfully deleted. Removed {len(files)} attachment"
+            f"{'' if len(files) == 1 else 's'}.",
+            "success",
+        )
+        log_action("chat_delete_message", request, user=user, chat_id=chat_id, message_id=message_id)
         return redirect(url_for("chat_view", chat_id=chat_id))
 
     @app.route("/chats/attachments/<int:attachment_id>/download")
@@ -341,10 +419,20 @@ def register_chat_routes(app):
             flash("Access denied.", "error")
             return redirect(url_for("chat_list"))
 
+        messages = db.get_chat_messages(chat_id)
+        message_count = len(messages)
+        attachment_count = sum(len(msg.get("attachments") or []) for msg in messages)
         # Delete all messages and attachments
-        db.clear_chat_messages(chat_id)
-        flash("Chat has been cleared successfully.", "success")
-        log_action("chat_clear", request, user=user, chat_id=chat_id)
+        files_to_delete = db.clear_chat_messages(chat_id)
+        _remove_chat_files(files_to_delete)
+        flash(
+            f"Chat has been successfully cleared. Removed {message_count} message"
+            f"{'' if message_count == 1 else 's'} and {attachment_count} attachment"
+            f"{'' if attachment_count == 1 else 's'}.",
+            "success",
+        )
+        log_action("chat_clear", request, user=user, chat_id=chat_id,
+                   message_count=message_count, attachment_count=attachment_count)
         return redirect(url_for("chat_view", chat_id=chat_id))
 
     # -----------------------------------------------------------------------
