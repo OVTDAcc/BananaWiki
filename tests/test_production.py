@@ -560,20 +560,20 @@ def test_restricted_editor_cannot_transfer_draft_in_disallowed_category(client, 
     blocked_page_id = db.create_page(
         "Blocked Transfer Page", "blocked-transfer-page", "content", blocked_cat, admin_user
     )
-    source_editor_id = db.create_user("editor_transfer_src", generate_password_hash("pw"), role="editor")
-    db.save_draft(blocked_page_id, source_editor_id, "Transfer Draft", "secret draft")
+    source_user_id = db.create_user("editor_transfer_src", generate_password_hash("pw"), role="editor")
+    db.save_draft(blocked_page_id, source_user_id, "Transfer Draft", "secret draft")
     db.set_editor_access(editor_user, restricted=True, category_ids=[allowed_cat])
 
     client.post("/login", data={"username": "editor", "password": "editor123"})
     resp = client.post(
         "/api/draft/transfer",
-        json={"page_id": blocked_page_id, "from_user_id": source_editor_id},
+        json={"page_id": blocked_page_id, "from_user_id": source_user_id},
         content_type="application/json",
     )
 
     assert resp.status_code == 403
     assert db.get_draft(blocked_page_id, editor_user) is None
-    assert db.get_draft(blocked_page_id, source_editor_id)["content"] == "secret draft"
+    assert db.get_draft(blocked_page_id, source_user_id)["content"] == "secret draft"
 
 
 # ---------------------------------------------------------------------------

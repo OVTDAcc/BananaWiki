@@ -20,7 +20,7 @@ def register_api_routes(app):
     """Register JSON API routes on the Flask app."""
 
     def _get_editable_page_or_response(page_id, user):
-        """Return *(page, None)* when the editor may work on *page_id*.
+        """Return ``(page, None)`` for allowed editors or an error response tuple.
 
         Draft-related editor APIs should enforce the same category write-access
         checks as the full edit page route so restricted editors cannot bypass
