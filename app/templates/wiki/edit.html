@@ -194,6 +194,7 @@
             <input type="number" id="img-width-input" class="input" placeholder="e.g. 300" min="50" max="2000" style="max-width:140px">
         </div>
         <div class="form-actions">
+            <button type="button" class="btn btn-outline" id="img-reset-btn">Reset</button>
             <button type="button" class="btn" id="img-insert-btn">Insert</button>
             <button type="button" class="btn btn-outline" id="img-cancel-btn">Cancel</button>
         </div>
@@ -276,8 +277,30 @@
             <label>YouTube or Vimeo URL</label>
             <input type="text" id="video-url-input" class="input" placeholder="https://www.youtube.com/watch?v=…">
         </div>
-        <p style="font-size:.85rem;opacity:.65;margin:.2rem 0 .8rem">Paste a YouTube or Vimeo link. It will be embedded as a video player on the page.</p>
+        <div class="form-group">
+            <label>Position</label>
+            <div class="img-align-btns">
+                <button type="button" class="btn btn-sm btn-outline video-align-btn" data-align="none">Inline</button>
+                <button type="button" class="btn btn-sm btn-outline video-align-btn" data-align="left">Float Left</button>
+                <button type="button" class="btn btn-sm btn-outline video-align-btn" data-align="right">Float Right</button>
+                <button type="button" class="btn btn-sm video-align-btn active" data-align="center">Center</button>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Width (px, optional)</label>
+            <input type="number" id="video-width-input" class="input" placeholder="e.g. 640" min="200" max="2000" style="max-width:140px">
+        </div>
+        <div class="form-group">
+            <label>Aspect Ratio</label>
+            <div class="img-align-btns">
+                <button type="button" class="btn btn-sm video-ratio-btn active" data-ratio="16:9">16:9</button>
+                <button type="button" class="btn btn-sm btn-outline video-ratio-btn" data-ratio="4:3">4:3</button>
+                <button type="button" class="btn btn-sm btn-outline video-ratio-btn" data-ratio="1:1">Square</button>
+            </div>
+        </div>
+        <p style="font-size:.85rem;opacity:.65;margin:.2rem 0 .8rem">Paste a YouTube or Vimeo link, then choose the size, position, and aspect ratio that should persist on the saved page.</p>
         <div class="form-actions">
+            <button type="button" class="btn btn-outline" id="video-reset-btn">Reset</button>
             <button type="button" class="btn" id="video-insert-btn">Insert</button>
             <button type="button" class="btn btn-outline" id="video-cancel-btn">Cancel</button>
         </div>
@@ -749,38 +772,21 @@
         var videoUrlInput = document.getElementById('video-url-input');
         var videoInsertBtn = document.getElementById('video-insert-btn');
         var videoCancelBtn = document.getElementById('video-cancel-btn');
+        var videoResetBtn = document.getElementById('video-reset-btn');
         if (!embedVideoBtn || !videoModal) return;
 
         embedVideoBtn.addEventListener('click', function() {
-            videoUrlInput.value = '';
-            videoModal.style.display = 'flex';
+            openVideoOptionsModal('', '', 'center', '16:9', document.getElementById('edit-content'));
             videoUrlInput.focus();
         });
 
-        function confirmVideoInsert() {
-            var url = videoUrlInput.value.trim();
-            if (!url) return;
-            var ta = document.getElementById('edit-content');
-            if (!ta) return;
-            var pos = ta.selectionStart || ta.value.length;
-            var before = ta.value.substring(0, pos);
-            var after = ta.value.substring(pos);
-            // Ensure the URL is on its own line
-            var prefix = (before.length && before[before.length - 1] !== '\n') ? '\n' : '';
-            var suffix = (after.length && after[0] !== '\n') ? '\n' : '';
-            ta.value = before + prefix + url + suffix + after;
-            ta.selectionStart = ta.selectionEnd = pos + prefix.length + url.length + suffix.length;
-            ta.focus();
-            ta.dispatchEvent(new Event('input'));
-            videoModal.style.display = 'none';
-        }
-
         videoInsertBtn.addEventListener('click', confirmVideoInsert);
-        videoCancelBtn.addEventListener('click', function() { videoModal.style.display = 'none'; });
-        videoModal.addEventListener('click', function(e) { if (e.target === this) videoModal.style.display = 'none'; });
+        if (videoResetBtn) videoResetBtn.addEventListener('click', resetVideoOptionsModal);
+        videoCancelBtn.addEventListener('click', closeVideoOptionsModal);
+        videoModal.addEventListener('click', function(e) { if (e.target === this) closeVideoOptionsModal(); });
         videoUrlInput.addEventListener('keydown', function(e) {
             if (e.key === 'Enter') confirmVideoInsert();
-            if (e.key === 'Escape') videoModal.style.display = 'none';
+            if (e.key === 'Escape') closeVideoOptionsModal();
         });
     });
 </script>

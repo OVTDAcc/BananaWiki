@@ -132,6 +132,15 @@ class TestEmbedVideosInHtml:
         assert "video-embed" in result
         assert "https://www.youtube.com/embed/dQw4w9WgXcQ" in result
 
+    def test_render_markdown_embed_videos_true_custom_shortcode(self):
+        from app import render_markdown
+        md = '[[video url="https://www.youtube.com/watch?v=dQw4w9WgXcQ" width="640" align="right" ratio="4:3"]]'
+        result = render_markdown(md, embed_videos=True)
+        assert "video-embed-right" in result
+        assert 'data-bw-width="640"' in result
+        assert 'data-bw-ratio="4:3"' in result
+        assert "padding-bottom:75%" in result
+
 
 # ---------------------------------------------------------------------------
 # Video embedding: admin settings toggle
@@ -183,6 +192,21 @@ class TestPreviewApiVideoEmbed:
         data = resp.get_json()
         assert "video-embed" in data["html"]
         assert "player.vimeo.com/video/123456789" in data["html"]
+
+    def test_preview_api_embeds_persisted_video_shortcode(self, logged_in_admin):
+        resp = logged_in_admin.post(
+            "/api/preview",
+            json={
+                "content": '[[video url="https://youtu.be/dQw4w9WgXcQ" width="720" align="left" ratio="1:1"]]'
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert "video-embed-left" in data["html"]
+        assert 'data-bw-width="720"' in data["html"]
+        assert 'data-bw-ratio="1:1"' in data["html"]
+        assert "padding-bottom:100%" in data["html"]
+        assert "youtube.com/embed/dQw4w9WgXcQ" in data["html"]
 
 
 # ---------------------------------------------------------------------------
@@ -339,6 +363,11 @@ class TestEmbedVideoEditorUI:
         assert b"video-embed-modal" in resp.data
         assert b"video-url-input" in resp.data
         assert b"video-insert-btn" in resp.data
+        assert b"video-width-input" in resp.data
+        assert b"video-reset-btn" in resp.data
+        assert b'data-ratio="16:9"' in resp.data
+        assert b'data-ratio="4:3"' in resp.data
+        assert b'data-ratio="1:1"' in resp.data
 
     def test_video_url_inserted_bare_renders_as_embed(self, logged_in_admin, admin_user):
         import db
@@ -369,6 +398,7 @@ class TestEditImageModalUI:
         assert b"image-options-modal" in resp.data
         assert b"img-alt-input" in resp.data
         assert b"img-width-input" in resp.data
+        assert b"img-reset-btn" in resp.data
 
     def test_image_options_modal_has_alignment_buttons(self, logged_in_admin):
         import db
@@ -386,3 +416,5 @@ class TestEditImageModalUI:
             assert resp.status_code == 200
             assert b"openEditImageModal" in resp.data
             assert b"updateImageInEditor" in resp.data
+            assert b"openVideoOptionsModal" in resp.data
+            assert b"updateVideoInEditor" in resp.data
