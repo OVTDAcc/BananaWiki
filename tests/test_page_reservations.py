@@ -511,7 +511,7 @@ def test_edit_page_reserved_by_other(logged_in_editor, test_page, editor2_user):
     assert b"Cannot edit" in response.data or b"reserved by" in response.data.lower()
 
 
-def test_edit_page_title_reserved_by_other_is_blocked(logged_in_editor, test_page, editor2_user):
+def test_inline_title_edit_reserved_by_other_is_blocked(logged_in_editor, test_page, editor2_user):
     """Inline destructive edits are blocked for non-admins when reserved by another editor."""
     import db
 

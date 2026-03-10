@@ -4,6 +4,13 @@
 {% set reservation_enabled = settings.page_reservations_enabled and current_user and current_user.role in ('editor', 'admin', 'protected_admin') and not page.is_home %}
 {% set reservation_edit_locked = reservation_context.edit_locked if reservation_context else false %}
 {% set reservation_admin_override = reservation_context.admin_override if reservation_context else false %}
+{% if reservation_edit_locked %}
+{% set destructive_button_title = 'This page is reserved by ' ~ reservation_status.reserved_by_username %}
+{% elif reservation_admin_override %}
+{% set destructive_button_title = 'Admin override: this page is reserved by ' ~ reservation_status.reserved_by_username %}
+{% else %}
+{% set destructive_button_title = '' %}
+{% endif %}
 <div class="page-header">
     <h1>{{ page.title }}</h1>
     {% if page.difficulty_tag == 'custom' and page.tag_custom_label %}
@@ -15,8 +22,8 @@
     <span class="deindexed-badge">Deindexed</span>
     {% endif %}
     {% if current_user and current_user.role in ('editor', 'admin', 'protected_admin') %}
-        <button class="btn-icon" onclick="document.getElementById('titleModal').style.display='flex'" title="{% if reservation_edit_locked %}This page is reserved by {{ reservation_status.reserved_by_username }}{% elif reservation_admin_override %}Admin override: this page is reserved by {{ reservation_status.reserved_by_username }}{% else %}Edit title{% endif %}" {% if reservation_edit_locked %}disabled{% endif %}>Edit title</button>
-        <button class="btn-icon" onclick="document.getElementById('tagModal').style.display='flex'" title="{% if reservation_edit_locked %}This page is reserved by {{ reservation_status.reserved_by_username }}{% elif reservation_admin_override %}Admin override: this page is reserved by {{ reservation_status.reserved_by_username }}{% else %}Set tag{% endif %}" {% if reservation_edit_locked %}disabled{% endif %}>Tag</button>
+        <button class="btn-icon" onclick="document.getElementById('titleModal').style.display='flex'" title="{{ destructive_button_title or 'Edit title' }}" {% if reservation_edit_locked %}disabled{% endif %}>Edit title</button>
+        <button class="btn-icon" onclick="document.getElementById('tagModal').style.display='flex'" title="{{ destructive_button_title or 'Set tag' }}" {% if reservation_edit_locked %}disabled{% endif %}>Tag</button>
         {% if not page.is_home %}
         {% if reservation_edit_locked %}
         <button class="btn btn-sm" disabled title="Page is reserved by {{ reservation_status.reserved_by_username }}">Edit</button>

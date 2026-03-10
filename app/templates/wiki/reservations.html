@@ -51,7 +51,7 @@
             </td>
             <td>
                 {% if status and status.is_reserved and status.reserved_by == current_user.id %}
-                <form method="POST" action="{{ url_for('release_page_reservation_route', slug=page.slug) }}" class="reservation-inline-form" data-confirm="Release your reservation on '{{ page.title }}'?">
+                <form method="POST" action="{{ url_for('release_page_reservation_route', slug=page.slug) }}" class="reservation-inline-form" data-confirm="Release your reservation on '{{ page.title|e }}'?">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button class="btn btn-sm btn-outline">Release</button>
                 </form>

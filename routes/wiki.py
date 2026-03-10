@@ -61,6 +61,16 @@ def register_wiki_routes(app):
             return redirect(url_for("view_page", slug=page["slug"]))
         return None
 
+    def _build_reservable_page(page, category_label, user):
+        reservation_context = _get_reservation_context(page, user)
+        return {
+            "id": page["id"],
+            "slug": page["slug"],
+            "title": page["title"],
+            "category_label": category_label,
+            "reservation_status": reservation_context["status"] if reservation_context else None,
+        }
+
     def _iter_reservable_pages(category_nodes, uncategorized, user):
         pages = []
 
@@ -69,27 +79,13 @@ def register_wiki_routes(app):
                 category_label = f"{parent_label} / {node['name']}" if parent_label else node["name"]
                 for page in node["pages"]:
                     if editor_has_category_access(user, page["category_id"]):
-                        reservation_context = _get_reservation_context(page, user)
-                        pages.append({
-                            "id": page["id"],
-                            "slug": page["slug"],
-                            "title": page["title"],
-                            "category_label": category_label,
-                            "reservation_status": reservation_context["status"] if reservation_context else None,
-                        })
+                        pages.append(_build_reservable_page(page, category_label, user))
                 visit(node["children"], category_label)
 
         visit(category_nodes)
         for page in uncategorized:
             if editor_has_category_access(user, page["category_id"]):
-                reservation_context = _get_reservation_context(page, user)
-                pages.append({
-                    "id": page["id"],
-                    "slug": page["slug"],
-                    "title": page["title"],
-                    "category_label": "Uncategorized",
-                    "reservation_status": reservation_context["status"] if reservation_context else None,
-                })
+                pages.append(_build_reservable_page(page, "Uncategorized", user))
         return pages
 
     @app.route("/")
