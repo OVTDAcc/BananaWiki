@@ -67,10 +67,97 @@ function initFlashMessages() {
         var closeBtn = el.querySelector('.flash-close');
         if (closeBtn) {
             closeBtn.addEventListener('click', function() {
-                el.remove();
+                el.classList.add('flash-hiding');
+                window.setTimeout(function() { el.remove(); }, 180);
             });
         }
+        if (!el.classList.contains('flash-error')) {
+            var dismissAfter = el.classList.contains('flash-warning') ? 8000 : 5000;
+            window.setTimeout(function() {
+                if (!document.body.contains(el)) return;
+                el.classList.add('flash-hiding');
+                window.setTimeout(function() {
+                    if (document.body.contains(el)) el.remove();
+                }, 180);
+            }, dismissAfter);
+        }
     });
+}
+
+function initDismissibleBanners() {
+    document.querySelectorAll('.js-dismissible-banner').forEach(function(banner) {
+        var dismissKey = banner.getAttribute('data-dismiss-key');
+        try {
+            if (dismissKey && window.localStorage.getItem(dismissKey) === '1') {
+                banner.remove();
+                return;
+            }
+        } catch (err) {}
+        var closeBtn = banner.querySelector('.chat-status-dismiss');
+        if (!closeBtn) return;
+        closeBtn.addEventListener('click', function() {
+            try {
+                if (dismissKey) window.localStorage.setItem(dismissKey, '1');
+            } catch (err) {}
+            banner.remove();
+        });
+    });
+}
+
+function initLiveChat() {
+    var container = document.querySelector('[data-chat-poll-url]');
+    if (!container) return;
+    var pollUrl = container.getAttribute('data-chat-poll-url');
+    if (!pollUrl) return;
+    var latestMessageId = parseInt(container.getAttribute('data-latest-message-id') || '0', 10);
+    var messageCount = parseInt(container.getAttribute('data-message-count') || '0', 10);
+    var stopped = false;
+
+    function scrollToBottom() {
+        container.scrollTop = container.scrollHeight;
+    }
+
+    function shouldStickToBottom() {
+        return (container.scrollHeight - container.scrollTop - container.clientHeight) < 72;
+    }
+
+    function pollMessages() {
+        if (stopped || document.hidden) return;
+        var shouldAutoScroll = shouldStickToBottom();
+        fetch(pollUrl, {
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        }).then(function(resp) {
+            if (resp.status === 403 || resp.status === 404) {
+                stopped = true;
+            }
+            if (!resp.ok) throw new Error('Live chat refresh failed');
+            return resp.json();
+        }).then(function(data) {
+            var nextLatestMessageId = parseInt(data.latest_message_id || '0', 10);
+            var nextMessageCount = parseInt(data.message_count || '0', 10);
+            var hadNewContent = nextLatestMessageId !== latestMessageId || nextMessageCount !== messageCount;
+            if (nextLatestMessageId === latestMessageId && nextMessageCount === messageCount) {
+                return;
+            }
+            latestMessageId = nextLatestMessageId;
+            messageCount = nextMessageCount;
+            container.innerHTML = data.html || '';
+            container.setAttribute('data-latest-message-id', String(nextLatestMessageId));
+            container.setAttribute('data-message-count', String(nextMessageCount));
+            if (shouldAutoScroll || hadNewContent) {
+                scrollToBottom();
+            }
+        }).catch(function() {});
+    }
+
+    scrollToBottom();
+    var pollHandle = window.setInterval(pollMessages, 2500);
+    window.addEventListener('beforeunload', function() {
+        window.clearInterval(pollHandle);
+        stopped = true;
+    }, { once: true });
 }
 
 // Page title scroll animation – shows page title in topbar when scrolling
@@ -104,6 +191,8 @@ function initPageTitleScroll() {
 
 document.addEventListener('DOMContentLoaded', function() {
     initFlashMessages();
+    initDismissibleBanners();
+    initLiveChat();
     initPageTitleScroll();
     initConfirmModal();
 
@@ -1891,4 +1980,3 @@ function sidebarSearchScrollToCategory(catId) {
     var results = document.getElementById('sidebar-search-results');
     if (results) results.hidden = true;
 }
-

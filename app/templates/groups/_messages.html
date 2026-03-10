@@ -1,0 +1,41 @@
+{% if messages %}
+    {% for msg in messages %}
+        {% if msg.is_system %}
+        <div class="chat-msg chat-msg-system" data-message-id="{{ msg.id }}">
+            <div class="chat-msg-body chat-msg-system-body">
+                ℹ️ {{ msg.content }}
+                <span class="chat-msg-time" title="{{ format_datetime(msg.created_at) }}">{{ time_ago(msg.created_at) }}</span>
+            </div>
+        </div>
+        {% else %}
+        {% set attachment_count = msg.attachments|length %}
+        {% set can_delete_message = can_delete_any_message or msg.sender_id == current_user.id %}
+        <article class="chat-msg {% if msg.sender_id == current_user.id %}chat-msg-mine{% else %}chat-msg-theirs{% endif %}" data-message-id="{{ msg.id }}">
+            <div class="chat-msg-meta">
+                <strong>{{ msg.sender_name or 'Unknown' }}</strong>
+                <span class="chat-msg-time" title="{{ format_datetime(msg.created_at) }}">{{ time_ago(msg.created_at) }}</span>
+            </div>
+            <div class="chat-msg-body">{{ msg.content }}</div>
+            {% if msg.attachments %}
+            <div class="chat-msg-attachments">
+                {% for att in msg.attachments %}
+                <a href="{{ url_for('group_attachment_download', attachment_id=att.id) }}" class="chat-attachment-link">📎 {{ att.original_name }} ({{ (att.file_size / 1024)|round(1) }} KB)</a>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% if can_delete_message %}
+            <div class="chat-msg-actions">
+                <form method="POST" action="{{ url_for('group_delete_message', group_id=group.id) }}" class="chat-msg-action-form"
+                      data-confirm="Delete this message{% if attachment_count %} and {{ attachment_count }} attachment{{ '' if attachment_count == 1 else 's' }}{% endif %}? This cannot be undone.">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="message_id" value="{{ msg.id }}">
+                    <button class="btn btn-sm btn-danger-outline chat-msg-delete-btn" title="Delete message">Delete</button>
+                </form>
+            </div>
+            {% endif %}
+        </article>
+        {% endif %}
+    {% endfor %}
+{% else %}
+    <p class="chat-empty">No messages yet. Say hello!</p>
+{% endif %}

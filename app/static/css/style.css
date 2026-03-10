@@ -120,7 +120,7 @@ select.input{appearance:auto}
 
 /* Flash messages */
 .flash-messages{margin-bottom:1rem}
-.flash{position:relative;display:flex;align-items:flex-start;gap:.5rem;padding:.5rem .8rem;border-radius:4px;font-size:.85rem;margin-bottom:.4rem;padding-right:2.2rem}
+.flash{position:relative;display:flex;align-items:flex-start;gap:.5rem;padding:.45rem .75rem;border-radius:4px;font-size:.83rem;margin-bottom:.35rem;padding-right:2.2rem;transition:opacity .18s ease,transform .18s ease,filter .18s ease;backdrop-filter:blur(2px)}
 .flash-success{background:rgba(100,180,100,.12);border:1px solid rgba(100,180,100,.3);color:#7cc07c}
 .flash-error{background:rgba(196,92,106,.12);border:1px solid rgba(196,92,106,.3);color:#c45c6a}
 .flash-warning{background:rgba(210,170,90,.12);border:1px solid rgba(210,170,90,.3);color:#d2aa5a}
@@ -128,6 +128,7 @@ select.input{appearance:auto}
 .flash-close{position:absolute;top:8px;right:8px;background:none;border:none;color:#c45c6a;font-weight:700;font-size:1rem;cursor:pointer;line-height:1;width:20px;height:20px;display:flex;align-items:center;justify-content:center;opacity:.75}
 .flash-close:hover{opacity:1}
 .flash-message{flex:1}
+.flash-hiding{opacity:0;transform:translateY(-4px);filter:saturate(.85)}
 .info-callout{margin-bottom:1rem;padding:.75rem .9rem;background:rgba(110,138,202,.12);border:1px solid rgba(110,138,202,.25);border-radius:4px;font-size:.9rem}
 
 /* Wiki content */
@@ -538,6 +539,7 @@ select.input{appearance:auto}
 .page-seq-next{margin-left:auto}
 
 /* Chat */
+.chat-shell{max-width:960px}
 .chat-list{display:flex;flex-direction:column;gap:.5rem}
 .chat-list-item{display:block;padding:.75rem 1rem;background:var(--secondary);border-radius:8px;text-decoration:none;color:var(--text);transition:background .15s}
 .chat-list-item:hover{background:var(--accent);color:#fff}
@@ -549,26 +551,47 @@ select.input{appearance:auto}
 .unread-badge:hover{text-decoration:none}
 h1 .unread-badge{font-size:.9rem;padding:.2rem .6rem;vertical-align:middle}
 @media(max-width:768px){h1 .unread-badge{font-size:.75rem;padding:.15rem .5rem}}
-.chat-header{display:flex;align-items:center;gap:1rem;margin-bottom:1rem}
+.chat-header{display:flex;align-items:center;gap:.75rem;margin-bottom:.75rem;flex-wrap:wrap}
 .chat-header h1{margin:0}
-.chat-messages{display:flex;flex-direction:column;gap:.75rem;max-height:60vh;overflow-y:auto;padding:1rem;background:var(--secondary);border-radius:8px;margin-bottom:1rem}
+.chat-header-actions{margin-left:auto;display:flex;gap:.5rem;flex-wrap:wrap}
+.chat-toolbar-form{display:inline}
+.btn-danger-subtle{background:rgba(220,38,38,.08);border-color:rgba(220,38,38,.22);color:#e79292}
+.btn-danger-subtle:hover{background:rgba(220,38,38,.16)}
+.chat-status-banner{display:flex;align-items:flex-start;justify-content:space-between;gap:.75rem;padding:.55rem .8rem;margin-bottom:.75rem;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;font-size:.85rem;line-height:1.45}
+.chat-status-banner small{opacity:.68}
+.chat-status-banner-essential{background:rgba(255,160,0,.08);border-color:rgba(255,160,0,.18)}
+.chat-status-dismiss{border:none;background:none;color:var(--text);opacity:.55;cursor:pointer;font-size:1rem;line-height:1;padding:.1rem .2rem}
+.chat-status-dismiss:hover{opacity:.9}
+.chat-messages{display:flex;flex-direction:column;gap:.6rem;max-height:58vh;overflow-y:auto;padding:.85rem;background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.015));border:1px solid rgba(255,255,255,.06);border-radius:8px;margin-bottom:.85rem}
 .chat-messages-admin{max-height:70vh}
-.chat-msg{padding:.5rem .75rem;border-radius:8px;max-width:80%;background:var(--bg)}
-.chat-msg-mine{align-self:flex-end;background:color-mix(in srgb, var(--accent) 25%, var(--bg))}
+.chat-msg{padding:.45rem .65rem;border-radius:8px;max-width:76%;background:rgba(0,0,0,.18);border:1px solid rgba(255,255,255,.04);box-shadow:0 1px 2px rgba(0,0,0,.15)}
+.chat-msg-mine{align-self:flex-end;background:color-mix(in srgb, var(--accent) 18%, var(--bg))}
 .chat-msg-theirs{align-self:flex-start}
-.chat-msg-meta{font-size:.8rem;opacity:.7;margin-bottom:.25rem;display:flex;gap:.75rem;align-items:center}
+.chat-msg-system{align-self:center;max-width:100%;background:transparent;border:none;box-shadow:none;padding:.1rem 0}
+.chat-msg-system-body{text-align:center;opacity:.68;font-style:italic}
+.chat-msg-meta{font-size:.77rem;opacity:.72;margin-bottom:.2rem;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
 .chat-msg-time,.chat-msg-ip{font-size:.75rem;opacity:.55}
 .chat-msg-body{white-space:pre-wrap;word-break:break-word}
-.chat-msg-attachments{margin-top:.35rem}
-.chat-attachment-link{display:inline-block;font-size:.85rem;color:var(--accent);text-decoration:none;margin-right:.5rem}
+.chat-msg-attachments{margin-top:.3rem;display:flex;gap:.35rem;flex-wrap:wrap}
+.chat-attachment-link{display:inline-block;font-size:.8rem;color:var(--accent);text-decoration:none;margin-right:.25rem}
 .chat-attachment-link:hover{text-decoration:underline}
+.chat-msg-actions{display:flex;justify-content:flex-end;margin-top:.35rem;opacity:0;transition:opacity .15s ease}
+.chat-msg:hover .chat-msg-actions,.chat-msg:focus-within .chat-msg-actions{opacity:1}
+.chat-msg-delete-btn{font-size:.72rem;padding:.18rem .45rem}
 .chat-empty{text-align:center;opacity:.5;padding:2rem}
-.chat-input-form{background:var(--secondary);border-radius:8px;padding:.75rem}
+.chat-input-form{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:8px;padding:.7rem}
 .chat-input-row{display:flex;gap:.5rem;align-items:flex-end}
 .chat-input{flex:1;resize:vertical;min-height:2.5rem}
 .chat-send-btn{align-self:flex-end}
 .chat-input-file{display:flex;align-items:center;gap:.75rem;margin-top:.5rem;font-size:.85rem}
 .chat-input-file small{opacity:.6}
+@media(max-width:768px){
+  .chat-header-actions{margin-left:0;width:100%}
+  .chat-messages{max-height:52vh;padding:.7rem}
+  .chat-msg{max-width:90%}
+  .chat-input-row{flex-direction:column;align-items:stretch}
+  .chat-send-btn{width:100%}
+}
 
 /* History entry diff view */
 ins.diff-ins{background:rgba(63,185,80,.25);color:#7ee787;text-decoration:none;border-radius:2px}

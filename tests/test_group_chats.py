@@ -410,6 +410,24 @@ def test_owner_can_delete_message(alice_client, alice_uid, bob_uid):
     assert not any(m["content"] == "delete me" for m in user_msgs)
 
 
+def test_member_can_delete_own_group_message(alice_uid, bob_uid):
+    import db
+    from app import app
+    group = db.create_group_chat("SelfDelete", alice_uid)
+    db.add_group_member(group["id"], bob_uid)
+    msg_id = db.send_group_message(group["id"], bob_uid, "my own message")
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
+    with app.test_client() as c:
+        c.post("/login", data={"username": "bob", "password": "bob123"})
+        resp = c.post(f"/groups/{group['id']}/delete_message",
+                      data={"message_id": msg_id},
+                      follow_redirects=True)
+        assert b"Message deleted" in resp.data
+    user_msgs = [m for m in db.get_group_messages(group["id"]) if not m["is_system"]]
+    assert not any(m["content"] == "my own message" for m in user_msgs)
+
+
 def test_member_cannot_delete_message(alice_uid, bob_uid):
     import db
     from app import app
@@ -423,7 +441,20 @@ def test_member_cannot_delete_message(alice_uid, bob_uid):
         resp = c.post(f"/groups/{group['id']}/delete_message",
                       data={"message_id": msg_id},
                       follow_redirects=True)
-        assert b"Permission denied" in resp.data
+        assert b"required permissions" in resp.data
+
+
+def test_group_messages_partial_for_member(alice_client, alice_uid, bob_uid):
+    import db
+    group = db.create_group_chat("Live Group", alice_uid)
+    db.add_group_member(group["id"], bob_uid)
+    db.send_group_message(group["id"], bob_uid, "Group live hello")
+    resp = alice_client.get(f"/groups/{group['id']}/messages")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["message_count"] >= 1
+    assert data["latest_message_id"] > 0
+    assert "Group live hello" in data["html"]
 
 
 # ---------------------------------------------------------------------------

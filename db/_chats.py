@@ -105,6 +105,29 @@ def get_chat_messages(chat_id):
     return messages
 
 
+def get_chat_message_by_id(message_id):
+    """Return a single chat message row, or None."""
+    conn = get_db()
+    row = conn.execute(
+        "SELECT cm.*, u.username AS sender_name "
+        "FROM chat_messages cm "
+        "JOIN users u ON cm.sender_id=u.id "
+        "WHERE cm.id=?",
+        (message_id,),
+    ).fetchone()
+    if not row:
+        conn.close()
+        return None
+    msg = dict(row)
+    atts = conn.execute(
+        "SELECT * FROM chat_attachments WHERE message_id=? ORDER BY id ASC",
+        (message_id,),
+    ).fetchall()
+    msg["attachments"] = [dict(a) for a in atts]
+    conn.close()
+    return msg
+
+
 def send_chat_message(chat_id, sender_id, content, ip_address=""):
     """Insert a new message into a chat. Returns the new message id."""
     conn = get_db()
@@ -315,6 +338,20 @@ def clear_chat_messages(chat_id):
     return files_to_delete
 
 
+def delete_chat_message(message_id):
+    """Delete a single chat message and return attachment filenames for disk cleanup."""
+    conn = get_db()
+    filenames = conn.execute(
+        "SELECT filename FROM chat_attachments WHERE message_id=?",
+        (message_id,),
+    ).fetchall()
+    files = [r["filename"] for r in filenames]
+    conn.execute("DELETE FROM chat_messages WHERE id=?", (message_id,))
+    conn.commit()
+    conn.close()
+    return files
+
+
 def increment_unread_count(chat_id, for_user_id):
     """Increment the unread count for a specific user in a chat."""
     conn = get_db()
@@ -364,4 +401,3 @@ def get_total_unread_dm_count(user_id):
     ).fetchone()
     conn.close()
     return count["total"] if count else 0
-

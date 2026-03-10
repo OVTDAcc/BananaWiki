@@ -1,46 +1,38 @@
 {% extends "base.html" %}
 {% block title %}Chat with {{ other_user.username }} – {{ settings.site_name }}{% endblock %}
 {% block content %}
+{% set total_messages = messages|length %}
+{% set attachment_ns = namespace(total=0) %}
+{% for msg in messages %}
+    {% set attachment_ns.total = attachment_ns.total + (msg.attachments|length) %}
+{% endfor %}
+{% set clear_prompt = "Clear " ~ total_messages ~ " message" ~ ("" if total_messages == 1 else "s") ~ " and " ~ attachment_ns.total ~ " attachment" ~ ("" if attachment_ns.total == 1 else "s") ~ " in this chat? This cannot be undone." %}
+<div class="chat-shell">
 <div class="chat-header">
     <a href="{{ url_for('chat_list') }}" class="btn btn-sm btn-outline">← Back</a>
     <h1>Chat with {{ other_user.username }}</h1>
-    <div style="margin-left:auto;display:flex;gap:.5rem">
+    <div class="chat-header-actions">
         <a href="{{ url_for('chat_export', chat_id=chat.id) }}" class="btn btn-sm btn-outline">📥 Export</a>
-        <form method="POST" action="{{ url_for('chat_clear', chat_id=chat.id) }}" style="display:inline" onsubmit="return confirm('Are you sure you want to clear all messages in this chat? This cannot be undone.')">
+        <form method="POST" action="{{ url_for('chat_clear', chat_id=chat.id) }}" class="chat-toolbar-form" data-confirm="{{ clear_prompt }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button type="submit" class="btn btn-sm btn-outline" style="background:rgba(220,38,38,.1);border-color:rgba(220,38,38,.3);color:#dc2626">🗑️ Clear Chat</button>
+            <button type="submit" class="btn btn-sm btn-outline btn-danger-subtle">🗑️ Clear Chat</button>
         </form>
     </div>
 </div>
 
 {% if settings and settings.chat_cleanup_enabled and (settings.chat_dm_auto_clear_messages or settings.chat_dm_auto_clear_attachments or settings.chat_auto_clear_messages) %}
-<div style="background:rgba(255,160,0,.15);border:1px solid rgba(255,160,0,.4);border-radius:6px;padding:.6rem 1rem;margin-bottom:1rem;text-align:center;font-size:.9rem">
-    ⚠️ <strong>Messages will be deleted {{ time_until_next_chat_cleanup() }}</strong><br>
+<div class="chat-status-banner js-dismissible-banner" data-dismiss-key="dm-cleanup-{{ chat.id }}">
+    <button type="button" class="chat-status-dismiss" aria-label="Dismiss chat cleanup notice">×</button>
+    <div>
+    <strong>Auto-cleanup runs {{ time_until_next_chat_cleanup() }}</strong><br>
     <small>Last cleanup: {{ time_since_last_chat_cleanup() }}</small>
+    </div>
 </div>
 {% endif %}
 
-<div class="chat-messages" id="chat-messages">
-    {% if messages %}
-        {% for msg in messages %}
-        <div class="chat-msg {% if msg.sender_id == current_user.id %}chat-msg-mine{% else %}chat-msg-theirs{% endif %}">
-            <div class="chat-msg-meta">
-                <strong>{{ msg.sender_name }}</strong>
-                <span class="chat-msg-time">{{ time_ago(msg.created_at) }}</span>
-            </div>
-            <div class="chat-msg-body">{{ msg.content }}</div>
-            {% if msg.attachments %}
-            <div class="chat-msg-attachments">
-                {% for att in msg.attachments %}
-                <a href="{{ url_for('chat_attachment_download', attachment_id=att.id) }}" class="chat-attachment-link">📎 {{ att.original_name }} ({{ (att.file_size / 1024)|round(1) }} KB)</a>
-                {% endfor %}
-            </div>
-            {% endif %}
-        </div>
-        {% endfor %}
-    {% else %}
-        <p class="chat-empty">No messages yet. Say hello!</p>
-    {% endif %}
+<div class="chat-messages" id="chat-messages" data-chat-poll-url="{{ url_for('chat_messages_partial', chat_id=chat.id) }}"
+     data-latest-message-id="{{ message_state.latest_message_id }}" data-message-count="{{ message_state.message_count }}">
+    {% include "chats/_messages.html" %}
 </div>
 
 <form method="POST" action="{{ url_for('chat_send', chat_id=chat.id) }}" class="chat-input-form" enctype="multipart/form-data">
@@ -60,12 +52,5 @@
     </div>
     {% endif %}
 </form>
-
-<script>
-// Auto-scroll to bottom of messages
-document.addEventListener('DOMContentLoaded', function() {
-    var el = document.getElementById('chat-messages');
-    if (el) el.scrollTop = el.scrollHeight;
-});
-</script>
+</div>
 {% endblock %}
