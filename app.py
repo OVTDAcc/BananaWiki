@@ -78,15 +78,15 @@ def render_md_filter(text):
 
 
 def dedupe_flashed_messages(messages):
-    """Return flashed messages without duplicate category/message pairs."""
+    """Return a deduplicated list of ``(category, message)`` flashed tuples."""
     unique_messages = []
     seen = set()
-    for message in messages or []:
-        key = tuple(message) if isinstance(message, (list, tuple)) else message
+    for category, message in messages or []:
+        key = (category, message)
         if key in seen:
             continue
         seen.add(key)
-        unique_messages.append(message)
+        unique_messages.append((category, message))
     return unique_messages
 
 
