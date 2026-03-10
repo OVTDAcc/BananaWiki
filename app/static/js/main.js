@@ -1,5 +1,8 @@
 /* BananaWiki – Main JS */
 
+var FLASH_HIDE_DURATION_MS = 180;
+var LIVE_CHAT_SCROLL_STICK_THRESHOLD = 72;
+
 // CSRF token helper
 function getCsrfToken() {
     var meta = document.querySelector('meta[name="csrf-token"]');
@@ -68,7 +71,7 @@ function initFlashMessages() {
         if (closeBtn) {
             closeBtn.addEventListener('click', function() {
                 el.classList.add('flash-hiding');
-                window.setTimeout(function() { el.remove(); }, 180);
+                window.setTimeout(function() { el.remove(); }, FLASH_HIDE_DURATION_MS);
             });
         }
         if (!el.classList.contains('flash-error')) {
@@ -78,7 +81,7 @@ function initFlashMessages() {
                 el.classList.add('flash-hiding');
                 window.setTimeout(function() {
                     if (document.body.contains(el)) el.remove();
-                }, 180);
+                }, FLASH_HIDE_DURATION_MS);
             }, dismissAfter);
         }
     });
@@ -109,6 +112,7 @@ function initLiveChat() {
     if (!container) return;
     var pollUrl = container.getAttribute('data-chat-poll-url');
     if (!pollUrl) return;
+    var pollIntervalMs = parseInt(container.getAttribute('data-chat-poll-interval') || '2500', 10);
     var latestMessageId = parseInt(container.getAttribute('data-latest-message-id') || '0', 10);
     var messageCount = parseInt(container.getAttribute('data-message-count') || '0', 10);
     var stopped = false;
@@ -118,7 +122,7 @@ function initLiveChat() {
     }
 
     function shouldStickToBottom() {
-        return (container.scrollHeight - container.scrollTop - container.clientHeight) < 72;
+        return (container.scrollHeight - container.scrollTop - container.clientHeight) < LIVE_CHAT_SCROLL_STICK_THRESHOLD;
     }
 
     function pollMessages() {
@@ -144,14 +148,14 @@ function initLiveChat() {
             container.innerHTML = data.html || '';
             container.setAttribute('data-latest-message-id', String(nextLatestMessageId));
             container.setAttribute('data-message-count', String(nextMessageCount));
-            if (shouldAutoScroll || hadNewContent) {
+            if (hadNewContent && shouldAutoScroll) {
                 scrollToBottom();
             }
         }).catch(function() {});
     }
 
     scrollToBottom();
-    var pollHandle = window.setInterval(pollMessages, 2500);
+    var pollHandle = window.setInterval(pollMessages, pollIntervalMs);
     window.addEventListener('beforeunload', function() {
         window.clearInterval(pollHandle);
         stopped = true;

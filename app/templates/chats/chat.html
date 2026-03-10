@@ -1,12 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Chat with {{ other_user.username }} – {{ settings.site_name }}{% endblock %}
 {% block content %}
-{% set total_messages = messages|length %}
-{% set attachment_ns = namespace(total=0) %}
-{% for msg in messages %}
-    {% set attachment_ns.total = attachment_ns.total + (msg.attachments|length) %}
-{% endfor %}
-{% set clear_prompt = "Clear " ~ total_messages ~ " message" ~ ("" if total_messages == 1 else "s") ~ " and " ~ attachment_ns.total ~ " attachment" ~ ("" if attachment_ns.total == 1 else "s") ~ " in this chat? This cannot be undone." %}
+{% set clear_prompt = "Clear " ~ message_state.message_count ~ " message" ~ ("" if message_state.message_count == 1 else "s") ~ " and " ~ clear_attachment_count ~ " attachment" ~ ("" if clear_attachment_count == 1 else "s") ~ " in this chat? This cannot be undone." %}
 <div class="chat-shell">
 <div class="chat-header">
     <a href="{{ url_for('chat_list') }}" class="btn btn-sm btn-outline">← Back</a>
@@ -31,7 +26,8 @@
 {% endif %}
 
 <div class="chat-messages" id="chat-messages" data-chat-poll-url="{{ url_for('chat_messages_partial', chat_id=chat.id) }}"
-     data-latest-message-id="{{ message_state.latest_message_id }}" data-message-count="{{ message_state.message_count }}">
+     data-latest-message-id="{{ message_state.latest_message_id }}" data-message-count="{{ message_state.message_count }}"
+     data-chat-poll-interval="2500">
     {% include "chats/_messages.html" %}
 </div>
 

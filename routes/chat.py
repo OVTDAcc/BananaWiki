@@ -128,6 +128,7 @@ def register_chat_routes(app):
         categories, uncategorized = db.get_category_tree()
         return render_template("chats/chat.html", chat=chat, messages=messages,
                                other_user=other_user, message_state=message_state,
+                               clear_attachment_count=message_state["attachment_count"],
                                categories=categories, uncategorized=uncategorized)
 
     @app.route("/chats/<int:chat_id>/messages")

@@ -203,6 +203,7 @@ def register_group_routes(app):
                                my_membership=my_membership, all_users=all_users,
                                message_state=message_state, can_delete_any_message=can_delete_any_message,
                                is_site_admin=is_site_admin, my_role=my_role,
+                               clear_attachment_count=message_state["attachment_count"],
                                categories=categories, uncategorized=uncategorized)
 
     @app.route("/groups/<int:group_id>/messages")
@@ -674,10 +675,12 @@ def register_group_routes(app):
             return redirect(url_for("group_view", group_id=group_id))
         is_own_message = msg["sender_id"] == user["id"]
         if not can_delete_any_message and not is_own_message:
-            if group["is_global"] and not is_site_admin:
-                flash("Only site admins can delete other members' messages in the global chat.", "error")
-            else:
-                flash("You do not have the required permissions to delete this message.", "error")
+            error_message = (
+                "Only site admins can delete other members' messages in the global chat."
+                if group["is_global"]
+                else "You do not have the required permissions to delete this message."
+            )
+            flash(error_message, "error")
             return redirect(url_for("group_view", group_id=group_id))
         files = db.delete_group_message(message_id)
         for fname in files:
