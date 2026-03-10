@@ -31,6 +31,11 @@ def _chat_allowed_file(filename):
 def register_group_routes(app):
     """Register group chat routes on the Flask app."""
 
+    def _chat_disabled_redirect(endpoint="home", **values):
+        """Redirect users whose chat access has been disabled."""
+        flash("Your chat privileges have been disabled by an administrator.", "error")
+        return redirect(url_for(endpoint, **values))
+
     @app.route("/groups")
     @login_required
     def group_list():
@@ -40,6 +45,8 @@ def register_group_routes(app):
         if settings and not settings["chat_group_enabled"] and user["role"] not in ("admin", "protected_admin"):
             flash("Group chats are currently disabled.", "error")
             return redirect(url_for("home"))
+        if db.is_user_chat_disabled(user["id"]):
+            return _chat_disabled_redirect()
         groups = db.get_user_groups(user["id"])
         total_unread_group = db.get_total_unread_group_count(user["id"])
         categories, uncategorized = db.get_category_tree()
@@ -61,8 +68,7 @@ def register_group_routes(app):
             flash("Creating new group chats is currently disabled.", "error")
             return redirect(url_for("group_list"))
         if db.is_user_chat_disabled(user["id"]):
-            flash("Your chat privileges have been disabled by an administrator.", "error")
-            return redirect(url_for("group_list"))
+            return _chat_disabled_redirect()
         if request.method == "POST":
             name = request.form.get("name", "").strip()
             description = request.form.get("description", "").strip()
@@ -90,10 +96,9 @@ def register_group_routes(app):
     def group_join():
         """Join an existing group chat using an invite code."""
         user = get_current_user()
+        if db.is_user_chat_disabled(user["id"]):
+            return _chat_disabled_redirect()
         if request.method == "POST":
-            if db.is_user_chat_disabled(user["id"]):
-                flash("Your chat privileges have been disabled by an administrator.", "error")
-                return redirect(url_for("group_list"))
             code = request.form.get("invite_code", "").strip()
             if not code:
                 flash("Please enter an invite code.", "error")
@@ -122,7 +127,16 @@ def register_group_routes(app):
     def group_global():
         """Join the global chat (auto-join) and redirect to it."""
         user = get_current_user()
+        settings = db.get_site_settings()
+        if settings and not settings["chat_group_enabled"] and user["role"] not in ("admin", "protected_admin"):
+            flash("Group chats are currently disabled.", "error")
+            return redirect(url_for("home"))
+        if db.is_user_chat_disabled(user["id"]):
+            return _chat_disabled_redirect()
         group = db.get_or_create_global_chat()
+        if db.is_group_member_banned(group["id"], user["id"]):
+            flash("You are currently banned from this group.", "error")
+            return redirect(url_for("group_list"))
         if not db.is_group_member(group["id"], user["id"]):
             db.add_group_member(group["id"], user["id"])
             db.send_group_system_message(group["id"], f"{user['username']} joined the group")
@@ -137,6 +151,8 @@ def register_group_routes(app):
         if settings and not settings["chat_group_enabled"] and user["role"] not in ("admin", "protected_admin"):
             flash("Group chats are currently disabled.", "error")
             return redirect(url_for("home"))
+        if db.is_user_chat_disabled(user["id"]):
+            return _chat_disabled_redirect()
         group = db.get_group_chat(group_id)
         if not group:
             abort(404)
@@ -167,8 +183,7 @@ def register_group_routes(app):
             flash("Group chats are currently disabled.", "error")
             return redirect(url_for("home"))
         if db.is_user_chat_disabled(user["id"]):
-            flash("Your chat privileges have been disabled by an administrator.", "error")
-            return redirect(url_for("group_view", group_id=group_id))
+            return _chat_disabled_redirect()
         group = db.get_group_chat(group_id)
         if not group:
             abort(404)
@@ -259,6 +274,8 @@ def register_group_routes(app):
         if not att:
             abort(404)
         user = get_current_user()
+        if db.is_user_chat_disabled(user["id"]):
+            return _chat_disabled_redirect()
         is_admin = user["role"] in ("admin", "protected_admin")
         if not is_admin and not db.is_group_member(att["group_id"], user["id"]):
             abort(403)
@@ -729,6 +746,8 @@ def register_group_routes(app):
         group = db.get_group_chat(group_id)
         if not group:
             abort(404)
+        if db.is_user_chat_disabled(user["id"]):
+            return _chat_disabled_redirect()
 
         # Check permissions: owner or site admin only
         my_role = db.get_group_member_role(group_id, user["id"])
@@ -875,6 +894,8 @@ def register_group_routes(app):
         group = db.get_group_chat(group_id)
         if not group:
             abort(404)
+        if db.is_user_chat_disabled(user["id"]):
+            return _chat_disabled_redirect()
 
         # Check permissions: owner, moderator, or site admin
         my_role = db.get_group_member_role(group_id, user["id"])
