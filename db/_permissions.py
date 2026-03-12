@@ -264,7 +264,8 @@ def has_category_write_access(user, category_id):
 
     cat_access = get_editor_access(user_id)
 
-    # Use new permission system
+    # Use the unified compatibility helper so current and legacy editor-access
+    # storage behave the same for route and permission checks.
     # If not restricted, user has write access to all
     if not cat_access['restricted']:
         return True

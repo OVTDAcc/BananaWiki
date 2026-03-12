@@ -368,12 +368,11 @@ def get_editor_access(user_id):
             (user_id,),
         )
         if restricted and allowed_ids:
-            for category_id in allowed_ids:
-                conn.execute(
-                    "INSERT OR IGNORE INTO user_allowed_categories (user_id, category_id, access_type) "
-                    "VALUES (?, ?, 'write')",
-                    (user_id, category_id),
-                )
+            conn.executemany(
+                "INSERT OR IGNORE INTO user_allowed_categories (user_id, category_id, access_type) "
+                "VALUES (?, ?, 'write')",
+                [(user_id, category_id) for category_id in allowed_ids],
+            )
         conn.commit()
     conn.close()
     return {"restricted": restricted, "allowed_category_ids": allowed_ids}
@@ -426,15 +425,15 @@ def set_editor_access(user_id, restricted, category_ids=None):
         (user_id,),
     )
     if restricted and category_ids:
-        for cat_id in category_ids:
-            conn.execute(
-                "INSERT OR IGNORE INTO editor_allowed_categories (user_id, category_id) VALUES (?, ?)",
-                (user_id, cat_id),
-            )
-            conn.execute(
-                "INSERT OR IGNORE INTO user_allowed_categories (user_id, category_id, access_type) "
-                "VALUES (?, ?, 'write')",
-                (user_id, cat_id),
-            )
+        rows = [(user_id, cat_id) for cat_id in category_ids]
+        conn.executemany(
+            "INSERT OR IGNORE INTO editor_allowed_categories (user_id, category_id) VALUES (?, ?)",
+            rows,
+        )
+        conn.executemany(
+            "INSERT OR IGNORE INTO user_allowed_categories (user_id, category_id, access_type) "
+            "VALUES (?, ?, 'write')",
+            rows,
+        )
     conn.commit()
     conn.close()
