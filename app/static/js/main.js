@@ -65,25 +65,64 @@ function initConfirmModal() {
 }
 
 // Flash message close buttons (no auto-dismiss)
+function bindFlashMessage(el) {
+    if (!el) return;
+    var closeBtn = el.querySelector('.flash-close');
+    if (closeBtn) {
+        closeBtn.addEventListener('click', function() {
+            el.classList.add('flash-hiding');
+            window.setTimeout(function() { el.remove(); }, FLASH_HIDE_DURATION_MS);
+        });
+    }
+    if (!el.classList.contains('flash-error')) {
+        var dismissAfter = el.classList.contains('flash-warning') ? 8000 : 5000;
+        window.setTimeout(function() {
+            if (!document.body.contains(el)) return;
+            el.classList.add('flash-hiding');
+            window.setTimeout(function() {
+                if (document.body.contains(el)) el.remove();
+            }, FLASH_HIDE_DURATION_MS);
+        }, dismissAfter);
+    }
+}
+
+function bwShowFlash(message, category) {
+    if (!message) return null;
+    var mainContent = document.getElementById('main-content') || document.querySelector('main.content') || document.body;
+    var container = mainContent.querySelector('.flash-messages');
+    if (!container) {
+        container = document.createElement('div');
+        container.className = 'flash-messages';
+        if (mainContent.firstChild) {
+            mainContent.insertBefore(container, mainContent.firstChild);
+        } else {
+            mainContent.appendChild(container);
+        }
+    }
+    var flash = document.createElement('div');
+    flash.className = 'flash flash-' + (category || 'info');
+    flash.setAttribute('role', 'alert');
+    flash.innerHTML = '<span class="flash-message"></span><button type="button" class="flash-close" aria-label="Dismiss message">x</button>';
+    flash.querySelector('.flash-message').textContent = message;
+    container.appendChild(flash);
+    bindFlashMessage(flash);
+    return flash;
+}
+
+function bwParseJsonResponse(response, fallbackError) {
+    return response.json().catch(function() {
+        return {};
+    }).then(function(data) {
+        if (!response.ok) {
+            throw new Error((data && data.error) || fallbackError || 'Request failed.');
+        }
+        return data || {};
+    });
+}
+
 function initFlashMessages() {
     document.querySelectorAll('.flash').forEach(function(el) {
-        var closeBtn = el.querySelector('.flash-close');
-        if (closeBtn) {
-            closeBtn.addEventListener('click', function() {
-                el.classList.add('flash-hiding');
-                window.setTimeout(function() { el.remove(); }, FLASH_HIDE_DURATION_MS);
-            });
-        }
-        if (!el.classList.contains('flash-error')) {
-            var dismissAfter = el.classList.contains('flash-warning') ? 8000 : 5000;
-            window.setTimeout(function() {
-                if (!document.body.contains(el)) return;
-                el.classList.add('flash-hiding');
-                window.setTimeout(function() {
-                    if (document.body.contains(el)) el.remove();
-                }, FLASH_HIDE_DURATION_MS);
-            }, dismissAfter);
-        }
+        bindFlashMessage(el);
     });
 }
 
@@ -339,6 +378,7 @@ function initAutosave(pageId) {
     var saveTimer = null;
     var saving = false;
     var disabled = false;
+    var saveErrorNoticeShown = false;
 
     function setIndicator(state) {
         var indicator = document.getElementById('save-indicator');
@@ -375,16 +415,20 @@ function initAutosave(pageId) {
                 content: contentEl.value
             })
         }).then(function(r) {
-            if (!r.ok) throw new Error('Save failed');
-            return r.json();
+            return bwParseJsonResponse(r, 'Failed to save draft. Please try again.');
         }).then(function(d) {
             saving = false;
+            saveErrorNoticeShown = false;
             if (!disabled) setIndicator('saved');
             if (callback) callback(true);
             if (pendingCallback) { var cb = pendingCallback; pendingCallback = null; doSave(cb); }
         }).catch(function(err) {
             saving = false;
             if (!disabled) setIndicator('error');
+            if (!saveErrorNoticeShown) {
+                bwShowFlash(err.message || 'Failed to save draft. Please try again.', 'error');
+                saveErrorNoticeShown = true;
+            }
             if (callback) callback(false);
             if (pendingCallback) { var cb = pendingCallback; pendingCallback = null; cb(false); }
         });
@@ -474,12 +518,11 @@ function transferDraft(pageId, fromUserId) {
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
         body: JSON.stringify({ page_id: pageId, from_user_id: fromUserId })
     }).then(function(r) {
-        if (!r.ok) throw new Error('Transfer failed');
-        return r.json();
+        return bwParseJsonResponse(r, 'Failed to transfer draft.');
     }).then(function() {
         location.reload();
-    }).catch(function() {
-        alert('Failed to transfer draft.');
+    }).catch(function(err) {
+        bwShowFlash(err.message || 'Failed to transfer draft.', 'error');
     });
     });
 }
@@ -492,12 +535,11 @@ function deleteDraft(pageId) {
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
         body: JSON.stringify({ page_id: pageId })
     }).then(function(r) {
-        if (!r.ok) throw new Error('Delete failed');
-        return r.json();
+        return bwParseJsonResponse(r, 'Failed to delete draft.');
     }).then(function() {
         location.reload();
-    }).catch(function() {
-        alert('Failed to delete draft.');
+    }).catch(function(err) {
+        bwShowFlash(err.message || 'Failed to delete draft.', 'error');
     });
 }
 
@@ -509,12 +551,11 @@ function discardDraftAndClose(pageId, redirectUrl) {
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
         body: JSON.stringify({ page_id: pageId })
     }).then(function(r) {
-        if (!r.ok) throw new Error('Delete failed');
-        return r.json();
+        return bwParseJsonResponse(r, 'Failed to discard draft.');
     }).then(function() {
         window.location.href = redirectUrl;
-    }).catch(function() {
-        alert('Failed to discard draft.');
+    }).catch(function(err) {
+        bwShowFlash(err.message || 'Failed to discard draft.', 'error');
     });
     });
 }
@@ -557,8 +598,7 @@ function discardDraftFromSettings(pageId, btn) {
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
         body: JSON.stringify({ page_id: pageId })
     }).then(function(r) {
-        if (!r.ok) throw new Error('Delete failed');
-        return r.json();
+        return bwParseJsonResponse(r, 'We could not discard this draft. Please try again.');
     }).then(function() {
         var row = btn.closest('tr');
         if (row) row.remove();
@@ -567,9 +607,10 @@ function discardDraftFromSettings(pageId, btn) {
             document.getElementById('draft-manager-list').innerHTML =
                 '<p style="opacity:.7;font-size:.9rem">No pending drafts.</p>';
         }
-    }).catch(function() {
+        bwShowFlash('Draft has been successfully deleted.', 'success');
+    }).catch(function(err) {
         btn.disabled = false;
-        alert('We could not discard this draft. Please try again.');
+        bwShowFlash(err.message || 'We could not discard this draft. Please try again.', 'error');
     });
     });
 }
@@ -1189,7 +1230,9 @@ document.addEventListener('DOMContentLoaded', initAnnouncements);
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
             credentials: 'same-origin',
             body: JSON.stringify({ ids: ids }),
-        }).then(function(r) { if (!r.ok) throw new Error('reorder failed'); });
+        }).then(function(r) {
+            return bwParseJsonResponse(r, 'Could not save the new order.');
+        });
     }
 
     function siblingsOf(el, selector) {
@@ -1228,7 +1271,13 @@ document.addEventListener('DOMContentLoaded', initAnnouncements);
             var ids = Array.from(container.querySelectorAll(':scope > .nav-item-row')).map(function(r) {
                 return parseInt(r.dataset.pageId, 10);
             });
-            postReorder('/api/reorder/pages', ids).catch(function() {});
+            postReorder('/api/reorder/pages', ids)
+                .then(function(data) {
+                    bwShowFlash(data.message || 'Page order saved successfully.', 'success');
+                })
+                .catch(function(err) {
+                    bwShowFlash(err.message || 'Could not save the new page order.', 'error');
+                });
             });
 
         } else if (type === 'category') {
@@ -1249,7 +1298,13 @@ document.addEventListener('DOMContentLoaded', initAnnouncements);
             var ids = Array.from(section.parentNode.querySelectorAll(':scope > .nav-section[data-cat-id]')).map(function(s) {
                 return parseInt(s.dataset.catId, 10);
             });
-            postReorder('/api/reorder/categories', ids).catch(function() {});
+            postReorder('/api/reorder/categories', ids)
+                .then(function(data) {
+                    bwShowFlash(data.message || 'Category order saved successfully.', 'success');
+                })
+                .catch(function(err) {
+                    bwShowFlash(err.message || 'Could not save the new category order.', 'error');
+                });
             });
         }
     });
@@ -1304,7 +1359,11 @@ function saveA11ySetting(key, value) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
             body: JSON.stringify(_a11yPrefs)
-        }).catch(function() {});
+        }).then(function(r) {
+            return bwParseJsonResponse(r, 'Could not save customization settings.');
+        }).catch(function(err) {
+            bwShowFlash(err.message || 'Could not save customization settings.', 'error');
+        });
     }, 600);
 }
 
@@ -1633,7 +1692,9 @@ function initAccessibility(prefs) {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
                 body: '{}'
-            }).then(function(r) { return r.json(); })
+            }).then(function(r) {
+                return bwParseJsonResponse(r, 'Could not reset customization settings.');
+            })
             .then(function(d) {
                 if (d.defaults) {
                     _a11yPrefs = d.defaults;
@@ -1643,7 +1704,10 @@ function initAccessibility(prefs) {
                     var a11yStyle = document.getElementById('a11y-style');
                     if (a11yStyle) a11yStyle.remove();
                 }
-            }).catch(function() {});
+                bwShowFlash(d.message || 'Customization settings have been reset to default.', 'success');
+            }).catch(function(err) {
+                bwShowFlash(err.message || 'Could not reset customization settings.', 'error');
+            });
             });
         });
     }
