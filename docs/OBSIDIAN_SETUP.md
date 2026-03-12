@@ -18,7 +18,7 @@ Regular `user` accounts are rejected.
 
 ## 2. Enable the feature flag
 
-Edit `/home/runner/work/BananaWiki/BananaWiki/config.py` and turn on the experimental toggle:
+Edit `config.py` in your BananaWiki repository root and turn on the experimental toggle:
 
 ```python
 EXPERIMENTAL_OBSIDIAN_SYNC = True
@@ -28,10 +28,9 @@ If the flag is left off, the sync script exits immediately.
 
 ## 3. Prepare your environment
 
-From the repository root:
+From your BananaWiki repository root:
 
 ```bash
-cd /home/runner/work/BananaWiki/BananaWiki
 python3 -m venv venv
 . venv/bin/activate
 pip install -r requirements.txt
