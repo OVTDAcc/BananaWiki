@@ -1436,7 +1436,15 @@ function _rgbToHex(color) {
     // setting the input value and avoid accidentally persisting a fallback
     // black (#000000) that would turn the entire site black.
     if (!color) return null;
-    if (color.charAt(0) === '#') return color;
+    if (color.charAt(0) === '#') {
+        var hex = color.toLowerCase();
+        if (/^#[0-9a-f]{6}$/.test(hex)) return hex;
+        if (/^#[0-9a-f]{3}$/.test(hex)) {
+            return '#' + hex.slice(1).split('').map(function(ch) { return ch + ch; }).join('');
+        }
+        if (/^#[0-9a-f]{8}$/.test(hex)) return hex.slice(0, 7);
+        return null;
+    }
     var m = color.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/);
     if (!m) return null;
     return '#' + [m[1], m[2], m[3]].map(function(n) {
