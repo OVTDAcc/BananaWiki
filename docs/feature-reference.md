@@ -110,7 +110,9 @@ Badges can be:
 When page reservations are enabled from site settings:
 
 - editors can reserve pages before destructive changes
-- reservations expire automatically
+- admins can set the reservation timeout in hours from **Admin → Settings** (default: 48)
+- reservations expire automatically using the configured timeout
+- admins can set the cooldown in hours from **Admin → Settings** (default: 24)
 - a cooldown prevents immediate re-reservation by the same user
 - admins can override or release reservations
 - some non-destructive actions remain available while a reservation is active

@@ -137,7 +137,7 @@ INVITE_CODE_EXPIRY_HOURS = 48
 PAGE_RESERVATION_DURATION_HOURS = 48
 
 # Cooldown period after a reservation ends before user can re-reserve (in hours)
-PAGE_RESERVATION_COOLDOWN_HOURS = 72
+PAGE_RESERVATION_COOLDOWN_HOURS = 24
 
 # =============================================================================
 # Telegram Sync / Backup

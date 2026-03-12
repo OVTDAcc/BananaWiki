@@ -239,6 +239,24 @@
                 editing reserved pages, while administrators can still override reservations with a clear warning.
             </small>
         </div>
+        <div class="form-group" style="margin-left:1.5rem">
+            <label>Reservation Timeout (hours)</label>
+            <input type="number" name="page_reservation_duration_hours"
+                   value="{{ settings.page_reservation_duration_hours if settings.page_reservation_duration_hours is defined else 48 }}"
+                   class="input" style="max-width:150px" min="1" max="8760">
+            <small style="opacity:.7;display:block;margin-top:.3rem">
+                How long a page stays reserved before the reservation expires automatically. Default: 48 hours.
+            </small>
+        </div>
+        <div class="form-group" style="margin-left:1.5rem">
+            <label>Reservation Cooldown (hours)</label>
+            <input type="number" name="page_reservation_cooldown_hours"
+                   value="{{ settings.page_reservation_cooldown_hours if settings.page_reservation_cooldown_hours is defined else 24 }}"
+                   class="input" style="max-width:150px" min="0" max="8760">
+            <small style="opacity:.7;display:block;margin-top:.3rem">
+                How long the reserving user must wait before reserving the same page again after a release or expiry. Default: 24 hours.
+            </small>
+        </div>
     </div>
 
     <div class="settings-section">

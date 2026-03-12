@@ -98,6 +98,8 @@ def init_db():
         timezone    TEXT    NOT NULL DEFAULT 'UTC',
         session_limit_enabled INTEGER NOT NULL DEFAULT 1,
         page_reservations_enabled INTEGER NOT NULL DEFAULT 0,
+        page_reservation_duration_hours INTEGER NOT NULL DEFAULT 48,
+        page_reservation_cooldown_hours INTEGER NOT NULL DEFAULT 24,
         about_page_initialized INTEGER NOT NULL DEFAULT 0
     );
 
@@ -355,6 +357,10 @@ def init_db():
         cur.execute("ALTER TABLE site_settings ADD COLUMN session_limit_enabled INTEGER NOT NULL DEFAULT 1")
     if "page_reservations_enabled" not in ss_cols:
         cur.execute("ALTER TABLE site_settings ADD COLUMN page_reservations_enabled INTEGER NOT NULL DEFAULT 0")
+    if "page_reservation_duration_hours" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN page_reservation_duration_hours INTEGER NOT NULL DEFAULT 48")
+    if "page_reservation_cooldown_hours" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN page_reservation_cooldown_hours INTEGER NOT NULL DEFAULT 24")
     if "about_page_initialized" not in ss_cols:
         cur.execute("ALTER TABLE site_settings ADD COLUMN about_page_initialized INTEGER NOT NULL DEFAULT 0")
     if "light_primary_color" not in ss_cols:

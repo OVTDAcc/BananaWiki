@@ -108,6 +108,8 @@ def test_reservations_disabled_by_default(isolated_db):
 
     settings = db.get_site_settings()
     assert settings["page_reservations_enabled"] == 0
+    assert settings["page_reservation_duration_hours"] == config.PAGE_RESERVATION_DURATION_HOURS
+    assert settings["page_reservation_cooldown_hours"] == config.PAGE_RESERVATION_COOLDOWN_HOURS
 
 def test_reserve_page_success(editor_user, test_page):
     """Test successful page reservation."""
@@ -182,6 +184,45 @@ def test_release_creates_cooldown(editor_user, test_page):
     status = db.get_page_reservation_status(test_page, editor_user)
     assert status["user_in_cooldown"] is True
     assert status["cooldown_until"] is not None
+
+
+def test_reserve_page_uses_custom_duration_from_settings(editor_user, test_page):
+    """Reservation expiry uses the admin-configured duration."""
+    import db
+
+    db.update_site_settings(page_reservation_duration_hours=12)
+
+    reservation = db.reserve_page(test_page, editor_user)
+    reserved_at = datetime.fromisoformat(reservation["reserved_at"]).replace(tzinfo=timezone.utc)
+    expires_at = datetime.fromisoformat(reservation["expires_at"]).replace(tzinfo=timezone.utc)
+
+    assert (expires_at - reserved_at).total_seconds() == 12 * 3600
+
+
+def test_release_page_reservation_uses_custom_cooldown(editor_user, test_page):
+    """Cooldown length uses the admin-configured setting."""
+    import db
+
+    db.update_site_settings(page_reservation_cooldown_hours=6)
+
+    db.reserve_page(test_page, editor_user)
+    db.release_page_reservation(test_page, editor_user)
+
+    conn = db.get_db()
+    reservation = conn.execute(
+        "SELECT released_at FROM page_reservations WHERE page_id=?",
+        (test_page,),
+    ).fetchone()
+    cooldown = conn.execute(
+        "SELECT cooldown_until FROM user_page_cooldowns WHERE page_id=? AND user_id=?",
+        (test_page, editor_user),
+    ).fetchone()
+    conn.close()
+
+    released_at = datetime.fromisoformat(reservation["released_at"]).replace(tzinfo=timezone.utc)
+    cooldown_until = datetime.fromisoformat(cooldown["cooldown_until"]).replace(tzinfo=timezone.utc)
+
+    assert (cooldown_until - released_at).total_seconds() == 6 * 3600
 
 
 def test_get_page_reservation_status_unreserved(test_page, editor_user):
@@ -452,7 +493,7 @@ def test_api_reservation_returns_403_when_disabled(logged_in_editor, test_page):
 
 
 def test_admin_can_enable_page_reservations_from_settings(logged_in_admin):
-    """Admins can toggle page reservations on from the settings screen."""
+    """Admins can update reservation settings from the settings screen."""
     import db
 
     response = logged_in_admin.post("/admin/settings", data={
@@ -465,16 +506,23 @@ def test_admin_can_enable_page_reservations_from_settings(logged_in_admin):
         "sidebar_color": "#111118",
         "bg_color": "#0d0d14",
         "page_reservations_enabled": "1",
+        "page_reservation_duration_hours": "12",
+        "page_reservation_cooldown_hours": "6",
     })
     assert response.status_code in (200, 302)
-    assert db.get_site_settings()["page_reservations_enabled"] == 1
+    settings = db.get_site_settings()
+    assert settings["page_reservations_enabled"] == 1
+    assert settings["page_reservation_duration_hours"] == 12
+    assert settings["page_reservation_cooldown_hours"] == 6
 
 
 def test_settings_page_has_page_reservations_checkbox(logged_in_admin):
-    """The settings page exposes the reservation feature toggle."""
+    """The settings page exposes reservation toggle and timing fields."""
     response = logged_in_admin.get("/admin/settings")
     assert response.status_code == 200
     assert b"page_reservations_enabled" in response.data
+    assert b"page_reservation_duration_hours" in response.data
+    assert b"page_reservation_cooldown_hours" in response.data
 
 
 # ============================================================================

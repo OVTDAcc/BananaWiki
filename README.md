@@ -162,7 +162,7 @@ Many day-to-day runtime controls are managed in the database from **Admin → Si
 - lockdown mode message
 - session limit toggle
 - chat enablement, quotas, and cleanup schedule
-- page reservation enablement
+- page reservation enablement and reservation/cooldown timing
 
 ## Repository layout
 
