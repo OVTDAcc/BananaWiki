@@ -16,6 +16,16 @@ def reservations_enabled():
     return bool(settings and settings["page_reservations_enabled"])
 
 
+def _get_reservation_hours(settings, key, default, minimum):
+    """Return a validated reservation hour setting with config fallback."""
+    if not settings:
+        return default
+    try:
+        return max(minimum, int(settings[key]))
+    except (KeyError, TypeError, ValueError):
+        return default
+
+
 def reserve_page(page_id, user_id):
     """
     Reserve a page for the given user.
@@ -30,9 +40,12 @@ def reserve_page(page_id, user_id):
     if not reservations_enabled():
         raise ValueError("Page reservations are currently disabled")
 
+    settings = get_site_settings()
     conn = get_db()
     now = datetime.now(timezone.utc)
-    expires = now + timedelta(hours=config.PAGE_RESERVATION_DURATION_HOURS)
+    expires = now + timedelta(hours=_get_reservation_hours(
+        settings, "page_reservation_duration_hours", config.PAGE_RESERVATION_DURATION_HOURS, 1
+    ))
 
     try:
         # Use BEGIN IMMEDIATE to serialise concurrent reservation attempts
@@ -115,6 +128,7 @@ def release_page_reservation(page_id, user_id=None):
     if not reservations_enabled():
         return False
 
+    settings = get_site_settings()
     conn = get_db()
     now = datetime.now(timezone.utc)
 
@@ -139,7 +153,9 @@ def release_page_reservation(page_id, user_id=None):
     )
 
     # Create cooldown entry
-    cooldown_until = now + timedelta(hours=config.PAGE_RESERVATION_COOLDOWN_HOURS)
+    cooldown_until = now + timedelta(hours=_get_reservation_hours(
+        settings, "page_reservation_cooldown_hours", config.PAGE_RESERVATION_COOLDOWN_HOURS, 0
+    ))
     conn.execute(
         "INSERT OR REPLACE INTO user_page_cooldowns (page_id, user_id, cooldown_until) "
         "VALUES (?, ?, ?)",

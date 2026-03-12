@@ -766,6 +766,34 @@ def register_admin_routes(app):
             except (ZoneInfoNotFoundError, KeyError):
                 flash("Invalid time zone selected.", "error")
                 return redirect(url_for("admin_settings"))
+            try:
+                page_reservation_duration_hours = max(
+                    1,
+                    min(
+                        8760,
+                        int(
+                            request.form.get(
+                                "page_reservation_duration_hours",
+                                config.PAGE_RESERVATION_DURATION_HOURS,
+                            ) or config.PAGE_RESERVATION_DURATION_HOURS
+                        ),
+                    ),
+                )
+                page_reservation_cooldown_hours = max(
+                    0,
+                    min(
+                        8760,
+                        int(
+                            request.form.get(
+                                "page_reservation_cooldown_hours",
+                                config.PAGE_RESERVATION_COOLDOWN_HOURS,
+                            ) or config.PAGE_RESERVATION_COOLDOWN_HOURS
+                        ),
+                    ),
+                )
+            except ValueError:
+                flash("Reservation timing values must be whole hours.", "error")
+                return redirect(url_for("admin_settings"))
 
             # Favicon settings
             favicon_enabled = 1 if request.form.get("favicon_enabled") else 0
@@ -817,6 +845,8 @@ def register_admin_routes(app):
                 lockdown_message=request.form.get("lockdown_message", "").strip()[:1000],
                 session_limit_enabled=1 if request.form.get("session_limit_enabled") else 0,
                 page_reservations_enabled=1 if request.form.get("page_reservations_enabled") else 0,
+                page_reservation_duration_hours=page_reservation_duration_hours,
+                page_reservation_cooldown_hours=page_reservation_cooldown_hours,
                 # Global chat settings
                 chat_max_message_length=max(100, min(50000, int(request.form.get("chat_max_message_length", 5000) or 5000))),
                 chat_attachments_enabled=1 if request.form.get("chat_attachments_enabled") else 0,
