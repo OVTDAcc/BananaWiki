@@ -1,6 +1,7 @@
 """Site data export and import."""
 
 from datetime import datetime, timezone
+import re
 
 from ._connection import get_db
 
@@ -9,22 +10,57 @@ from ._connection import get_db
 #  Site migration – export / import
 # ---------------------------------------------------------------------------
 _MIGRATION_VERSION = 1
+_VALID_TABLE_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 # Tables exported in dependency order (parents before children).
 _EXPORT_TABLES = [
     "users",
     "invite_codes",
+    "site_settings",
     "categories",
     "pages",
     "page_history",
     "drafts",
+    "login_attempts",
     "announcements",
     "username_history",
     "editor_category_access",
     "editor_allowed_categories",
-    "site_settings",
+    "page_attachments",
     "user_profiles",
+    "chats",
+    "chat_messages",
+    "chat_attachments",
+    "group_chats",
+    "group_members",
+    "group_messages",
+    "group_attachments",
+    "role_history",
+    "user_custom_tags",
+    "user_permissions",
+    "user_category_access",
+    "user_allowed_categories",
+    "badge_types",
+    "user_badges",
+    "badge_notifications",
+    "page_reservations",
+    "user_page_cooldowns",
 ]
+
+
+def _get_migration_tables(conn):
+    """Return all user tables in a stable migration order."""
+    existing_tables = {
+        row["name"]
+        for row in conn.execute(
+            "SELECT name FROM sqlite_master "
+            "WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+        ).fetchall()
+        if _VALID_TABLE_NAME_RE.fullmatch(row["name"])
+    }
+    ordered_tables = [table for table in _EXPORT_TABLES if table in existing_tables]
+    extra_tables = sorted(existing_tables - set(ordered_tables))
+    return ordered_tables + extra_tables
 
 
 def export_site_data():
@@ -46,8 +82,9 @@ def export_site_data():
             "exported_at": datetime.now(timezone.utc).isoformat(),
         }
     }
-    for table in _EXPORT_TABLES:
-        assert table in _EXPORT_TABLES  # noqa: S608 – table is from a hardcoded allowlist
+    for table in _get_migration_tables(conn):
+        # Safe: _get_migration_tables() filters sqlite_master names through
+        # _VALID_TABLE_NAME_RE before returning them.
         rows = conn.execute(f"SELECT * FROM {table}").fetchall()
         data[table] = [dict(r) for r in rows]
     conn.close()
@@ -85,14 +122,17 @@ def import_site_data(data, mode):
         conn.execute("PRAGMA foreign_keys=OFF")
         conn.execute("BEGIN")
 
+        tables = _get_migration_tables(conn)
+
         if mode == "delete_all":
             # Delete in reverse dependency order to avoid FK violations even
             # though FK enforcement is off – keeps things tidy.
-            for table in reversed(_EXPORT_TABLES):
+            for table in reversed(tables):
                 if table == "site_settings":
                     # Keep the singleton row; we will update it below.
                     continue
-                assert table in _EXPORT_TABLES  # table is from a hardcoded allowlist
+                # Safe: table names in *tables* come from _get_migration_tables()
+                # and are validated with _VALID_TABLE_NAME_RE.
                 conn.execute(f"DELETE FROM {table}")  # noqa: S608
 
         insert_prefix = {
@@ -101,7 +141,7 @@ def import_site_data(data, mode):
             "keep": "INSERT OR IGNORE",
         }[mode]
 
-        for table in _EXPORT_TABLES:
+        for table in tables:
             rows = data.get(table, [])
             if not rows:
                 continue
@@ -111,6 +151,8 @@ def import_site_data(data, mode):
             conn_cols = {
                 r[1]
                 for r in conn.execute(
+                    # Safe: table names in *tables* come from
+                    # _get_migration_tables() and match _VALID_TABLE_NAME_RE.
                     f"PRAGMA table_info({table})"  # noqa: S608
                 ).fetchall()
             }
@@ -121,6 +163,8 @@ def import_site_data(data, mode):
             col_str = ", ".join(import_cols)
             placeholders = ", ".join("?" for _ in import_cols)
             sql = (
+                # Safe: table names in *tables* come from
+                # _get_migration_tables() and match _VALID_TABLE_NAME_RE.
                 f"{insert_prefix} INTO {table} ({col_str}) "  # noqa: S608
                 f"VALUES ({placeholders})"
             )
@@ -143,4 +187,3 @@ def import_site_data(data, mode):
     finally:
         conn.execute("PRAGMA foreign_keys=ON")
         conn.close()
-

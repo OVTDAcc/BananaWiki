@@ -26,6 +26,103 @@ from routes.users import build_user_export_zip
 FAVICON_UPLOAD_FOLDER = None  # Set during register_admin_routes()
 
 
+def _iter_migration_asset_files(root_dir, *, include_file=None):
+    """Yield (absolute_path, relative_path) pairs for migration asset export."""
+    if not root_dir or not os.path.isdir(root_dir):
+        return
+
+    root_dir = os.path.abspath(root_dir)
+    for dirpath, _, filenames in os.walk(root_dir):
+        for filename in sorted(filenames):
+            rel_path = os.path.relpath(os.path.join(dirpath, filename), root_dir)
+            rel_path = rel_path.replace(os.sep, "/")
+            if include_file and not include_file(rel_path):
+                continue
+            yield os.path.join(dirpath, filename), rel_path
+
+
+def _get_migration_asset_roots():
+    """Return archive-prefix/root-dir pairs for site migration assets."""
+    return (
+        ("assets/uploads", config.UPLOAD_FOLDER, None),
+        ("assets/attachments", config.ATTACHMENT_FOLDER, None),
+        ("assets/chat_attachments", config.CHAT_ATTACHMENT_FOLDER, None),
+        (
+            "assets/favicons",
+            FAVICON_UPLOAD_FOLDER,
+            lambda rel_path: os.path.basename(rel_path).startswith("custom_"),
+        ),
+    )
+
+
+def _write_site_migration_assets(zf):
+    """Add runtime asset files to a site migration zip."""
+    for archive_root, fs_root, include_file in _get_migration_asset_roots():
+        for abs_path, rel_path in _iter_migration_asset_files(fs_root, include_file=include_file):
+            zf.write(abs_path, f"{archive_root}/{rel_path}")
+
+
+def _clear_site_migration_assets():
+    """Remove runtime asset files before a full replacement import."""
+    for _, fs_root, include_file in _get_migration_asset_roots():
+        for abs_path, _ in _iter_migration_asset_files(fs_root, include_file=include_file):
+            os.remove(abs_path)
+
+
+def _resolve_migration_asset_path(root_dir, rel_path):
+    """Resolve an archive relative path under *root_dir* safely."""
+    rel_path = rel_path.replace("\\", "/")
+    parts = [part for part in rel_path.split("/") if part not in ("", ".")]
+    if any(part == ".." for part in parts):
+        raise ValueError("Migration archive contains an invalid asset path.")
+    root_dir = os.path.abspath(root_dir)
+    dest_path = os.path.abspath(os.path.join(root_dir, *parts))
+    if os.path.commonpath([root_dir, dest_path]) != root_dir:
+        raise ValueError("Migration archive contains an invalid asset path.")
+    return dest_path
+
+
+def _import_site_migration_assets(zf, mode):
+    """Restore runtime asset files from a site migration zip."""
+    if mode == "delete_all":
+        _clear_site_migration_assets()
+
+    for member in zf.infolist():
+        if member.is_dir():
+            continue
+        handled = False
+        for archive_root, fs_root, _ in _get_migration_asset_roots():
+            prefix = f"{archive_root}/"
+            if not member.filename.startswith(prefix):
+                continue
+
+            if not fs_root:
+                get_logger().warning(
+                    "site migration – asset root unavailable during import: %s",
+                    archive_root,
+                )
+                handled = True
+                break
+
+            rel_path = member.filename[len(prefix):]
+            if not rel_path:
+                handled = True
+                continue
+
+            dest_path = _resolve_migration_asset_path(fs_root, rel_path)
+            if mode == "keep" and os.path.exists(dest_path):
+                handled = True
+                break
+
+            os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+            with zf.open(member) as src, open(dest_path, "wb") as dst:
+                dst.write(src.read())
+            handled = True
+            break
+        if handled:
+            continue
+
+
 def register_admin_routes(app):
     """Register admin panel routes on the Flask app."""
     global FAVICON_UPLOAD_FOLDER
@@ -945,7 +1042,7 @@ def register_admin_routes(app):
     @admin_required
     @rate_limit(5, 60)
     def admin_migration_export():
-        """Export the entire site as a ZIP containing a single JSON file."""
+        """Export the entire site as a ZIP containing data and runtime assets."""
         user = get_current_user()
         data = db.export_site_data()
         payload = json.dumps(data, indent=2).encode("utf-8")
@@ -953,6 +1050,7 @@ def register_admin_routes(app):
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
             zf.writestr("site_export.json", payload)
+            _write_site_migration_assets(zf)
         buf.seek(0)
 
         log_action("export_site", request, user=user)
@@ -966,7 +1064,7 @@ def register_admin_routes(app):
     @admin_required
     @rate_limit(5, 60)
     def admin_migration_import():
-        """Import a previously exported site ZIP."""
+        """Import a previously exported site ZIP, including runtime assets."""
         user = get_current_user()
         mode = request.form.get("import_mode", "")
         if mode not in ("delete_all", "override", "keep"):
@@ -990,7 +1088,8 @@ def register_admin_routes(app):
                 if not json_names:
                     flash("The uploaded archive contains no JSON data file.", "error")
                     return redirect(url_for("admin_migration"))
-                with zf.open(json_names[0]) as jf:
+                json_name = "site_export.json" if "site_export.json" in json_names else json_names[0]
+                with zf.open(json_name) as jf:
                     data = json.load(jf)
         except zipfile.BadZipFile:
             flash("The uploaded file is not a valid ZIP archive.", "error")
@@ -1005,6 +1104,8 @@ def register_admin_routes(app):
 
         try:
             db.import_site_data(data, mode)
+            with zipfile.ZipFile(io.BytesIO(raw)) as zf:
+                _import_site_migration_assets(zf, mode)
         except ValueError as exc:
             flash(f"Import failed: {exc}", "error")
             return redirect(url_for("admin_migration"))
