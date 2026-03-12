@@ -266,6 +266,7 @@ from ._badges import (  # noqa: F401
 
 # Page reservations
 from ._reservations import (  # noqa: F401
+    MAX_QUOTA_REQUEST_REASON_LENGTH,
     reservations_enabled,
     get_default_reserved_pages_quota,
     get_effective_reserved_pages_quota,

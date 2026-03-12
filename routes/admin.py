@@ -475,6 +475,7 @@ def register_admin_routes(app):
             active_reservation_count=db.get_user_active_reservation_count(user_id),
             pending_request=db.get_pending_reservation_quota_request(user_id),
             quota_requests=db.list_reservation_quota_requests(user_id),
+            max_reason_length=db.MAX_QUOTA_REQUEST_REASON_LENGTH,
             admin_view=True,
             categories=categories,
             uncategorized=uncategorized,

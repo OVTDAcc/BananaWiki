@@ -37,7 +37,7 @@
         </div>
         <div class="form-group">
             <label>Reason</label>
-            <textarea name="reason" class="input" rows="5" maxlength="2000" placeholder="Explain why you need a higher reservation quota." required></textarea>
+            <textarea name="reason" class="input" rows="5" maxlength="{{ max_reason_length }}" placeholder="Explain why you need a higher reservation quota." required></textarea>
         </div>
         <button type="submit" class="btn">Submit Quota Request</button>
     </form>

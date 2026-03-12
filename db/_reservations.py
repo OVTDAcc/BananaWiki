@@ -7,6 +7,8 @@ import config
 from ._connection import get_db
 from ._settings import get_site_settings
 
+MAX_QUOTA_REQUEST_REASON_LENGTH = 2000
+
 
 # ---------------------------------------------------------------------------
 #  Reservation helpers
@@ -46,20 +48,22 @@ def get_default_reserved_pages_quota(settings=None):
         return 5
 
 
-def get_effective_reserved_pages_quota(user_id):
+def get_effective_reserved_pages_quota(user_id, settings=None, user_quota=None):
     """Return the active reservation quota for the specified user."""
-    conn = get_db()
-    user = conn.execute(
-        "SELECT reserved_pages_quota FROM users WHERE id=?",
-        (user_id,),
-    ).fetchone()
-    conn.close()
-    if user and user["reserved_pages_quota"] is not None:
+    if user_quota is None:
+        conn = get_db()
+        user = conn.execute(
+            "SELECT reserved_pages_quota FROM users WHERE id=?",
+            (user_id,),
+        ).fetchone()
+        user_quota = user["reserved_pages_quota"] if user else None
+        conn.close()
+    if user_quota is not None:
         try:
-            return max(1, int(user["reserved_pages_quota"]))
+            return max(1, int(user_quota))
         except (TypeError, ValueError):
             pass
-    return get_default_reserved_pages_quota()
+    return get_default_reserved_pages_quota(settings=settings)
 
 
 def get_user_active_reservation_count(user_id):
@@ -125,6 +129,8 @@ def create_reservation_quota_request(user_id, requested_quota, reason):
     reason = (reason or "").strip()
     if not reason:
         raise ValueError("A reason is required to continue")
+    if len(reason) > MAX_QUOTA_REQUEST_REASON_LENGTH:
+        raise ValueError(f"Reason cannot exceed {MAX_QUOTA_REQUEST_REASON_LENGTH} characters.")
 
     current_quota = get_effective_reserved_pages_quota(user_id)
     if requested_quota <= current_quota:
@@ -137,7 +143,7 @@ def create_reservation_quota_request(user_id, requested_quota, reason):
             "INSERT INTO reservation_quota_requests "
             "(user_id, requested_quota, reason, status, created_at) "
             "VALUES (?, ?, ?, 'pending', ?)",
-            (user_id, requested_quota, reason[:2000], now),
+            (user_id, requested_quota, reason, now),
         )
         conn.commit()
     except sqlite3.IntegrityError as exc:
@@ -245,12 +251,11 @@ def reserve_page(page_id, user_id):
             "SELECT reserved_pages_quota FROM users WHERE id=?",
             (user_id,),
         ).fetchone()
-        quota = get_default_reserved_pages_quota(settings)
-        if user_row and user_row["reserved_pages_quota"] is not None:
-            try:
-                quota = max(1, int(user_row["reserved_pages_quota"]))
-            except (TypeError, ValueError):
-                quota = get_default_reserved_pages_quota(settings)
+        quota = get_effective_reserved_pages_quota(
+            user_id,
+            settings=settings,
+            user_quota=user_row["reserved_pages_quota"] if user_row else None,
+        )
         if active_count >= quota:
             conn.execute("ROLLBACK")
             conn.close()

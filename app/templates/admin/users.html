@@ -61,7 +61,7 @@
             <td>
                 {{ u.username }}
                 {% if u.has_pending_reservation_quota_request %}
-                <span title="Pending quota request" aria-label="Pending quota request" style="display:inline-block;width:.6rem;height:.6rem;margin-left:.35rem;border-radius:50%;background:#ff5f5f;vertical-align:middle"></span>
+                <span class="pending-indicator-dot" title="Pending quota request" aria-label="Pending quota request"></span>
                 {% endif %}
             </td>
             <td><span class="badge badge-{{ u.role }}">{{ u.role }}{% if u.is_superuser %} ★{% endif %}</span></td>

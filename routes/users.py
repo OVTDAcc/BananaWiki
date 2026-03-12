@@ -313,8 +313,6 @@ def register_user_routes(app):
                 reason = request.form.get("reason", "").strip()
                 if requested_quota is None:
                     flash("Requested quota is required to continue.", "error")
-                elif len(reason) > 2000:
-                    flash("Reason cannot exceed 2000 characters.", "error")
                 else:
                     try:
                         db.create_reservation_quota_request(user["id"], requested_quota, reason)
@@ -344,6 +342,7 @@ def register_user_routes(app):
             active_reservation_count=db.get_user_active_reservation_count(user["id"]),
             pending_request=db.get_pending_reservation_quota_request(user["id"]),
             quota_requests=db.list_reservation_quota_requests(user["id"]),
+            max_reason_length=db.MAX_QUOTA_REQUEST_REASON_LENGTH,
             admin_view=False,
             categories=categories,
             uncategorized=uncategorized,

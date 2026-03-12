@@ -640,7 +640,7 @@ def test_reserve_page_enforces_default_quota(editor_user):
         db.reserve_page(page_two, editor_user)
 
 
-def test_user_quota_request_page_tracks_pending_and_history(logged_in_editor):
+def test_user_can_submit_quota_request_and_view_history(logged_in_editor):
     """Users can submit one pending quota request and review their own history."""
     response = logged_in_editor.get("/account/reservation-quota")
     assert response.status_code == 200
