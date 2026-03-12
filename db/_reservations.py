@@ -17,7 +17,17 @@ def reservations_enabled():
 
 
 def _get_reservation_hours(settings, key, default, minimum):
-    """Return a validated reservation hour setting with config fallback."""
+    """Return a validated reservation hour setting with config fallback.
+
+    Args:
+        settings: Site settings row or mapping to read from.
+        key: Setting name containing the reservation hour value.
+        default: Fallback hour value from config.
+        minimum: Minimum allowed hour value.
+
+    Returns:
+        int: A validated hour value suitable for timedelta(hours=...).
+    """
     if not settings:
         return default
     try:
