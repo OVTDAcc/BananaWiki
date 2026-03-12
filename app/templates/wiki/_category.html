@@ -73,8 +73,31 @@
     <div class="nav-section-body">
         {% for p in cat.pages %}
         {% if not p.is_deindexed or (current_user and current_user.role in ('editor', 'admin', 'protected_admin')) %}
+        {% set reservation = sidebar_reservations.get(p.id) %}
         <div class="nav-item-row" data-page-id="{{ p.id }}">
-            <a href="{{ url_for('view_page', slug=p.slug) }}" class="nav-item {% if page and page.id == p.id %}active{% endif %}{% if p.is_deindexed %} deindexed-nav-item{% endif %}">{% if p.is_deindexed %}<s>{{ p.title }}</s>{% else %}{{ p.title }}{% endif %}</a>
+            <a href="{{ url_for('view_page', slug=p.slug) }}" class="nav-item {% if page and page.id == p.id %}active{% endif %}{% if p.is_deindexed %} deindexed-nav-item{% endif %}{% if reservation and (reservation.is_reserved or reservation.user_in_cooldown) %} nav-item-with-icon{% endif %}">
+                {% if reservation and (reservation.is_reserved or reservation.user_in_cooldown) %}
+                <span class="sidebar-page-status-icons">
+                    {% if reservation.is_reserved %}
+                    <span class="sidebar-reservation-indicator{% if reservation.reserved_by_current_user %} sidebar-reservation-indicator-self{% endif %}" title="{{ reservation.reservation_label }}">
+                        <svg class="sidebar-reservation-indicator-icon" aria-hidden="true" viewBox="0 0 16 16" focusable="false">
+                            <path fill="currentColor" d="M4 7V5.5a4 4 0 1 1 8 0V7a1.5 1.5 0 0 1 1.5 1.5v5A1.5 1.5 0 0 1 12 15H4a1.5 1.5 0 0 1-1.5-1.5v-5A1.5 1.5 0 0 1 4 7m1 0h6V5.5a3 3 0 1 0-6 0zm-1 1a.5.5 0 0 0-.5.5v5A.5.5 0 0 0 4 14h8a.5.5 0 0 0 .5-.5v-5A.5.5 0 0 0 12 8z"/>
+                        </svg>
+                        <span class="sr-only">{{ reservation.reservation_label }}</span>
+                    </span>
+                    {% endif %}
+                    {% if reservation.user_in_cooldown %}
+                    <span class="sidebar-reservation-indicator sidebar-reservation-indicator-cooldown" title="{{ reservation.cooldown_label }}">
+                        <svg class="sidebar-reservation-indicator-icon" aria-hidden="true" viewBox="0 0 16 16" focusable="false">
+                            <path fill="currentColor" d="M8 1.25a.75.75 0 0 1 .75.75v2.19l1.55-1.56a.75.75 0 1 1 1.06 1.06L9.81 5.25H12a.75.75 0 0 1 0 1.5H9.81l1.56 1.55a.75.75 0 0 1-1.06 1.06L8.75 7.81V10a.75.75 0 0 1-1.5 0V7.81L5.7 9.37A.75.75 0 0 1 4.64 8.3L6.19 6.75H4a.75.75 0 0 1 0-1.5h2.19L4.64 3.7A.75.75 0 0 1 5.7 2.64l1.55 1.55V2A.75.75 0 0 1 8 1.25m0 9.5a.75.75 0 0 1 .75.75v.69a.75.75 0 0 1-1.5 0v-.69A.75.75 0 0 1 8 10.75m3.18.57a.75.75 0 0 1 1.03.27l.35.6a.75.75 0 1 1-1.3.75l-.35-.6a.75.75 0 0 1 .27-1.02m-6.36 0a.75.75 0 0 1 .27 1.02l-.35.6a.75.75 0 1 1-1.3-.75l.35-.6a.75.75 0 0 1 1.03-.27"/>
+                        </svg>
+                        <span class="sr-only">{{ reservation.cooldown_label }}</span>
+                    </span>
+                    {% endif %}
+                </span>
+                {% endif %}
+                <span class="nav-item-label">{% if p.is_deindexed %}<s>{{ p.title }}</s>{% else %}{{ p.title }}{% endif %}</span>
+            </a>
             {% if current_user and current_user.role in ('editor', 'admin', 'protected_admin') %}
             <span class="page-order-btns">
                 <button class="btn-icon-tiny reorder-btn" data-dir="up" data-type="page" data-id="{{ p.id }}" data-cat="{{ cat.id }}" title="Move page up" aria-label="Move page up">▲</button>

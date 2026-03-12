@@ -80,7 +80,28 @@ def register_api_routes(app):
         categories = db.search_categories(query)
         # Filter pages by category read access restrictions
         filtered_pages = [p for p in pages if db.has_category_read_access(user, p["category_id"])]
-        return jsonify({"categories": categories, "pages": filtered_pages})
+        reservation_map = db.get_active_page_reservations_map(
+            user["id"] if user else None,
+            [p["id"] for p in filtered_pages],
+        )
+        return jsonify({
+            "categories": categories,
+            "pages": [
+                {
+                    **p,
+                    "is_reserved": bool(reservation_map.get(p["id"], {}).get("is_reserved")),
+                    "reserved_by_current_user": bool(
+                        reservation_map.get(p["id"], {}).get("reserved_by_current_user")
+                    ),
+                    "reservation_label": reservation_map.get(p["id"], {}).get("reservation_label"),
+                    "user_in_cooldown": bool(
+                        reservation_map.get(p["id"], {}).get("user_in_cooldown")
+                    ),
+                    "cooldown_label": reservation_map.get(p["id"], {}).get("cooldown_label"),
+                }
+                for p in filtered_pages
+            ],
+        })
 
     # -----------------------------------------------------------------------
     #  Live preview API

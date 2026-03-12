@@ -423,6 +423,103 @@ def get_all_active_reservations():
     return rows
 
 
+def _build_sidebar_page_status(
+    is_reserved=False,
+    reserved_by_current_user=False,
+    reservation_label=None,
+    user_in_cooldown=False,
+    cooldown_label=None,
+):
+    """Build a consistent sidebar reservation/cooldown payload."""
+    return {
+        "is_reserved": is_reserved,
+        "reserved_by_current_user": reserved_by_current_user,
+        "reservation_label": reservation_label,
+        "user_in_cooldown": user_in_cooldown,
+        "cooldown_label": cooldown_label,
+    }
+
+
+def get_active_page_reservations_map(user_id=None, page_ids=None):
+    """
+    Return active reservation/cooldown metadata keyed by page ID for sidebar/search UI.
+
+    Args:
+        user_id: Current viewer ID, used to mark reservations owned by them.
+        page_ids: Optional iterable of page IDs to limit the query scope.
+
+    Returns:
+        dict: ``{page_id: {"is_reserved": bool, "reserved_by_current_user": bool,
+               "reservation_label": str | None, "user_in_cooldown": bool,
+               "cooldown_label": str | None}}`` for viewer-visible sidebar status.
+    """
+    if not reservations_enabled():
+        return {}
+
+    has_page_filter = page_ids is not None
+    if has_page_filter:
+        normalized_page_ids = []
+        for page_id in page_ids:
+            try:
+                normalized_page_ids.append(int(page_id))
+            except (TypeError, ValueError):
+                continue
+        page_ids = normalized_page_ids
+    else:
+        page_ids = []
+    if has_page_filter and not page_ids:
+        return {}
+
+    cleanup_expired_reservations()
+
+    conn = get_db()
+    now = datetime.now(timezone.utc).isoformat()
+    query = (
+        "SELECT pr.page_id, pr.user_id "
+        "FROM page_reservations pr "
+        "JOIN users u ON pr.user_id = u.id "
+        "WHERE pr.expires_at > ? AND pr.released_at IS NULL "
+        "AND u.role IN ('editor', 'admin', 'protected_admin')"
+    )
+    params = [now]
+    if has_page_filter:
+        placeholders = ",".join("?" for _ in page_ids)
+        query += f" AND pr.page_id IN ({placeholders})"
+        params.extend(page_ids)
+    rows = conn.execute(query, params).fetchall()
+
+    reservations = {}
+    for row in rows:
+        reserved_by_current_user = bool(user_id and row["user_id"] == user_id)
+        reservations[row["page_id"]] = _build_sidebar_page_status(
+            is_reserved=True,
+            reserved_by_current_user=reserved_by_current_user,
+            reservation_label=(
+                "Reserved by you" if reserved_by_current_user else "Reserved by another user"
+            ),
+        )
+
+    if user_id:
+        cooldown_query = (
+            "SELECT page_id FROM user_page_cooldowns "
+            "WHERE user_id=? AND cooldown_until > ?"
+        )
+        cooldown_params = [user_id, now]
+        if has_page_filter:
+            placeholders = ",".join("?" for _ in page_ids)
+            cooldown_query += f" AND page_id IN ({placeholders})"
+            cooldown_params.extend(page_ids)
+        cooldown_rows = conn.execute(cooldown_query, cooldown_params).fetchall()
+
+        for row in cooldown_rows:
+            reservations.setdefault(row["page_id"], _build_sidebar_page_status())
+            reservations[row["page_id"]]["user_in_cooldown"] = True
+            reservations[row["page_id"]]["cooldown_label"] = "Cooldown active for you"
+
+    conn.close()
+    return reservations
+
+
 def force_release_reservation(page_id):
     """
     Force release a reservation (admin action).

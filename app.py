@@ -104,6 +104,7 @@ def inject_globals():
     current_user_profile = db.get_user_profile(user["id"]) if user else None
     total_unread_dm = db.get_total_unread_dm_count(user["id"]) if user else 0
     total_unread_group = db.get_total_unread_group_count(user["id"]) if user else 0
+    sidebar_reservations = db.get_active_page_reservations_map(user["id"]) if user else {}
     return {
         "current_user": user,
         "settings": settings,
@@ -121,6 +122,7 @@ def inject_globals():
         "time_until_next_chat_cleanup": get_time_until_next_chat_cleanup,
         "total_unread_dm": total_unread_dm,
         "total_unread_group": total_unread_group,
+        "sidebar_reservations": sidebar_reservations,
         "dedupe_flashed_messages": dedupe_flashed_messages,
     }
 
