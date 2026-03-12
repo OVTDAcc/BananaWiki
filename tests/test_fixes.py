@@ -5235,12 +5235,14 @@ def test_accessibility_clear_custom_bg(logged_in_admin):
 def test_accessibility_black_bg_not_persisted_on_invalid_colour(logged_in_admin):
     """An invalid colour string is rejected and does not overwrite the stored value."""
     for invalid in ("not-a-colour", "#000", "#00000000"):
-        logged_in_admin.post("/api/accessibility",
-                             json={"custom_bg": "#abcdef"},
-                             content_type="application/json")
-        logged_in_admin.post("/api/accessibility",
-                             json={"custom_bg": invalid},
-                             content_type="application/json")
+        setup_resp = logged_in_admin.post("/api/accessibility",
+                                          json={"custom_bg": "#abcdef"},
+                                          content_type="application/json")
+        assert setup_resp.status_code == 200
+        resp = logged_in_admin.post("/api/accessibility",
+                                    json={"custom_bg": invalid},
+                                    content_type="application/json")
+        assert resp.status_code == 200
         prefs = logged_in_admin.get("/api/accessibility").get_json()
         # The invalid value must be rejected; the stored colour must remain empty
         # (the server sanitises to "" when the value is invalid).
@@ -5268,9 +5270,9 @@ def test_accessibility_page_ignores_legacy_invalid_custom_colour(logged_in_admin
     assert resp.status_code == 200
     html = resp.data.decode()
     a11y_match = re.search(r'<style id="a11y-style">(.*?)</style>', html, re.DOTALL)
-    if a11y_match:
-        assert "--bg" not in a11y_match.group(1)
-        assert "--text" not in a11y_match.group(1)
+    assert a11y_match is not None
+    assert "--bg" not in a11y_match.group(1)
+    assert "--text" not in a11y_match.group(1)
 
 
 def test_accessibility_page_renders_a11y_style_with_custom_bg(logged_in_admin):
