@@ -2250,8 +2250,16 @@ function initEditorResize() {
                   + '</a>';
         });
         pages.forEach(function(p) {
+            var reservationLabel = p.reservation_label || (p.reserved_by_current_user ? 'Reserved by you' : 'Reserved by another user');
+            var reservationHtml = p.is_reserved
+                ? '<span class="sidebar-reservation-indicator' + (p.reserved_by_current_user ? ' sidebar-reservation-indicator-self' : '') + '" title="' + escHtml(reservationLabel) + '">'
+                    + '<span class="sidebar-reservation-indicator-icon" aria-hidden="true">🔒</span>'
+                    + '<span class="sr-only">' + escHtml(reservationLabel) + '</span>'
+                  + '</span>'
+                : '';
             html += '<a class="sidebar-search-result" href="' + escHtml('/page/' + p.slug) + '">'
                   + '<span class="sidebar-search-result-type">page</span>'
+                  + reservationHtml
                   + escHtml(p.title)
                   + '</a>';
         });
@@ -2260,7 +2268,7 @@ function initEditorResize() {
     }
 
     function escHtml(s) {
-        return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
 }());
 

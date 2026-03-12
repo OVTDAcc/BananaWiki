@@ -423,6 +423,58 @@ def get_all_active_reservations():
     return rows
 
 
+def get_active_page_reservations_map(user_id=None, page_ids=None):
+    """
+    Return active reservation metadata keyed by page ID for sidebar/search UI.
+
+    Args:
+        user_id: Current viewer ID, used to mark reservations owned by them.
+        page_ids: Optional iterable of page IDs to limit the query scope.
+
+    Returns:
+        dict: ``{page_id: {"is_reserved": True, "reserved_by_current_user": bool,
+               "reservation_label": str}}`` for currently reserved pages.
+    """
+    if not reservations_enabled():
+        return {}
+
+    has_page_filter = page_ids is not None
+    page_ids = [int(page_id) for page_id in page_ids] if has_page_filter else []
+    if has_page_filter and not page_ids:
+        return {}
+
+    cleanup_expired_reservations()
+
+    conn = get_db()
+    now = datetime.now(timezone.utc).isoformat()
+    query = (
+        "SELECT pr.page_id, pr.user_id "
+        "FROM page_reservations pr "
+        "JOIN users u ON pr.user_id = u.id "
+        "WHERE pr.expires_at > ? AND pr.released_at IS NULL "
+        "AND u.role IN ('editor', 'admin', 'protected_admin')"
+    )
+    params = [now]
+    if has_page_filter:
+        placeholders = ",".join("?" for _ in page_ids)
+        query += f" AND pr.page_id IN ({placeholders})"
+        params.extend(page_ids)
+    rows = conn.execute(query, params).fetchall()
+    conn.close()
+
+    reservations = {}
+    for row in rows:
+        reserved_by_current_user = bool(user_id and row["user_id"] == user_id)
+        reservations[row["page_id"]] = {
+            "is_reserved": True,
+            "reserved_by_current_user": reserved_by_current_user,
+            "reservation_label": (
+                "Reserved by you" if reserved_by_current_user else "Reserved by another user"
+            ),
+        }
+    return reservations
+
+
 def force_release_reservation(page_id):
     """
     Force release a reservation (admin action).

@@ -275,5 +275,6 @@ from ._reservations import (  # noqa: F401
     can_user_edit_page,
     get_user_reservations,
     get_all_active_reservations,
+    get_active_page_reservations_map,
     force_release_reservation,
 )
