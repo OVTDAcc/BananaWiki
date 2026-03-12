@@ -423,17 +423,35 @@ def get_all_active_reservations():
     return rows
 
 
+def _build_sidebar_page_status(
+    is_reserved=False,
+    reserved_by_current_user=False,
+    reservation_label=None,
+    user_in_cooldown=False,
+    cooldown_label=None,
+):
+    """Build a consistent sidebar reservation/cooldown payload."""
+    return {
+        "is_reserved": is_reserved,
+        "reserved_by_current_user": reserved_by_current_user,
+        "reservation_label": reservation_label,
+        "user_in_cooldown": user_in_cooldown,
+        "cooldown_label": cooldown_label,
+    }
+
+
 def get_active_page_reservations_map(user_id=None, page_ids=None):
     """
-    Return active reservation metadata keyed by page ID for sidebar/search UI.
+    Return active reservation/cooldown metadata keyed by page ID for sidebar/search UI.
 
     Args:
         user_id: Current viewer ID, used to mark reservations owned by them.
         page_ids: Optional iterable of page IDs to limit the query scope.
 
     Returns:
-        dict: ``{page_id: {"is_reserved": True, "reserved_by_current_user": bool,
-               "reservation_label": str}}`` for currently reserved pages.
+        dict: ``{page_id: {"is_reserved": bool, "reserved_by_current_user": bool,
+               "reservation_label": str | None, "user_in_cooldown": bool,
+               "cooldown_label": str | None}}`` for viewer-visible sidebar status.
     """
     if not reservations_enabled():
         return {}
@@ -469,18 +487,36 @@ def get_active_page_reservations_map(user_id=None, page_ids=None):
         query += f" AND pr.page_id IN ({placeholders})"
         params.extend(page_ids)
     rows = conn.execute(query, params).fetchall()
-    conn.close()
 
     reservations = {}
     for row in rows:
         reserved_by_current_user = bool(user_id and row["user_id"] == user_id)
-        reservations[row["page_id"]] = {
-            "is_reserved": True,
-            "reserved_by_current_user": reserved_by_current_user,
-            "reservation_label": (
+        reservations[row["page_id"]] = _build_sidebar_page_status(
+            is_reserved=True,
+            reserved_by_current_user=reserved_by_current_user,
+            reservation_label=(
                 "Reserved by you" if reserved_by_current_user else "Reserved by another user"
             ),
-        }
+        )
+
+    if user_id:
+        cooldown_query = (
+            "SELECT page_id FROM user_page_cooldowns "
+            "WHERE user_id=? AND cooldown_until > ?"
+        )
+        cooldown_params = [user_id, now]
+        if has_page_filter:
+            placeholders = ",".join("?" for _ in page_ids)
+            cooldown_query += f" AND page_id IN ({placeholders})"
+            cooldown_params.extend(page_ids)
+        cooldown_rows = conn.execute(cooldown_query, cooldown_params).fetchall()
+
+        for row in cooldown_rows:
+            reservations.setdefault(row["page_id"], _build_sidebar_page_status())
+            reservations[row["page_id"]]["user_in_cooldown"] = True
+            reservations[row["page_id"]]["cooldown_label"] = "Cooldown active for you"
+
+    conn.close()
     return reservations
 
 

@@ -89,11 +89,15 @@ def register_api_routes(app):
             "pages": [
                 {
                     **p,
-                    "is_reserved": bool(reservation_map.get(p["id"])),
+                    "is_reserved": bool(reservation_map.get(p["id"], {}).get("is_reserved")),
                     "reserved_by_current_user": bool(
                         reservation_map.get(p["id"], {}).get("reserved_by_current_user")
                     ),
                     "reservation_label": reservation_map.get(p["id"], {}).get("reservation_label"),
+                    "user_in_cooldown": bool(
+                        reservation_map.get(p["id"], {}).get("user_in_cooldown")
+                    ),
+                    "cooldown_label": reservation_map.get(p["id"], {}).get("cooldown_label"),
                 }
                 for p in filtered_pages
             ],

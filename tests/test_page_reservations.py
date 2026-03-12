@@ -473,6 +473,7 @@ def test_sidebar_hides_lock_icon_for_unreserved_page(logged_in_editor, test_page
     assert b"sidebar-reservation-indicator" not in response.data
     assert b"Reserved by you" not in response.data
     assert b"Reserved by another user" not in response.data
+    assert b"Cooldown active for you" not in response.data
 
 
 def test_sidebar_shows_blue_lock_for_own_reservation(logged_in_editor, editor_user):
@@ -524,6 +525,42 @@ def test_sidebar_search_marks_own_reservation(logged_in_editor, test_page):
     assert match["is_reserved"] is True
     assert match["reserved_by_current_user"] is True
     assert match["reservation_label"] == "Reserved by you"
+
+
+def test_sidebar_shows_cooldown_icon_only_for_affected_viewer(client, test_page, editor_user, editor2_user):
+    """Cooldown sidebar icon is visible only to the viewer who is in cooldown."""
+    import db
+
+    db.reserve_page(test_page, editor_user)
+    db.release_page_reservation(test_page, editor_user)
+
+    client.post("/login", data={"username": "editor", "password": "editor123"})
+    response = client.get("/page/test-page")
+    assert response.status_code == 200
+    assert b"sidebar-reservation-indicator-cooldown" in response.data
+    assert b"Cooldown active for you" in response.data
+
+    search_response = client.get("/api/sidebar/search?q=Test")
+    assert search_response.status_code == 200
+    data = search_response.get_json()
+    match = next(page for page in data["pages"] if page["id"] == test_page)
+    assert match["is_reserved"] is False
+    assert match["user_in_cooldown"] is True
+    assert match["cooldown_label"] == "Cooldown active for you"
+
+    client.post("/logout")
+    client.post("/login", data={"username": "editor2", "password": "editor123"})
+    other_response = client.get("/page/test-page")
+    assert other_response.status_code == 200
+    assert b"sidebar-reservation-indicator-cooldown" not in other_response.data
+    assert b"Cooldown active for you" not in other_response.data
+
+    other_search_response = client.get("/api/sidebar/search?q=Test")
+    assert other_search_response.status_code == 200
+    other_data = other_search_response.get_json()
+    other_match = next(page for page in other_data["pages"] if page["id"] == test_page)
+    assert other_match["user_in_cooldown"] is False
+    assert other_match["cooldown_label"] is None
 
 
 def test_api_reservation_requires_editor_role(client, test_page):
