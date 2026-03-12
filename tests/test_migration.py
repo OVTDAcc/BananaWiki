@@ -40,12 +40,12 @@ def clear_rl_store():
 
 
 @pytest.fixture
-def client():
+def client(monkeypatch):
     from app import app
     import routes.admin as admin_mod
     app.config["TESTING"] = True
     app.config["WTF_CSRF_ENABLED"] = False
-    admin_mod.FAVICON_UPLOAD_FOLDER = os.path.join(app.static_folder, "favicons_test")
+    monkeypatch.setattr(admin_mod, "FAVICON_UPLOAD_FOLDER", os.path.join(app.static_folder, "favicons_test"))
     with app.test_client() as c:
         yield c
 

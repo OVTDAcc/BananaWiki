@@ -1,6 +1,7 @@
 """Site data export and import."""
 
 from datetime import datetime, timezone
+import re
 
 from ._connection import get_db
 
@@ -9,6 +10,7 @@ from ._connection import get_db
 #  Site migration – export / import
 # ---------------------------------------------------------------------------
 _MIGRATION_VERSION = 1
+_VALID_TABLE_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 # Tables exported in dependency order (parents before children).
 _EXPORT_TABLES = [
@@ -54,6 +56,7 @@ def _get_migration_tables(conn):
             "SELECT name FROM sqlite_master "
             "WHERE type='table' AND name NOT LIKE 'sqlite_%'"
         ).fetchall()
+        if _VALID_TABLE_NAME_RE.fullmatch(row["name"])
     }
     ordered_tables = [table for table in _EXPORT_TABLES if table in existing_tables]
     extra_tables = sorted(existing_tables - set(ordered_tables))
@@ -80,6 +83,8 @@ def export_site_data():
         }
     }
     for table in _get_migration_tables(conn):
+        # Safe: _get_migration_tables() filters sqlite_master names through
+        # _VALID_TABLE_NAME_RE before returning them.
         rows = conn.execute(f"SELECT * FROM {table}").fetchall()
         data[table] = [dict(r) for r in rows]
     conn.close()
@@ -126,6 +131,8 @@ def import_site_data(data, mode):
                 if table == "site_settings":
                     # Keep the singleton row; we will update it below.
                     continue
+                # Safe: table names in *tables* come from _get_migration_tables()
+                # and are validated with _VALID_TABLE_NAME_RE.
                 conn.execute(f"DELETE FROM {table}")  # noqa: S608
 
         insert_prefix = {
@@ -144,6 +151,8 @@ def import_site_data(data, mode):
             conn_cols = {
                 r[1]
                 for r in conn.execute(
+                    # Safe: table names in *tables* come from
+                    # _get_migration_tables() and match _VALID_TABLE_NAME_RE.
                     f"PRAGMA table_info({table})"  # noqa: S608
                 ).fetchall()
             }
@@ -154,6 +163,8 @@ def import_site_data(data, mode):
             col_str = ", ".join(import_cols)
             placeholders = ", ".join("?" for _ in import_cols)
             sql = (
+                # Safe: table names in *tables* come from
+                # _get_migration_tables() and match _VALID_TABLE_NAME_RE.
                 f"{insert_prefix} INTO {table} ({col_str}) "  # noqa: S608
                 f"VALUES ({placeholders})"
             )

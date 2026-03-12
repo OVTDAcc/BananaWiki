@@ -71,6 +71,7 @@ def _clear_site_migration_assets():
 
 def _resolve_migration_asset_path(root_dir, rel_path):
     """Resolve an archive relative path under *root_dir* safely."""
+    rel_path = rel_path.replace("\\", "/")
     parts = [part for part in rel_path.split("/") if part not in ("", ".")]
     if any(part == ".." for part in parts):
         raise ValueError("Migration archive contains an invalid asset path.")
@@ -89,23 +90,37 @@ def _import_site_migration_assets(zf, mode):
     for member in zf.infolist():
         if member.is_dir():
             continue
+        handled = False
         for archive_root, fs_root, _ in _get_migration_asset_roots():
             prefix = f"{archive_root}/"
-            if not member.filename.startswith(prefix) or not fs_root:
+            if not member.filename.startswith(prefix):
                 continue
+
+            if not fs_root:
+                get_logger().warning(
+                    "site migration – asset root unavailable during import: %s",
+                    archive_root,
+                )
+                handled = True
+                break
 
             rel_path = member.filename[len(prefix):]
             if not rel_path:
+                handled = True
                 continue
 
             dest_path = _resolve_migration_asset_path(fs_root, rel_path)
             if mode == "keep" and os.path.exists(dest_path):
+                handled = True
                 break
 
             os.makedirs(os.path.dirname(dest_path), exist_ok=True)
             with zf.open(member) as src, open(dest_path, "wb") as dst:
                 dst.write(src.read())
+            handled = True
             break
+        if handled:
+            continue
 
 
 def register_admin_routes(app):
