@@ -29,7 +29,7 @@ OBSIDIAN_ALLOWED_ROLES = ("editor", "admin", "protected_admin")
 
 _SERVER_IMAGE_RE = re.compile(r"/static/uploads/([^\s)\"']+)")
 _SERVER_ATTACHMENT_RE = re.compile(r"/page/[^/]+/attachments/(\d+)/download")
-_LOCAL_ASSET_RE = re.compile(r"(?P<path>(?:\.\./|\./)?assets/(?:images|attachments)/[^\s)\"']+)")
+_LOCAL_ASSET_RE = re.compile(r"(?P<path>(?:\.\.?/)*assets/(?:images|attachments)/[^\s)\"']+)")
 
 
 def authenticate_obsidian_user(username, password):
@@ -195,7 +195,7 @@ def import_obsidian_vault(user, vault_dir, *, slugs=None, category_paths=None):
             user,
             vault_root,
             page,
-            entry,
+            asset_result["asset_map"],
             referenced_assets=asset_result["referenced_attachment_assets"],
         )
 
@@ -205,7 +205,7 @@ def import_obsidian_vault(user, vault_dir, *, slugs=None, category_paths=None):
         updated_entry = _build_manifest_entry_from_page(
             page,
             rel_path,
-            category_path_map,
+            _categories_by_page_path(page, category_path_map),
             asset_result["asset_map"],
             attachment_result["attachments"],
         )
@@ -259,6 +259,7 @@ def _build_category_maps(categories):
     path_map = {}
 
     def resolve_parts(cat_id):
+        """Recursively compute the sanitized vault path for ``cat_id``."""
         cat = category_map.get(cat_id)
         if not cat:
             return ()
@@ -289,6 +290,7 @@ def _flatten_pages():
     pages = []
 
     def visit(nodes):
+        """Collect pages from a nested category tree."""
         for node in nodes:
             pages.extend(node["pages"])
             visit(node["children"])
@@ -629,6 +631,7 @@ def _rewrite_local_assets_for_server(user, vault_root, page_path, body, page, en
     updated_asset_map = dict(entry_asset_map)
 
     def replace(match):
+        """Replace one local asset reference with its BananaWiki server URL."""
         nonlocal uploaded_images, uploaded_attachments
         raw_ref = match.group("path")
         vault_asset = _resolve_asset_reference(vault_root, page_path.parent, raw_ref)
@@ -721,12 +724,12 @@ def _upload_attachment_asset(user, page, asset_path):
     return db.get_page_attachment(attachment_id)
 
 
-def _sync_attachment_directory(user, vault_root, page, entry, *, referenced_assets):
+def _sync_attachment_directory(user, vault_root, page, asset_map, *, referenced_assets):
     """Upload non-referenced files found in the page attachment directory."""
     attachment_root = vault_root / "assets" / "attachments" / page["slug"]
     attachments = []
     uploaded = 0
-    asset_map = dict((entry or {}).get("asset_map") or {})
+    asset_map = dict(asset_map or {})
     known_paths = set(referenced_assets)
 
     for file_path in sorted(attachment_root.glob("*")) if attachment_root.is_dir() else []:

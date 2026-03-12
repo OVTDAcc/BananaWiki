@@ -135,7 +135,7 @@ def test_import_obsidian_vault_updates_history_and_uploads_assets(obsidian_env, 
     page_file = vault_dir / "Guides" / "sync-guide.md"
     page_file.write_text(
         "---\n"
-        "bananawiki_page_id: 2\n"
+        f"bananawiki_page_id: {page_id}\n"
         'bananawiki_slug: "sync-guide"\n'
         'bananawiki_category: "Guides"\n'
         "bananawiki_is_home: false\n"
