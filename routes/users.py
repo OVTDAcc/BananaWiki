@@ -77,6 +77,7 @@ def _collect_obsidian_sync_pages(user):
     pages = []
 
     def visit(nodes, parent_label=""):
+        """Recursively collect writable pages from the category tree."""
         for node in nodes:
             category_label = f"{parent_label} / {node['name']}" if parent_label else node["name"]
             for page in node["pages"]:
