@@ -402,6 +402,7 @@ def test_api_reserve_page(logged_in_editor, test_page):
     assert response.status_code == 200
     data = response.get_json()
     assert data["ok"] is True
+    assert data["message"] == "Page has been successfully reserved for your editing."
     assert "reservation" in data
 
 
@@ -427,6 +428,7 @@ def test_api_release_reservation(logged_in_editor, test_page):
     assert response.status_code == 200
     data = response.get_json()
     assert data["ok"] is True
+    assert data["message"] == "Page reservation has been successfully released."
 
 
 def test_api_release_reservation_not_holding(logged_in_admin, test_page, editor_user):

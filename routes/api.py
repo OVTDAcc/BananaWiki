@@ -4,7 +4,7 @@ BananaWiki – JSON API routes (search, preview, drafts, accessibility, reorder)
 
 import re
 
-from flask import request, jsonify, session
+from flask import request, jsonify, session, flash
 import db
 import config
 from helpers import (
@@ -123,7 +123,7 @@ def register_api_routes(app):
         if error_response:
             return error_response
         db.save_draft(page_id, user["id"], title, content)
-        return jsonify({"ok": True})
+        return jsonify({"ok": True, "message": "Draft saved successfully."})
 
     @app.route("/api/draft/load/<int:page_id>")
     @login_required
@@ -182,7 +182,8 @@ def register_api_routes(app):
             return jsonify({"error": "draft not found"}), 404
         db.transfer_draft(page_id, from_user, user["id"])
         wiki_logger.log_action("transfer_draft", request, user=user, page_id=page_id, from_user=from_user)
-        return jsonify({"ok": True})
+        flash("Draft has been successfully transferred to your account.", "success")
+        return jsonify({"ok": True, "message": "Draft has been successfully transferred to your account."})
 
     @app.route("/api/draft/delete", methods=["POST"])
     @login_required
@@ -203,7 +204,8 @@ def register_api_routes(app):
         user = get_current_user()
         db.delete_draft(page_id, user["id"])
         cleanup_unused_uploads()
-        return jsonify({"ok": True})
+        flash("Draft has been successfully deleted.", "success")
+        return jsonify({"ok": True, "message": "Draft has been successfully deleted."})
 
     @app.route("/api/draft/mine")
     @login_required
@@ -351,7 +353,7 @@ def register_api_routes(app):
             reduce_motion = 0
         prefs["reduce_motion"] = reduce_motion
         db.save_user_accessibility(user["id"], prefs)
-        return jsonify({"ok": True})
+        return jsonify({"ok": True, "message": "Customization settings saved successfully."})
 
     @app.route("/api/accessibility/reset", methods=["POST"])
     @login_required
@@ -360,7 +362,11 @@ def register_api_routes(app):
         """Reset the current user's accessibility preferences to the system defaults."""
         user = get_current_user()
         db.save_user_accessibility(user["id"], dict(db._A11Y_DEFAULTS))
-        return jsonify({"ok": True, "defaults": db._A11Y_DEFAULTS})
+        return jsonify({
+            "ok": True,
+            "message": "Customization settings have been reset to default.",
+            "defaults": db._A11Y_DEFAULTS,
+        })
 
     # -----------------------------------------------------------------------
     #  Reorder API
@@ -382,7 +388,7 @@ def register_api_routes(app):
         user = get_current_user()
         wiki_logger.log_action("reorder_pages", request, user=user, count=len(ids))
         notify_change("pages_reorder", "Page order updated")
-        return jsonify({"ok": True})
+        return jsonify({"ok": True, "message": "Page order saved successfully."})
 
     @app.route("/api/reorder/categories", methods=["POST"])
     @login_required
@@ -401,7 +407,7 @@ def register_api_routes(app):
         user = get_current_user()
         wiki_logger.log_action("reorder_categories", request, user=user, count=len(ids))
         notify_change("categories_reorder", "Category order updated")
-        return jsonify({"ok": True})
+        return jsonify({"ok": True, "message": "Category order saved successfully."})
 
     # -----------------------------------------------------------------------
     #  Page Reservation API
@@ -478,6 +484,7 @@ def register_api_routes(app):
             notify_change("page_reservation", f"Page '{page['title']}' reserved by {user['username']}")
             return jsonify({
                 "ok": True,
+                "message": "Page has been successfully reserved for your editing.",
                 "reservation": {
                     "page_id": reservation["page_id"],
                     "reserved_at": reservation["reserved_at"],
@@ -509,6 +516,6 @@ def register_api_routes(app):
         if released:
             wiki_logger.log_action("release_page_reservation", request, user=user, page_id=page_id)
             notify_change("page_reservation", f"Page '{page['title']}' reservation released by {user['username']}")
-            return jsonify({"ok": True})
+            return jsonify({"ok": True, "message": "Page reservation has been successfully released."})
         else:
             return jsonify({"error": "No active reservation found for this page by you"}), 404

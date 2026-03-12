@@ -417,7 +417,8 @@ def test_api_save_draft(logged_in_admin, admin_user):
                                 content_type="application/json")
     assert resp.status_code == 200
     data = resp.get_json()
-    assert data == {"ok": True}
+    assert data["ok"] is True
+    assert data["message"] == "Draft saved successfully."
     draft = db.get_draft(home["id"], admin_user)
     assert draft is not None
     assert draft["title"] == "Saved Title"
@@ -486,7 +487,8 @@ def test_api_transfer_draft(logged_in_admin, admin_user):
                                 content_type="application/json")
     assert resp.status_code == 200
     data = resp.get_json()
-    assert data == {"ok": True}
+    assert data["ok"] is True
+    assert data["message"] == "Draft has been successfully transferred to your account."
     # Draft should now be owned by admin
     transferred = db.get_draft(home["id"], admin_user)
     assert transferred is not None

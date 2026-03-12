@@ -1538,6 +1538,7 @@ def test_draft_delete_cleans_up(logged_in_admin, admin_user):
                                 json={"page_id": home["id"]},
                                 content_type="application/json")
     assert resp.status_code == 200
+    assert resp.get_json()["message"] == "Draft has been successfully deleted."
     assert db.get_draft(home["id"], admin_user) is None
 
 
@@ -4378,7 +4379,9 @@ def test_reorder_pages_logs_action(logged_in_admin, admin_user, monkeypatch):
         content_type="application/json",
     )
     assert resp.status_code == 200
-    assert resp.get_json()["ok"] is True
+    payload = resp.get_json()
+    assert payload["ok"] is True
+    assert payload["message"] == "Page order saved successfully."
     assert "reorder_pages" in logged_calls
 
 
@@ -4406,7 +4409,9 @@ def test_reorder_categories_logs_action(logged_in_admin, admin_user, monkeypatch
         content_type="application/json",
     )
     assert resp.status_code == 200
-    assert resp.get_json()["ok"] is True
+    payload = resp.get_json()
+    assert payload["ok"] is True
+    assert payload["message"] == "Category order saved successfully."
     assert "reorder_categories" in logged_calls
 
 
@@ -5832,6 +5837,7 @@ def test_api_reset_accessibility_restores_defaults(logged_in_admin):
     assert resp.status_code == 200
     body = resp.get_json()
     assert body["ok"] is True
+    assert body["message"] == "Customization settings have been reset to default."
     assert "defaults" in body
 
     # Verify preferences match the DB defaults
@@ -5854,6 +5860,7 @@ def test_api_reset_accessibility_returns_defaults_in_response(logged_in_admin):
     assert resp.status_code == 200
     body = resp.get_json()
     assert body["ok"] is True
+    assert body["message"] == "Customization settings have been reset to default."
     returned_defaults = body["defaults"]
     for key in db._A11Y_DEFAULTS:
         assert key in returned_defaults
