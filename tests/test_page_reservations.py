@@ -486,6 +486,7 @@ def test_sidebar_shows_blue_lock_for_own_reservation(logged_in_editor, editor_us
     response = logged_in_editor.get("/page/reserved-page")
     assert response.status_code == 200
     assert b"sidebar-reservation-indicator sidebar-reservation-indicator-self" in response.data
+    assert b"<svg class=\"sidebar-reservation-indicator-icon\"" in response.data
     assert b"Reserved by you" in response.data
 
 
@@ -500,6 +501,7 @@ def test_sidebar_shows_red_lock_for_other_users_and_search_results(client, test_
     assert response.status_code == 200
     assert b"sidebar-reservation-indicator-self" not in response.data
     assert b"sidebar-reservation-indicator" in response.data
+    assert b"<svg class=\"sidebar-reservation-indicator-icon\"" in response.data
     assert b"Reserved by another user" in response.data
 
     search_response = client.get("/api/sidebar/search?q=Test")

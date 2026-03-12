@@ -2253,7 +2253,9 @@ function initEditorResize() {
             var reservationLabel = p.reservation_label || '';
             var reservationHtml = p.is_reserved
                 ? '<span class="sidebar-reservation-indicator' + (p.reserved_by_current_user ? ' sidebar-reservation-indicator-self' : '') + '" title="' + escHtml(reservationLabel) + '">'
-                    + '<span class="sidebar-reservation-indicator-icon" aria-hidden="true">🔒</span>'
+                    + '<svg class="sidebar-reservation-indicator-icon" aria-hidden="true" viewBox="0 0 16 16" focusable="false">'
+                    + '<path fill="currentColor" d="M4 7V5.5a4 4 0 1 1 8 0V7a1.5 1.5 0 0 1 1.5 1.5v5A1.5 1.5 0 0 1 12 15H4a1.5 1.5 0 0 1-1.5-1.5v-5A1.5 1.5 0 0 1 4 7m1 0h6V5.5a3 3 0 1 0-6 0zm-1 1a.5.5 0 0 0-.5.5v5A.5.5 0 0 0 4 14h8a.5.5 0 0 0 .5-.5v-5A.5.5 0 0 0 12 8z"></path>'
+                    + '</svg>'
                     + '<span class="sr-only">' + escHtml(reservationLabel) + '</span>'
                   + '</span>'
                 : '';
