@@ -125,6 +125,13 @@ LOG_FILE = os.path.join(BASE_DIR, "logs", "bananawiki.log")
 PAGE_HISTORY_ENABLED = True
 
 # =============================================================================
+# Experimental Obsidian Sync
+# =============================================================================
+# Enable the local Obsidian pull/push integration. The sync script reuses the
+# existing BananaWiki user accounts and only allows editor/admin roles.
+EXPERIMENTAL_OBSIDIAN_SYNC = False
+
+# =============================================================================
 # Invite Codes
 # =============================================================================
 # How long invite codes last before expiring (in hours)
