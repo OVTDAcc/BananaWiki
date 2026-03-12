@@ -6,8 +6,9 @@
 <div class="settings-section">
     <h3>Export Site</h3>
     <p style="opacity:.8;margin-bottom:.8rem">
-        Download a full backup of all site data (pages, categories, users, settings,
-        announcements, invite codes, and edit history) as a single ZIP file.
+        Download a full backup of all site data and runtime assets as a single ZIP file.
+        This includes database content, uploaded images, page attachments, chat attachments,
+        and custom favicons needed for a full migration.
         <strong>Passwords are included in the export</strong>—store it securely.
     </p>
     <form method="POST" action="{{ url_for('admin_migration_export') }}">
@@ -19,7 +20,7 @@
 <div class="settings-section">
     <h3>Import Site</h3>
     <p style="opacity:.8;margin-bottom:.8rem">
-        Restore site data from a previously exported ZIP file.
+        Restore site data and runtime assets from a previously exported ZIP file.
         Choose how to handle conflicts between the imported data and any data that
         already exists on this site.
     </p>

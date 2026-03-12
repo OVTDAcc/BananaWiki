@@ -19,6 +19,9 @@ import config
 def isolated_db(tmp_path, monkeypatch):
     """Use a temporary database for every test."""
     db_path = str(tmp_path / "test.db")
+    monkeypatch.setattr(config, "UPLOAD_FOLDER", str(tmp_path / "uploads"))
+    monkeypatch.setattr(config, "ATTACHMENT_FOLDER", str(tmp_path / "attachments"))
+    monkeypatch.setattr(config, "CHAT_ATTACHMENT_FOLDER", str(tmp_path / "chat_attachments"))
     monkeypatch.setattr(config, "DATABASE_PATH", db_path)
     monkeypatch.setattr(config, "LOGGING_LEVEL", "off")
     import db as db_mod
@@ -39,8 +42,10 @@ def clear_rl_store():
 @pytest.fixture
 def client():
     from app import app
+    import routes.admin as admin_mod
     app.config["TESTING"] = True
     app.config["WTF_CSRF_ENABLED"] = False
+    admin_mod.FAVICON_UPLOAD_FOLDER = os.path.join(app.static_folder, "favicons_test")
     with app.test_client() as c:
         yield c
 
@@ -75,6 +80,27 @@ def test_export_site_data_structure(admin_user):
                   "page_history", "drafts", "announcements",
                   "username_history", "site_settings"):
         assert table in data, f"Missing table: {table}"
+
+
+def test_export_site_data_includes_all_current_tables(admin_user):
+    """The migration export should include every application table."""
+    import db
+    conn = db.get_db()
+    try:
+        expected_tables = {
+            row["name"]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master "
+                "WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+            ).fetchall()
+        }
+    finally:
+        conn.close()
+
+    data = db.export_site_data()
+    exported_tables = set(data) - {"_meta"}
+
+    assert exported_tables == expected_tables
 
 
 def test_export_contains_user(admin_user):
@@ -222,6 +248,42 @@ def test_export_zip_contains_valid_json(logged_in_admin):
     assert "users" in data
 
 
+def test_export_route_includes_runtime_assets(logged_in_admin):
+    """The site export should bundle uploads, attachments, chat files, and custom favicons."""
+    import db
+    import routes.admin as admin_mod
+
+    upload_file = os.path.join(config.UPLOAD_FOLDER, "wiki-image.png")
+    avatar_file = os.path.join(config.UPLOAD_FOLDER, "avatars", "alice.png")
+    attachment_file = os.path.join(config.ATTACHMENT_FOLDER, "page-file.txt")
+    chat_file = os.path.join(config.CHAT_ATTACHMENT_FOLDER, "chat-file.txt")
+    favicon_dir = admin_mod.FAVICON_UPLOAD_FOLDER
+    favicon_file = os.path.join(favicon_dir, "custom_site.png")
+
+    for path in (upload_file, avatar_file, attachment_file, chat_file, favicon_file):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "wb") as f:
+            f.write(b"asset-data")
+
+    db.update_site_settings(
+        favicon_enabled=1,
+        favicon_type="custom",
+        favicon_custom="custom_site.png",
+    )
+
+    resp = logged_in_admin.post("/admin/migration/export")
+    assert resp.status_code == 200
+
+    with zipfile.ZipFile(io.BytesIO(resp.data)) as zf:
+        names = set(zf.namelist())
+
+    assert "assets/uploads/wiki-image.png" in names
+    assert "assets/uploads/avatars/alice.png" in names
+    assert "assets/attachments/page-file.txt" in names
+    assert "assets/chat_attachments/chat-file.txt" in names
+    assert "assets/favicons/custom_site.png" in names
+
+
 def _make_zip_from_data(data):
     """Helper: wrap a dict as a ZIP containing site_export.json."""
     buf = io.BytesIO()
@@ -247,6 +309,62 @@ def test_import_route_delete_all(logged_in_admin, admin_user):
     )
     assert resp.status_code == 200
     assert b"imported successfully" in resp.data
+
+
+def test_import_route_restores_assets_and_attachment_records(logged_in_admin, admin_user):
+    """Import should restore omitted attachment records and runtime assets from the archive."""
+    import db
+    import routes.admin as admin_mod
+
+    home_page = db.get_home_page()
+    db.add_page_attachment(home_page["id"], "page-file.txt", "Page File.txt", 9, admin_user)
+
+    upload_file = os.path.join(config.UPLOAD_FOLDER, "wiki-image.png")
+    attachment_file = os.path.join(config.ATTACHMENT_FOLDER, "page-file.txt")
+    chat_file = os.path.join(config.CHAT_ATTACHMENT_FOLDER, "chat-file.txt")
+    favicon_file = os.path.join(admin_mod.FAVICON_UPLOAD_FOLDER, "custom_site.png")
+
+    for path in (upload_file, attachment_file, chat_file, favicon_file):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "wb") as f:
+            f.write(b"before-export")
+
+    db.update_site_settings(
+        favicon_enabled=1,
+        favicon_type="custom",
+        favicon_custom="custom_site.png",
+    )
+
+    export_resp = logged_in_admin.post("/admin/migration/export")
+    assert export_resp.status_code == 200
+
+    conn = db.get_db()
+    try:
+        conn.execute("DELETE FROM page_attachments")
+        conn.commit()
+    finally:
+        conn.close()
+
+    for path in (upload_file, attachment_file, chat_file, favicon_file):
+        os.remove(path)
+
+    import_resp = logged_in_admin.post(
+        "/admin/migration/import",
+        data={
+            "import_mode": "delete_all",
+            "import_file": (io.BytesIO(export_resp.data), "backup.zip"),
+        },
+        content_type="multipart/form-data",
+        follow_redirects=True,
+    )
+
+    assert import_resp.status_code == 200
+    assert b"imported successfully" in import_resp.data
+    attachments = db.get_page_attachments(home_page["id"])
+    assert len(attachments) == 1
+    assert attachments[0]["filename"] == "page-file.txt"
+    for path in (upload_file, attachment_file, chat_file, favicon_file):
+        assert os.path.exists(path)
 
 
 def test_import_route_invalid_mode(logged_in_admin):
