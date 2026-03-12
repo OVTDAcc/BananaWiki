@@ -439,7 +439,16 @@ def get_active_page_reservations_map(user_id=None, page_ids=None):
         return {}
 
     has_page_filter = page_ids is not None
-    page_ids = [int(page_id) for page_id in page_ids] if has_page_filter else []
+    if has_page_filter:
+        normalized_page_ids = []
+        for page_id in page_ids:
+            try:
+                normalized_page_ids.append(int(page_id))
+            except (TypeError, ValueError):
+                continue
+        page_ids = normalized_page_ids
+    else:
+        page_ids = []
     if has_page_filter and not page_ids:
         return {}
 

@@ -2250,7 +2250,7 @@ function initEditorResize() {
                   + '</a>';
         });
         pages.forEach(function(p) {
-            var reservationLabel = p.reservation_label || (p.reserved_by_current_user ? 'Reserved by you' : 'Reserved by another user');
+            var reservationLabel = p.reservation_label || '';
             var reservationHtml = p.is_reserved
                 ? '<span class="sidebar-reservation-indicator' + (p.reserved_by_current_user ? ' sidebar-reservation-indicator-self' : '') + '" title="' + escHtml(reservationLabel) + '">'
                     + '<span class="sidebar-reservation-indicator-icon" aria-hidden="true">🔒</span>'
