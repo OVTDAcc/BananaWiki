@@ -1,6 +1,7 @@
 """User CRUD, accessibility, login attempts, and editor access."""
 
 import json
+import re
 import string
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -183,6 +184,23 @@ _A11Y_DEFAULTS = {
     "reduce_motion": 0,
 }
 
+_A11Y_HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
+_A11Y_RGB_COLOR_RE = re.compile(r"^rgb\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*\)$")
+
+
+def _clean_a11y_pref(key, value):
+    """Return a sanitised accessibility preference value for *key*."""
+    if not key.startswith("custom_"):
+        return value
+    if not isinstance(value, str):
+        return ""
+    value = value.strip()
+    if not value:
+        return ""
+    if _A11Y_HEX_COLOR_RE.fullmatch(value) or _A11Y_RGB_COLOR_RE.fullmatch(value):
+        return value
+    return ""
+
 
 def get_user_accessibility(user_id):
     """Return the accessibility preferences dict for a user (merged with defaults)."""
@@ -193,7 +211,11 @@ def get_user_accessibility(user_id):
     if row and row["accessibility"]:
         try:
             saved = json.loads(row["accessibility"])
-            result.update({k: v for k, v in saved.items() if k in _A11Y_DEFAULTS})
+            result.update({
+                k: _clean_a11y_pref(k, v)
+                for k, v in saved.items()
+                if k in _A11Y_DEFAULTS
+            })
         except (json.JSONDecodeError, TypeError):
             pass
     return result
@@ -201,7 +223,11 @@ def get_user_accessibility(user_id):
 
 def save_user_accessibility(user_id, prefs):
     """Persist accessibility preferences for a user."""
-    cleaned = {k: prefs[k] for k in _A11Y_DEFAULTS if k in prefs}
+    cleaned = {
+        k: _clean_a11y_pref(k, prefs[k])
+        for k in _A11Y_DEFAULTS
+        if k in prefs
+    }
     conn = get_db()
     conn.execute("UPDATE users SET accessibility=? WHERE id=?",
                  (json.dumps(cleaned), user_id))

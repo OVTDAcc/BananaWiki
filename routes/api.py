@@ -300,7 +300,7 @@ def register_api_routes(app):
             val = str(val).strip()
             if not val:
                 return ""
-            if re.match(r'^#[0-9a-fA-F]{3,8}$', val):
+            if re.match(r'^#[0-9a-fA-F]{6}$', val):
                 return val
             if re.match(r'^rgb\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*\)$', val):
                 return val

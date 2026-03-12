@@ -5234,18 +5234,43 @@ def test_accessibility_clear_custom_bg(logged_in_admin):
 
 def test_accessibility_black_bg_not_persisted_on_invalid_colour(logged_in_admin):
     """An invalid colour string is rejected and does not overwrite the stored value."""
-    # Store a valid colour first.
-    logged_in_admin.post("/api/accessibility",
-                         json={"custom_bg": "#abcdef"},
-                         content_type="application/json")
-    # Try to save an invalid value.
-    logged_in_admin.post("/api/accessibility",
-                         json={"custom_bg": "not-a-colour"},
-                         content_type="application/json")
+    for invalid in ("not-a-colour", "#000", "#00000000"):
+        logged_in_admin.post("/api/accessibility",
+                             json={"custom_bg": "#abcdef"},
+                             content_type="application/json")
+        logged_in_admin.post("/api/accessibility",
+                             json={"custom_bg": invalid},
+                             content_type="application/json")
+        prefs = logged_in_admin.get("/api/accessibility").get_json()
+        # The invalid value must be rejected; the stored colour must remain empty
+        # (the server sanitises to "" when the value is invalid).
+        assert prefs["custom_bg"] == ""
+
+
+def test_accessibility_page_ignores_legacy_invalid_custom_colour(logged_in_admin):
+    """Legacy invalid custom colours are ignored when rendering/accessing prefs."""
+    import db
+    import json
+    import re
+
+    with db.get_db() as conn:
+        conn.execute(
+            "UPDATE users SET accessibility=? WHERE username=?",
+            (json.dumps({"custom_bg": "#000", "custom_text": "#00000000"}), "admin"),
+        )
+        conn.commit()
+
     prefs = logged_in_admin.get("/api/accessibility").get_json()
-    # The invalid value must be rejected; the stored colour must remain empty
-    # (the server sanitises to "" when the value is invalid).
     assert prefs["custom_bg"] == ""
+    assert prefs["custom_text"] == ""
+
+    resp = logged_in_admin.get("/")
+    assert resp.status_code == 200
+    html = resp.data.decode()
+    a11y_match = re.search(r'<style id="a11y-style">(.*?)</style>', html, re.DOTALL)
+    if a11y_match:
+        assert "--bg" not in a11y_match.group(1)
+        assert "--text" not in a11y_match.group(1)
 
 
 def test_accessibility_page_renders_a11y_style_with_custom_bg(logged_in_admin):
