@@ -20,6 +20,7 @@ import types
 import zipfile
 
 import pytest
+from PIL import Image
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -276,6 +277,136 @@ class TestUserExportRoute:
         resp = client.get("/account/export")
         assert resp.status_code == 302
         assert "/login" in resp.headers["Location"]
+
+
+class TestObsidianSyncRoutes:
+    """Test the experimental Obsidian export/import workflow."""
+
+    @staticmethod
+    def _png_bytes(color=(255, 215, 0)):
+        """Return a valid in-memory PNG image."""
+        buf = io.BytesIO()
+        Image.new("RGB", (1, 1), color=color).save(buf, format="PNG")
+        return buf.getvalue()
+
+    def test_account_settings_shows_obsidian_section_for_editor(self, logged_in_editor):
+        """Editors can see the experimental Obsidian sync section."""
+        resp = logged_in_editor.get("/account")
+        assert resp.status_code == 200
+        assert b"Obsidian Sync (Experimental)" in resp.data
+        assert b"docs/obsidian_integration.md" in resp.data
+
+    def test_obsidian_export_can_select_specific_pages(self, logged_in_editor, editor_user):
+        """Export ZIP can include only the selected writable pages and their assets."""
+        import db
+
+        cat_id = db.create_category("Docs")
+        page_id = db.create_page(
+            "Alpha Page",
+            "alpha-page",
+            "Alpha body ![](/static/uploads/alpha.png)",
+            cat_id,
+            editor_user,
+        )
+        db.create_page("Beta Page", "beta-page", "Beta body", cat_id, editor_user)
+
+        os.makedirs(config.UPLOAD_FOLDER, exist_ok=True)
+        with open(os.path.join(config.UPLOAD_FOLDER, "alpha.png"), "wb") as f:
+            f.write(self._png_bytes())
+
+        os.makedirs(config.ATTACHMENT_FOLDER, exist_ok=True)
+        with open(os.path.join(config.ATTACHMENT_FOLDER, "alpha-attach.txt"), "wb") as f:
+            f.write(b"alpha attachment")
+        db.add_page_attachment(page_id, "alpha-attach.txt", "notes.txt", len(b"alpha attachment"), editor_user)
+
+        resp = logged_in_editor.post(
+            "/account/obsidian/export",
+            data={"page_slugs": ["alpha-page"]},
+        )
+
+        assert resp.status_code == 200
+        assert resp.content_type == "application/zip"
+
+        with zipfile.ZipFile(io.BytesIO(resp.data)) as zf:
+            names = set(zf.namelist())
+            manifest = json.loads(zf.read("manifest.json"))
+
+        assert "pages/alpha-page.md" in names
+        assert "pages/beta-page.md" not in names
+        assert "uploads/alpha.png" in names
+        assert any(name.endswith("notes.txt") for name in names if name.startswith("attachments/alpha-page/"))
+        assert manifest["pages"][0]["slug"] == "alpha-page"
+
+    def test_obsidian_import_updates_content_uploads_and_attachments(self, logged_in_editor, editor_user):
+        """Import ZIP updates page markdown, restores uploads, and replaces attachments."""
+        import db
+
+        cat_id = db.create_category("Docs")
+        page_id = db.create_page("Alpha Page", "alpha-page", "Old body", cat_id, editor_user)
+
+        os.makedirs(config.ATTACHMENT_FOLDER, exist_ok=True)
+        old_attachment_path = os.path.join(config.ATTACHMENT_FOLDER, "old-attachment.txt")
+        with open(old_attachment_path, "wb") as f:
+            f.write(b"old attachment")
+        db.add_page_attachment(page_id, "old-attachment.txt", "old.txt", len(b"old attachment"), editor_user)
+
+        manifest = {
+            "format": 1,
+            "pages": [
+                {
+                    "page_id": page_id,
+                    "slug": "alpha-page",
+                    "title": "Alpha Page",
+                    "category_id": cat_id,
+                    "markdown_path": "pages/alpha-page.md",
+                    "uploads": [{"filename": "imported.png", "archive_path": "uploads/imported.png"}],
+                    "attachments": [{"original_name": "notes.txt", "archive_path": "attachments/alpha-page/01-notes.txt"}],
+                }
+            ],
+        }
+        markdown = (
+            "---\n"
+            f"bananawiki_page_id: {page_id}\n"
+            'bananawiki_slug: "alpha-page"\n'
+            'bananawiki_title: "Imported Alpha"\n'
+            f"bananawiki_category_id: {cat_id}\n"
+            "---\n\n"
+            "Updated body with ![](/static/uploads/imported.png)"
+        )
+
+        archive = io.BytesIO()
+        with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr("manifest.json", json.dumps(manifest))
+            zf.writestr("pages/alpha-page.md", markdown)
+            zf.writestr("uploads/imported.png", self._png_bytes(color=(12, 34, 56)))
+            zf.writestr("attachments/alpha-page/01-notes.txt", b"new attachment")
+        archive.seek(0)
+
+        resp = logged_in_editor.post(
+            "/account/obsidian/import",
+            data={"vault_zip": (archive, "obsidian-import.zip")},
+            content_type="multipart/form-data",
+            follow_redirects=True,
+        )
+
+        assert resp.status_code == 200
+        assert b"Obsidian vault has been successfully imported." in resp.data
+
+        page = db.get_page(page_id)
+        attachments = db.get_page_attachments(page_id)
+
+        assert page["title"] == "Imported Alpha"
+        assert page["content"] == "Updated body with ![](/static/uploads/imported.png)"
+        assert os.path.isfile(os.path.join(config.UPLOAD_FOLDER, "imported.png"))
+        assert len(attachments) == 1
+        assert attachments[0]["original_name"] == "notes.txt"
+        assert not os.path.exists(old_attachment_path)
+
+    def test_obsidian_export_requires_editor_permissions(self, logged_in_regular):
+        """Regular users cannot use the experimental Obsidian export route."""
+        resp = logged_in_regular.post("/account/obsidian/export", data={})
+        assert resp.status_code == 302
+        assert resp.headers["Location"].endswith("/")
 
 
 # ===========================================================================

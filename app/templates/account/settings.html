@@ -105,6 +105,38 @@
     <p style="font-size:.85rem;opacity:.7;margin-bottom:.8rem">Pages you have unsaved drafts for. You can continue editing or discard them.</p>
     <div id="draft-manager-list"><p style="opacity:.7;font-size:.9rem">Loading drafts…</p></div>
 </div>
+
+<div class="settings-section">
+    <h3>Obsidian Sync (Experimental)</h3>
+    <p style="font-size:.85rem;opacity:.7;margin-bottom:.8rem">
+        Pull writable pages into an Obsidian-ready ZIP, edit the Markdown, uploads and attachments offline, then push the ZIP back here.
+        Setup notes live in <code>docs/obsidian_integration.md</code> in the repository source.
+    </p>
+
+    <form method="POST" action="{{ url_for('export_obsidian_vault') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-group">
+            <label>Pages to export (leave empty to export all writable pages)</label>
+            <select name="page_slugs" class="input" multiple size="8">
+                {% for page in obsidian_pages %}
+                <option value="{{ page.slug }}">{{ page.title }} — {{ page.category_label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="btn btn-outline">⬇ Download Obsidian ZIP</button>
+    </form>
+
+    <hr style="margin:1rem 0;opacity:.15">
+
+    <form method="POST" action="{{ url_for('import_obsidian_vault') }}" enctype="multipart/form-data" data-confirm="Import this Obsidian ZIP back into BananaWiki? Existing page content and attachments for the included pages will be replaced.">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-group">
+            <label>ZIP file to import</label>
+            <input type="file" name="vault_zip" class="input" accept=".zip,application/zip" required>
+        </div>
+        <button type="submit" class="btn">⬆ Import Obsidian ZIP</button>
+    </form>
+</div>
 {% endif %}
 
 <div class="settings-section">
