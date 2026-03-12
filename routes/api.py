@@ -348,7 +348,7 @@ def register_api_routes(app):
 
         reduce_motion = data.get("reduce_motion", current.get("reduce_motion", 0))
         try:
-        reduce_motion = 1 if reduce_motion else 0
+            reduce_motion = 1 if reduce_motion else 0
         except (TypeError, ValueError):
             reduce_motion = 0
         prefs["reduce_motion"] = reduce_motion
