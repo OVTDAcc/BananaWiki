@@ -89,7 +89,10 @@ def get_user_by_username(username):
     return user
 
 
-_ALLOWED_USER_COLUMNS = {"username", "password", "role", "suspended", "last_login_at", "session_token"}
+_ALLOWED_USER_COLUMNS = {
+    "username", "password", "role", "suspended", "last_login_at",
+    "session_token", "reserved_pages_quota",
+}
 
 
 def update_user(user_id, **kwargs):
@@ -281,7 +284,13 @@ def list_users(role_filter=None, status_filter=None):
     *status_filter* accepts ``'active'`` or ``'suspended'``.
     """
     conn = get_db()
-    q = "SELECT * FROM users WHERE 1=1"
+    q = (
+        "SELECT users.*, EXISTS("
+        "SELECT 1 FROM reservation_quota_requests rqr "
+        "WHERE rqr.user_id = users.id AND rqr.status='pending'"
+        ") AS has_pending_reservation_quota_request "
+        "FROM users WHERE 1=1"
+    )
     params = []
     if role_filter:
         q += " AND role=?"

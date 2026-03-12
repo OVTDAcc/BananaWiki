@@ -19,6 +19,7 @@ def init_db():
         role        TEXT    NOT NULL DEFAULT 'user'
                             CHECK(role IN ('user','editor','admin','protected_admin')),
         suspended   INTEGER NOT NULL DEFAULT 0,
+        reserved_pages_quota INTEGER,
         invite_code TEXT,
         created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
     );
@@ -100,6 +101,7 @@ def init_db():
         page_reservations_enabled INTEGER NOT NULL DEFAULT 0,
         page_reservation_duration_hours INTEGER NOT NULL DEFAULT 48,
         page_reservation_cooldown_hours INTEGER NOT NULL DEFAULT 24,
+        default_reserved_pages_quota INTEGER NOT NULL DEFAULT 5,
         about_page_initialized INTEGER NOT NULL DEFAULT 0
     );
 
@@ -327,6 +329,18 @@ def init_db():
         cooldown_until  TEXT    NOT NULL,
         UNIQUE(page_id, user_id)
     );
+
+    CREATE TABLE IF NOT EXISTS reservation_quota_requests (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id         TEXT    NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        requested_quota INTEGER NOT NULL,
+        reason          TEXT    NOT NULL DEFAULT '',
+        status          TEXT    NOT NULL DEFAULT 'pending'
+                                CHECK(status IN ('pending','approved','denied')),
+        reviewed_by     TEXT REFERENCES users(id) ON DELETE SET NULL,
+        reviewed_at     TEXT,
+        created_at      TEXT    NOT NULL DEFAULT (datetime('now'))
+    );
     """)
 
     # -- Migrations: add columns to existing tables --
@@ -338,6 +352,8 @@ def init_db():
         cur.execute("ALTER TABLE users ADD COLUMN easter_egg_found INTEGER NOT NULL DEFAULT 0")
     if "is_superuser" not in cols:
         cur.execute("ALTER TABLE users ADD COLUMN is_superuser INTEGER NOT NULL DEFAULT 0")
+    if "reserved_pages_quota" not in cols:
+        cur.execute("ALTER TABLE users ADD COLUMN reserved_pages_quota INTEGER")
 
     # Add timezone / favicon columns to site_settings if missing
     ss_cols = [r[1] for r in cur.execute("PRAGMA table_info(site_settings)").fetchall()]
@@ -361,6 +377,8 @@ def init_db():
         cur.execute("ALTER TABLE site_settings ADD COLUMN page_reservation_duration_hours INTEGER NOT NULL DEFAULT 48")
     if "page_reservation_cooldown_hours" not in ss_cols:
         cur.execute("ALTER TABLE site_settings ADD COLUMN page_reservation_cooldown_hours INTEGER NOT NULL DEFAULT 24")
+    if "default_reserved_pages_quota" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN default_reserved_pages_quota INTEGER NOT NULL DEFAULT 5")
     if "about_page_initialized" not in ss_cols:
         cur.execute("ALTER TABLE site_settings ADD COLUMN about_page_initialized INTEGER NOT NULL DEFAULT 0")
     if "light_primary_color" not in ss_cols:
@@ -536,6 +554,11 @@ def init_db():
     hist_cols = [r[1] for r in cur.execute("PRAGMA table_info(page_history)").fetchall()]
     if "is_revert" not in hist_cols:
         cur.execute("ALTER TABLE page_history ADD COLUMN is_revert INTEGER NOT NULL DEFAULT 0")
+
+    cur.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_reservation_quota_requests_pending "
+        "ON reservation_quota_requests(user_id) WHERE status='pending'"
+    )
 
     # Migrate users.id from INTEGER to TEXT if needed
     user_id_type = next(

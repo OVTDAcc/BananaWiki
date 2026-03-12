@@ -292,9 +292,61 @@ def register_user_routes(app):
 
         categories, uncategorized = db.get_category_tree()
         profile = db.get_user_profile(user["id"])
+        pending_quota_request = db.get_pending_reservation_quota_request(user["id"])
         return render_template("account/settings.html", user=user,
                                categories=categories, uncategorized=uncategorized,
-                               profile=profile)
+                               profile=profile,
+                               reservation_quota=db.get_effective_reserved_pages_quota(user["id"]),
+                               pending_quota_request=pending_quota_request)
+
+    @app.route("/account/reservation-quota", methods=["GET", "POST"])
+    @login_required
+    @rate_limit(10, 60)
+    def account_reservation_quota():
+        """Display and handle the current user's reservation quota requests."""
+        user = get_current_user()
+
+        if request.method == "POST":
+            action = request.form.get("action", "")
+            if action == "submit_quota_request":
+                requested_quota = request.form.get("requested_quota", type=int)
+                reason = request.form.get("reason", "").strip()
+                if requested_quota is None:
+                    flash("Requested quota is required to continue.", "error")
+                else:
+                    try:
+                        db.create_reservation_quota_request(user["id"], requested_quota, reason)
+                    except ValueError as exc:
+                        flash(str(exc), "error")
+                    else:
+                        log_action(
+                            "submit_reservation_quota_request",
+                            request,
+                            user=user,
+                            requested_quota=requested_quota,
+                        )
+                        notify_change(
+                            "reservation_quota_request_submit",
+                            f"User '{user['username']}' submitted a reservation quota request",
+                        )
+                        flash("Quota request has been successfully submitted.", "success")
+                return redirect(url_for("account_reservation_quota"))
+
+        categories, uncategorized = db.get_category_tree()
+        current_quota = db.get_effective_reserved_pages_quota(user["id"])
+        return render_template(
+            "account/reservation_quota.html",
+            target_user=user,
+            current_quota=current_quota,
+            default_quota=db.get_default_reserved_pages_quota(),
+            active_reservation_count=db.get_user_active_reservation_count(user["id"]),
+            pending_request=db.get_pending_reservation_quota_request(user["id"]),
+            quota_requests=db.list_reservation_quota_requests(user["id"]),
+            max_reason_length=db.MAX_QUOTA_REQUEST_REASON_LENGTH,
+            admin_view=False,
+            categories=categories,
+            uncategorized=uncategorized,
+        )
 
     @app.route("/account/export")
     @login_required

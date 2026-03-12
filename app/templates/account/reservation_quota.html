@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}Reservation Quota – {{ settings.site_name }}{% endblock %}
+{% block content %}
+<h1>{% if admin_view %}Reservation Quota – {{ target_user.username }}{% else %}Reservation Quota{% endif %}</h1>
+
+{% if admin_view %}
+<p style="margin-bottom:1rem">
+    <a href="{{ url_for('admin_users') }}" class="btn btn-outline">← Back to Manage Users</a>
+</p>
+{% endif %}
+
+<div class="settings-section">
+    <h3>Current Quota</h3>
+    <p style="font-size:.95rem;opacity:.85;margin-bottom:.4rem">
+        <strong>{{ target_user.username }}</strong> can reserve up to <strong>{{ current_quota }}</strong> page{{ '' if current_quota == 1 else 's' }} at the same time.
+    </p>
+    <p style="font-size:.85rem;opacity:.7;margin:0">
+        Default site quota: <strong>{{ default_quota }}</strong> · Active reservations: <strong>{{ active_reservation_count }}</strong>
+    </p>
+</div>
+
+{% if not admin_view %}
+<div class="settings-section">
+    <h3>Request a Quota Increase</h3>
+    {% if pending_request %}
+    <p style="font-size:.9rem;opacity:.8;margin-bottom:0">
+        You already have a pending request for <strong>{{ pending_request.requested_quota }}</strong> reserved pages.
+        An admin must review it before you can submit another request.
+    </p>
+    {% else %}
+    <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="submit_quota_request">
+        <div class="form-group">
+            <label>Requested Quota Amount</label>
+            <input type="number" name="requested_quota" class="input" min="{{ current_quota + 1 }}" max="1000" value="{{ current_quota + 1 }}" style="max-width:180px" required>
+        </div>
+        <div class="form-group">
+            <label>Reason</label>
+            <textarea name="reason" class="input" rows="5" maxlength="{{ max_reason_length }}" placeholder="Explain why you need a higher reservation quota." required></textarea>
+        </div>
+        <button type="submit" class="btn">Submit Quota Request</button>
+    </form>
+    {% endif %}
+</div>
+{% endif %}
+
+<div class="settings-section">
+    <h3>Quota Request History</h3>
+    {% if quota_requests %}
+    <table class="admin-table">
+        <thead>
+            <tr>
+                <th>Requested Quota</th>
+                <th>Status</th>
+                <th>Reason</th>
+                <th>Submitted</th>
+                <th>Reviewed</th>
+                {% if admin_view %}<th>Actions</th>{% endif %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for req in quota_requests %}
+            <tr>
+                <td>{{ req.requested_quota }}</td>
+                <td>
+                    <span class="badge" style="
+                        {% if req.status == 'approved' %}background:rgba(76,175,80,.18);color:#9be7a4;border-color:rgba(76,175,80,.45)
+                        {% elif req.status == 'denied' %}background:rgba(244,67,54,.16);color:#ff9f98;border-color:rgba(244,67,54,.4)
+                        {% else %}background:rgba(255,193,7,.16);color:#ffd97a;border-color:rgba(255,193,7,.4){% endif %}
+                    ">
+                        {{ req.status|capitalize }}
+                    </span>
+                </td>
+                <td style="min-width:240px"><div style="white-space:pre-wrap">{{ req.reason }}</div></td>
+                <td style="font-size:.85rem">{{ format_datetime(req.created_at) }}</td>
+                <td style="font-size:.85rem">
+                    {% if req.reviewed_at %}
+                    {{ format_datetime(req.reviewed_at) }}{% if req.reviewed_by_username %}<br><span style="opacity:.7">by {{ req.reviewed_by_username }}</span>{% endif %}
+                    {% else %}
+                    —
+                    {% endif %}
+                </td>
+                {% if admin_view %}
+                <td>
+                    {% if req.status == 'pending' %}
+                    <div style="display:flex;gap:.4rem;flex-wrap:wrap">
+                        <form method="POST">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="action" value="approve_request">
+                            <input type="hidden" name="request_id" value="{{ req.id }}">
+                            <button type="submit" class="btn btn-sm">Approve</button>
+                        </form>
+                        <form method="POST">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="action" value="deny_request">
+                            <input type="hidden" name="request_id" value="{{ req.id }}">
+                            <button type="submit" class="btn btn-sm btn-outline">Deny</button>
+                        </form>
+                    </div>
+                    {% else %}
+                    —
+                    {% endif %}
+                </td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="font-size:.9rem;opacity:.75;margin:0">No quota requests have been submitted yet.</p>
+    {% endif %}
+</div>
+{% endblock %}

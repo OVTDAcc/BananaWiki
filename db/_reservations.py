@@ -1,10 +1,13 @@
 """Page reservation management."""
 
+import sqlite3
 from datetime import datetime, timedelta, timezone
 
 import config
 from ._connection import get_db
 from ._settings import get_site_settings
+
+MAX_QUOTA_REQUEST_REASON_LENGTH = 2000
 
 
 # ---------------------------------------------------------------------------
@@ -34,6 +37,152 @@ def _get_reservation_hours(settings, key, default, minimum):
         return max(minimum, int(settings[key]))
     except (KeyError, TypeError, ValueError):
         return default
+
+
+def get_default_reserved_pages_quota(settings=None):
+    """Return the default concurrent reservation quota from site settings."""
+    settings = settings or get_site_settings()
+    try:
+        return max(1, int(settings["default_reserved_pages_quota"]))
+    except (KeyError, TypeError, ValueError):
+        return 5
+
+
+def get_effective_reserved_pages_quota(user_id, settings=None, user_quota=None):
+    """Return the active reservation quota for the specified user."""
+    if user_quota is None:
+        conn = get_db()
+        user = conn.execute(
+            "SELECT reserved_pages_quota FROM users WHERE id=?",
+            (user_id,),
+        ).fetchone()
+        user_quota = user["reserved_pages_quota"] if user else None
+        conn.close()
+    if user_quota is not None:
+        try:
+            return max(1, int(user_quota))
+        except (TypeError, ValueError):
+            pass
+    return get_default_reserved_pages_quota(settings=settings)
+
+
+def get_user_active_reservation_count(user_id):
+    """Return the number of active reservations currently held by *user_id*."""
+    conn = get_db()
+    now = datetime.now(timezone.utc).isoformat()
+    count = conn.execute(
+        "SELECT COUNT(*) FROM page_reservations "
+        "WHERE user_id=? AND expires_at > ? AND released_at IS NULL",
+        (user_id, now),
+    ).fetchone()[0]
+    conn.close()
+    return count
+
+
+def get_pending_reservation_quota_request(user_id):
+    """Return the current pending quota request for *user_id*, if any."""
+    conn = get_db()
+    row = conn.execute(
+        "SELECT rqr.*, reviewer.username AS reviewed_by_username "
+        "FROM reservation_quota_requests rqr "
+        "LEFT JOIN users reviewer ON reviewer.id = rqr.reviewed_by "
+        "WHERE rqr.user_id=? AND rqr.status='pending' "
+        "ORDER BY rqr.created_at DESC, rqr.id DESC LIMIT 1",
+        (user_id,),
+    ).fetchone()
+    conn.close()
+    return row
+
+
+def list_reservation_quota_requests(user_id):
+    """Return all quota requests for *user_id*, newest first."""
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT rqr.*, reviewer.username AS reviewed_by_username "
+        "FROM reservation_quota_requests rqr "
+        "LEFT JOIN users reviewer ON reviewer.id = rqr.reviewed_by "
+        "WHERE rqr.user_id=? "
+        "ORDER BY rqr.created_at DESC, rqr.id DESC",
+        (user_id,),
+    ).fetchall()
+    conn.close()
+    return rows
+
+
+def get_reservation_quota_request(request_id):
+    """Return a single reservation quota request with reviewer details."""
+    conn = get_db()
+    row = conn.execute(
+        "SELECT rqr.*, reviewer.username AS reviewed_by_username "
+        "FROM reservation_quota_requests rqr "
+        "LEFT JOIN users reviewer ON reviewer.id = rqr.reviewed_by "
+        "WHERE rqr.id=?",
+        (request_id,),
+    ).fetchone()
+    conn.close()
+    return row
+
+
+def create_reservation_quota_request(user_id, requested_quota, reason):
+    """Create a new quota request for *user_id*."""
+    requested_quota = max(1, int(requested_quota))
+    reason = (reason or "").strip()
+    if not reason:
+        raise ValueError("A reason is required to continue")
+    if len(reason) > MAX_QUOTA_REQUEST_REASON_LENGTH:
+        raise ValueError(f"Reason cannot exceed {MAX_QUOTA_REQUEST_REASON_LENGTH} characters.")
+
+    current_quota = get_effective_reserved_pages_quota(user_id)
+    if requested_quota <= current_quota:
+        raise ValueError("Requested quota must exceed your current quota")
+
+    conn = get_db()
+    now = datetime.now(timezone.utc).isoformat()
+    try:
+        conn.execute(
+            "INSERT INTO reservation_quota_requests "
+            "(user_id, requested_quota, reason, status, created_at) "
+            "VALUES (?, ?, ?, 'pending', ?)",
+            (user_id, requested_quota, reason, now),
+        )
+        conn.commit()
+    except sqlite3.IntegrityError as exc:
+        conn.rollback()
+        raise ValueError("You already have a pending quota request.") from exc
+    finally:
+        conn.close()
+
+
+def review_reservation_quota_request(request_id, reviewed_by, approved):
+    """Approve or deny a quota request and return the updated row."""
+    conn = get_db()
+    now = datetime.now(timezone.utc).isoformat()
+    request_row = conn.execute(
+        "SELECT * FROM reservation_quota_requests WHERE id=?",
+        (request_id,),
+    ).fetchone()
+    if not request_row:
+        conn.close()
+        raise ValueError("Quota request not found")
+    if request_row["status"] != "pending":
+        conn.close()
+        raise ValueError("Quota request has already been reviewed")
+
+    status = "approved" if approved else "denied"
+    conn.execute(
+        "UPDATE reservation_quota_requests "
+        "SET status=?, reviewed_by=?, reviewed_at=? "
+        "WHERE id=?",
+        (status, reviewed_by, now, request_id),
+    )
+    if approved:
+        conn.execute(
+            "UPDATE users SET reserved_pages_quota=? WHERE id=?",
+            (request_row["requested_quota"], request_row["user_id"]),
+        )
+    conn.commit()
+    conn.close()
+    return get_reservation_quota_request(request_id)
 
 
 def reserve_page(page_id, user_id):
@@ -92,6 +241,25 @@ def reserve_page(page_id, user_id):
             conn.execute("ROLLBACK")
             conn.close()
             raise ValueError("User is in cooldown period for this page")
+
+        active_count = conn.execute(
+            "SELECT COUNT(*) FROM page_reservations "
+            "WHERE user_id=? AND expires_at > ? AND released_at IS NULL",
+            (user_id, now.isoformat()),
+        ).fetchone()[0]
+        user_row = conn.execute(
+            "SELECT reserved_pages_quota FROM users WHERE id=?",
+            (user_id,),
+        ).fetchone()
+        quota = get_effective_reserved_pages_quota(
+            user_id,
+            settings=settings,
+            user_quota=user_row["reserved_pages_quota"] if user_row else None,
+        )
+        if active_count >= quota:
+            conn.execute("ROLLBACK")
+            conn.close()
+            raise ValueError("User has reached the reservation quota limit")
 
         # Delete any old released or expired reservations for this page
         conn.execute(
