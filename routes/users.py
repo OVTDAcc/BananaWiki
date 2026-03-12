@@ -27,6 +27,7 @@ from sync import notify_change, notify_file_upload, notify_file_deleted
 
 
 _OBSIDIAN_UPLOAD_REF_RE = re.compile(r'/static/uploads/([^\s)"\']+)')
+_OBSIDIAN_SYNC_ROLES = ("editor", "admin", "protected_admin")
 
 
 def build_user_export_zip(user):
@@ -291,7 +292,10 @@ def _replace_page_attachments(page_id, attachments, zf, user):
             raise ValueError(f"Attachment '{archive_path}' is missing from the archive.") from exc
         if len(data) > config.MAX_ATTACHMENT_SIZE:
             raise ValueError(f"Attachment '{original_name}' exceeds the configured size limit.")
-        ext = original_name.rsplit(".", 1)[1].lower()
+        parts = original_name.rsplit(".", 1)
+        if len(parts) != 2:
+            raise ValueError(f"Attachment '{original_name}' must include a file extension.")
+        ext = parts[1].lower()
         stored_name = f"{uuid.uuid4().hex}.{ext}"
         filepath = os.path.abspath(os.path.join(attachment_root, stored_name))
         if os.path.commonpath([attachment_root, filepath]) != attachment_root:
@@ -346,8 +350,10 @@ def _import_obsidian_zip(user, archive_file):
 
         metadata, content = _parse_obsidian_markdown(raw_markdown)
         page_id = metadata.get("bananawiki_page_id", page_entry.get("page_id"))
-        slug = slugify(str(metadata.get("bananawiki_slug", page_entry.get("slug", ""))).strip())
-        title = str(metadata.get("bananawiki_title", page_entry.get("title", ""))).strip()
+        raw_slug = metadata.get("bananawiki_slug", page_entry.get("slug", ""))
+        raw_title = metadata.get("bananawiki_title", page_entry.get("title", ""))
+        slug = slugify(str(raw_slug).strip())
+        title = str(raw_title).strip()
         category_id = metadata.get("bananawiki_category_id", page_entry.get("category_id"))
 
         if category_id in ("", "null", None):
@@ -365,7 +371,7 @@ def _import_obsidian_zip(user, archive_file):
             title = slug.replace("-", " ").title()
 
         page = None
-        if isinstance(page_id, int) or (isinstance(page_id, str) and str(page_id).isdigit()):
+        if isinstance(page_id, (int, str)) and str(page_id).isdigit():
             page = db.get_page(int(page_id))
         if not page:
             page = db.get_page_by_slug(slug)
@@ -406,6 +412,7 @@ def _import_obsidian_zip(user, archive_file):
                 raise ValueError(f"Page '{slug}' contains an invalid upload entry.")
             safe_name = secure_filename(os.path.basename(filename))
             if safe_name in restored_upload_names:
+                # Multiple pages can reference the same inline upload, so only restore each file once.
                 continue
             try:
                 data = zf.read(archive_path)
@@ -654,7 +661,7 @@ def register_user_routes(app):
 
         categories, uncategorized = db.get_category_tree()
         profile = db.get_user_profile(user["id"])
-        obsidian_pages = _collect_obsidian_sync_pages(user) if user["role"] in ("editor", "admin", "protected_admin") else []
+        obsidian_pages = _collect_obsidian_sync_pages(user) if user["role"] in _OBSIDIAN_SYNC_ROLES else []
         return render_template("account/settings.html", user=user,
                                 categories=categories, uncategorized=uncategorized,
                                 profile=profile, obsidian_pages=obsidian_pages)
