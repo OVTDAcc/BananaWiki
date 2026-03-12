@@ -328,6 +328,24 @@ def get_editor_access(user_id):
     """
     conn = get_db()
     row = conn.execute(
+        "SELECT restricted FROM user_category_access WHERE user_id=? AND access_type='write'",
+        (user_id,),
+    ).fetchone()
+    if row is not None:
+        restricted = bool(row["restricted"])
+        if restricted:
+            rows = conn.execute(
+                "SELECT category_id FROM user_allowed_categories "
+                "WHERE user_id=? AND access_type='write'",
+                (user_id,),
+            ).fetchall()
+            allowed_ids = [r["category_id"] for r in rows]
+        else:
+            allowed_ids = []
+        conn.close()
+        return {"restricted": restricted, "allowed_category_ids": allowed_ids}
+
+    row = conn.execute(
         "SELECT restricted FROM editor_category_access WHERE user_id=?", (user_id,)
     ).fetchone()
     restricted = bool(row["restricted"]) if row else False
@@ -338,6 +356,25 @@ def get_editor_access(user_id):
         allowed_ids = [r["category_id"] for r in rows]
     else:
         allowed_ids = []
+
+    if row is not None:
+        conn.execute(
+            "INSERT OR REPLACE INTO user_category_access (user_id, access_type, restricted) "
+            "VALUES (?, 'write', ?)",
+            (user_id, 1 if restricted else 0),
+        )
+        conn.execute(
+            "DELETE FROM user_allowed_categories WHERE user_id=? AND access_type='write'",
+            (user_id,),
+        )
+        if restricted and allowed_ids:
+            for category_id in allowed_ids:
+                conn.execute(
+                    "INSERT OR IGNORE INTO user_allowed_categories (user_id, category_id, access_type) "
+                    "VALUES (?, ?, 'write')",
+                    (user_id, category_id),
+                )
+        conn.commit()
     conn.close()
     return {"restricted": restricted, "allowed_category_ids": allowed_ids}
 
@@ -379,10 +416,24 @@ def set_editor_access(user_id, restricted, category_ids=None):
     conn.execute(
         "DELETE FROM editor_allowed_categories WHERE user_id=?", (user_id,)
     )
+    conn.execute(
+        "INSERT OR REPLACE INTO user_category_access (user_id, access_type, restricted) "
+        "VALUES (?, 'write', ?)",
+        (user_id, 1 if restricted else 0),
+    )
+    conn.execute(
+        "DELETE FROM user_allowed_categories WHERE user_id=? AND access_type='write'",
+        (user_id,),
+    )
     if restricted and category_ids:
         for cat_id in category_ids:
             conn.execute(
                 "INSERT OR IGNORE INTO editor_allowed_categories (user_id, category_id) VALUES (?, ?)",
+                (user_id, cat_id),
+            )
+            conn.execute(
+                "INSERT OR IGNORE INTO user_allowed_categories (user_id, category_id, access_type) "
+                "VALUES (?, ?, 'write')",
                 (user_id, cat_id),
             )
     conn.commit()
