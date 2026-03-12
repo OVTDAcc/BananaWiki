@@ -378,7 +378,7 @@ function initAutosave(pageId) {
     var saveTimer = null;
     var saving = false;
     var disabled = false;
-    var saveErrorNoticeShown = false;
+    var hasShownSaveError = false;
 
     function setIndicator(state) {
         var indicator = document.getElementById('save-indicator');
@@ -418,16 +418,16 @@ function initAutosave(pageId) {
             return bwParseJsonResponse(r, 'Failed to save draft. Please try again.');
         }).then(function(d) {
             saving = false;
-            saveErrorNoticeShown = false;
+            hasShownSaveError = false;
             if (!disabled) setIndicator('saved');
             if (callback) callback(true);
             if (pendingCallback) { var cb = pendingCallback; pendingCallback = null; doSave(cb); }
         }).catch(function(err) {
             saving = false;
             if (!disabled) setIndicator('error');
-            if (!saveErrorNoticeShown) {
+            if (!hasShownSaveError) {
                 bwShowFlash(err.message || 'Failed to save draft. Please try again.', 'error');
-                saveErrorNoticeShown = true;
+                hasShownSaveError = true;
             }
             if (callback) callback(false);
             if (pendingCallback) { var cb = pendingCallback; pendingCallback = null; cb(false); }

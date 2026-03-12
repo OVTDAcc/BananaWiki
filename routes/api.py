@@ -482,7 +482,6 @@ def register_api_routes(app):
             reservation = db.reserve_page(page_id, user["id"])
             wiki_logger.log_action("reserve_page", request, user=user, page_id=page_id)
             notify_change("page_reservation", f"Page '{page['title']}' reserved by {user['username']}")
-            flash("Page has been successfully reserved for your editing.", "success")
             return jsonify({
                 "ok": True,
                 "message": "Page has been successfully reserved for your editing.",
@@ -517,7 +516,6 @@ def register_api_routes(app):
         if released:
             wiki_logger.log_action("release_page_reservation", request, user=user, page_id=page_id)
             notify_change("page_reservation", f"Page '{page['title']}' reservation released by {user['username']}")
-            flash("Page reservation has been successfully released.", "success")
             return jsonify({"ok": True, "message": "Page reservation has been successfully released."})
         else:
             return jsonify({"error": "No active reservation found for this page by you"}), 404
