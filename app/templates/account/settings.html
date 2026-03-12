@@ -120,6 +120,17 @@
     <a href="{{ url_for('export_own_data') }}" class="btn btn-outline">⬇ Download My Data</a>
 </div>
 
+<div class="settings-section">
+    <h3>Reservation Quota</h3>
+    <p style="font-size:.85rem;opacity:.7;margin-bottom:.8rem">
+        Your current reservation quota is <strong>{{ reservation_quota }}</strong> concurrent page reservation{{ '' if reservation_quota == 1 else 's' }}.
+        {% if pending_quota_request %}
+        You already have a pending quota request for <strong>{{ pending_quota_request.requested_quota }}</strong>.
+        {% endif %}
+    </p>
+    <a href="{{ url_for('account_reservation_quota') }}" class="btn btn-outline">Manage Reservation Quota Requests</a>
+</div>
+
 <div class="settings-section" id="profile">
     <h3>Profile Page</h3>
     <p style="font-size:.85rem;opacity:.7;margin-bottom:.8rem">Set up your public profile with a bio, real name and avatar. Max avatar size: 1 MB.</p>

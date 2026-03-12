@@ -267,6 +267,14 @@ from ._badges import (  # noqa: F401
 # Page reservations
 from ._reservations import (  # noqa: F401
     reservations_enabled,
+    get_default_reserved_pages_quota,
+    get_effective_reserved_pages_quota,
+    get_user_active_reservation_count,
+    get_pending_reservation_quota_request,
+    list_reservation_quota_requests,
+    get_reservation_quota_request,
+    create_reservation_quota_request,
+    review_reservation_quota_request,
     reserve_page,
     release_page_reservation,
     get_page_reservation_status,

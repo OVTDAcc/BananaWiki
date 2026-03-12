@@ -24,6 +24,7 @@ _ALLOWED_SETTINGS_COLUMNS = {
     "lockdown_mode", "lockdown_message",
     "session_limit_enabled", "page_reservations_enabled",
     "page_reservation_duration_hours", "page_reservation_cooldown_hours",
+    "default_reserved_pages_quota",
     "last_chat_cleanup_at",
     # Legacy chat settings (backwards compatibility)
     "chat_attachments_per_day_limit", "chat_auto_clear_messages",

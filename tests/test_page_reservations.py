@@ -110,6 +110,7 @@ def test_reservations_disabled_by_default(isolated_db):
     assert settings["page_reservations_enabled"] == 0
     assert settings["page_reservation_duration_hours"] == config.PAGE_RESERVATION_DURATION_HOURS
     assert settings["page_reservation_cooldown_hours"] == config.PAGE_RESERVATION_COOLDOWN_HOURS
+    assert settings["default_reserved_pages_quota"] == 5
 
 def test_reserve_page_success(editor_user, test_page):
     """Test successful page reservation."""
@@ -622,6 +623,148 @@ def test_settings_page_has_page_reservations_checkbox(logged_in_admin):
     assert b"page_reservations_enabled" in response.data
     assert b"page_reservation_duration_hours" in response.data
     assert b"page_reservation_cooldown_hours" in response.data
+    assert b"default_reserved_pages_quota" in response.data
+
+
+def test_reserve_page_enforces_default_quota(editor_user):
+    """Users cannot exceed the configured concurrent reservation quota."""
+    import db
+
+    db.update_site_settings(page_reservations_enabled=1, default_reserved_pages_quota=1)
+    page_one = db.create_page("Quota Page One", "quota-page-one", "Test content")
+    page_two = db.create_page("Quota Page Two", "quota-page-two", "Test content")
+
+    db.reserve_page(page_one, editor_user)
+
+    with pytest.raises(ValueError, match="quota"):
+        db.reserve_page(page_two, editor_user)
+
+
+def test_user_quota_request_page_tracks_pending_and_history(logged_in_editor):
+    """Users can submit one pending quota request and review their own history."""
+    response = logged_in_editor.get("/account/reservation-quota")
+    assert response.status_code == 200
+    assert b"Quota Request History" in response.data
+
+    response = logged_in_editor.post(
+        "/account/reservation-quota",
+        data={
+            "action": "submit_quota_request",
+            "requested_quota": "7",
+            "reason": "I am editing multiple related pages.",
+        },
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+    assert b"Quota request has been successfully submitted." in response.data
+    assert b"Pending" in response.data
+    assert b"I am editing multiple related pages." in response.data
+
+    duplicate = logged_in_editor.post(
+        "/account/reservation-quota",
+        data={
+            "action": "submit_quota_request",
+            "requested_quota": "8",
+            "reason": "Another request",
+        },
+        follow_redirects=True,
+    )
+    assert duplicate.status_code == 200
+    assert b"already have a pending quota request" in duplicate.data
+
+
+def test_denied_quota_request_allows_new_submission(logged_in_editor, admin_user):
+    """Users may submit a new quota request after a denial."""
+    import db
+
+    editor = db.get_user_by_username("editor")
+    logged_in_editor.post(
+        "/account/reservation-quota",
+        data={
+            "action": "submit_quota_request",
+            "requested_quota": "7",
+            "reason": "Need a higher limit.",
+        },
+    )
+    pending_request = db.get_pending_reservation_quota_request(editor["id"])
+
+    logged_in_editor.get("/logout")
+    logged_in_editor.post("/login", data={"username": "admin", "password": "admin123"})
+    denied = logged_in_editor.post(
+        f"/admin/users/{editor['id']}/reservation-quota",
+        data={"action": "deny_request", "request_id": str(pending_request["id"])},
+        follow_redirects=True,
+    )
+    assert denied.status_code == 200
+    assert b"Quota request has been successfully denied." in denied.data
+    assert b"Denied" in denied.data
+
+    logged_in_editor.get("/logout")
+    logged_in_editor.post("/login", data={"username": "editor", "password": "editor123"})
+    response = logged_in_editor.post(
+        "/account/reservation-quota",
+        data={
+            "action": "submit_quota_request",
+            "requested_quota": "8",
+            "reason": "Trying again after the denial.",
+        },
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+    assert b"Quota request has been successfully submitted." in response.data
+    assert b"Trying again after the denial." in response.data
+
+
+def test_admin_can_review_quota_request_and_pending_indicator_appears(logged_in_editor, admin_user):
+    """Admins can review quota requests from the dedicated page and see pending markers."""
+    import db
+
+    db.update_site_settings(default_reserved_pages_quota=1)
+    editor = db.get_user_by_username("editor")
+    first_page = db.create_page("Quota Review One", "quota-review-one", "Test content")
+    second_page = db.create_page("Quota Review Two", "quota-review-two", "Test content")
+
+    logged_in_editor.post(
+        "/account/reservation-quota",
+        data={
+            "action": "submit_quota_request",
+            "requested_quota": "2",
+            "reason": "Need to reserve two pages during a rewrite.",
+        },
+    )
+
+    logged_in_editor.get("/logout")
+    logged_in_editor.post("/login", data={"username": "admin", "password": "admin123"})
+
+    users_response = logged_in_editor.get("/admin/users")
+    assert users_response.status_code == 200
+    assert b"Pending quota request" in users_response.data
+
+    review_page = logged_in_editor.get(f"/admin/users/{editor['id']}/reservation-quota")
+    assert review_page.status_code == 200
+    assert b"Need to reserve two pages during a rewrite." in review_page.data
+
+    pending_request = db.get_pending_reservation_quota_request(editor["id"])
+    approved = logged_in_editor.post(
+        f"/admin/users/{editor['id']}/reservation-quota",
+        data={"action": "approve_request", "request_id": str(pending_request["id"])},
+        follow_redirects=True,
+    )
+    assert approved.status_code == 200
+    assert b"Quota request has been successfully approved." in approved.data
+    assert b"Approved" in approved.data
+
+    logged_in_editor.get("/logout")
+    logged_in_editor.post("/login", data={"username": "editor", "password": "editor123"})
+
+    first_reservation = logged_in_editor.post(f"/page/quota-review-one/reserve", follow_redirects=True)
+    second_reservation = logged_in_editor.post(f"/page/quota-review-two/reserve", follow_redirects=True)
+    assert first_reservation.status_code == 200
+    assert second_reservation.status_code == 200
+
+    status = db.get_page_reservation_status(first_page, editor["id"])
+    assert status["is_reserved"] is True
+    assert db.get_effective_reserved_pages_quota(editor["id"]) == 2
 
 
 # ============================================================================

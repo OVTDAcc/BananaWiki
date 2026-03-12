@@ -257,6 +257,15 @@
                 How long the reserving user must wait before reserving the same page again after a release or expiry. Default: 24 hours.
             </small>
         </div>
+        <div class="form-group" style="margin-left:1.5rem">
+            <label>Default Max Concurrent Reserved Pages Per User</label>
+            <input type="number" name="default_reserved_pages_quota"
+                   value="{{ settings.default_reserved_pages_quota if settings.default_reserved_pages_quota is defined else 5 }}"
+                   class="input" style="max-width:150px" min="1" max="1000">
+            <small style="opacity:.7;display:block;margin-top:.3rem">
+                Default reservation quota for users who have not received an approved quota increase. Default: 5 pages.
+            </small>
+        </div>
     </div>
 
     <div class="settings-section">

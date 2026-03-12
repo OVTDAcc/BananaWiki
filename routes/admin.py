@@ -415,6 +415,71 @@ def register_admin_routes(app):
                                role_filter=role_filter, status_filter=status_filter,
                                categories=categories, uncategorized=uncategorized)
 
+    @app.route("/admin/users/<string:user_id>/reservation-quota", methods=["GET", "POST"])
+    @login_required
+    @admin_required
+    @rate_limit(10, 60)
+    def admin_user_reservation_quota(user_id):
+        """Review reservation quota history and pending requests for a user."""
+        target = db.get_user_by_id(user_id)
+        if not target:
+            abort(404)
+
+        current_user = get_current_user()
+        if request.method == "POST":
+            action = request.form.get("action", "")
+            request_id = request.form.get("request_id", type=int)
+            request_row = db.get_reservation_quota_request(request_id) if request_id else None
+            if not request_row or request_row["user_id"] != user_id:
+                flash("The specified quota request was not found.", "error")
+                return redirect(url_for("admin_user_reservation_quota", user_id=user_id))
+
+            if action not in {"approve_request", "deny_request"}:
+                flash("Invalid quota review action.", "error")
+                return redirect(url_for("admin_user_reservation_quota", user_id=user_id))
+
+            try:
+                reviewed_request = db.review_reservation_quota_request(
+                    request_id,
+                    current_user["id"],
+                    approved=action == "approve_request",
+                )
+            except ValueError as exc:
+                flash(str(exc), "error")
+                return redirect(url_for("admin_user_reservation_quota", user_id=user_id))
+
+            log_action(
+                "review_reservation_quota_request",
+                request,
+                user=current_user,
+                target_user=target["username"],
+                decision=reviewed_request["status"],
+                requested_quota=reviewed_request["requested_quota"],
+            )
+            notify_change(
+                "reservation_quota_request_review",
+                f"Reservation quota request for '{target['username']}' was {reviewed_request['status']}",
+            )
+            if reviewed_request["status"] == "approved":
+                flash("Quota request has been successfully approved.", "success")
+            else:
+                flash("Quota request has been successfully denied.", "success")
+            return redirect(url_for("admin_user_reservation_quota", user_id=user_id))
+
+        categories, uncategorized = db.get_category_tree()
+        return render_template(
+            "account/reservation_quota.html",
+            target_user=target,
+            current_quota=db.get_effective_reserved_pages_quota(user_id),
+            default_quota=db.get_default_reserved_pages_quota(),
+            active_reservation_count=db.get_user_active_reservation_count(user_id),
+            pending_request=db.get_pending_reservation_quota_request(user_id),
+            quota_requests=db.list_reservation_quota_requests(user_id),
+            admin_view=True,
+            categories=categories,
+            uncategorized=uncategorized,
+        )
+
     @app.route("/admin/users/<string:user_id>/edit", methods=["POST"])
     @login_required
     @admin_required
@@ -888,8 +953,20 @@ def register_admin_routes(app):
                         ),
                     ),
                 )
+                default_reserved_pages_quota = max(
+                    1,
+                    min(
+                        1000,
+                        int(
+                            request.form.get(
+                                "default_reserved_pages_quota",
+                                5,
+                            ) or 5
+                        ),
+                    ),
+                )
             except ValueError:
-                flash("Reservation timing values must be whole hours.", "error")
+                flash("Reservation settings must use whole-number values.", "error")
                 return redirect(url_for("admin_settings"))
 
             # Favicon settings
@@ -944,6 +1021,7 @@ def register_admin_routes(app):
                 page_reservations_enabled=1 if request.form.get("page_reservations_enabled") else 0,
                 page_reservation_duration_hours=page_reservation_duration_hours,
                 page_reservation_cooldown_hours=page_reservation_cooldown_hours,
+                default_reserved_pages_quota=default_reserved_pages_quota,
                 # Global chat settings
                 chat_max_message_length=max(100, min(50000, int(request.form.get("chat_max_message_length", 5000) or 5000))),
                 chat_attachments_enabled=1 if request.form.get("chat_attachments_enabled") else 0,
