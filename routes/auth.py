@@ -189,6 +189,15 @@ def register_auth_routes(app):
             hashed = generate_password_hash(password)
             try:
                 user_id = db.create_user(username, hashed, invite_code=invite)
+                from helpers._permissions import get_default_permissions
+                db.set_user_permissions(
+                    user_id,
+                    get_default_permissions("user"),
+                    read_restricted=False,
+                    read_category_ids=[],
+                    write_restricted=False,
+                    write_category_ids=[],
+                )
             except sqlite3.IntegrityError:
                 flash("That username is already taken. Please choose another one.", "error")
                 return render_template("auth/signup.html")

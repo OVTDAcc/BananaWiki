@@ -536,7 +536,10 @@ def register_admin_routes(app):
             elif new_pw != confirm_pw:
                 flash("Passwords do not match.", "error")
             else:
-                db.update_user(user_id, password=generate_password_hash(new_pw))
+                update_fields = {"password": generate_password_hash(new_pw)}
+                if db.get_site_settings()["session_limit_enabled"]:
+                    update_fields["session_token"] = uuid.uuid4().hex
+                db.update_user(user_id, **update_fields)
                 log_action("admin_change_password", request, user=current_user,
                            target_user=target["username"])
                 notify_change("admin_change_password", f"Password changed for '{target['username']}'")

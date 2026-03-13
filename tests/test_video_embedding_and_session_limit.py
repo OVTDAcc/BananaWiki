@@ -310,6 +310,65 @@ class TestSessionLimitSetting:
         assert resp.status_code == 302
         assert db.get_user_by_id(admin_user)["session_token"] is None
 
+    def test_account_password_change_rotates_current_session_token(self, client, admin_user):
+        """Self-service password changes should keep the current session aligned with the new token."""
+        import db
+        from werkzeug.security import generate_password_hash
+
+        db.update_site_settings(session_limit_enabled=1)
+        user_id = db.create_user("pwrotate", generate_password_hash("oldpass"), role="user")
+
+        client.post("/login", data={"username": "pwrotate", "password": "oldpass"})
+        original_token = db.get_user_by_id(user_id)["session_token"]
+
+        resp = client.post("/account", data={
+            "action": "change_password",
+            "current_password": "oldpass",
+            "new_password": "newpass123",
+            "confirm_password": "newpass123",
+        })
+        assert resp.status_code == 302
+
+        user = db.get_user_by_id(user_id)
+        assert user["session_token"] is not None
+        assert user["session_token"] != original_token
+        with client.session_transaction() as sess:
+            assert sess["session_token"] == user["session_token"]
+
+        home_resp = client.get("/")
+        assert home_resp.status_code == 200
+
+    def test_admin_password_change_invalidates_existing_target_session(self, admin_user):
+        """Admin password resets should rotate tokens so the target's legacy session is rejected."""
+        from app import app
+        import db
+        from werkzeug.security import generate_password_hash
+
+        db.update_site_settings(session_limit_enabled=1)
+        user_id = db.create_user("targetuser", generate_password_hash("oldpass"), role="user")
+        db.update_user(user_id, session_token="legacytoken")
+
+        with app.test_client() as admin_client, app.test_client() as target_client:
+            admin_client.post("/login", data={"username": "admin", "password": "admin123"})
+            with target_client.session_transaction() as sess:
+                sess["user_id"] = user_id
+                sess["session_token"] = "legacytoken"
+
+            resp = admin_client.post(
+                f"/admin/users/{user_id}/edit",
+                data={
+                    "action": "change_password",
+                    "password": "newpass123",
+                    "confirm_password": "newpass123",
+                },
+            )
+            assert resp.status_code == 302
+            assert db.get_user_by_id(user_id)["session_token"] != "legacytoken"
+
+            blocked = target_client.get("/")
+            assert blocked.status_code == 302
+            assert "/session-conflict" in blocked.headers["Location"]
+
 
 # ---------------------------------------------------------------------------
 # Session conflict page
