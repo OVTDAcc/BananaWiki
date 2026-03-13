@@ -298,6 +298,18 @@ class TestSessionLimitSetting:
             resp1 = client1.get("/")
             assert resp1.status_code == 200
 
+    def test_logout_clears_session_token_when_limit_enabled(self, client, admin_user):
+        """Logging out should clear the stored session token used by the single-session guard."""
+        import db
+
+        db.update_site_settings(session_limit_enabled=1)
+        client.post("/login", data={"username": "admin", "password": "admin123"})
+        assert db.get_user_by_id(admin_user)["session_token"] is not None
+
+        resp = client.post("/logout")
+        assert resp.status_code == 302
+        assert db.get_user_by_id(admin_user)["session_token"] is None
+
 
 # ---------------------------------------------------------------------------
 # Session conflict page

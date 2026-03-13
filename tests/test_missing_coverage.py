@@ -304,6 +304,28 @@ class TestPageAttachmentDownload:
         assert resp.status_code == 302
         assert "/login" in resp.headers["Location"]
 
+    def test_download_attachment_respects_category_read_access(self, client, admin_user, tmp_path):
+        """Restricted users cannot download attachments from categories they cannot view."""
+        import db
+        from helpers._permissions import get_default_permissions
+        from werkzeug.security import generate_password_hash
+
+        cat_id = db.create_category("Restricted Attachments")
+        page_id = db.create_page("Secret Attachment", "secret-attachment", "content", category_id=cat_id)
+        att_id, _ = self._create_attachment(tmp_path, page_id, admin_user)
+
+        restricted_user = db.create_user("restricted_dl", generate_password_hash("pass123"), role="user")
+        db.set_user_permissions(
+            restricted_user,
+            get_default_permissions("user"),
+            read_restricted=True,
+            read_category_ids=[],
+        )
+
+        client.post("/login", data={"username": "restricted_dl", "password": "pass123"})
+        resp = client.get(f"/page/secret-attachment/attachments/{att_id}/download")
+        assert resp.status_code == 403
+
 
 # ---------------------------------------------------------------------------
 # download_all_attachments: /page/<slug>/attachments/download-all
@@ -361,3 +383,18 @@ class TestPageAttachmentDownloadAll:
         resp = client.get("/page/download-auth-page/attachments/download-all")
         assert resp.status_code == 302
         assert "/login" in resp.headers["Location"]
+
+    def test_download_all_respects_deindexed_visibility(self, logged_in_user, admin_user):
+        """Users without deindexed-page permission cannot bulk-download hidden page attachments."""
+        import db
+
+        page_id = db.create_page(
+            "Hidden Attachments",
+            "hidden-attachments",
+            "content",
+        )
+        db.set_page_deindexed(page_id, True)
+        self._create_attachment(page_id, admin_user, "hidden.txt", "secret")
+
+        resp = logged_in_user.get("/page/hidden-attachments/attachments/download-all")
+        assert resp.status_code == 403

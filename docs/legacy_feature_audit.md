@@ -6,6 +6,8 @@ This audit reviews a small set of older BananaWiki code paths against the curren
 
 | Feature | Files reviewed | Status |
 | --- | --- | --- |
+| Attachment download authorization | `routes/uploads.py`, `helpers/_auth.py`, `tests/test_missing_coverage.py` | Fixed |
+| Session-limit logout cleanup | `routes/auth.py`, `app.py`, `tests/test_video_embedding_and_session_limit.py` | Fixed |
 | Deindexed page direct view | `routes/wiki.py`, `helpers/_auth.py`, `tests/test_deindex.py` | Fixed |
 | Deindexed page search visibility | `routes/api.py`, `db/_pages.py`, `tests/test_deindex.py` | Fixed |
 | Legacy editor-category compatibility | `db/_permissions.py`, `db/_users.py`, `tests/test_feature_drift_fixes.py` | OK |
@@ -13,25 +15,37 @@ This audit reviews a small set of older BananaWiki code paths against the curren
 
 ## Findings and changes
 
-### 1. Deindexed page direct view
+### 1. Attachment download authorization
+- **Issue found:** Older attachment download routes only checked that the page and file existed.
+- **Why it drifted:** These routes predated the shared `user_can_view_page()` helper and never adopted the newer visibility rules for restricted categories and deindexed pages.
+- **Changes made:** `routes/uploads.py` now checks `user_can_view_page()` before serving single-file or bulk attachment downloads, and `tests/test_missing_coverage.py` now covers both restricted-category and deindexed-page regressions.
+- **Remaining risk / edge case:** Any future attachment-serving route should reuse the same page-visibility guard instead of open-coding access checks.
+
+### 2. Session-limit logout cleanup
+- **Issue found:** The legacy logout flow cleared the browser session but left `users.session_token` populated in the database.
+- **Why it drifted:** Logout was implemented before the single-session enforcement logic became the canonical session state model.
+- **Changes made:** `routes/auth.py` now clears the stored token during logout, and `tests/test_video_embedding_and_session_limit.py` now verifies that the database token is removed when session limits are enabled.
+- **Remaining risk / edge case:** Other admin-driven account state changes should continue to be reviewed whenever session-limit behavior evolves.
+
+### 3. Deindexed page direct view
 - **Issue found:** The older `/page/<slug>` route only checked category read access.
 - **Why it drifted:** The route predates the current `user_can_view_page()` helper, which now represents the canonical page-visibility policy.
 - **Changes made:** `routes/wiki.py` now delegates visibility checks to `user_can_view_page()`, and `helpers/_auth.py` now requires category access before the deindexed-page permission can grant access.
 - **Remaining risk / edge case:** None identified beyond future permission-model changes; any new page-view route should reuse `user_can_view_page()`.
 
-### 2. Deindexed page search visibility
+### 4. Deindexed page search visibility
 - **Issue found:** Legacy search endpoints used role checks to decide whether deindexed pages should be queryable, which let editors see deindexed results even if that permission was removed and prevented regular users with the permission from finding them.
 - **Why it drifted:** Search behavior was keyed to historic role assumptions instead of the current permission system.
 - **Changes made:** `routes/api.py` now uses `db.has_permission(user, "page.view_deindexed")` to decide whether deindexed pages should be included in search candidates, and filters final results through `user_can_view_page()`.
 - **Remaining risk / edge case:** Any future search endpoint should follow the same two-step pattern: fetch with permission-aware inclusion, then filter with `user_can_view_page()`.
 
-### 3. Legacy editor-category compatibility
+### 5. Legacy editor-category compatibility
 - **Issue found:** The older editor-category access helpers still exist alongside the newer unified permission system.
 - **Why it did not break:** The current compatibility layer in `db/_permissions.py` continues to route write-access checks through shared helpers, and the existing regression tests still pass.
 - **Changes made:** No code changes were necessary in this audit.
 - **Remaining risk / edge case:** This area still deserves future cleanup if the project ever removes the legacy storage path entirely.
 
-### 4. Reservation-aware edit flows
+### 6. Reservation-aware edit flows
 - **Issue found:** Reservation checks were reviewed because they were added later than many wiki routes and are a common source of drift.
 - **Why it did not break:** Existing route helpers and regression tests still cover the current reservation flows.
 - **Changes made:** No code changes were necessary in this audit.

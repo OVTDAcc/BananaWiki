@@ -12,6 +12,7 @@ import config
 from helpers import (
     login_required, editor_required, admin_required, get_current_user,
     allowed_file, allowed_attachment, rate_limit, editor_has_category_access,
+    user_can_view_page,
 )
 import wiki_logger
 from sync import notify_change, notify_file_upload, notify_file_deleted
@@ -192,6 +193,9 @@ def register_upload_routes(app):
         page = db.get_page_by_slug(slug)
         if not page:
             abort(404)
+        user = get_current_user()
+        if not user_can_view_page(user, page):
+            abort(403)
         attachment = db.get_page_attachment(attachment_id)
         if not attachment or attachment["page_id"] != page["id"]:
             abort(404)
@@ -210,6 +214,9 @@ def register_upload_routes(app):
         page = db.get_page_by_slug(slug)
         if not page:
             abort(404)
+        user = get_current_user()
+        if not user_can_view_page(user, page):
+            abort(403)
         attachments = db.get_page_attachments(page["id"])
         if not attachments:
             flash("No attachments to download.", "error")
