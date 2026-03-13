@@ -187,13 +187,13 @@ def import_site_data(data, mode):
         ):
             from helpers._permissions import get_default_permissions
 
-            legacy_users_missing_permission_state = conn.execute(
+            legacy_users_needing_defaults = conn.execute(
                 "SELECT id, role FROM users "
                 "WHERE role IN ('editor', 'user') "
                 "AND NOT EXISTS (SELECT 1 FROM user_permissions up WHERE up.user_id = users.id) "
                 "AND NOT EXISTS (SELECT 1 FROM user_category_access uca WHERE uca.user_id = users.id)"
             ).fetchall()
-            for user_row in legacy_users_missing_permission_state:
+            for user_row in legacy_users_needing_defaults:
                 default_permissions = get_default_permissions(user_row["role"])
                 if not default_permissions:
                     continue
