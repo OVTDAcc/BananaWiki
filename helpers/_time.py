@@ -87,7 +87,8 @@ def get_effective_chat_cleanup_settings(settings):
     Older databases stored a single set of chat cleanup settings before the
     direct-message and group-chat settings were split. When the newer columns
     still contain their migration defaults, continue honoring the legacy values
-    so historical installations keep their original cleanup behavior.
+    until the split settings have been explicitly saved from the admin UI so
+    historical installations keep their original cleanup behavior.
     """
     if not settings:
         return {
@@ -111,6 +112,10 @@ def get_effective_chat_cleanup_settings(settings):
         "message_retention_days": settings["chat_message_retention_days"],
         "attachment_retention_days": settings["chat_attachment_retention_days"],
     }
+    try:
+        split_configured = bool(settings["chat_cleanup_split_configured"])
+    except (KeyError, TypeError):
+        split_configured = False
 
     def _resolve_scope(prefix):
         """Return one scope's cleanup settings, preferring legacy values when needed."""
@@ -125,10 +130,16 @@ def get_effective_chat_cleanup_settings(settings):
             specific_key = f"chat_{prefix}_{field}"
             specific_value = settings[specific_key]
             legacy_value = legacy[field]
-            if specific_value is None or specific_value == default:
-                resolved[field] = legacy_value if legacy_value is not None else default
+            # Before the split DM/group settings have been saved, treat any
+            # non-default split value as an explicit modern override but keep
+            # honoring the legacy columns when the split fields still look like
+            # untouched migration defaults.
+            if split_configured or (specific_value is not None and specific_value != default):
+                resolved[field] = specific_value if specific_value is not None else default
+            elif legacy_value is not None:
+                resolved[field] = legacy_value
             else:
-                resolved[field] = specific_value
+                resolved[field] = default
         return resolved
 
     return {

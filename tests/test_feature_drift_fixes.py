@@ -878,6 +878,7 @@ def test_effective_chat_cleanup_settings_fall_back_to_legacy_values():
     from helpers import get_effective_chat_cleanup_settings
 
     settings = {
+        "chat_cleanup_split_configured": 0,
         "chat_auto_clear_messages": 1,
         "chat_auto_clear_attachments": 0,
         "chat_message_retention_days": 45,
@@ -913,6 +914,7 @@ def test_effective_chat_cleanup_settings_keep_explicit_split_overrides():
     from helpers import get_effective_chat_cleanup_settings
 
     settings = {
+        "chat_cleanup_split_configured": 1,
         "chat_auto_clear_messages": 1,
         "chat_auto_clear_attachments": 1,
         "chat_message_retention_days": 45,
@@ -936,8 +938,44 @@ def test_effective_chat_cleanup_settings_keep_explicit_split_overrides():
         "attachment_retention_days": 3,
     }
     assert effective["group"] == {
-        "auto_clear_messages": 1,
+        "auto_clear_messages": 0,
         "auto_clear_attachments": 1,
         "message_retention_days": 9,
         "attachment_retention_days": 2,
+    }
+
+
+def test_effective_chat_cleanup_settings_honor_explicit_default_values_after_split_configuration():
+    """GAP-015: Once split settings are saved, default-valued overrides stay authoritative."""
+    from helpers import get_effective_chat_cleanup_settings
+
+    settings = {
+        "chat_cleanup_split_configured": 1,
+        "chat_auto_clear_messages": 1,
+        "chat_auto_clear_attachments": 0,
+        "chat_message_retention_days": 45,
+        "chat_attachment_retention_days": 21,
+        "chat_dm_auto_clear_messages": 0,
+        "chat_dm_auto_clear_attachments": 1,
+        "chat_dm_message_retention_days": 0,
+        "chat_dm_attachment_retention_days": 7,
+        "chat_group_auto_clear_messages": 0,
+        "chat_group_auto_clear_attachments": 1,
+        "chat_group_message_retention_days": 0,
+        "chat_group_attachment_retention_days": 7,
+    }
+
+    effective = get_effective_chat_cleanup_settings(settings)
+
+    assert effective["dm"] == {
+        "auto_clear_messages": 0,
+        "auto_clear_attachments": 1,
+        "message_retention_days": 0,
+        "attachment_retention_days": 7,
+    }
+    assert effective["group"] == {
+        "auto_clear_messages": 0,
+        "auto_clear_attachments": 1,
+        "message_retention_days": 0,
+        "attachment_retention_days": 7,
     }

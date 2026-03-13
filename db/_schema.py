@@ -503,6 +503,8 @@ def init_db():
         cur.execute("ALTER TABLE site_settings ADD COLUMN chat_cleanup_frequency_days INTEGER NOT NULL DEFAULT 7")
     if "chat_cleanup_hour" not in ss_cols:
         cur.execute("ALTER TABLE site_settings ADD COLUMN chat_cleanup_hour INTEGER NOT NULL DEFAULT 3")
+    if "chat_cleanup_split_configured" not in ss_cols:
+        cur.execute("ALTER TABLE site_settings ADD COLUMN chat_cleanup_split_configured INTEGER NOT NULL DEFAULT 0")
 
     # Add unread_count column to chats if missing
     chat_cols = [r[1] for r in cur.execute("PRAGMA table_info(chats)").fetchall()]
