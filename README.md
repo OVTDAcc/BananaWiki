@@ -41,6 +41,7 @@ For deeper reference, see:
 
 - [`docs/getting-started.md`](docs/getting-started.md)
 - [`docs/feature-reference.md`](docs/feature-reference.md)
+- [`docs/legacy_feature_audit.md`](docs/legacy_feature_audit.md)
 - [`docs/operations.md`](docs/operations.md)
 - [`docs/architecture-and-security.md`](docs/architecture-and-security.md)
 
