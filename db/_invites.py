@@ -32,9 +32,9 @@ def validate_invite_code(code):
     """Return the invite row if valid, else None."""
     conn = get_db()
     row = conn.execute(
-        "SELECT ic.*, u.id AS creator_user_id, u.suspended AS creator_suspended "
+        "SELECT ic.*, u.suspended AS creator_suspended "
         "FROM invite_codes ic "
-        "LEFT JOIN users u ON ic.created_by = u.id "
+        "JOIN users u ON ic.created_by = u.id "
         "WHERE ic.code=? AND ic.used_by IS NULL AND ic.used_at IS NULL AND ic.deleted=0",
         (code,),
     ).fetchone()
@@ -44,7 +44,7 @@ def validate_invite_code(code):
     expires = datetime.fromisoformat(row["expires_at"]).replace(tzinfo=timezone.utc)
     if datetime.now(timezone.utc) > expires:
         return None
-    if not row["creator_user_id"] or row["creator_suspended"]:
+    if row["creator_suspended"]:
         return None
     return row
 
