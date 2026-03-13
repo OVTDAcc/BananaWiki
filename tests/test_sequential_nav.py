@@ -166,8 +166,15 @@ class TestToggleCategorySequentialNav:
         assert db.get_category(category)["sequential_nav"] == 0
 
     def test_editor_can_toggle_sequential_nav(self, logged_in_editor, category):
-        """An unrestricted editor can toggle sequential navigation."""
+        """An editor with the current category permission can toggle sequential navigation."""
         import db
+        from helpers._permissions import get_default_permissions
+
+        editor = db.get_user_by_username("editor1")
+        db.set_user_permissions(
+            editor["id"],
+            get_default_permissions("editor") | {"category.manage_sequential"},
+        )
         resp = logged_in_editor.post(
             f"/category/{category}/sequential-nav",
             data={"sequential_nav": "1"},

@@ -70,6 +70,13 @@ def register_wiki_routes(app):
         if not user_can_view_page(user, page):
             abort(403)
 
+    def _guard_category_management_permission(user, permission_key, error_message):
+        """Redirect when *user* lacks the current permission for a category action."""
+        if db.has_permission(user, permission_key):
+            return None
+        flash(error_message, "error")
+        return redirect(_safe_referrer() or url_for("home"))
+
     def _build_reservable_page(page, category_label, user):
         """Return template-ready reservation data for a page list entry."""
         reservation_context = _get_reservation_context(page, user)
@@ -827,10 +834,13 @@ def register_wiki_routes(app):
     def create_category():
         """Create a new category, optionally nested under a parent category."""
         user = get_current_user()
-        access = db.get_editor_access(user["id"])
-        if access["restricted"]:
-            flash("You do not have permission to create categories.", "error")
-            return redirect(_safe_referrer() or url_for("home"))
+        blocked_response = _guard_category_management_permission(
+            user,
+            "category.create",
+            "You do not have permission to create categories.",
+        )
+        if blocked_response:
+            return blocked_response
         name = request.form.get("name", "").strip()
         parent_id = request.form.get("parent_id")
         try:
@@ -863,9 +873,13 @@ def register_wiki_routes(app):
         if not cat:
             abort(404)
         user = get_current_user()
-        if db.get_editor_access(user["id"])["restricted"]:
-            flash("You do not have permission to edit categories.", "error")
-            return redirect(_safe_referrer() or url_for("home"))
+        blocked_response = _guard_category_management_permission(
+            user,
+            "category.edit",
+            "You do not have permission to edit categories.",
+        )
+        if blocked_response:
+            return blocked_response
         name = request.form.get("name", "").strip()
         if not name:
             flash("Category name is required.", "error")
@@ -889,9 +903,13 @@ def register_wiki_routes(app):
         if not cat:
             abort(404)
         user = get_current_user()
-        if db.get_editor_access(user["id"])["restricted"]:
-            flash("You do not have permission to move categories.", "error")
-            return redirect(_safe_referrer() or url_for("home"))
+        blocked_response = _guard_category_management_permission(
+            user,
+            "category.reorder",
+            "You do not have permission to move categories.",
+        )
+        if blocked_response:
+            return blocked_response
         parent_id = request.form.get("parent_id")
         try:
             parent_id = int(parent_id) if parent_id else None
@@ -923,9 +941,13 @@ def register_wiki_routes(app):
         if not cat:
             abort(404)
         user = get_current_user()
-        if db.get_editor_access(user["id"])["restricted"]:
-            flash("You do not have permission to delete categories.", "error")
-            return redirect(_safe_referrer() or url_for("home"))
+        blocked_response = _guard_category_management_permission(
+            user,
+            "category.delete",
+            "You do not have permission to delete categories.",
+        )
+        if blocked_response:
+            return blocked_response
         page_action = request.form.get("page_action", "uncategorize")
         target_cat = request.form.get("target_category_id")
         try:
@@ -1019,9 +1041,13 @@ def register_wiki_routes(app):
         if not cat:
             abort(404)
         user = get_current_user()
-        if db.get_editor_access(user["id"])["restricted"]:
-            flash("You do not have permission to modify categories.", "error")
-            return redirect(_safe_referrer() or url_for("home"))
+        blocked_response = _guard_category_management_permission(
+            user,
+            "category.manage_sequential",
+            "You do not have permission to modify categories.",
+        )
+        if blocked_response:
+            return blocked_response
         enabled = request.form.get("sequential_nav", "0") == "1"
         db.update_category_sequential_nav(cat_id, enabled)
         log_action("toggle_sequential_nav", request, user=user, category_id=cat_id, enabled=enabled)

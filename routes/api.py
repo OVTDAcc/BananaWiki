@@ -47,6 +47,8 @@ def register_api_routes(app):
 
     def _get_reorder_categories_error_response(category_ids, user):
         """Return an error response when *user* cannot reorder *category_ids*."""
+        if not db.has_permission(user, "category.reorder"):
+            return jsonify({"error": "You do not have permission to reorder categories."}), 403
         for category_id in category_ids:
             category = db.get_category(category_id)
             if not category:
