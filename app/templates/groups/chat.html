@@ -272,6 +272,7 @@
 
 <div class="chat-messages" id="chat-messages" data-chat-poll-url="{{ url_for('group_messages_partial', group_id=group.id) }}"
      data-latest-message-id="{{ message_state.latest_message_id }}" data-message-count="{{ message_state.message_count }}"
+     data-chat-state-token="{{ message_state.state_token }}"
      data-chat-poll-interval="2500">
     {% include "groups/_messages.html" %}
 </div>

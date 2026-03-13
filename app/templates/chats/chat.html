@@ -27,6 +27,7 @@
 
 <div class="chat-messages" id="chat-messages" data-chat-poll-url="{{ url_for('chat_messages_partial', chat_id=chat.id) }}"
      data-latest-message-id="{{ message_state.latest_message_id }}" data-message-count="{{ message_state.message_count }}"
+     data-chat-state-token="{{ message_state.state_token }}"
      data-chat-poll-interval="2500">
     {% include "chats/_messages.html" %}
 </div>
