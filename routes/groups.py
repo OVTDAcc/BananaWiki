@@ -18,7 +18,10 @@ from flask import (
 
 import db
 import config
-from helpers import login_required, admin_required, get_current_user, rate_limit
+from helpers import (
+    login_required, admin_required, get_current_user, rate_limit,
+    get_effective_chat_cleanup_settings,
+)
 from wiki_logger import log_action
 from sync import notify_change
 
@@ -233,11 +236,19 @@ def register_group_routes(app):
         my_membership = db.get_group_member(group_id, user["id"])
         all_users = db.list_users()
         categories, uncategorized = db.get_category_tree()
+        cleanup_settings = get_effective_chat_cleanup_settings(settings)
         return render_template("groups/chat.html", group=group, messages=messages,
                                members=members, banned_members=banned_members,
                                my_membership=my_membership, all_users=all_users,
                                message_state=message_state, can_delete_any_message=can_delete_any_message,
                                is_site_admin=is_site_admin, is_group_member=is_group_member, my_role=my_role,
+                               show_cleanup_banner=(
+                                   settings and settings["chat_cleanup_enabled"]
+                                   and (
+                                       cleanup_settings["group"]["auto_clear_messages"]
+                                       or cleanup_settings["group"]["auto_clear_attachments"]
+                                   )
+                               ),
                                clear_attachment_count=message_state["attachment_count"],
                                categories=categories, uncategorized=uncategorized)
 

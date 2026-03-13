@@ -15,7 +15,7 @@
     </div>
 </div>
 
-{% if settings and settings.chat_cleanup_enabled and (settings.chat_dm_auto_clear_messages or settings.chat_dm_auto_clear_attachments or settings.chat_auto_clear_messages) %}
+{% if show_cleanup_banner %}
 <div class="chat-status-banner js-dismissible-banner" data-dismiss-key="dm-cleanup-{{ chat.id }}">
     <button type="button" class="chat-status-dismiss" aria-label="Dismiss chat cleanup notice">×</button>
     <div>

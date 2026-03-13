@@ -866,3 +866,78 @@ def test_category_routes_honor_current_write_permissions(client, admin_uid, edit
     assert resp.status_code == 200
     assert b"You do not have permission to create categories." in resp.data
     assert "Blocked Category" not in [cat["name"] for cat in db.list_categories()]
+
+
+# ---------------------------------------------------------------------------
+# GAP-015: legacy chat cleanup settings continue to work after the DM/group
+#          cleanup split introduced newer per-scope settings.
+# ---------------------------------------------------------------------------
+
+def test_effective_chat_cleanup_settings_fall_back_to_legacy_values():
+    """GAP-015: Split cleanup settings honor legacy values when still at migration defaults."""
+    from helpers import get_effective_chat_cleanup_settings
+
+    settings = {
+        "chat_auto_clear_messages": 1,
+        "chat_auto_clear_attachments": 0,
+        "chat_message_retention_days": 45,
+        "chat_attachment_retention_days": 21,
+        "chat_dm_auto_clear_messages": 0,
+        "chat_dm_auto_clear_attachments": 1,
+        "chat_dm_message_retention_days": 0,
+        "chat_dm_attachment_retention_days": 7,
+        "chat_group_auto_clear_messages": 0,
+        "chat_group_auto_clear_attachments": 1,
+        "chat_group_message_retention_days": 0,
+        "chat_group_attachment_retention_days": 7,
+    }
+
+    effective = get_effective_chat_cleanup_settings(settings)
+
+    assert effective["dm"] == {
+        "auto_clear_messages": 1,
+        "auto_clear_attachments": 0,
+        "message_retention_days": 45,
+        "attachment_retention_days": 21,
+    }
+    assert effective["group"] == {
+        "auto_clear_messages": 1,
+        "auto_clear_attachments": 0,
+        "message_retention_days": 45,
+        "attachment_retention_days": 21,
+    }
+
+
+def test_effective_chat_cleanup_settings_keep_explicit_split_overrides():
+    """GAP-015: Explicit DM/group cleanup values override the legacy compatibility layer."""
+    from helpers import get_effective_chat_cleanup_settings
+
+    settings = {
+        "chat_auto_clear_messages": 1,
+        "chat_auto_clear_attachments": 1,
+        "chat_message_retention_days": 45,
+        "chat_attachment_retention_days": 21,
+        "chat_dm_auto_clear_messages": 1,
+        "chat_dm_auto_clear_attachments": 0,
+        "chat_dm_message_retention_days": 14,
+        "chat_dm_attachment_retention_days": 3,
+        "chat_group_auto_clear_messages": 0,
+        "chat_group_auto_clear_attachments": 1,
+        "chat_group_message_retention_days": 9,
+        "chat_group_attachment_retention_days": 2,
+    }
+
+    effective = get_effective_chat_cleanup_settings(settings)
+
+    assert effective["dm"] == {
+        "auto_clear_messages": 1,
+        "auto_clear_attachments": 0,
+        "message_retention_days": 14,
+        "attachment_retention_days": 3,
+    }
+    assert effective["group"] == {
+        "auto_clear_messages": 1,
+        "auto_clear_attachments": 1,
+        "message_retention_days": 9,
+        "attachment_retention_days": 2,
+    }

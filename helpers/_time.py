@@ -81,6 +81,62 @@ def format_datetime_local_input(dt_str):
     return dt_local.strftime("%Y-%m-%dT%H:%M")
 
 
+def get_effective_chat_cleanup_settings(settings):
+    """Return DM and group cleanup settings with legacy fallbacks applied.
+
+    Older databases stored a single set of chat cleanup settings before the
+    direct-message and group-chat settings were split. When the newer columns
+    still contain their migration defaults, continue honoring the legacy values
+    so historical installations keep their original cleanup behavior.
+    """
+    if not settings:
+        return {
+            "dm": {
+                "auto_clear_messages": 0,
+                "auto_clear_attachments": 1,
+                "message_retention_days": 0,
+                "attachment_retention_days": 7,
+            },
+            "group": {
+                "auto_clear_messages": 0,
+                "auto_clear_attachments": 1,
+                "message_retention_days": 0,
+                "attachment_retention_days": 7,
+            },
+        }
+
+    legacy = {
+        "auto_clear_messages": settings["chat_auto_clear_messages"],
+        "auto_clear_attachments": settings["chat_auto_clear_attachments"],
+        "message_retention_days": settings["chat_message_retention_days"],
+        "attachment_retention_days": settings["chat_attachment_retention_days"],
+    }
+
+    def _resolve_scope(prefix):
+        """Return one scope's cleanup settings, preferring legacy values when needed."""
+        defaults = {
+            "auto_clear_messages": 0,
+            "auto_clear_attachments": 1,
+            "message_retention_days": 0,
+            "attachment_retention_days": 7,
+        }
+        resolved = {}
+        for field, default in defaults.items():
+            specific_key = f"chat_{prefix}_{field}"
+            specific_value = settings[specific_key]
+            legacy_value = legacy[field]
+            if specific_value is None or specific_value == default:
+                resolved[field] = legacy_value if legacy_value is not None else default
+            else:
+                resolved[field] = specific_value
+        return resolved
+
+    return {
+        "dm": _resolve_scope("dm"),
+        "group": _resolve_scope("group"),
+    }
+
+
 def get_next_chat_cleanup_time():
     """Calculate and return the next scheduled chat cleanup time as an ISO datetime string."""
     try:
@@ -171,4 +227,3 @@ def get_time_until_next_chat_cleanup():
             return f"in {d} day{'s' if d != 1 else ''}"
     except Exception:
         return "Unknown"
-

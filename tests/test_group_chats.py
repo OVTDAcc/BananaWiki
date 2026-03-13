@@ -2090,6 +2090,31 @@ def test_group_chat_cleanup_banner_hidden_when_disabled(alice_uid, bob_uid):
         assert b"Messages will be deleted" not in resp.data
 
 
+def test_group_chat_cleanup_banner_honors_legacy_attachment_disable(alice_uid, bob_uid):
+    """Legacy attachment cleanup settings should keep the group cleanup banner hidden when disabled."""
+    import db
+    from app import app
+
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
+    db.update_site_settings(
+        chat_cleanup_enabled=1,
+        chat_auto_clear_messages=0,
+        chat_auto_clear_attachments=0,
+        chat_attachment_retention_days=14,
+        chat_group_auto_clear_messages=0,
+        chat_group_auto_clear_attachments=1,
+        chat_group_attachment_retention_days=7,
+    )
+    group = db.create_group_chat("LegacyCleanupBannerTest", alice_uid)
+    db.add_group_member(group["id"], bob_uid)
+    with app.test_client() as c:
+        c.post("/login", data={"username": "alice", "password": "alice123"})
+        resp = c.get(f"/groups/{group['id']}")
+
+    assert b"Auto-cleanup runs" not in resp.data
+
+
 def test_chat_attachment_ui_hidden_when_disabled(alice_uid, bob_uid):
     """Attachment upload UI should be hidden when attachments are disabled."""
     import db
