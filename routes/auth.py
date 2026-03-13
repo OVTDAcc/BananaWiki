@@ -211,6 +211,7 @@ def register_auth_routes(app):
         user = get_current_user()
         if user:
             log_action("logout", request, user=user)
+            db.update_user(user["id"], session_token=None)
         session.clear()
         flash("You have been logged out.", "info")
         return redirect(url_for("login"))
