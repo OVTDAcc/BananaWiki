@@ -1,7 +1,7 @@
-{% if current_user and session.get('badge_notifications', 0) > 0 %}
+{% if current_user and badge_notification_count > 0 %}
 <div class="badge-notification-banner" style="background:linear-gradient(135deg, rgba(255,215,0,.15) 0%, rgba(255,165,0,.15) 100%);border-bottom:1px solid rgba(255,215,0,.3);padding:.8rem 1rem;text-align:center">
     <span style="font-size:1.5rem">🏆</span>
-    <strong>You've earned {{ session['badge_notifications'] }} new badge{% if session['badge_notifications'] != 1 %}s{% endif %}!</strong>
+    <strong>You've earned {{ badge_notification_count }} new badge{% if badge_notification_count != 1 %}s{% endif %}!</strong>
     <a href="{{ url_for('badge_notifications') }}" style="margin-left:1rem;color:var(--primary);text-decoration:underline">View badges</a>
     <form method="POST" action="{{ url_for('dismiss_badge_notifications') }}" style="display:inline;margin-left:1rem">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
