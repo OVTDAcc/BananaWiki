@@ -510,7 +510,23 @@ def test_group_messages_partial_for_member(alice_client, alice_uid, bob_uid):
     data = resp.get_json()
     assert data["message_count"] >= 1
     assert data["latest_message_id"] > 0
+    assert data["state_token"]
     assert "Group live hello" in data["html"]
+
+
+def test_group_messages_partial_state_token_changes_when_attachment_added(alice_client, alice_uid, bob_uid):
+    import db
+    group = db.create_group_chat("Live Group", alice_uid)
+    db.add_group_member(group["id"], bob_uid)
+    message_id = db.send_group_message(group["id"], bob_uid, "Attachment incoming")
+    before = alice_client.get(f"/groups/{group['id']}/messages").get_json()
+    db.add_group_attachment(message_id, "live-group-file.txt", "live-group-file.txt", 4)
+    after = alice_client.get(f"/groups/{group['id']}/messages").get_json()
+    assert before["message_count"] == after["message_count"]
+    assert before["latest_message_id"] == after["latest_message_id"] == message_id
+    assert before["state_token"] != after["state_token"]
+    assert "live-group-file.txt" not in before["html"]
+    assert "live-group-file.txt" in after["html"]
 
 
 # ---------------------------------------------------------------------------

@@ -8,6 +8,7 @@ import uuid
 import json
 import zipfile
 import io
+import hashlib
 from datetime import datetime, timezone, timedelta
 from werkzeug.utils import secure_filename
 
@@ -67,6 +68,7 @@ def register_group_routes(app):
             "message_count": len(rendered_messages),
             "attachment_count": attachment_count,
             "latest_message_id": latest_message_id,
+            "state_token": hashlib.sha256(html.encode("utf-8")).hexdigest(),
         }, can_delete_any_message
 
     def _prepare_group_messages(messages, include_deleted_content=False):

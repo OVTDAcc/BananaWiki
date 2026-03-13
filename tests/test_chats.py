@@ -220,7 +220,22 @@ def test_chat_messages_partial_for_participant(alice_client, alice_uid, bob_uid)
     data = resp.get_json()
     assert data["message_count"] == 1
     assert data["latest_message_id"] > 0
+    assert data["state_token"]
     assert "Live hello" in data["html"]
+
+
+def test_chat_messages_partial_state_token_changes_when_message_deleted(alice_client, alice_uid, bob_uid):
+    import db
+    chat = db.get_or_create_chat(alice_uid, bob_uid)
+    message_id = db.send_chat_message(chat["id"], alice_uid, "Delete me")
+    before = alice_client.get(f"/chats/{chat['id']}/messages").get_json()
+    db.delete_chat_message(message_id)
+    after = alice_client.get(f"/chats/{chat['id']}/messages").get_json()
+    assert before["message_count"] == after["message_count"] == 1
+    assert before["latest_message_id"] == after["latest_message_id"] == message_id
+    assert before["state_token"] != after["state_token"]
+    assert "Delete me" in before["html"]
+    assert "This message was deleted." in after["html"]
 
 
 def test_non_participant_cannot_view(alice_client, bob_uid, admin_uid):

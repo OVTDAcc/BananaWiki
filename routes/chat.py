@@ -4,6 +4,7 @@ BananaWiki – Direct messaging (chat) routes.
 
 from flask import (render_template, request, redirect, url_for, session, flash, send_file, jsonify, abort,
                    send_from_directory)
+import hashlib
 import os, io, uuid, threading, zipfile, json, re
 from datetime import datetime, timedelta, timezone
 from werkzeug.utils import secure_filename
@@ -44,6 +45,7 @@ def register_chat_routes(app):
             "message_count": len(rendered_messages),
             "attachment_count": attachment_count,
             "latest_message_id": latest_message_id,
+            "state_token": hashlib.sha256(html.encode("utf-8")).hexdigest(),
         }
 
     def _prepare_chat_messages(messages, include_deleted_content=False):

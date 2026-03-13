@@ -154,6 +154,7 @@ function initLiveChat() {
     var pollIntervalMs = parseInt(container.getAttribute('data-chat-poll-interval') || '2500', 10);
     var latestMessageId = parseInt(container.getAttribute('data-latest-message-id') || '0', 10);
     var messageCount = parseInt(container.getAttribute('data-message-count') || '0', 10);
+    var stateToken = container.getAttribute('data-chat-state-token') || '';
     var stopped = false;
 
     function scrollToBottom() {
@@ -180,13 +181,18 @@ function initLiveChat() {
         }).then(function(data) {
             var nextLatestMessageId = parseInt(data.latest_message_id || '0', 10);
             var nextMessageCount = parseInt(data.message_count || '0', 10);
-            var hadNewContent = nextLatestMessageId !== latestMessageId || nextMessageCount !== messageCount;
+            var nextStateToken = data.state_token || '';
+            var hadNewContent = nextLatestMessageId !== latestMessageId
+                || nextMessageCount !== messageCount
+                || nextStateToken !== stateToken;
             if (!hadNewContent) return;
             latestMessageId = nextLatestMessageId;
             messageCount = nextMessageCount;
+            stateToken = nextStateToken;
             container.innerHTML = data.html || '';
             container.setAttribute('data-latest-message-id', String(nextLatestMessageId));
             container.setAttribute('data-message-count', String(nextMessageCount));
+            container.setAttribute('data-chat-state-token', nextStateToken);
             if (hadNewContent && shouldAutoScroll) {
                 scrollToBottom();
             }
