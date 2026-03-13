@@ -222,6 +222,9 @@ def register_api_routes(app):
         except (TypeError, ValueError):
             return jsonify({"error": "invalid page_id"}), 400
         user = get_current_user()
+        _, error_response = _get_editable_page_or_response(page_id, user)
+        if error_response:
+            return error_response
         db.delete_draft(page_id, user["id"])
         cleanup_unused_uploads()
         flash("Draft has been successfully deleted.", "success")

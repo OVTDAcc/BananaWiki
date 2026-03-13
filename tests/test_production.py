@@ -520,16 +520,18 @@ def test_api_transfer_draft_missing_source_returns_404(logged_in_admin):
 
 
 @pytest.mark.parametrize(
-    ("method", "url_builder", "payload"),
+    ("method", "url_builder", "payload", "seed_draft"),
     [
         ("post", lambda page_id: "/api/draft/save",
-         lambda page_id: {"page_id": page_id, "title": "Blocked", "content": "blocked"}),
-        ("get", lambda page_id: f"/api/draft/load/{page_id}", None),
-        ("get", lambda page_id: f"/api/draft/others/{page_id}", None),
+         lambda page_id: {"page_id": page_id, "title": "Blocked", "content": "blocked"}, False),
+        ("get", lambda page_id: f"/api/draft/load/{page_id}", None, False),
+        ("get", lambda page_id: f"/api/draft/others/{page_id}", None, False),
+        ("post", lambda page_id: "/api/draft/delete",
+         lambda page_id: {"page_id": page_id}, True),
     ],
 )
 def test_restricted_editor_draft_endpoints_require_category_access(
-    client, editor_user, admin_user, method, url_builder, payload
+    client, editor_user, admin_user, method, url_builder, payload, seed_draft
 ):
     """Restricted editors cannot use draft APIs for pages in disallowed categories."""
     import db
@@ -540,6 +542,8 @@ def test_restricted_editor_draft_endpoints_require_category_access(
         "Blocked Draft Page", "blocked-draft-page", "content", blocked_cat, admin_user
     )
     db.set_editor_access(editor_user, restricted=True, category_ids=[allowed_cat])
+    if seed_draft:
+        db.save_draft(blocked_page_id, editor_user, "Restricted Draft", "protected draft")
 
     client.post("/login", data={"username": "editor", "password": "editor123"})
     kwargs = {"content_type": "application/json"}
@@ -549,7 +553,12 @@ def test_restricted_editor_draft_endpoints_require_category_access(
 
     assert resp.status_code == 403
     assert "permission" in resp.get_json()["error"].lower()
-    assert db.get_draft(blocked_page_id, editor_user) is None
+    draft = db.get_draft(blocked_page_id, editor_user)
+    if seed_draft:
+        assert draft is not None
+        assert draft["content"] == "protected draft"
+    else:
+        assert draft is None
 
 
 def test_restricted_editor_cannot_transfer_draft_in_disallowed_category(client, editor_user, admin_user):
