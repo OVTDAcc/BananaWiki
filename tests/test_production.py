@@ -909,6 +909,58 @@ def test_validate_invite_code_used(admin_user):
     assert db.validate_invite_code(code) is None
 
 
+def test_validate_invite_code_rejects_suspended_creator(admin_user):
+    """validate_invite_code() rejects codes created by suspended admins."""
+    import db
+    code = db.generate_invite_code(admin_user)
+    db.update_user(admin_user, suspended=1)
+    assert db.validate_invite_code(code) is None
+
+
+def test_validate_invite_code_rejects_deleted_creator(admin_user):
+    """validate_invite_code() rejects codes whose creator account was deleted."""
+    import db
+    code = db.generate_invite_code(admin_user)
+    db.delete_user(admin_user)
+    assert db.validate_invite_code(code) is None
+
+
+def test_signup_rejects_invite_from_suspended_admin(client, admin_user):
+    """Signup rejects legacy invite codes whose creator is now suspended."""
+    import db
+    code = db.generate_invite_code(admin_user)
+    db.update_user(admin_user, suspended=1)
+
+    resp = client.post("/signup", data={
+        "username": "newuser",
+        "password": "password123",
+        "confirm_password": "password123",
+        "invite_code": code,
+    }, follow_redirects=True)
+
+    assert resp.status_code == 200
+    assert b"invalid or has expired" in resp.data
+    assert db.get_user_by_username("newuser") is None
+
+
+def test_signup_rejects_invite_from_deleted_admin(client, admin_user):
+    """Signup rejects legacy invite codes whose creator account was deleted."""
+    import db
+    code = db.generate_invite_code(admin_user)
+    db.delete_user(admin_user)
+
+    resp = client.post("/signup", data={
+        "username": "newuser",
+        "password": "password123",
+        "confirm_password": "password123",
+        "invite_code": code,
+    }, follow_redirects=True)
+
+    assert resp.status_code == 200
+    assert b"invalid or has expired" in resp.data
+    assert db.get_user_by_username("newuser") is None
+
+
 # ---------------------------------------------------------------------------
 # count_admins DB helper
 # ---------------------------------------------------------------------------
