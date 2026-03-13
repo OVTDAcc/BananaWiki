@@ -10,7 +10,10 @@ from werkzeug.utils import secure_filename
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import db
 import config
-from helpers import login_required, admin_required, get_current_user, rate_limit, get_site_timezone
+from helpers import (
+    login_required, admin_required, get_current_user, rate_limit,
+    get_site_timezone, get_effective_chat_cleanup_settings,
+)
 from wiki_logger import log_action
 from sync import backup_chats_before_cleanup, backup_group_chats_before_cleanup
 
@@ -155,8 +158,16 @@ def register_chat_routes(app):
         other_user = db.get_user_by_id(other_id)
         messages, message_state = _chat_message_state(chat)
         categories, uncategorized = db.get_category_tree()
+        cleanup_settings = get_effective_chat_cleanup_settings(settings)
         return render_template("chats/chat.html", chat=chat, messages=messages,
                                other_user=other_user, message_state=message_state,
+                               show_cleanup_banner=(
+                                   settings and settings["chat_cleanup_enabled"]
+                                   and (
+                                       cleanup_settings["dm"]["auto_clear_messages"]
+                                       or cleanup_settings["dm"]["auto_clear_attachments"]
+                                   )
+                               ),
                                clear_attachment_count=message_state["attachment_count"],
                                categories=categories, uncategorized=uncategorized)
 
@@ -567,25 +578,17 @@ def register_chat_routes(app):
         except Exception:
             pass
 
-        # Get DM-specific cleanup settings (use is not None to distinguish 0 from unset)
-        dm_auto_clear_messages = settings["chat_dm_auto_clear_messages"] if settings["chat_dm_auto_clear_messages"] is not None else 0
-        dm_auto_clear_attachments = settings["chat_dm_auto_clear_attachments"] if settings["chat_dm_auto_clear_attachments"] is not None else 1
-        dm_message_retention_days = settings["chat_dm_message_retention_days"] if settings["chat_dm_message_retention_days"] is not None else 30
-        dm_attachment_retention_days = settings["chat_dm_attachment_retention_days"] if settings["chat_dm_attachment_retention_days"] is not None else 7
-
-        # Get Group-specific cleanup settings
-        group_auto_clear_messages = settings["chat_group_auto_clear_messages"] if settings["chat_group_auto_clear_messages"] is not None else 0
-        group_auto_clear_attachments = settings["chat_group_auto_clear_attachments"] if settings["chat_group_auto_clear_attachments"] is not None else 1
-        group_message_retention_days = settings["chat_group_message_retention_days"] if settings["chat_group_message_retention_days"] is not None else 30
-        group_attachment_retention_days = settings["chat_group_attachment_retention_days"] if settings["chat_group_attachment_retention_days"] is not None else 7
+        cleanup_settings = get_effective_chat_cleanup_settings(settings)
+        dm_settings = cleanup_settings["dm"]
+        group_settings = cleanup_settings["group"]
 
         att_dir = config.CHAT_ATTACHMENT_FOLDER
 
         # Clean up direct messages using DM-specific settings
         try:
-            if dm_auto_clear_messages and dm_message_retention_days > 0:
+            if dm_settings["auto_clear_messages"] and dm_settings["message_retention_days"] > 0:
                 # Clear old messages (this also clears their attachments via CASCADE)
-                files_to_delete = db.cleanup_old_chat_messages(dm_message_retention_days)
+                files_to_delete = db.cleanup_old_chat_messages(dm_settings["message_retention_days"])
                 for fname in files_to_delete:
                     try:
                         fpath = os.path.join(att_dir, fname)
@@ -593,9 +596,9 @@ def register_chat_routes(app):
                             os.remove(fpath)
                     except OSError:
                         pass
-            elif dm_auto_clear_attachments and dm_attachment_retention_days > 0:
+            elif dm_settings["auto_clear_attachments"] and dm_settings["attachment_retention_days"] > 0:
                 # Clear only old attachments (keep messages)
-                files_to_delete = db.cleanup_old_chat_attachments(dm_attachment_retention_days)
+                files_to_delete = db.cleanup_old_chat_attachments(dm_settings["attachment_retention_days"])
                 for fname in files_to_delete:
                     try:
                         fpath = os.path.join(att_dir, fname)
@@ -608,9 +611,9 @@ def register_chat_routes(app):
 
         # Clean up group messages using Group-specific settings
         try:
-            if group_auto_clear_messages and group_message_retention_days > 0:
+            if group_settings["auto_clear_messages"] and group_settings["message_retention_days"] > 0:
                 # Clear old messages (this also clears their attachments via CASCADE)
-                group_files = db.cleanup_old_group_messages(group_message_retention_days)
+                group_files = db.cleanup_old_group_messages(group_settings["message_retention_days"])
                 for fname in group_files:
                     try:
                         fpath = os.path.join(att_dir, fname)
@@ -618,9 +621,9 @@ def register_chat_routes(app):
                             os.remove(fpath)
                     except OSError:
                         pass
-            elif group_auto_clear_attachments and group_attachment_retention_days > 0:
+            elif group_settings["auto_clear_attachments"] and group_settings["attachment_retention_days"] > 0:
                 # Clear only old attachments (keep messages)
-                group_files = db.cleanup_old_group_attachments(group_attachment_retention_days)
+                group_files = db.cleanup_old_group_attachments(group_settings["attachment_retention_days"])
                 for fname in group_files:
                     try:
                         fpath = os.path.join(att_dir, fname)

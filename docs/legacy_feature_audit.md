@@ -12,6 +12,7 @@ This audit reviews a small set of older BananaWiki code paths against the curren
 | Deindexed page search visibility | `routes/api.py`, `db/_pages.py`, `tests/test_deindex.py` | Fixed |
 | Legacy editor-category compatibility | `db/_permissions.py`, `db/_users.py`, `tests/test_feature_drift_fixes.py` | OK |
 | Reservation-aware edit flows | `routes/wiki.py`, `tests/test_page_reservations.py`, `tests/test_feature_drift_fixes.py` | OK |
+| Legacy chat cleanup fallback | `helpers/_time.py`, `routes/chat.py`, `routes/groups.py`, `tests/test_feature_drift_fixes.py`, `tests/test_chats.py`, `tests/test_group_chats.py` | Fixed |
 
 ## Findings and changes
 
@@ -50,3 +51,9 @@ This audit reviews a small set of older BananaWiki code paths against the curren
 - **Why it did not break:** Existing route helpers and regression tests still cover the current reservation flows.
 - **Changes made:** No code changes were necessary in this audit.
 - **Remaining risk / edge case:** Future mutating page routes should continue to reuse the existing reservation guards.
+
+### 7. Legacy chat cleanup fallback
+- **Issue found:** The weekly chat cleanup scheduler and cleanup banners were reading only the newer DM/group cleanup columns, even though older installations may still rely on the original shared `chat_auto_clear_*` and retention settings.
+- **Why it drifted:** Chat cleanup started as a single global configuration and was later split into DM-specific and group-specific settings. The runtime cleanup path was updated to use the new columns, but it stopped applying the documented compatibility fallback for historical databases whose newer columns still held migration defaults.
+- **Changes made:** `helpers/_time.py` now resolves effective cleanup settings by preferring legacy values until the newer split settings have been explicitly saved, `routes/admin.py` marks the split cleanup settings as configured when admins save the modern controls, `routes/chat.py` and `routes/groups.py` now use those effective settings for scheduled cleanup and banner visibility, and regression coverage was added in `tests/test_feature_drift_fixes.py`, `tests/test_chats.py`, and `tests/test_group_chats.py`.
+- **Remaining risk / edge case:** A future schema migration could make this even more explicit by copying legacy values into the split columns on upgrade and eventually retiring the fallback path once all historical installations have been migrated.

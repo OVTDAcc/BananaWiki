@@ -1046,6 +1046,7 @@ def register_admin_routes(app):
                 chat_cleanup_enabled=1 if request.form.get("chat_cleanup_enabled") else 0,
                 chat_cleanup_frequency_days=max(1, min(365, int(request.form.get("chat_cleanup_frequency_days", 7) or 7))),
                 chat_cleanup_hour=max(0, min(23, int(request.form.get("chat_cleanup_hour", 3) or 3))),
+                chat_cleanup_split_configured=1,
                 **color_fields,
             )
             user = get_current_user()

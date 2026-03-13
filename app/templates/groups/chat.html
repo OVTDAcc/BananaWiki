@@ -38,7 +38,7 @@
 {% endif %}
 
 {# Chat cleanup countdown banner #}
-{% if settings and settings.chat_cleanup_enabled and (settings.chat_group_auto_clear_messages or settings.chat_group_auto_clear_attachments or settings.chat_auto_clear_messages) %}
+{% if show_cleanup_banner %}
 <div class="chat-status-banner js-dismissible-banner" data-dismiss-key="group-cleanup-{{ group.id }}">
     <button type="button" class="chat-status-dismiss" aria-label="Dismiss group cleanup notice">×</button>
     <div>

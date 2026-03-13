@@ -320,6 +320,31 @@ def test_attachment_daily_limit(alice_client, bob_uid):
     assert b"Daily attachment limit" in resp.data
 
 
+def test_chat_cleanup_banner_honors_legacy_attachment_disable(alice_uid, bob_uid):
+    """Legacy attachment cleanup settings should keep the DM cleanup banner hidden when disabled."""
+    import db
+    from app import app
+
+    app.config["TESTING"] = True
+    app.config["WTF_CSRF_ENABLED"] = False
+    db.update_site_settings(
+        chat_cleanup_enabled=1,
+        chat_auto_clear_messages=0,
+        chat_auto_clear_attachments=0,
+        chat_attachment_retention_days=14,
+        chat_dm_auto_clear_messages=0,
+        chat_dm_auto_clear_attachments=1,
+        chat_dm_attachment_retention_days=7,
+    )
+    chat = db.get_or_create_chat(alice_uid, bob_uid)
+
+    with app.test_client() as c:
+        c.post("/login", data={"username": "alice", "password": "alice123"})
+        resp = c.get(f"/chats/{chat['id']}")
+
+    assert b"Auto-cleanup runs" not in resp.data
+
+
 # ---------------------------------------------------------------------------
 # Admin chat monitoring
 # ---------------------------------------------------------------------------
