@@ -1,6 +1,14 @@
 # Legacy Feature Audit
 
-This audit reviews a small set of older BananaWiki code paths against the current architecture, with a focus on auth, permissions, data access, and user-facing behavior.
+This audit reviews older BananaWiki code paths against the current architecture, with a focus on auth, permissions, data access, and user-facing behavior. The full feature inventory that this audit now rolls up into lives in [`docs/feature-reference.md`](feature-reference.md).
+
+## Current verification status
+
+- Inventory source: `docs/feature-reference.md`
+- Legacy drift regressions: the feature-specific fixes documented below remain covered by the corresponding pytest modules
+- Full-suite baseline: `. venv/bin/activate && python -m pytest tests/ -q`
+- Latest local result: `1329 passed`
+- Additional issues found during the current verification pass: none reproducible beyond the already-documented legacy fixes
 
 ## Reviewed features
 

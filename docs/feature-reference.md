@@ -1,6 +1,6 @@
 # Feature Reference
 
-This document summarizes the live feature set of BananaWiki as implemented in the current codebase. It is based on the active Flask routes, database layer, helpers, and the dedicated pytest coverage that exercises the major workflows.
+This document summarizes the live feature set of BananaWiki as implemented in the current codebase. It is based on the active Flask routes, database layer, helpers, and the dedicated pytest coverage that exercises the major workflows. Treat it as the authoritative feature inventory for the systematic audit work tracked in [`docs/legacy_feature_audit.md`](legacy_feature_audit.md).
 
 ## Wiki authoring
 
@@ -47,6 +47,7 @@ This document summarizes the live feature set of BananaWiki as implemented in th
 - orphaned upload cleanup after commits or draft deletion
 - attribution transfer and de-attribution workflows for correcting history ownership
 - page reservations can block destructive editing while still allowing some safe actions
+- a dedicated reservations view lists active checkouts and their effective expiry state
 
 ## Search and discovery
 
@@ -101,7 +102,7 @@ Editors can be limited to specific categories for write access, and user/categor
 ### Administration and governance
 
 - admin settings cover theme palettes, timezone, favicon choice/upload, lockdown behavior, session-limit toggles, chat controls, and reservation timing
-- admin user management includes role changes, password resets, accessibility/profile moderation, and protected-admin safeguards
+- admin user management includes role changes, suspension/unsuspension, password resets, accessibility/profile moderation, and protected-admin safeguards
 - per-user custom tags can be created, recolored, reordered, and removed
 - user audit pages show recent activity log entries together with username history
 - account exports can be downloaded by the user or by an admin on the user's behalf
@@ -184,6 +185,15 @@ Site-wide defaults include:
 - experimental Obsidian sync can pull accessible wiki content into a local vault and push edited Markdown back into BananaWiki
 - Obsidian sync preserves category paths, copies assets into vault directories, records manifest metadata, and writes history entries on push
 
+## CLI commands, automation, and integrations
+
+- `reset_password.py` provides an interactive SSH-friendly password reset workflow for existing accounts
+- `scripts/seed_badges.py` seeds the default badge catalog into an initialized database
+- `scripts/obsidian_sync.py` exposes the experimental Obsidian pull/push workflow from the command line
+- `setup.py` runs the standalone deployment/provisioning wizard
+- `install.sh`, `start.sh`, `dev.sh`, and `update.sh` cover the supported development, production, and maintenance entry points
+- Telegram backup sync batches change notifications and runtime backups through `sync.py` when the integration is enabled
+
 ## Operationally important edge cases
 
 - `PROXY_MODE` affects forwarded headers and secure session cookies
@@ -205,3 +215,5 @@ The repository includes dedicated pytest modules that exercise the major feature
 - `tests/test_rate_limiting.py` and `tests/test_video_embedding_and_session_limit.py` for request throttling, video embeds, and session-limit enforcement
 - `tests/test_obsidian_sync.py` for the experimental vault import/export workflow
 - `tests/test_migration.py`, `tests/test_sync.py`, and `tests/test_synchronize.py` for site export/import, backup-related behaviors, and broader regression coverage
+
+The current verification baseline for this inventory is a full local run of `. venv/bin/activate && python -m pytest tests/ -q`, which completed with `1329 passed`.
