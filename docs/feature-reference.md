@@ -1,6 +1,6 @@
 # Feature Reference
 
-This document summarizes the live feature set of BananaWiki as implemented in the current codebase.
+This document summarizes the live feature set of BananaWiki as implemented in the current codebase. It is based on the active Flask routes, database layer, helpers, and the dedicated pytest coverage that exercises the major workflows.
 
 ## Wiki authoring
 
@@ -10,6 +10,8 @@ This document summarizes the live feature set of BananaWiki as implemented in th
 - Sanitization is always applied after rendering using Bleach allowlists
 - The `[TOC]` marker creates a heading table of contents
 - Bare YouTube and Vimeo URLs on their own line can be embedded on page views
+- Stored `[[video ...]]` shortcodes can preserve alignment, width, and aspect-ratio preferences
+- Markdown preview uses the same sanitized rendering path as saved content
 
 ### Editor workflow
 
@@ -20,6 +22,9 @@ This document summarizes the live feature set of BananaWiki as implemented in th
 - attachment uploads with authenticated download routes
 - difficulty tags with predefined or custom colorized labels
 - edit summaries attached to history entries
+- page slug renaming without recreating the page
+- page reservation indicators in the sidebar and editor flow when reservations are enabled
+- page creation and editing respect category write-access rules for restricted editors
 
 ## Organization and navigation
 
@@ -28,6 +33,8 @@ This document summarizes the live feature set of BananaWiki as implemented in th
 - move pages between categories without rewriting content
 - per-category sequential navigation for Prev/Next reading
 - deindex pages to hide them from navigation and search while keeping the direct URL active
+- dedicated home page support alongside ordinary slug-based pages
+- uncategorized content is still handled in navigation and admin views
 
 ## History, drafts, and change safety
 
@@ -38,6 +45,8 @@ This document summarizes the live feature set of BananaWiki as implemented in th
 - draft transfer support
 - contributor attribution appended to edits when multiple people had drafts open
 - orphaned upload cleanup after commits or draft deletion
+- attribution transfer and de-attribution workflows for correcting history ownership
+- page reservations can block destructive editing while still allowing some safe actions
 
 ## Search and discovery
 
@@ -46,8 +55,22 @@ This document summarizes the live feature set of BananaWiki as implemented in th
 - deindexed content hidden from normal users but still visible to privileged users where permitted
 - people directory with published profiles
 - sidebar people widget for active users
+- permission-aware page and category visibility filtering
+- profile discovery only exposes published profiles instead of every account
 
-## Accounts, roles, and permissions
+## Authentication, onboarding, and access safety
+
+- first-run setup wizard that creates the initial administrator account
+- invite-code signup flow for normal account creation
+- invite-code administration with active, expired, used, soft-deleted, and permanently deleted records
+- login password hashing through Werkzeug helpers
+- failed-login throttling backed by the database
+- per-route mutation rate limits and a global request rate limit for the app
+- optional one-session-per-user enforcement with a dedicated `/session-conflict` recovery flow
+- lockdown mode that immediately redirects non-admin users to a maintenance page with a custom message
+- safe same-origin referrer handling for redirect-back flows
+
+## Accounts, roles, permissions, and governance
 
 ### Roles
 
@@ -69,10 +92,19 @@ The permission system extends role defaults with per-user settings. Key groups i
 - attachment upload and deletion
 - profile access
 - chat and search access
+- invite and moderation-related capabilities through admin tools and per-user settings
 
 ### Category access control
 
 Editors can be limited to specific categories for write access, and user/category access rules also affect visibility for pages and categories.
+
+### Administration and governance
+
+- admin settings cover theme palettes, timezone, favicon choice/upload, lockdown behavior, session-limit toggles, chat controls, and reservation timing
+- admin user management includes role changes, password resets, accessibility/profile moderation, and protected-admin safeguards
+- per-user custom tags can be created, recolored, reordered, and removed
+- user audit pages show recent activity log entries together with username history
+- account exports can be downloaded by the user or by an admin on the user's behalf
 
 ## Profiles and social features
 
@@ -82,6 +114,11 @@ Editors can be limited to specific categories for write access, and user/categor
 - direct messages with unread counts and attachments
 - group chats with owners, moderators, bans, and timeout support
 - badge notifications shown in the main UI
+- direct messages can be disabled globally or per-user, can be exported, and can be cleared without deleting the rest of the account
+- group chats support invite-code join links, invite regeneration, owner/moderator roles, chat exports, message deletion, and admin monitoring pages
+- global group chats can auto-join users while keeping moderation reserved for site admins
+- chat quotas, retention windows, and cleanup scheduling are configurable from site settings
+- users can receive custom profile tags and published profile cards in shared UI widgets
 
 ## Announcements and badges
 
@@ -104,6 +141,7 @@ Badges can be:
 - manually awarded or revoked
 - auto-awarded for triggers such as first edit, contribution thresholds, category counts, member age, and easter egg discovery
 - configured with custom icon, color, description, thresholds, and repeatability
+- surfaced as unread notification counters until the recipient visits the badge notifications page
 
 ## Page reservations
 
@@ -134,12 +172,17 @@ Site-wide defaults include:
 - default theme mode
 - site name and timezone
 - preset or uploaded favicon
+- high-contrast-friendly color overrides managed in the same settings surface as other accessibility preferences
 
 ## Data portability and backups
 
 - user data export as ZIP from account settings
 - full-site export/import with delete-all, override, or keep-existing modes
 - optional Telegram backup sync for database, logs, uploads, and other runtime data
+- site migration archives include runtime assets such as uploads, attachments, chat attachments, and custom favicons
+- group and direct chat export flows can package messages alone or bundle attachments into ZIP files
+- experimental Obsidian sync can pull accessible wiki content into a local vault and push edited Markdown back into BananaWiki
+- Obsidian sync preserves category paths, copies assets into vault directories, records manifest metadata, and writes history entries on push
 
 ## Operationally important edge cases
 
@@ -148,3 +191,17 @@ Site-wide defaults include:
 - chat quotas and cleanup schedule are controlled from site settings, not hard-coded constants
 - image uploads intentionally exclude SVG for security reasons
 - page attachments and chat attachments are stored outside `app/static/`
+- user IDs are random text identifiers rather than autoincrement integers
+- security headers are applied to every response, including CSP rules that explicitly allow the supported video embed hosts
+
+## Verification snapshot
+
+The repository includes dedicated pytest modules that exercise the major feature areas documented above, including:
+
+- `tests/test_permissions.py` for roles, permissions, and access restrictions
+- `tests/test_chats.py` and `tests/test_group_chats.py` for messaging, moderation, exports, quotas, and cleanup behavior
+- `tests/test_page_reservations.py` and `tests/test_sequential_nav.py` for editing safety and navigation flows
+- `tests/test_deindex.py` for hidden-but-accessible page behavior
+- `tests/test_rate_limiting.py` and `tests/test_video_embedding_and_session_limit.py` for request throttling, video embeds, and session-limit enforcement
+- `tests/test_obsidian_sync.py` for the experimental vault import/export workflow
+- `tests/test_migration.py`, `tests/test_sync.py`, and `tests/test_synchronize.py` for site export/import, backup-related behaviors, and broader regression coverage
