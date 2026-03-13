@@ -979,3 +979,83 @@ def test_effective_chat_cleanup_settings_honor_explicit_default_values_after_spl
         "message_retention_days": 0,
         "attachment_retention_days": 7,
     }
+
+
+# ---------------------------------------------------------------------------
+# GAP-016: legacy page-history routes honor the current visibility and write
+#          access model.
+# ---------------------------------------------------------------------------
+
+def test_page_history_routes_honor_current_page_visibility(client, admin_uid):
+    """GAP-016: History list/detail return 403 when the page is not viewable."""
+    from werkzeug.security import generate_password_hash
+    from helpers._permissions import get_default_permissions
+
+    blocked_cat = db.create_category("Blocked History Category")
+    page_id = db.create_page("Hidden History Page", "hidden-history-page", "initial", blocked_cat, admin_uid)
+    db.update_page(page_id, "Hidden History Page", "updated", admin_uid, "history update")
+    entry_id = db.get_page_history(page_id)[0]["id"]
+
+    user_id = db.create_user("history_reader", generate_password_hash("pass123"), role="user")
+    db.set_user_permissions(
+        user_id,
+        get_default_permissions("user"),
+        read_restricted=True,
+        read_category_ids=[],
+    )
+
+    client.post("/login", data={"username": "history_reader", "password": "pass123"})
+
+    history_resp = client.get("/page/hidden-history-page/history")
+    entry_resp = client.get(f"/page/hidden-history-page/history/{entry_id}")
+
+    assert history_resp.status_code == 403
+    assert entry_resp.status_code == 403
+
+
+def test_deindexed_history_entry_requires_view_deindexed_permission(client, admin_uid, editor_uid):
+    """GAP-016: Editors without deindexed visibility cannot open deindexed history."""
+    from helpers._permissions import get_default_permissions
+
+    page_id = db.create_page("Deindexed History Page", "deindexed-history-page", "initial", None, admin_uid)
+    db.update_page(page_id, "Deindexed History Page", "updated", admin_uid, "history update")
+    db.set_page_deindexed(page_id, True)
+    entry_id = db.get_page_history(page_id)[0]["id"]
+    db.set_user_permissions(
+        editor_uid,
+        get_default_permissions("editor") - {"page.view_deindexed"},
+        read_restricted=False,
+    )
+
+    client.post("/login", data={"username": "editor1", "password": "editor123"})
+    resp = client.get(f"/page/deindexed-history-page/history/{entry_id}")
+
+    assert resp.status_code == 403
+
+
+def test_revert_route_honors_current_write_permissions(client, admin_uid, editor_uid):
+    """GAP-016: Revert stays blocked when current write permissions deny the category."""
+    from helpers._permissions import get_default_permissions
+
+    allowed_cat = db.create_category("Allowed History Category")
+    blocked_cat = db.create_category("Blocked History Category")
+    page_id = db.create_page("Blocked Revert Page", "blocked-revert-page", "initial", blocked_cat, admin_uid)
+    db.update_page(page_id, "Blocked Revert Page", "updated", admin_uid, "history update")
+    entry_id = db.get_page_history(page_id)[0]["id"]
+
+    db.set_user_permissions(
+        editor_uid,
+        get_default_permissions("editor"),
+        write_restricted=True,
+        write_category_ids=[allowed_cat],
+    )
+
+    client.post("/login", data={"username": "editor1", "password": "editor123"})
+    resp = client.post(
+        f"/page/blocked-revert-page/revert/{entry_id}",
+        follow_redirects=True,
+    )
+
+    assert resp.status_code == 200
+    assert b"You do not have permission to edit pages in this category." in resp.data
+    assert db.get_page(page_id)["content"] == "updated"
