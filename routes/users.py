@@ -68,11 +68,16 @@ def build_user_export_zip(user):
 
 def _filter_visible_profile_contributions(viewer, contribution_list, year):
     """Return only contribution rows whose current pages are visible to *viewer*."""
+    if not isinstance(year, int):
+        raise ValueError("year must be an integer")
+
     visible = []
     visible_by_day = {}
     year_prefix = f"{year}-"
 
     for contribution in contribution_list:
+        # Deleted pages have no live slug/category metadata, so public profile
+        # views omit them instead of guessing at stale visibility.
         if not contribution["page_slug"]:
             continue
         if not user_can_view_page(viewer, contribution):

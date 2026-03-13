@@ -437,8 +437,9 @@ def test_public_profile_hides_inaccessible_contributions(alice_client, admin_uid
         read_restricted=True,
         read_category_ids=[visible_cat],
     )
+    admin = db.get_user_by_id(admin_uid)
 
-    resp = alice_client.get("/users/admin")
+    resp = alice_client.get(f"/users/{admin['username']}")
     parser = _ContributionLinkParser()
     parser.feed(resp.get_data(as_text=True))
     assert resp.status_code == 200
