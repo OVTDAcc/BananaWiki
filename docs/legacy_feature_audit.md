@@ -7,8 +7,8 @@ This audit reviews older BananaWiki code paths against the current architecture,
 - Inventory source: `docs/feature-reference.md`
 - Legacy drift regressions: the feature-specific fixes documented below remain covered by the corresponding pytest modules
 - Full-suite baseline: `. venv/bin/activate && python -m pytest tests/ -q`
-- Latest local result: `1329 passed`
-- Additional issues found during the current verification pass: none reproducible beyond the already-documented legacy fixes
+- Latest local result: `1330 passed`
+- Additional issues found during the current verification pass: imported legacy editor exports could lose all modern permission keys after a `delete_all` migration import
 
 ## Reviewed features
 
@@ -35,6 +35,7 @@ This audit reviews older BananaWiki code paths against the current architecture,
 | Sidebar navigation category visibility | `helpers/_auth.py`, `app.py`, `app/templates/base.html`, `tests/test_feature_drift_fixes.py` | Fixed |
 | Sidebar category search visibility | `routes/api.py`, `tests/test_feature_drift_fixes.py` | Fixed |
 | Category management permission drift | `routes/wiki.py`, `routes/api.py`, `tests/test_feature_drift_fixes.py`, `tests/test_sequential_nav.py` | Fixed |
+| Migration import permission fallback | `db/_permissions.py`, `db/_migration.py`, `tests/test_migration.py` | Fixed |
 
 ## Findings and changes
 
@@ -163,3 +164,9 @@ This audit reviews older BananaWiki code paths against the current architecture,
 - **Why it drifted:** Category tools predate the current per-user permission model, so the web routes and reorder API never adopted the newer `category.*` permission keys even after those permissions were added to the admin UI and defaults.
 - **Changes made:** `routes/wiki.py` now guards category create/edit/move/delete/sequential-nav actions with the matching `db.has_permission()` checks, `routes/api.py` now requires `category.reorder` before accepting reorder payloads, `tests/test_feature_drift_fixes.py` covers both denied and allowed category-management flows for editors under the current permission model, and `tests/test_sequential_nav.py` now grants the explicit sequential-navigation permission before exercising the editor success path.
 - **Remaining risk / edge case:** Some category-management affordances in older templates still key off editor role alone, so future UI cleanup should keep those buttons aligned with the same permission checks to avoid offering actions that the backend now correctly rejects.
+
+### 22. Migration import permission fallback
+- **Issue found:** Editors imported from older site exports could retain their legacy category-access rows but lose every modern permission key after a `delete_all` import.
+- **Why it drifted:** `db.import_site_data()` intentionally tolerates older exports that do not include the newer `user_permissions` tables, but those imported users were never normalized back into the current permission schema afterward.
+- **Changes made:** `db/_migration.py` now backfills default role permissions for imported `editor` and `user` accounts when a legacy export omits the modern permission tables entirely, preserving legacy imports without overwriting explicitly configured empty permission sets from current exports. `tests/test_migration.py` now covers the legacy-export case by stripping the modern permission tables from an export and asserting that the imported editor still receives current default editor permissions plus working category write access.
+- **Remaining risk / edge case:** This keeps old exports usable at import time, but a future migration version could go further by explicitly versioning older export formats and normalizing every imported permission-related table in a single dedicated upgrade step.

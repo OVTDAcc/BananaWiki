@@ -149,6 +149,32 @@ def test_import_delete_all_keeps_home_page():
     assert db.get_home_page() is not None
 
 
+def test_import_delete_all_restores_default_permissions_for_legacy_editor_exports(admin_user):
+    """Older exports without modern permission rows should still keep editor defaults."""
+    import db
+    from helpers._permissions import get_default_permissions
+    from werkzeug.security import generate_password_hash
+
+    editor_id = db.create_user("legacyeditor", generate_password_hash("pw"), role="editor")
+    category_id = db.create_category("Legacy Category")
+
+    data = db.export_site_data()
+    data.pop("user_permissions", None)
+    data.pop("user_category_access", None)
+    data.pop("user_allowed_categories", None)
+    data["editor_category_access"] = [{"user_id": editor_id, "restricted": 1}]
+    data["editor_allowed_categories"] = [{"user_id": editor_id, "category_id": category_id}]
+
+    db.import_site_data(data, "delete_all")
+
+    editor = db.get_user_by_username("legacyeditor")
+    perms = db.get_user_permissions(editor["id"])
+
+    assert perms["enabled_permissions"] == get_default_permissions("editor")
+    assert db.has_permission(editor, "page.edit_all")
+    assert db.has_category_write_access(editor, category_id)
+
+
 # ---------------------------------------------------------------------------
 # db.import_site_data – override mode
 # ---------------------------------------------------------------------------
