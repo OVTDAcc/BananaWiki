@@ -247,6 +247,7 @@ def register_api_routes(app):
                 "updated_at_formatted": format_datetime(d["updated_at"]),
             }
             for d in drafts
+            if editor_has_category_access(user, d["page_category_id"])
         ])
 
     # -----------------------------------------------------------------------

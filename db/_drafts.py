@@ -84,11 +84,10 @@ def list_user_drafts(user_id):
     """Return all drafts belonging to a user, with page info."""
     conn = get_db()
     rows = conn.execute(
-        "SELECT d.*, p.title AS page_title, p.slug AS page_slug "
+        "SELECT d.*, p.title AS page_title, p.slug AS page_slug, p.category_id AS page_category_id "
         "FROM drafts d JOIN pages p ON d.page_id = p.id "
         "WHERE d.user_id=? ORDER BY d.updated_at DESC",
         (user_id,),
     ).fetchall()
     conn.close()
     return rows
-
