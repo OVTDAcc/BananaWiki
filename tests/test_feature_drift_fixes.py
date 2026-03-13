@@ -927,6 +927,147 @@ def test_category_routes_honor_current_write_permissions(client, admin_uid, edit
     assert "Blocked Category" not in [cat["name"] for cat in db.list_categories()]
 
 
+def test_category_management_routes_require_explicit_permissions(client, admin_uid, editor_uid):
+    """GAP-021: Legacy category routes must honor the current category permission keys."""
+    from helpers._permissions import get_default_permissions
+
+    editable_cat = db.create_category("Editable Category")
+    target_cat = db.create_category("Target Category")
+    delete_cat = db.create_category("Delete Category")
+    page_id = db.create_page("Delete Page", "delete-page", "content", delete_cat, editor_uid)
+    db.set_user_permissions(editor_uid, get_default_permissions("editor"))
+
+    client.post("/login", data={"username": "editor1", "password": "editor123"})
+
+    create_resp = client.post(
+        "/category/create",
+        data={"name": "Blocked Category"},
+        follow_redirects=True,
+    )
+    assert create_resp.status_code == 200
+    assert b"You do not have permission to create categories." in create_resp.data
+    assert "Blocked Category" not in [cat["name"] for cat in db.list_categories()]
+
+    edit_resp = client.post(
+        f"/category/{editable_cat}/edit",
+        data={"name": "Renamed Category"},
+        follow_redirects=True,
+    )
+    assert edit_resp.status_code == 200
+    assert b"You do not have permission to edit categories." in edit_resp.data
+    assert db.get_category(editable_cat)["name"] == "Editable Category"
+
+    move_resp = client.post(
+        f"/category/{editable_cat}/move",
+        data={"parent_id": str(target_cat)},
+        follow_redirects=True,
+    )
+    assert move_resp.status_code == 200
+    assert b"You do not have permission to move categories." in move_resp.data
+    assert db.get_category(editable_cat)["parent_id"] is None
+
+    delete_resp = client.post(
+        f"/category/{delete_cat}/delete",
+        data={"page_action": "move", "target_category_id": str(target_cat)},
+        follow_redirects=True,
+    )
+    assert delete_resp.status_code == 200
+    assert b"You do not have permission to delete categories." in delete_resp.data
+    assert db.get_category(delete_cat) is not None
+    assert db.get_page(page_id)["category_id"] == delete_cat
+
+    sequential_resp = client.post(
+        f"/category/{target_cat}/sequential-nav",
+        data={"sequential_nav": "1"},
+        follow_redirects=True,
+    )
+    assert sequential_resp.status_code == 200
+    assert b"You do not have permission to modify categories." in sequential_resp.data
+    assert db.get_category(target_cat)["sequential_nav"] == 0
+
+    reorder_resp = client.post(
+        "/api/reorder/categories",
+        json={"ids": [target_cat, editable_cat, delete_cat]},
+        content_type="application/json",
+    )
+    assert reorder_resp.status_code == 403
+    assert reorder_resp.get_json()["error"] == "You do not have permission to reorder categories."
+
+
+def test_category_management_routes_honor_explicit_permissions(client, admin_uid, editor_uid):
+    """GAP-021: Editors regain legacy category tools only when the matching permissions are granted."""
+    from helpers._permissions import get_default_permissions
+
+    parent_cat = db.create_category("Parent Category")
+    editable_cat = db.create_category("Editable Category")
+    target_cat = db.create_category("Target Category")
+    delete_cat = db.create_category("Delete Category")
+    page_id = db.create_page("Delete Page", "delete-page-allowed", "content", delete_cat, editor_uid)
+    db.set_user_permissions(
+        editor_uid,
+        get_default_permissions("editor")
+        | {
+            "category.create",
+            "category.edit",
+            "category.delete",
+            "category.reorder",
+            "category.manage_sequential",
+        },
+    )
+
+    client.post("/login", data={"username": "editor1", "password": "editor123"})
+
+    create_resp = client.post(
+        "/category/create",
+        data={"name": "Created Category", "parent_id": str(parent_cat)},
+        follow_redirects=True,
+    )
+    assert create_resp.status_code == 200
+    created_cat = next(cat for cat in db.list_categories() if cat["name"] == "Created Category")
+    assert created_cat["parent_id"] == parent_cat
+
+    edit_resp = client.post(
+        f"/category/{editable_cat}/edit",
+        data={"name": "Renamed Category"},
+        follow_redirects=True,
+    )
+    assert edit_resp.status_code == 200
+    assert db.get_category(editable_cat)["name"] == "Renamed Category"
+
+    move_resp = client.post(
+        f"/category/{editable_cat}/move",
+        data={"parent_id": str(target_cat)},
+        follow_redirects=True,
+    )
+    assert move_resp.status_code == 200
+    assert db.get_category(editable_cat)["parent_id"] == target_cat
+
+    sequential_resp = client.post(
+        f"/category/{target_cat}/sequential-nav",
+        data={"sequential_nav": "1"},
+        follow_redirects=True,
+    )
+    assert sequential_resp.status_code == 200
+    assert db.get_category(target_cat)["sequential_nav"] == 1
+
+    reorder_resp = client.post(
+        "/api/reorder/categories",
+        json={"ids": [target_cat, editable_cat, delete_cat, parent_cat]},
+        content_type="application/json",
+    )
+    assert reorder_resp.status_code == 200
+    assert reorder_resp.get_json()["ok"] is True
+
+    delete_resp = client.post(
+        f"/category/{delete_cat}/delete",
+        data={"page_action": "move", "target_category_id": str(target_cat)},
+        follow_redirects=True,
+    )
+    assert delete_resp.status_code == 200
+    assert db.get_category(delete_cat) is None
+    assert db.get_page(page_id)["category_id"] == target_cat
+
+
 # ---------------------------------------------------------------------------
 # GAP-015: legacy chat cleanup settings continue to work after the DM/group
 #          cleanup split introduced newer per-scope settings.
@@ -1180,7 +1321,7 @@ def test_reorder_categories_honors_current_write_permissions(client, admin_uid, 
     )
 
     assert resp.status_code == 403
-    assert resp.get_json()["error"] == "You do not have permission to edit categories."
+    assert resp.get_json()["error"] == "You do not have permission to reorder categories."
     assert db.get_category(allowed_cat)["sort_order"] == 0
     assert db.get_category(blocked_cat)["sort_order"] == 0
 

@@ -26,6 +26,7 @@ This audit reviews a small set of older BananaWiki code paths against the curren
 | Shared category dropdown visibility | `app.py`, `tests/test_feature_drift_fixes.py` | Fixed |
 | Sidebar navigation category visibility | `helpers/_auth.py`, `app.py`, `app/templates/base.html`, `tests/test_feature_drift_fixes.py` | Fixed |
 | Sidebar category search visibility | `routes/api.py`, `tests/test_feature_drift_fixes.py` | Fixed |
+| Category management permission drift | `routes/wiki.py`, `routes/api.py`, `tests/test_feature_drift_fixes.py`, `tests/test_sequential_nav.py` | Fixed |
 
 ## Findings and changes
 
@@ -148,3 +149,9 @@ This audit reviews a small set of older BananaWiki code paths against the curren
 - **Why it drifted:** The page-search half of the API had already adopted `user_can_view_page()`, but the older category-search branch still serialized raw `db.search_categories()` results.
 - **Changes made:** `routes/api.py` now filters category matches through `user_can_view_category()`, and `tests/test_feature_drift_fixes.py` adds a regression proving restricted users only see allowed category names alongside visible page hits.
 - **Remaining risk / edge case:** Any future category-search API should apply the same read-access filter before serializing names or hierarchy metadata.
+
+### 21. Category management permission drift
+- **Issue found:** Legacy category-management routes still treated the editor role as sufficient for creating, renaming, moving, deleting, reordering, and toggling sequential navigation on categories.
+- **Why it drifted:** Category tools predate the current per-user permission model, so the web routes and reorder API never adopted the newer `category.*` permission keys even after those permissions were added to the admin UI and defaults.
+- **Changes made:** `routes/wiki.py` now guards category create/edit/move/delete/sequential-nav actions with the matching `db.has_permission()` checks, `routes/api.py` now requires `category.reorder` before accepting reorder payloads, `tests/test_feature_drift_fixes.py` covers both denied and allowed category-management flows for editors under the current permission model, and `tests/test_sequential_nav.py` now grants the explicit sequential-navigation permission before exercising the editor success path.
+- **Remaining risk / edge case:** Some category-management affordances in older templates still key off editor role alone, so future UI cleanup should keep those buttons aligned with the same permission checks to avoid offering actions that the backend now correctly rejects.
