@@ -132,3 +132,29 @@ def user_can_view_page(user, page):
         return db.has_permission(user, "page.view_deindexed")
 
     return True
+
+
+def filter_visible_navigation(categories, uncategorized, user):
+    """Return sidebar categories/pages filtered through the current visibility policy."""
+    if not user:
+        return {"categories": [], "uncategorized": []}
+
+    def visit(nodes):
+        """Recursively keep only visible categories and pages."""
+        visible_nodes = []
+        for node in nodes:
+            filtered_children = visit(node.get("children", []))
+            filtered_pages = [page for page in node.get("pages", []) if user_can_view_page(user, page)]
+            if user_can_view_category(user, node["id"]):
+                visible_node = dict(node)
+                visible_node["children"] = filtered_children
+                visible_node["pages"] = filtered_pages
+                visible_nodes.append(visible_node)
+            else:
+                visible_nodes.extend(filtered_children)
+        return visible_nodes
+
+    return {
+        "categories": visit(categories or []),
+        "uncategorized": [page for page in (uncategorized or []) if user_can_view_page(user, page)],
+    }

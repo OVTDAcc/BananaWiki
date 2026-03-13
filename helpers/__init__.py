@@ -61,6 +61,7 @@ from helpers._auth import (              # noqa: F401
     editor_has_category_access,
     user_can_view_page,
     user_can_view_category,
+    filter_visible_navigation,
 )
 
 from helpers._time import (              # noqa: F401

@@ -94,6 +94,7 @@
     {% include "_announcements_bar.html" %}
     <div class="layout">
         {% if current_user %}
+        {% set sidebar_navigation = filter_visible_navigation(categories|default([], true), uncategorized|default([], true), current_user) %}
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-header">
                 <span>Explorer</span>
@@ -113,13 +114,13 @@
             </div>
             <nav class="sidebar-nav">
                 <a href="{{ url_for('home') }}" class="nav-item {% if page and page.is_home %}active{% endif %}">Home</a>
-                {% for cat in categories %}
+                {% for cat in sidebar_navigation.categories %}
                     {% include "wiki/_category.html" %}
                 {% endfor %}
-                {% if uncategorized %}
+                {% if sidebar_navigation.uncategorized %}
                 <div class="nav-section">
                     <span class="nav-section-title">Uncategorized</span>
-                    {% for p in uncategorized %}
+                    {% for p in sidebar_navigation.uncategorized %}
                     {% if not p.is_deindexed or (current_user and current_user.role in ('editor', 'admin', 'protected_admin')) %}
                     {% set reservation = sidebar_reservations.get(p.id) %}
                     <div class="nav-item-row" data-page-id="{{ p.id }}">

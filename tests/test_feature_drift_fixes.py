@@ -338,12 +338,12 @@ def test_search_api_unrestricted_user_sees_all(client, admin_uid):
 
 
 def test_sidebar_search_filters_restricted_categories(client, admin_uid):
-    """GAP-002: Sidebar search also excludes pages in restricted categories."""
+    """GAP-002: Sidebar search excludes restricted categories and their pages."""
     from werkzeug.security import generate_password_hash
     from helpers._permissions import get_default_permissions
 
-    allowed_cat = db.create_category("AllowedCat")
-    blocked_cat = db.create_category("BlockedCat")
+    allowed_cat = db.create_category("AllowedPageCat")
+    blocked_cat = db.create_category("BlockedPageCat")
     db.create_page("Open Page", "open-page", "Content", category_id=allowed_cat)
     db.create_page("Hidden Page", "hidden-page", "Content", category_id=blocked_cat)
 
@@ -360,10 +360,70 @@ def test_sidebar_search_filters_restricted_categories(client, admin_uid):
     resp = client.get("/api/sidebar/search?q=Page")
     assert resp.status_code == 200
     data = resp.get_json()
+    category_names = [c["name"] for c in data.get("categories", [])]
     slugs = [p["slug"] for p in data.get("pages", [])]
 
+    assert "AllowedPageCat" in category_names
+    assert "BlockedPageCat" not in category_names
     assert "open-page" in slugs
     assert "hidden-page" not in slugs
+
+
+def test_create_page_category_selector_hides_restricted_categories(client, admin_uid):
+    """GAP-002: Shared category dropdowns only include readable categories."""
+    from werkzeug.security import generate_password_hash
+    from helpers._permissions import get_default_permissions
+
+    allowed_cat = db.create_category("CreateAllowedCat")
+    blocked_cat = db.create_category("CreateBlockedCat")
+
+    editor_id = db.create_user("create_editor", generate_password_hash("pass123"), role="editor")
+    db.set_user_permissions(
+        editor_id,
+        get_default_permissions("editor"),
+        read_restricted=True,
+        read_category_ids=[allowed_cat],
+        write_restricted=True,
+        write_category_ids=[allowed_cat],
+    )
+
+    client.post("/login", data={"username": "create_editor", "password": "pass123"})
+
+    resp = client.get("/create-page")
+    assert resp.status_code == 200
+    html = resp.data.decode()
+    select_html = html.split('<select name="category_id"', 1)[1].split("</select>", 1)[0]
+
+    assert "CreateAllowedCat" in select_html
+    assert "CreateBlockedCat" not in select_html
+
+
+def test_sidebar_navigation_hides_restricted_categories(client, admin_uid):
+    """GAP-002: Shared sidebar navigation omits blocked categories."""
+    from werkzeug.security import generate_password_hash
+    from helpers._permissions import get_default_permissions
+
+    allowed_cat = db.create_category("SidebarAllowedCat")
+    blocked_cat = db.create_category("SidebarBlockedCat")
+
+    editor_id = db.create_user("sidebar_editor", generate_password_hash("pass123"), role="editor")
+    db.set_user_permissions(
+        editor_id,
+        get_default_permissions("editor"),
+        read_restricted=True,
+        read_category_ids=[allowed_cat],
+        write_restricted=True,
+        write_category_ids=[allowed_cat],
+    )
+
+    client.post("/login", data={"username": "sidebar_editor", "password": "pass123"})
+
+    resp = client.get("/")
+    assert resp.status_code == 200
+    html = resp.data.decode()
+
+    assert "SidebarAllowedCat" in html
+    assert "SidebarBlockedCat" not in html
 
 
 # ---------------------------------------------------------------------------

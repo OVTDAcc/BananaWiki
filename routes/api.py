@@ -10,7 +10,7 @@ import config
 from helpers import (
     login_required, editor_required, admin_required, get_current_user,
     render_markdown, rate_limit, format_datetime, editor_has_category_access,
-    user_can_view_page,
+    user_can_view_category, user_can_view_page,
 )
 import wiki_logger
 from sync import notify_change
@@ -96,13 +96,14 @@ def register_api_routes(app):
         pages = db.search_pages_full(query, include_deindexed=include_deindexed,
                                      search_content=search_content)
         categories = db.search_categories(query)
+        filtered_categories = [c for c in categories if user_can_view_category(user, c["id"])]
         filtered_pages = [p for p in pages if user_can_view_page(user, p)]
         reservation_map = db.get_active_page_reservations_map(
             user["id"] if user else None,
             [p["id"] for p in filtered_pages],
         )
         return jsonify({
-            "categories": categories,
+            "categories": filtered_categories,
             "pages": [
                 {
                     **p,
