@@ -20,6 +20,7 @@ This audit reviews a small set of older BananaWiki code paths against the curren
 | Signup permission initialization | `routes/auth.py`, `routes/admin.py`, `tests/test_fixes.py` | Fixed |
 | Password-change session-token rotation | `routes/users.py`, `routes/admin.py`, `reset_password.py`, `tests/test_video_embedding_and_session_limit.py`, `tests/test_fixes.py` | Fixed |
 | Deindex reservation compatibility | `routes/wiki.py`, `tests/test_page_reservations.py` | Fixed |
+| Reorder API category access | `routes/api.py`, `tests/test_feature_drift_fixes.py`, `tests/test_fixes.py` | Fixed |
 
 ## Findings and changes
 
@@ -106,3 +107,9 @@ This audit reviews a small set of older BananaWiki code paths against the curren
 - **Why it drifted:** Page deindexing was added before the newer reservation lock helper became the shared protection for destructive page edits, so it never adopted the same guard already used by title edits, tag changes, and page deletion.
 - **Changes made:** `routes/wiki.py` now routes deindex/reindex through `_guard_destructive_page_edit()`, and `tests/test_page_reservations.py` now verifies that non-admin editors cannot change deindex state while another editor holds the reservation.
 - **Remaining risk / edge case:** Other metadata-only page mutations should continue to reuse `_guard_destructive_page_edit()` so reservation enforcement stays consistent as the page-management surface evolves.
+
+### 15. Reorder API category access
+- **Issue found:** The older page/category reorder JSON endpoints only required an editor session and never re-checked whether the current editor could write to every affected page or category.
+- **Why it drifted:** Reordering predates the current category write-access model, so these AJAX routes kept their original role-only gate while the rest of the edit surface moved to shared `editor_has_category_access()` guards.
+- **Changes made:** `routes/api.py` now validates every requested page/category through the current write-access checks before persisting a reorder, and `tests/test_feature_drift_fixes.py` adds regressions that prove restricted editors can no longer reorder blocked pages or categories.
+- **Remaining risk / edge case:** Any future bulk-edit API should validate each target through the same shared access helpers before performing batch database updates.

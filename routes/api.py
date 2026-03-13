@@ -37,6 +37,24 @@ def register_api_routes(app):
             )
         return page, None
 
+    def _get_reorder_pages_error_response(page_ids, user):
+        """Return an error response when *user* cannot reorder *page_ids*."""
+        for page_id in page_ids:
+            _, error = _get_editable_page_or_response(page_id, user)
+            if error:
+                return error
+        return None
+
+    def _get_reorder_categories_error_response(category_ids, user):
+        """Return an error response when *user* cannot reorder *category_ids*."""
+        for category_id in category_ids:
+            category = db.get_category(category_id)
+            if not category:
+                return jsonify({"error": "Category not found"}), 404
+            if not editor_has_category_access(user, category_id):
+                return jsonify({"error": "You do not have permission to edit categories."}), 403
+        return None
+
     @app.route("/api/pages/search")
     @login_required
     @rate_limit(60, 60)
@@ -408,8 +426,11 @@ def register_api_routes(app):
             ids = [int(i) for i in data["ids"]]
         except (TypeError, ValueError):
             return jsonify({"error": "invalid ids"}), 400
-        db.update_pages_sort_order(ids)
         user = get_current_user()
+        error = _get_reorder_pages_error_response(ids, user)
+        if error:
+            return error
+        db.update_pages_sort_order(ids)
         wiki_logger.log_action("reorder_pages", request, user=user, count=len(ids))
         notify_change("pages_reorder", "Page order updated")
         return jsonify({"ok": True, "message": "Page order saved successfully."})
@@ -427,8 +448,11 @@ def register_api_routes(app):
             ids = [int(i) for i in data["ids"]]
         except (TypeError, ValueError):
             return jsonify({"error": "invalid ids"}), 400
-        db.update_categories_sort_order(ids)
         user = get_current_user()
+        error = _get_reorder_categories_error_response(ids, user)
+        if error:
+            return error
+        db.update_categories_sort_order(ids)
         wiki_logger.log_action("reorder_categories", request, user=user, count=len(ids))
         notify_change("categories_reorder", "Category order updated")
         return jsonify({"ok": True, "message": "Category order saved successfully."})
