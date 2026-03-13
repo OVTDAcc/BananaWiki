@@ -10,6 +10,7 @@ import config
 from helpers import (
     login_required, editor_required, admin_required, get_current_user,
     render_markdown, rate_limit, format_datetime, editor_has_category_access,
+    user_can_view_page,
 )
 import wiki_logger
 from sync import notify_change
@@ -45,10 +46,9 @@ def register_api_routes(app):
         if not query:
             return jsonify([])
         user = get_current_user()
-        include_deindexed = user and user["role"] in ("editor", "admin", "protected_admin")
+        include_deindexed = bool(user and db.has_permission(user, "page.view_deindexed"))
         results = db.search_pages(query, include_deindexed=include_deindexed)
-        # Filter results by category read access restrictions
-        filtered = [r for r in results if db.has_category_read_access(user, r["category_id"])]
+        filtered = [r for r in results if user_can_view_page(user, r)]
         return jsonify([{"title": r["title"], "slug": r["slug"]} for r in filtered])
 
     @app.route("/api/sidebar/search")
@@ -74,12 +74,11 @@ def register_api_routes(app):
         scope = request.args.get("scope", "title")
         search_content = scope == "content"
         user = get_current_user()
-        include_deindexed = user and user["role"] in ("editor", "admin", "protected_admin")
+        include_deindexed = bool(user and db.has_permission(user, "page.view_deindexed"))
         pages = db.search_pages_full(query, include_deindexed=include_deindexed,
                                      search_content=search_content)
         categories = db.search_categories(query)
-        # Filter pages by category read access restrictions
-        filtered_pages = [p for p in pages if db.has_category_read_access(user, p["category_id"])]
+        filtered_pages = [p for p in pages if user_can_view_page(user, p)]
         reservation_map = db.get_active_page_reservations_map(
             user["id"] if user else None,
             [p["id"] for p in filtered_pages],

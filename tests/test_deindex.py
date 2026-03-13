@@ -223,16 +223,57 @@ def test_cannot_deindex_home_page(logged_in_admin):
 
 
 # -----------------------------------------------------------------------
-# Route: deindexed page still accessible via URL by all logged-in users
+# Route: deindexed page visibility follows the current permission model
 # -----------------------------------------------------------------------
-def test_deindexed_page_accessible_by_url_for_regular_user(logged_in_user):
+def test_deindexed_page_hidden_by_url_for_regular_user_without_permission(logged_in_user):
     import db
     page_id = db.create_page("Hidden Page2", "hidden-page2", "secret content")
     db.set_page_deindexed(page_id, True)
 
     resp = logged_in_user.get("/page/hidden-page2")
+    assert resp.status_code == 403
+
+
+def test_deindexed_page_accessible_by_url_with_explicit_permission(client, regular_user):
+    import db
+    from helpers._permissions import get_default_permissions
+
+    page_id = db.create_page("Hidden Page3", "hidden-page3", "secret content")
+    db.set_page_deindexed(page_id, True)
+    db.set_user_permissions(
+        regular_user,
+        get_default_permissions("user") | {"page.view_deindexed"},
+        read_restricted=False,
+    )
+
+    client.post("/login", data={"username": "user1", "password": "user123"})
+    resp = client.get("/page/hidden-page3")
+
     assert resp.status_code == 200
-    assert b"Hidden Page2" in resp.data
+    assert b"Hidden Page3" in resp.data
+
+
+def test_deindexed_page_permission_still_respects_category_access(client):
+    import db
+    from werkzeug.security import generate_password_hash
+    from helpers._permissions import get_default_permissions
+
+    db.update_site_settings(setup_done=1)
+    blocked_cat = db.create_category("Blocked")
+    page_id = db.create_page("Hidden Page4", "hidden-page4", "secret content", category_id=blocked_cat)
+    db.set_page_deindexed(page_id, True)
+
+    user_id = db.create_user("deindexed_reader", generate_password_hash("pass123"), role="user")
+    db.set_user_permissions(
+        user_id,
+        get_default_permissions("user") | {"page.view_deindexed"},
+        read_restricted=True,
+        read_category_ids=[],
+    )
+
+    client.post("/login", data={"username": "deindexed_reader", "password": "pass123"})
+    resp = client.get("/page/hidden-page4")
+    assert resp.status_code == 403
 
 
 # -----------------------------------------------------------------------
@@ -249,15 +290,86 @@ def test_api_search_excludes_deindexed_for_regular_user(logged_in_user):
     assert not any(r["slug"] == "secret-wiki" for r in data)
 
 
-def test_api_search_includes_deindexed_for_editor(logged_in_editor):
+def test_api_search_includes_deindexed_for_editor_with_permission(client, editor_user):
     import db
+    from helpers._permissions import get_default_permissions
+
     page_id = db.create_page("Secret Wiki Page", "secret-wiki2", "content")
     db.set_page_deindexed(page_id, True)
+    db.set_user_permissions(
+        editor_user,
+        get_default_permissions("editor"),
+        read_restricted=False,
+    )
 
-    resp = logged_in_editor.get("/api/pages/search?q=Secret+Wiki")
+    client.post("/login", data={"username": "editor", "password": "editor123"})
+    resp = client.get("/api/pages/search?q=Secret+Wiki")
     assert resp.status_code == 200
     data = resp.get_json()
     assert any(r["slug"] == "secret-wiki2" for r in data)
+
+
+def test_api_search_includes_deindexed_for_regular_user_with_permission(client, regular_user):
+    import db
+    from helpers._permissions import get_default_permissions
+
+    page_id = db.create_page("Secret Wiki Page", "secret-wiki3", "content")
+    db.set_page_deindexed(page_id, True)
+    db.set_user_permissions(
+        regular_user,
+        get_default_permissions("user") | {"page.view_deindexed"},
+        read_restricted=False,
+    )
+
+    client.post("/login", data={"username": "user1", "password": "user123"})
+    resp = client.get("/api/pages/search?q=Secret+Wiki")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert any(r["slug"] == "secret-wiki3" for r in data)
+
+
+def test_api_search_excludes_deindexed_for_editor_without_permission(client, editor_user):
+    import db
+    from helpers._permissions import get_default_permissions
+
+    page_id = db.create_page("Secret Wiki Page", "secret-wiki4", "content")
+    db.set_page_deindexed(page_id, True)
+    db.set_user_permissions(
+        editor_user,
+        get_default_permissions("editor") - {"page.view_deindexed"},
+        read_restricted=False,
+    )
+
+    client.post("/login", data={"username": "editor", "password": "editor123"})
+    resp = client.get("/api/pages/search?q=Secret+Wiki")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert not any(r["slug"] == "secret-wiki4" for r in data)
+
+
+def test_sidebar_search_includes_deindexed_only_with_permission(client, regular_user):
+    import db
+    from helpers._permissions import get_default_permissions
+
+    page_id = db.create_page("Secret Sidebar Page", "secret-sidebar", "content")
+    db.set_page_deindexed(page_id, True)
+
+    client.post("/login", data={"username": "user1", "password": "user123"})
+    resp = client.get("/api/sidebar/search?q=Secret+Sidebar")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert not any(r["slug"] == "secret-sidebar" for r in data["pages"])
+
+    db.set_user_permissions(
+        regular_user,
+        get_default_permissions("user") | {"page.view_deindexed"},
+        read_restricted=False,
+    )
+
+    resp = client.get("/api/sidebar/search?q=Secret+Sidebar")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert any(r["slug"] == "secret-sidebar" for r in data["pages"])
 
 
 def test_api_search_includes_deindexed_for_admin(logged_in_admin):
@@ -285,16 +397,13 @@ def test_deindexed_badge_shown_to_admin(logged_in_admin):
     assert b"Reindex" in resp.data
 
 
-def test_deindexed_page_accessible_to_regular_user(logged_in_user):
+def test_deindexed_page_hidden_from_regular_user_without_permission(logged_in_user):
     import db
     page_id = db.create_page("Badge Test2", "badge-test2", "content")
     db.set_page_deindexed(page_id, True)
 
-    # Regular users can still view via URL
     resp = logged_in_user.get("/page/badge-test2")
-    assert resp.status_code == 200
-    # Badge visible to all (page is viewable, status shown for transparency)
-    assert b"Badge Test2" in resp.data
+    assert resp.status_code == 403
 
 
 # -----------------------------------------------------------------------

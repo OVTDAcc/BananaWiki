@@ -12,7 +12,7 @@ import db
 import config
 from helpers import (
     login_required, editor_required, admin_required, get_current_user,
-    editor_has_category_access, render_markdown, compute_char_diff,
+    editor_has_category_access, user_can_view_page, render_markdown, compute_char_diff,
     compute_diff_html, compute_formatted_diff_html, slugify, rate_limit,
     _is_valid_hex_color, format_datetime, ROLE_LABELS,
     _safe_referrer, time_ago,
@@ -132,8 +132,9 @@ def register_wiki_routes(app):
         if not page:
             abort(404)
         user = get_current_user()
-        # Enforce category read access restrictions
-        if not db.has_category_read_access(user, page["category_id"]):
+        # Enforce the current page-visibility rules, including category access
+        # restrictions and deindexed-page permissions.
+        if not user_can_view_page(user, page):
             abort(403)
         content_html = render_markdown(page["content"], embed_videos=True)
         categories, uncategorized = db.get_category_tree()
@@ -989,7 +990,10 @@ def register_wiki_routes(app):
         log_action(f"page_{action}", request, user=user, page=slug)
         notify_change("page_deindex", f"Page '{slug}' {action}")
         flash(f"Page {action}.", "success")
-        return redirect(url_for("view_page", slug=slug))
+        updated_page = db.get_page(page["id"])
+        if user_can_view_page(user, updated_page):
+            return redirect(url_for("view_page", slug=slug))
+        return redirect(url_for("home"))
 
     @app.route("/category/<int:cat_id>/sequential-nav", methods=["POST"])
     @login_required

@@ -1778,15 +1778,17 @@ def test_sidebar_search_hides_deindexed_from_regular_user(alice_uid):
         assert "secret-page" not in slugs
 
 
-def test_sidebar_search_shows_deindexed_to_editor(admin_uid):
-    """Editors/admins should see deindexed pages in sidebar search results."""
+def test_sidebar_search_shows_deindexed_to_editor_with_permission(admin_uid):
+    """Editors with the current deindex permission should see hidden pages in sidebar search."""
     import db
     from app import app
     from werkzeug.security import generate_password_hash
+    from helpers._permissions import get_default_permissions
     editor_uid = db.create_user("editor1", generate_password_hash("editor123"),
                                 role="editor")
     page_id = db.create_page("Hidden Page", "hidden-page", content="deindexed")
     db.set_page_deindexed(page_id, True)
+    db.set_user_permissions(editor_uid, get_default_permissions("editor"), read_restricted=False)
     app.config["TESTING"] = True
     app.config["WTF_CSRF_ENABLED"] = False
     with app.test_client() as c:

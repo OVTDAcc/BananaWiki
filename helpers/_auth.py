@@ -119,12 +119,16 @@ def user_can_view_page(user, page):
     if user["role"] in ("admin", "protected_admin"):
         return True
 
+    # Check category read access first so deindexed permission does not bypass
+    # category restrictions introduced by the current permission system.
+    category_id = page["category_id"] if "category_id" in page.keys() else None
+    if not user_can_view_category(user, category_id):
+        return False
+
     # Check if page is deindexed (handle both dict and sqlite3.Row)
     is_deindexed = page["is_deindexed"] if "is_deindexed" in page.keys() else False
     if is_deindexed:
         # Only users with page.view_deindexed permission can see them
         return db.has_permission(user, "page.view_deindexed")
 
-    # Check category read access
-    category_id = page["category_id"] if "category_id" in page.keys() else None
-    return user_can_view_category(user, category_id)
+    return True
