@@ -81,7 +81,7 @@ This audit reviews a small set of older BananaWiki code paths against the curren
 - **Remaining risk / edge case:** Other page-mutation routes that predate deindexing should continue to be reviewed whenever visibility rules evolve so all direct slug-based workflows keep honoring the same shared helpers.
 
 ### 11. Invite validation after admin suspension
-- **Issue found:** Legacy invite validation continued to accept an unused invite code even after the admin account that created it had been suspended.
+- **Issue found:** Legacy invite validation continued to accept an unused invite code even after the admin account that created it had been suspended or deleted.
 - **Why it drifted:** Invite-code validation predates the newer admin suspension workflow, so the unauthenticated signup path kept treating invite codes as self-contained tokens instead of re-checking the creator's current account state.
-- **Changes made:** `db/_invites.py` now joins the creator record during `validate_invite_code()` and rejects codes created by suspended admins, while `tests/test_production.py` adds both a direct validation regression and a signup-path regression.
+- **Changes made:** `db/_invites.py` now joins the creator record during `validate_invite_code()` and rejects codes whose creator account is suspended or missing, while `tests/test_production.py` adds both direct validation regressions and signup-path regressions.
 - **Remaining risk / edge case:** If the project ever wants suspension to revoke other pending artifacts (for example, active sessions or pre-generated exports), those flows should likewise re-check the actor's current account status instead of relying only on legacy token state.
