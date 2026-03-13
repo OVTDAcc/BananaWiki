@@ -124,9 +124,9 @@ Editors can be limited to specific categories for write access, and user/categor
 
 ## Hidden and optional extras
 
-- a logged-in-only `/easter-egg` page tracks whether a user has discovered the hidden feature and changes its UI once the one-way trigger has been recorded
+- a `/easter-egg` page for logged-in users tracks whether a user has discovered the hidden feature and changes its UI once the one-way trigger has been recorded
 - `/api/easter-egg/trigger` is rate-limited, logs the action, and feeds the badge system's `easter_egg` auto-award path
-- the experimental Obsidian sync workflow is intentionally feature-flagged and restricted to editor/admin-capable accounts before vault pull/push operations are allowed
+- the experimental Obsidian sync workflow is intentionally feature-flagged and restricted to `editor`, `admin`, and `protected_admin` accounts before vault pull/push operations are allowed
 
 ## Announcements and badges
 
