@@ -14,6 +14,7 @@ This audit reviews a small set of older BananaWiki code paths against the curren
 | Legacy editor-category compatibility | `db/_permissions.py`, `db/_users.py`, `tests/test_feature_drift_fixes.py` | OK |
 | Reservation-aware edit flows | `routes/wiki.py`, `tests/test_page_reservations.py`, `tests/test_feature_drift_fixes.py` | OK |
 | Legacy chat cleanup fallback | `helpers/_time.py`, `routes/chat.py`, `routes/groups.py`, `tests/test_feature_drift_fixes.py`, `tests/test_chats.py`, `tests/test_group_chats.py` | Fixed |
+| My drafts category filtering | `db/_drafts.py`, `routes/api.py`, `tests/test_production.py` | Fixed |
 
 ## Findings and changes
 
@@ -64,3 +65,9 @@ This audit reviews a small set of older BananaWiki code paths against the curren
 - **Why it drifted:** Chat cleanup started as a single global configuration and was later split into DM-specific and group-specific settings. The runtime cleanup path was updated to use the new columns, but it stopped applying the documented compatibility fallback for historical databases whose newer columns still held migration defaults.
 - **Changes made:** `helpers/_time.py` now resolves effective cleanup settings by preferring legacy values until the newer split settings have been explicitly saved, `routes/admin.py` marks the split cleanup settings as configured when admins save the modern controls, `routes/chat.py` and `routes/groups.py` now use those effective settings for scheduled cleanup and banner visibility, and regression coverage was added in `tests/test_feature_drift_fixes.py`, `tests/test_chats.py`, and `tests/test_group_chats.py`.
 - **Remaining risk / edge case:** A future schema migration could make this even more explicit by copying legacy values into the split columns on upgrade and eventually retiring the fallback path once all historical installations have been migrated.
+
+### 9. My drafts category filtering
+- **Issue found:** The older `/api/draft/mine` listing endpoint returned every saved draft for an editor, even after newer category write restrictions removed access to some pages.
+- **Why it drifted:** The endpoint predates the current category write-access model. The sibling draft save/load/delete/transfer routes were modernized to reuse shared edit guards, but the legacy listing route still serialized raw `list_user_drafts()` results.
+- **Changes made:** `db/_drafts.py` now exposes each draft's page category in the joined metadata, `routes/api.py` filters `/api/draft/mine` through `editor_has_category_access()`, and `tests/test_production.py` now verifies that restricted editors only see drafts for categories they may still edit.
+- **Remaining risk / edge case:** If the project ever needs to surface inaccessible drafts for recovery or admin review, that should happen through a dedicated admin-facing workflow instead of the user-facing editor draft list.

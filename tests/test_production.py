@@ -587,6 +587,36 @@ def test_restricted_editor_cannot_transfer_draft_in_disallowed_category(client, 
     assert db.get_draft(blocked_page_id, source_user_id)["content"] == "secret draft"
 
 
+def test_restricted_editor_my_drafts_excludes_disallowed_categories(client, editor_user, admin_user):
+    """Restricted editors only see drafts for categories they can still edit."""
+    import db
+
+    allowed_cat = db.create_category("Allowed My Drafts")
+    blocked_cat = db.create_category("Blocked My Drafts")
+    allowed_page_id = db.create_page(
+        "Allowed Draft Page", "allowed-draft-page", "content", allowed_cat, admin_user
+    )
+    blocked_page_id = db.create_page(
+        "Blocked Draft Page", "blocked-my-draft-page", "content", blocked_cat, admin_user
+    )
+    db.set_editor_access(editor_user, restricted=True, category_ids=[allowed_cat])
+    db.save_draft(allowed_page_id, editor_user, "Allowed Draft", "allowed content")
+    db.save_draft(blocked_page_id, editor_user, "Blocked Draft", "blocked content")
+
+    client.post("/login", data={"username": "editor", "password": "editor123"})
+    resp = client.get("/api/draft/mine")
+
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert len(data) == 1
+    assert data[0]["page_id"] == allowed_page_id
+    assert data[0]["page_slug"] == "allowed-draft-page"
+    assert data[0]["page_title"] == "Allowed Draft Page"
+    assert data[0]["title"] == "Allowed Draft"
+    assert data[0]["updated_at"]
+    assert data[0]["updated_at_formatted"]
+
+
 # ---------------------------------------------------------------------------
 # API preview (success path)
 # ---------------------------------------------------------------------------
