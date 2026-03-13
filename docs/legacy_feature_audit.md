@@ -10,6 +10,7 @@ This audit reviews a small set of older BananaWiki code paths against the curren
 | Session-limit logout cleanup | `routes/auth.py`, `app.py`, `tests/test_video_embedding_and_session_limit.py` | Fixed |
 | Deindexed page direct view | `routes/wiki.py`, `helpers/_auth.py`, `tests/test_deindex.py` | Fixed |
 | Deindexed page search visibility | `routes/api.py`, `db/_pages.py`, `tests/test_deindex.py` | Fixed |
+| Draft deletion category access | `routes/api.py`, `tests/test_production.py` | Fixed |
 | Legacy editor-category compatibility | `db/_permissions.py`, `db/_users.py`, `tests/test_feature_drift_fixes.py` | OK |
 | Reservation-aware edit flows | `routes/wiki.py`, `tests/test_page_reservations.py`, `tests/test_feature_drift_fixes.py` | OK |
 | Legacy chat cleanup fallback | `helpers/_time.py`, `routes/chat.py`, `routes/groups.py`, `tests/test_feature_drift_fixes.py`, `tests/test_chats.py`, `tests/test_group_chats.py` | Fixed |
@@ -46,13 +47,19 @@ This audit reviews a small set of older BananaWiki code paths against the curren
 - **Changes made:** No code changes were necessary in this audit.
 - **Remaining risk / edge case:** This area still deserves future cleanup if the project ever removes the legacy storage path entirely.
 
-### 6. Reservation-aware edit flows
+### 6. Draft deletion category access
+- **Issue found:** The older `/api/draft/delete` endpoint deleted drafts after only validating `page_id`.
+- **Why it drifted:** The route predated the shared `_get_editable_page_or_response()` compatibility helper, so it never adopted the newer category write-access checks that the other draft APIs already enforce.
+- **Changes made:** `routes/api.py` now routes draft deletion through the same editable-page guard as save/load/other-drafts/transfer, and `tests/test_production.py` now verifies that restricted editors cannot delete drafts for pages in disallowed categories.
+- **Remaining risk / edge case:** Future draft-related endpoints should continue to reuse `_get_editable_page_or_response()` so background AJAX flows cannot bypass edit restrictions.
+
+### 7. Reservation-aware edit flows
 - **Issue found:** Reservation checks were reviewed because they were added later than many wiki routes and are a common source of drift.
 - **Why it did not break:** Existing route helpers and regression tests still cover the current reservation flows.
 - **Changes made:** No code changes were necessary in this audit.
 - **Remaining risk / edge case:** Future mutating page routes should continue to reuse the existing reservation guards.
 
-### 7. Legacy chat cleanup fallback
+### 8. Legacy chat cleanup fallback
 - **Issue found:** The weekly chat cleanup scheduler and cleanup banners were reading only the newer DM/group cleanup columns, even though older installations may still rely on the original shared `chat_auto_clear_*` and retention settings.
 - **Why it drifted:** Chat cleanup started as a single global configuration and was later split into DM-specific and group-specific settings. The runtime cleanup path was updated to use the new columns, but it stopped applying the documented compatibility fallback for historical databases whose newer columns still held migration defaults.
 - **Changes made:** `helpers/_time.py` now resolves effective cleanup settings by preferring legacy values until the newer split settings have been explicitly saved, `routes/admin.py` marks the split cleanup settings as configured when admins save the modern controls, `routes/chat.py` and `routes/groups.py` now use those effective settings for scheduled cleanup and banner visibility, and regression coverage was added in `tests/test_feature_drift_fixes.py`, `tests/test_chats.py`, and `tests/test_group_chats.py`.
