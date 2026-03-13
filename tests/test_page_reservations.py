@@ -816,6 +816,20 @@ def test_inline_title_edit_reserved_by_other_is_blocked(logged_in_editor, test_p
     assert db.get_page(test_page)["title"] == "Test Page"
 
 
+def test_deindex_reserved_by_other_is_blocked(logged_in_editor, test_page, editor2_user):
+    """Deindexing respects the same reservation lock as other destructive page edits."""
+    import db
+
+    db.reserve_page(test_page, editor2_user)
+
+    response = logged_in_editor.post(
+        "/page/test-page/deindex",
+        follow_redirects=True,
+    )
+    assert b"currently reserved by" in response.data
+    assert db.get_page(test_page)["is_deindexed"] == 0
+
+
 def test_move_page_is_still_allowed_when_reserved(logged_in_editor, test_page, editor2_user):
     """Moves remain available because they do not change page content."""
     import db

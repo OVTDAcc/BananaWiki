@@ -995,6 +995,9 @@ def register_wiki_routes(app):
         if not editor_has_category_access(user, page["category_id"]):
             flash("You do not have permission to edit pages in this category.", "error")
             return redirect(url_for("view_page", slug=slug))
+        blocked_response = _guard_destructive_page_edit(page, user, "change this page visibility")
+        if blocked_response:
+            return blocked_response
         new_state = not bool(page["is_deindexed"])
         db.set_page_deindexed(page["id"], new_state)
         action = "deindexed" if new_state else "reindexed"
