@@ -807,3 +807,62 @@ def test_group_attachments_enabled_allows_upload(client, admin_uid, alice_uid):
         follow_redirects=True,
     )
     assert b"attachments are currently disabled" not in resp.data
+
+
+# ---------------------------------------------------------------------------
+# GAP-014: legacy editor access stays aligned with the current write-access
+#          permission model.
+# ---------------------------------------------------------------------------
+
+def test_get_editor_access_reads_current_write_permissions(editor_uid):
+    """GAP-014: Legacy editor-access reads the current write-access tables."""
+    from helpers._permissions import get_default_permissions
+
+    cat_id = db.create_category("Modern Access Category")
+    db.set_user_permissions(
+        editor_uid,
+        get_default_permissions("editor"),
+        write_restricted=True,
+        write_category_ids=[cat_id],
+    )
+
+    access = db.get_editor_access(editor_uid)
+
+    assert access["restricted"] is True
+    assert access["allowed_category_ids"] == [cat_id]
+
+
+def test_set_editor_access_syncs_current_write_permissions(editor_uid):
+    """GAP-014: Legacy editor-access updates the current write-access tables."""
+    cat_id = db.create_category("Legacy Sync Category")
+
+    db.set_editor_access(editor_uid, restricted=True, category_ids=[cat_id])
+
+    permissions = db.get_user_permissions(editor_uid)
+
+    assert permissions["category_write_access"]["restricted"] is True
+    assert permissions["category_write_access"]["allowed_category_ids"] == [cat_id]
+
+
+def test_category_routes_honor_current_write_permissions(client, admin_uid, editor_uid):
+    """GAP-014: Category routes respect write restrictions set via current permissions."""
+    from helpers._permissions import get_default_permissions
+
+    allowed_cat = db.create_category("Allowed Category")
+    db.set_user_permissions(
+        editor_uid,
+        get_default_permissions("editor"),
+        write_restricted=True,
+        write_category_ids=[allowed_cat],
+    )
+
+    client.post("/login", data={"username": "editor1", "password": "editor123"})
+    resp = client.post(
+        "/category/create",
+        data={"name": "Blocked Category"},
+        follow_redirects=True,
+    )
+
+    assert resp.status_code == 200
+    assert b"You do not have permission to create categories." in resp.data
+    assert "Blocked Category" not in [cat["name"] for cat in db.list_categories()]
