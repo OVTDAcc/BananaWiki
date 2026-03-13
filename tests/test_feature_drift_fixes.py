@@ -1004,7 +1004,8 @@ def test_page_history_routes_honor_current_page_visibility(client, admin_uid):
         read_category_ids=[],
     )
 
-    client.post("/login", data={"username": "history_reader", "password": "pass123"})
+    login_resp = client.post("/login", data={"username": "history_reader", "password": "pass123"})
+    assert login_resp.status_code == 302
 
     history_resp = client.get("/page/hidden-history-page/history")
     entry_resp = client.get(f"/page/hidden-history-page/history/{entry_id}")
@@ -1027,7 +1028,8 @@ def test_deindexed_history_entry_requires_view_deindexed_permission(client, admi
         read_restricted=False,
     )
 
-    client.post("/login", data={"username": "editor1", "password": "editor123"})
+    login_resp = client.post("/login", data={"username": "editor1", "password": "editor123"})
+    assert login_resp.status_code == 302
     resp = client.get(f"/page/deindexed-history-page/history/{entry_id}")
 
     assert resp.status_code == 403
@@ -1050,7 +1052,8 @@ def test_revert_route_honors_current_write_permissions(client, admin_uid, editor
         write_category_ids=[allowed_cat],
     )
 
-    client.post("/login", data={"username": "editor1", "password": "editor123"})
+    login_resp = client.post("/login", data={"username": "editor1", "password": "editor123"})
+    assert login_resp.status_code == 302
     resp = client.post(
         f"/page/blocked-revert-page/revert/{entry_id}",
         follow_redirects=True,
