@@ -73,11 +73,9 @@ def _filter_visible_profile_contributions(viewer, contribution_list, year):
     year_prefix = f"{year}-"
 
     for contribution in contribution_list:
-        page_id = contribution["page_id"]
-        if not page_id:
+        if not contribution["page_slug"]:
             continue
-        page = db.get_page(page_id)
-        if not page or not user_can_view_page(viewer, page):
+        if not user_can_view_page(viewer, contribution):
             continue
         visible.append(contribution)
         day = contribution["created_at"][:10]

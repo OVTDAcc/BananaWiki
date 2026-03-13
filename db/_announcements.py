@@ -79,6 +79,7 @@ def get_user_contributions(user_id):
     rows = conn.execute(
         "SELECT ph.id, ph.page_id, COALESCE(p.title, '[deleted page]') AS page_title, "
         "COALESCE(p.slug, '') AS page_slug, "
+        "p.category_id, COALESCE(p.is_deindexed, 0) AS is_deindexed, "
         "ph.title AS edit_title, ph.content, ph.edit_message, ph.created_at "
         "FROM page_history ph "
         "LEFT JOIN pages p ON ph.page_id = p.id "
@@ -106,4 +107,3 @@ def get_active_announcements(is_logged_in):
     ).fetchall()
     conn.close()
     return rows
-

@@ -20,6 +20,7 @@ Covers:
 import io
 import os
 import sys
+from html.parser import HTMLParser
 import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -27,6 +28,30 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import config
 
 MAX_AVATAR_SIZE_BYTES = 1 * 1024 * 1024  # 1 MB
+
+
+class _ContributionLinkParser(HTMLParser):
+    """Collect contribution-list page links from a rendered profile page."""
+
+    def __init__(self):
+        super().__init__()
+        self._in_contribution_link = False
+        self.links = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag != "a":
+            return
+        attrs = dict(attrs)
+        if attrs.get("class") == "contribution-page":
+            self._in_contribution_link = True
+
+    def handle_data(self, data):
+        if self._in_contribution_link:
+            self.links.append(data)
+
+    def handle_endtag(self, tag):
+        if tag == "a":
+            self._in_contribution_link = False
 
 
 # ---------------------------------------------------------------------------
@@ -414,11 +439,10 @@ def test_public_profile_hides_inaccessible_contributions(alice_client, admin_uid
     )
 
     resp = alice_client.get("/users/admin")
-    contribution_section = resp.data.split(b'<div class="contribution-list-section">', 1)[1]
+    parser = _ContributionLinkParser()
+    parser.feed(resp.get_data(as_text=True))
     assert resp.status_code == 200
-    assert b"Visible Contribution Page" in contribution_section
-    assert b"Hidden Contribution Page" not in contribution_section
-    assert b"Deindexed Contribution Page" not in contribution_section
+    assert parser.links == ["Visible Contribution Page"]
     assert b"1 contribution in" in resp.data
 
 
