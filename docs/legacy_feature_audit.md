@@ -15,6 +15,7 @@ This audit reviews a small set of older BananaWiki code paths against the curren
 | Reservation-aware edit flows | `routes/wiki.py`, `tests/test_page_reservations.py`, `tests/test_feature_drift_fixes.py` | OK |
 | Legacy chat cleanup fallback | `helpers/_time.py`, `routes/chat.py`, `routes/groups.py`, `tests/test_feature_drift_fixes.py`, `tests/test_chats.py`, `tests/test_group_chats.py` | Fixed |
 | My drafts category filtering | `db/_drafts.py`, `routes/api.py`, `tests/test_production.py` | Fixed |
+| Page history access controls | `routes/wiki.py`, `helpers/_auth.py`, `tests/test_feature_drift_fixes.py` | Fixed |
 
 ## Findings and changes
 
@@ -71,3 +72,9 @@ This audit reviews a small set of older BananaWiki code paths against the curren
 - **Why it drifted:** The endpoint predates the current category write-access model. The sibling draft save/load/delete/transfer routes were modernized to reuse shared edit guards, but the legacy listing route still serialized raw `list_user_drafts()` results.
 - **Changes made:** `db/_drafts.py` now exposes each draft's page category in the joined metadata, `routes/api.py` filters `/api/draft/mine` through `editor_has_category_access()`, and `tests/test_production.py` now verifies that restricted editors only see drafts for categories they may still edit.
 - **Remaining risk / edge case:** If the project ever needs to surface inaccessible drafts for recovery or admin review, that should happen through a dedicated admin-facing workflow instead of the user-facing editor draft list.
+
+### 10. Page history access controls
+- **Issue found:** The older page-history list/detail/revert routes only checked login or editor role and did not reuse the current page-visibility and category write-access guards.
+- **Why it drifted:** Page history predates the shared `user_can_view_page()` and `editor_has_category_access()` helpers, so it kept legacy assumptions about who could inspect or revert a page's history.
+- **Changes made:** `routes/wiki.py` now blocks history list/detail/revert access when the current user cannot view the page under the modern visibility rules, and `revert_page()` now reuses the same category write-access guard as the main edit route. `tests/test_feature_drift_fixes.py` adds regressions for restricted-category history access, deindexed history access, and permission-aware reverts.
+- **Remaining risk / edge case:** Other page-mutation routes that predate deindexing should continue to be reviewed whenever visibility rules evolve so all direct slug-based workflows keep honoring the same shared helpers.

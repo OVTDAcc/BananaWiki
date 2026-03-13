@@ -65,6 +65,11 @@ def register_wiki_routes(app):
             return redirect(url_for("view_page", slug=page["slug"]))
         return None
 
+    def _abort_if_page_hidden(page, user):
+        """Abort when the current user cannot view *page* under the current policy."""
+        if not user_can_view_page(user, page):
+            abort(403)
+
     def _build_reservable_page(page, category_label, user):
         """Return template-ready reservation data for a page list entry."""
         reservation_context = _get_reservation_context(page, user)
@@ -253,8 +258,9 @@ def register_wiki_routes(app):
         page = db.get_page_by_slug(slug)
         if not page:
             abort(404)
-        history = db.get_page_history(page["id"])
         current_user = get_current_user()
+        _abort_if_page_hidden(page, current_user)
+        history = db.get_page_history(page["id"])
         all_users = db.list_users() if current_user and current_user["role"] in ("admin", "protected_admin") else []
         categories, uncategorized = db.get_category_tree()
         # Compute per-entry char diffs (compare each entry to the next older one)
@@ -283,6 +289,7 @@ def register_wiki_routes(app):
         page = db.get_page_by_slug(slug)
         if not page:
             abort(404)
+        _abort_if_page_hidden(page, get_current_user())
         entry = db.get_history_entry(entry_id)
         if not entry or entry["page_id"] != page["id"]:
             abort(404)
@@ -325,10 +332,14 @@ def register_wiki_routes(app):
         page = db.get_page_by_slug(slug)
         if not page:
             abort(404)
+        user = get_current_user()
+        _abort_if_page_hidden(page, user)
         entry = db.get_history_entry(entry_id)
         if not entry or entry["page_id"] != page["id"]:
             abort(404)
-        user = get_current_user()
+        if not editor_has_category_access(user, page["category_id"]):
+            flash("You do not have permission to edit pages in this category.", "error")
+            return redirect(url_for("view_page", slug=slug))
         db.update_page(page["id"], entry["title"], entry["content"], user["id"],
                        f"Reverted to version from {entry['created_at']}", is_revert=True)
         log_action("revert_page", request, user=user, page=slug, entry_id=entry_id)
