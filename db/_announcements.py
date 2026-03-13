@@ -74,11 +74,18 @@ def delete_announcement(ann_id):
 
 
 def get_user_contributions(user_id):
-    """Return all page history entries edited by a user, with page info."""
+    """Return all page history entries edited by a user, with current page metadata.
+
+    Returned rows include ``page_title``, ``page_slug``, ``category_id``, and
+    ``is_deindexed`` from the live page record when the page still exists.
+    Deleted pages keep their history entry but return an empty slug and null
+    category metadata.
+    """
     conn = get_db()
     rows = conn.execute(
         "SELECT ph.id, ph.page_id, COALESCE(p.title, '[deleted page]') AS page_title, "
         "COALESCE(p.slug, '') AS page_slug, "
+        "p.category_id, COALESCE(p.is_deindexed, 0) AS is_deindexed, "
         "ph.title AS edit_title, ph.content, ph.edit_message, ph.created_at "
         "FROM page_history ph "
         "LEFT JOIN pages p ON ph.page_id = p.id "
@@ -106,4 +113,3 @@ def get_active_announcements(is_logged_in):
     ).fetchall()
     conn.close()
     return rows
-

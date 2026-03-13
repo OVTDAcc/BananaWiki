@@ -22,6 +22,7 @@ This audit reviews a small set of older BananaWiki code paths against the curren
 | Deindex reservation compatibility | `routes/wiki.py`, `tests/test_page_reservations.py` | Fixed |
 | Reorder API category access | `routes/api.py`, `tests/test_feature_drift_fixes.py`, `tests/test_fixes.py` | Fixed |
 | Badge notification banner state | `app.py`, `app/templates/_badge_notifications_bar.html`, `routes/auth.py`, `routes/wiki.py`, `tests/test_feature_drift_fixes.py` | Fixed |
+| Public profile contribution visibility | `routes/users.py`, `helpers/_auth.py`, `tests/test_user_profiles.py` | Fixed |
 
 ## Findings and changes
 
@@ -120,3 +121,9 @@ This audit reviews a small set of older BananaWiki code paths against the curren
 - **Why it drifted:** Badge notifications originally behaved like a transient flash counter, but the badge system later moved to persistent `badge_notifications` rows. The login/create/edit flows still updated `session["badge_notifications"]`, so badges awarded after login could remain invisible until the next sign-in refreshed the session cache.
 - **Changes made:** `app.py` now injects a fresh `badge_notification_count` from the current database state into every template render, `_badge_notifications_bar.html` reads that current count instead of the session cache, and `tests/test_feature_drift_fixes.py` now verifies that a badge awarded after login appears in the banner without forcing a relogin.
 - **Remaining risk / edge case:** The session cache still exists for backwards compatibility in a few routes, so future cleanup could remove those redundant writes once no code depends on them.
+
+### 17. Public profile contribution visibility
+- **Issue found:** Published profile pages exposed contribution heatmap totals and recent contribution links for pages that the current viewer could no longer access.
+- **Why it drifted:** User profiles predate the current `user_can_view_page()` helper, so the route kept rendering raw `page_history` data even after category-read restrictions and deindexed-page permissions became the canonical visibility model.
+- **Changes made:** `routes/users.py` now filters non-admin/non-owner contribution rows through `user_can_view_page()` before rendering the public profile heatmap and recent-contributions list, and `tests/test_user_profiles.py` now verifies that restricted-category and deindexed contributions are hidden from other viewers while accessible contributions still appear.
+- **Remaining risk / edge case:** Historical contributions to deleted pages still cannot be mapped back to current visibility rules, so the public profile intentionally omits those entries unless an owner or admin is viewing the profile.

@@ -20,6 +20,7 @@ Covers:
 import io
 import os
 import sys
+from html.parser import HTMLParser
 import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -27,6 +28,30 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import config
 
 MAX_AVATAR_SIZE_BYTES = 1 * 1024 * 1024  # 1 MB
+
+
+class _ContributionLinkParser(HTMLParser):
+    """Collect contribution-list page links from a rendered profile page."""
+
+    def __init__(self):
+        super().__init__()
+        self._in_contribution_link = False
+        self.links = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag != "a":
+            return
+        attrs = dict(attrs)
+        if attrs.get("class") == "contribution-page":
+            self._in_contribution_link = True
+
+    def handle_data(self, data):
+        if self._in_contribution_link:
+            self.links.append(data)
+
+    def handle_endtag(self, tag):
+        if tag == "a":
+            self._in_contribution_link = False
 
 
 # ---------------------------------------------------------------------------
@@ -374,6 +399,52 @@ def test_contribution_counts_after_edit(admin_client, admin_uid):
     db.update_page(home["id"], "Home", "Edited content", admin_uid, "my edit")
     _, contribs = db.get_contributions_by_day(admin_uid)
     assert sum(contribs.values()) >= 1
+
+
+def test_public_profile_hides_inaccessible_contributions(alice_client, admin_uid, regular_uid):
+    """Published profiles only show contributions for pages the viewer can currently access."""
+    import db
+    from helpers._permissions import get_default_permissions
+
+    visible_cat = db.create_category("Visible Cat")
+    hidden_cat = db.create_category("Hidden Cat")
+    db.create_page(
+        "Visible Contribution Page",
+        "visible-contribution-page",
+        "Content",
+        category_id=visible_cat,
+        user_id=admin_uid,
+    )
+    db.create_page(
+        "Hidden Contribution Page",
+        "hidden-contribution-page",
+        "Content",
+        category_id=hidden_cat,
+        user_id=admin_uid,
+    )
+    deindexed_page_id = db.create_page(
+        "Deindexed Contribution Page",
+        "deindexed-contribution-page",
+        "Content",
+        category_id=visible_cat,
+        user_id=admin_uid,
+    )
+    db.set_page_deindexed(deindexed_page_id, True)
+    db.upsert_user_profile(admin_uid, page_published=True)
+    db.set_user_permissions(
+        regular_uid,
+        get_default_permissions("user"),
+        read_restricted=True,
+        read_category_ids=[visible_cat],
+    )
+    admin = db.get_user_by_id(admin_uid)
+
+    resp = alice_client.get(f"/users/{admin['username']}")
+    parser = _ContributionLinkParser()
+    parser.feed(resp.get_data(as_text=True))
+    assert resp.status_code == 200
+    assert parser.links == ["Visible Contribution Page"]
+    assert b"1 contribution in" in resp.data
 
 
 # ---------------------------------------------------------------------------

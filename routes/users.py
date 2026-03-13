@@ -17,6 +17,7 @@ from helpers import (
     login_required, admin_required, get_current_user,
     allowed_file, _is_valid_username, _is_valid_hex_color,
     rate_limit, _safe_referrer, ROLE_LABELS, render_markdown,
+    user_can_view_page,
     format_datetime,
 )
 from wiki_logger import log_action
@@ -63,6 +64,30 @@ def build_user_export_zip(user):
 
     buf.seek(0)
     return buf
+
+
+def _filter_visible_profile_contributions(viewer, contribution_list, year):
+    """Return only contribution rows whose current pages are visible to *viewer*."""
+    if not isinstance(year, int):
+        raise ValueError("year must be an integer representing the contribution year for heatmap filtering")
+
+    visible = []
+    visible_by_day = {}
+    year_prefix = f"{year}-"
+
+    for contribution in contribution_list:
+        # Deleted pages have no live slug/category metadata, so public profile
+        # views omit them instead of guessing at stale visibility.
+        if not contribution["page_slug"]:
+            continue
+        if not user_can_view_page(viewer, contribution):
+            continue
+        visible.append(contribution)
+        day = contribution["created_at"][:10]
+        if day.startswith(year_prefix):
+            visible_by_day[day] = visible_by_day.get(day, 0) + 1
+
+    return visible, visible_by_day
 
 
 def register_user_routes(app):
@@ -408,6 +433,10 @@ def register_user_routes(app):
                 abort(404)
         contrib_year, contributions = db.get_contributions_by_day(target["id"])
         contribution_list = db.get_user_contributions(target["id"])
+        if not (is_admin or is_own):
+            contribution_list, contributions = _filter_visible_profile_contributions(
+                current_user, contribution_list, contrib_year
+            )
         role_history = db.get_role_history(target["id"])
         custom_tags = db.get_user_custom_tags(target["id"])
         user_badges = db.get_user_badges(target["id"], include_revoked=False)
