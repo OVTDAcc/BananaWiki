@@ -1062,3 +1062,65 @@ def test_revert_route_honors_current_write_permissions(client, admin_uid, editor
     assert resp.status_code == 200
     assert b"You do not have permission to edit pages in this category." in resp.data
     assert db.get_page(page_id)["content"] == "updated"
+
+
+# ---------------------------------------------------------------------------
+# GAP-017: legacy reorder APIs honor the current category write-access model.
+# ---------------------------------------------------------------------------
+
+def test_reorder_pages_honors_current_write_permissions(client, admin_uid, editor_uid):
+    """GAP-017: Reorder pages stays blocked for categories the editor cannot edit."""
+    from helpers._permissions import get_default_permissions
+
+    allowed_cat = db.create_category("Allowed Reorder Category")
+    blocked_cat = db.create_category("Blocked Reorder Category")
+    allowed_page = db.create_page("Allowed Reorder Page", "allowed-reorder-page", "ok", allowed_cat, admin_uid)
+    blocked_page = db.create_page("Blocked Reorder Page", "blocked-reorder-page", "nope", blocked_cat, admin_uid)
+
+    db.set_user_permissions(
+        editor_uid,
+        get_default_permissions("editor"),
+        write_restricted=True,
+        write_category_ids=[allowed_cat],
+    )
+
+    login_resp = client.post("/login", data={"username": "editor1", "password": "editor123"})
+    assert login_resp.status_code == 302
+    resp = client.post(
+        "/api/reorder/pages",
+        json={"ids": [blocked_page, allowed_page]},
+        content_type="application/json",
+    )
+
+    assert resp.status_code == 403
+    assert resp.get_json()["error"] == "You do not have permission to edit pages in this category"
+    assert db.get_page(allowed_page)["sort_order"] == 0
+    assert db.get_page(blocked_page)["sort_order"] == 0
+
+
+def test_reorder_categories_honors_current_write_permissions(client, admin_uid, editor_uid):
+    """GAP-017: Reorder categories stays blocked for categories the editor cannot edit."""
+    from helpers._permissions import get_default_permissions
+
+    allowed_cat = db.create_category("Allowed Category Reorder")
+    blocked_cat = db.create_category("Blocked Category Reorder")
+
+    db.set_user_permissions(
+        editor_uid,
+        get_default_permissions("editor"),
+        write_restricted=True,
+        write_category_ids=[allowed_cat],
+    )
+
+    login_resp = client.post("/login", data={"username": "editor1", "password": "editor123"})
+    assert login_resp.status_code == 302
+    resp = client.post(
+        "/api/reorder/categories",
+        json={"ids": [blocked_cat, allowed_cat]},
+        content_type="application/json",
+    )
+
+    assert resp.status_code == 403
+    assert resp.get_json()["error"] == "You do not have permission to edit categories."
+    assert db.get_category(allowed_cat)["sort_order"] == 0
+    assert db.get_category(blocked_cat)["sort_order"] == 0
