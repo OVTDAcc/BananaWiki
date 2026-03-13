@@ -23,6 +23,9 @@ This audit reviews a small set of older BananaWiki code paths against the curren
 | Reorder API category access | `routes/api.py`, `tests/test_feature_drift_fixes.py`, `tests/test_fixes.py` | Fixed |
 | Badge notification banner state | `app.py`, `app/templates/_badge_notifications_bar.html`, `routes/auth.py`, `routes/wiki.py`, `tests/test_feature_drift_fixes.py` | Fixed |
 | Public profile contribution visibility | `routes/users.py`, `helpers/_auth.py`, `tests/test_user_profiles.py` | Fixed |
+| Shared category dropdown visibility | `app.py`, `tests/test_feature_drift_fixes.py` | Fixed |
+| Sidebar navigation category visibility | `helpers/_auth.py`, `app.py`, `app/templates/base.html`, `tests/test_feature_drift_fixes.py` | Fixed |
+| Sidebar category search visibility | `routes/api.py`, `tests/test_feature_drift_fixes.py` | Fixed |
 
 ## Findings and changes
 
@@ -127,3 +130,21 @@ This audit reviews a small set of older BananaWiki code paths against the curren
 - **Why it drifted:** User profiles predate the current `user_can_view_page()` helper, so the route kept rendering raw `page_history` data even after category-read restrictions and deindexed-page permissions became the canonical visibility model.
 - **Changes made:** `routes/users.py` now filters non-admin/non-owner contribution rows through `user_can_view_page()` before rendering the public profile heatmap and recent-contributions list, and `tests/test_user_profiles.py` now verifies that restricted-category and deindexed contributions are hidden from other viewers while accessible contributions still appear.
 - **Remaining risk / edge case:** Historical contributions to deleted pages still cannot be mapped back to current visibility rules, so the public profile intentionally omits those entries unless an owner or admin is viewing the profile.
+
+### 18. Shared category dropdown visibility
+- **Issue found:** Legacy shared template context exposed every category in `all_categories`, including categories the current user could no longer read.
+- **Why it drifted:** The global category list predated the current read-restriction model and never adopted `user_can_view_category()`, so newer create/move dropdowns kept rendering raw database results.
+- **Changes made:** `app.py` now filters the shared `all_categories` context through `user_can_view_category()` for non-admin users, and `tests/test_feature_drift_fixes.py` verifies that restricted editors no longer see blocked categories in the create-page selector.
+- **Remaining risk / edge case:** Route-specific category trees are still responsible for their own visibility rules, so any new shared dropdown should continue to rely on the filtered context instead of calling `db.list_categories()` directly.
+
+### 19. Sidebar navigation category visibility
+- **Issue found:** The legacy sidebar navigation rendered raw route-provided category trees, so restricted users could still discover blocked category names from older page layouts.
+- **Why it drifted:** The sidebar tree was built before the current read-access helpers became the canonical visibility layer, and most routes still passed unfiltered `db.get_category_tree()` results for historical compatibility.
+- **Changes made:** `helpers/_auth.py` now exposes `filter_visible_navigation()`, `app.py` injects it into the shared template context, and `app/templates/base.html` uses it to filter category trees and uncategorized pages before rendering. `tests/test_feature_drift_fixes.py` now verifies that restricted editors no longer see blocked categories in the sidebar.
+- **Remaining risk / edge case:** If a future feature renders category trees outside `base.html`, it should reuse the same helper rather than serializing raw `db.get_category_tree()` output.
+
+### 20. Sidebar category search visibility
+- **Issue found:** The sidebar search endpoint returned matching category names even when the current user lacked read access to those categories.
+- **Why it drifted:** The page-search half of the API had already adopted `user_can_view_page()`, but the older category-search branch still serialized raw `db.search_categories()` results.
+- **Changes made:** `routes/api.py` now filters category matches through `user_can_view_category()`, and `tests/test_feature_drift_fixes.py` adds a regression proving restricted users only see allowed category names alongside visible page hits.
+- **Remaining risk / edge case:** Any future category-search API should apply the same read-access filter before serializing names or hierarchy metadata.

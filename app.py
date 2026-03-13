@@ -35,6 +35,7 @@ from helpers import (                                       # noqa: F401
     _is_valid_hex_color, _is_valid_username,
     _safe_referrer, get_current_user,
     login_required, editor_required, admin_required, editor_has_category_access,
+    user_can_view_category, filter_visible_navigation,
     get_site_timezone, time_ago, format_datetime, format_datetime_local_input,
     get_time_since_last_chat_cleanup, get_time_until_next_chat_cleanup,
 )
@@ -98,6 +99,9 @@ def inject_globals():
     """Inject common variables into every template context."""
     settings = db.get_site_settings()
     user = get_current_user()
+    all_categories = db.list_categories() if user else []
+    if user and user["role"] not in ("admin", "protected_admin"):
+        all_categories = [cat for cat in all_categories if user_can_view_category(user, cat["id"])]
     active_announcements = db.get_active_announcements(bool(user))
     user_accessibility = db.get_user_accessibility(user["id"]) if user else {}
     badge_notification_count = len(db.get_unnotified_badges(user["id"])) if user else 0
@@ -113,10 +117,11 @@ def inject_globals():
         "format_datetime": format_datetime,
         "format_datetime_local_input": format_datetime_local_input,
         "page_history_enabled": config.PAGE_HISTORY_ENABLED,
-        "all_categories": db.list_categories(),
+        "all_categories": all_categories,
         "active_announcements": active_announcements,
         "user_accessibility": user_accessibility,
         "badge_notification_count": badge_notification_count,
+        "filter_visible_navigation": filter_visible_navigation,
         "sidebar_people": sidebar_people,
         "current_user_profile": current_user_profile,
         "utcnow": datetime.now(timezone.utc).isoformat(),
