@@ -17,6 +17,8 @@ This audit reviews a small set of older BananaWiki code paths against the curren
 | My drafts category filtering | `db/_drafts.py`, `routes/api.py`, `tests/test_production.py` | Fixed |
 | Page history access controls | `routes/wiki.py`, `helpers/_auth.py`, `tests/test_feature_drift_fixes.py` | Fixed |
 | Invite validation after admin suspension | `db/_invites.py`, `routes/auth.py`, `tests/test_production.py` | Fixed |
+| Signup permission initialization | `routes/auth.py`, `routes/admin.py`, `tests/test_fixes.py` | Fixed |
+| Password-change session-token rotation | `routes/users.py`, `routes/admin.py`, `reset_password.py`, `tests/test_video_embedding_and_session_limit.py`, `tests/test_fixes.py` | Fixed |
 
 ## Findings and changes
 
@@ -85,3 +87,15 @@ This audit reviews a small set of older BananaWiki code paths against the curren
 - **Why it drifted:** Invite-code validation predates the newer admin suspension workflow, so the unauthenticated signup path kept treating invite codes as self-contained tokens instead of re-checking the creator's current account state.
 - **Changes made:** `db/_invites.py` now joins the creator record during `validate_invite_code()` and rejects codes whose creator account is suspended or missing, while `tests/test_production.py` adds both direct validation regressions and signup-path regressions.
 - **Remaining risk / edge case:** If the project ever wants suspension to revoke other pending artifacts (for example, active sessions or pre-generated exports), those flows should likewise re-check the actor's current account status instead of relying only on legacy token state.
+
+### 12. Signup permission initialization
+- **Issue found:** The public signup path created new users without seeding the per-user permission rows that the current permission system expects.
+- **Why it drifted:** Invite-based signup predates the newer default-permission model, while the later admin-driven create-user flow was modernized to call `db.set_user_permissions()` after account creation.
+- **Changes made:** `routes/auth.py` now initializes newly signed-up users with `get_default_permissions("user")`, matching the admin create-user path, and `tests/test_fixes.py` verifies that fresh signup accounts receive the current default permission set plus unrestricted category-access rows.
+- **Remaining risk / edge case:** If the project later introduces role-specific onboarding beyond `user`, those code paths should continue to seed permissions through the same shared defaults rather than relying on empty permission tables.
+
+### 13. Password-change session-token rotation
+- **Issue found:** Legacy password-change flows updated the password hash but left the stored session token untouched.
+- **Why it drifted:** Password resets and account password changes existed before `users.session_token` became the canonical single-session state, so those older flows never adopted token rotation.
+- **Changes made:** `routes/users.py`, `routes/admin.py`, and `reset_password.py` now rotate `session_token` whenever password changes happen while session limits are enabled, and the self-service account flow also updates the current browser session to keep it aligned. Regression coverage now verifies CLI resets rotate tokens, account password changes keep the active session usable, and admin-driven password changes invalidate the target's stale session.
+- **Remaining risk / edge case:** When session limits are disabled, BananaWiki still intentionally skips token enforcement, so password changes do not force re-authentication until that feature is enabled.

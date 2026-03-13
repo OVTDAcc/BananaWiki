@@ -813,6 +813,27 @@ def test_signup_username_too_long(client, admin_user):
     assert b"50 characters" in resp.data
 
 
+def test_signup_initializes_default_user_permissions(client, admin_user):
+    """Signup should seed the current default permission rows for new users."""
+    import db
+    from helpers._permissions import get_default_permissions
+
+    code = db.generate_invite_code(admin_user)
+    resp = client.post("/signup", data={
+        "username": "freshsignup",
+        "password": "password123",
+        "confirm_password": "password123",
+        "invite_code": code,
+    }, follow_redirects=True)
+
+    assert resp.status_code == 200
+    user = db.get_user_by_username("freshsignup")
+    perms = db.get_user_permissions(user["id"])
+    assert perms["enabled_permissions"] == get_default_permissions("user")
+    assert perms["category_access"]["restricted"] is False
+    assert perms["category_write_access"]["restricted"] is False
+
+
 def test_account_username_too_long(client, admin_user):
     from werkzeug.security import generate_password_hash
     import db
@@ -2814,6 +2835,30 @@ def test_reset_password_updates_password(monkeypatch, capsys):
     assert check_password_hash(user["password"], "newpassword1")
     captured = capsys.readouterr()
     assert "updated successfully" in captured.out
+
+
+def test_reset_password_rotates_session_token_when_limit_enabled(monkeypatch, capsys):
+    """CLI password resets should invalidate session-limit tokens from legacy sessions."""
+    from werkzeug.security import generate_password_hash
+    import db, importlib
+
+    db.update_site_settings(session_limit_enabled=1)
+    uid = db.create_user("bobtoken", generate_password_hash("oldpassword"), role="user")
+    db.update_user(uid, session_token="legacytoken")
+
+    rp = importlib.import_module("reset_password")
+
+    inputs = iter(["1"])
+    monkeypatch.setattr("builtins.input", lambda _: next(inputs))
+    passwords = iter(["newpassword1", "newpassword1"])
+    monkeypatch.setattr("getpass.getpass", lambda _: next(passwords))
+
+    rp.main()
+
+    user = db.get_user_by_id(uid)
+    assert user["session_token"] is not None
+    assert user["session_token"] != "legacytoken"
+    capsys.readouterr()
 
 
 def test_reset_password_mismatch_then_success(monkeypatch, capsys):

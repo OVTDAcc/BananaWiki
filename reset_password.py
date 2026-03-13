@@ -13,6 +13,7 @@ prompts for (and confirms) a new password before saving it.
 import sys
 import os
 import getpass
+import uuid
 
 # Ensure the project root is on the path when the script is executed from
 # a different working directory.
@@ -78,7 +79,10 @@ def main():
 
     from werkzeug.security import generate_password_hash
     hashed = generate_password_hash(new_pw)
-    db.update_user(selected["id"], password=hashed)
+    update_fields = {"password": hashed}
+    if db.get_site_settings()["session_limit_enabled"]:
+        update_fields["session_token"] = uuid.uuid4().hex
+    db.update_user(selected["id"], **update_fields)
 
     print(f"\nPassword for '{selected['username']}' has been updated successfully.")
 

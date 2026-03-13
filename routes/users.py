@@ -153,7 +153,12 @@ def register_user_routes(app):
             elif len(new_pw) < 6:
                 flash("Password must contain at least 6 characters for security.", "error")
             else:
-                db.update_user(user["id"], password=generate_password_hash(new_pw))
+                update_fields = {"password": generate_password_hash(new_pw)}
+                if db.get_site_settings()["session_limit_enabled"]:
+                    token = uuid.uuid4().hex
+                    update_fields["session_token"] = token
+                    session["session_token"] = token
+                db.update_user(user["id"], **update_fields)
                 log_action("change_password", request, user=user)
                 notify_change("user_change_password", f"User '{user['username']}' changed password")
                 flash("Password updated.", "success")
