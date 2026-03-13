@@ -1,6 +1,6 @@
 # Feature Reference
 
-This document summarizes the live feature set of BananaWiki as implemented in the current codebase. It is based on the active Flask routes, database layer, helpers, and the dedicated pytest coverage that exercises the major workflows. Treat it as the authoritative feature inventory for the systematic audit work tracked in [`docs/legacy_feature_audit.md`](legacy_feature_audit.md).
+This document summarizes the live feature set of BananaWiki as implemented in the current codebase. It is based on the active Flask routes, database layer, helpers, and the dedicated pytest coverage that exercises the major workflows. Treat it as the authoritative feature list and inventory for the systematic audit work tracked in [`docs/legacy_feature_audit.md`](legacy_feature_audit.md). The goal of this file is to keep a single, detailed record of what the platform currently does and the representative code and tests that prove those features are still live.
 
 ## Wiki authoring
 
@@ -120,6 +120,13 @@ Editors can be limited to specific categories for write access, and user/categor
 - global group chats can auto-join users while keeping moderation reserved for site admins
 - chat quotas, retention windows, and cleanup scheduling are configurable from site settings
 - users can receive custom profile tags and published profile cards in shared UI widgets
+- admins get read-only oversight views for direct-message and group-chat moderation workflows through `/admin/chats`, `/admin/chats/<id>`, `/admin/groups`, and `/admin/groups/<id>`
+
+## Hidden and optional extras
+
+- a `/easter-egg` page for logged-in users tracks whether a user has discovered the hidden feature and changes its UI once the one-way trigger has been recorded
+- `/api/easter-egg/trigger` is rate-limited, logs the action, and feeds the badge system's `easter_egg` auto-award path
+- the experimental Obsidian sync workflow is intentionally feature-flagged and restricted to `editor`, `admin`, and `protected_admin` accounts before vault pull/push operations are allowed
 
 ## Announcements and badges
 
@@ -177,7 +184,7 @@ Site-wide defaults include:
 
 ## Data portability and backups
 
-- user data export as ZIP from account settings
+- user data export as ZIP from account settings, including account metadata, username history, contributions, drafts, and accessibility settings
 - full-site export/import with delete-all, override, or keep-existing modes
 - optional Telegram backup sync for database, logs, uploads, and other runtime data
 - site migration archives include runtime assets such as uploads, attachments, chat attachments, and custom favicons
@@ -203,6 +210,23 @@ Site-wide defaults include:
 - page attachments and chat attachments are stored outside `app/static/`
 - user IDs are random text identifiers rather than autoincrement integers
 - security headers are applied to every response, including CSP rules that explicitly allow the supported video embed hosts
+
+## Audit notes on feature records
+
+The repository-wide audit for this feature list did not uncover additional major feature areas that were completely absent from the inventory above. The main follow-up from the audit was to make a few previously under-described records explicit here: the hidden easter egg flow, the admin chat-monitoring surfaces, the exact contents of account export ZIPs, and the feature-flagged/role-gated nature of the Obsidian sync workflow.
+
+Representative implementation and verification anchors for the current feature records:
+
+| Feature area | Representative implementation files | Representative verification |
+| --- | --- | --- |
+| Wiki authoring, history, drafts, tags, and attachments | `routes/wiki.py`, `routes/api.py`, `db/_pages.py`, `db/_drafts.py` | `tests/test_feature_drift_fixes.py`, `tests/test_production.py` |
+| Permissions, roles, category visibility, and admin governance | `helpers/_auth.py`, `helpers/_permissions.py`, `db/_permissions.py`, `routes/admin.py` | `tests/test_permissions.py`, `tests/test_feature_drift_fixes.py` |
+| Deindexed visibility and sequential navigation | `routes/wiki.py`, `routes/api.py`, `db/_categories.py`, `db/_pages.py` | `tests/test_deindex.py`, `tests/test_sequential_nav.py` |
+| Page reservations and edit locking | `db/_reservations.py`, `routes/wiki.py` | `tests/test_page_reservations.py` |
+| Direct messages, group chats, moderation, exports, quotas, and cleanup | `routes/chat.py`, `routes/groups.py`, `db/_chats.py`, `db/_groups.py` | `tests/test_chats.py`, `tests/test_group_chats.py` |
+| Badges, announcements, and hidden easter egg workflows | `db/_badges.py`, `routes/admin.py`, `routes/uploads.py` | `tests/test_badges.py`, `tests/test_fixes.py` |
+| Session safety, rate limiting, and login/onboarding flows | `routes/auth.py`, `helpers/_rate_limiting.py`, `app.py` | `tests/test_rate_limiting.py`, `tests/test_video_embedding_and_session_limit.py` |
+| Site migration, backup/sync, and Obsidian tooling | `db/_migration.py`, `sync.py`, `helpers/_obsidian_sync.py`, `scripts/obsidian_sync.py` | `tests/test_migration.py`, `tests/test_sync.py`, `tests/test_synchronize.py`, `tests/test_obsidian_sync.py` |
 
 ## Verification snapshot
 
