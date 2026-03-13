@@ -1124,3 +1124,30 @@ def test_reorder_categories_honors_current_write_permissions(client, admin_uid, 
     assert resp.get_json()["error"] == "You do not have permission to edit categories."
     assert db.get_category(allowed_cat)["sort_order"] == 0
     assert db.get_category(blocked_cat)["sort_order"] == 0
+
+
+# ---------------------------------------------------------------------------
+# GAP-018: badge notification UI stays aligned with the database-backed
+#          notification state after login.
+# ---------------------------------------------------------------------------
+
+def test_badge_notification_banner_uses_current_database_state(client, admin_uid):
+    """GAP-018: Badge banner appears for badges awarded after the current session was created."""
+    from werkzeug.security import generate_password_hash
+
+    user_id = db.create_user("badge_user", generate_password_hash("badge123"), role="user")
+    badge_type_id = db.create_badge_type(
+        name="Fresh Badge",
+        description="Awarded after login",
+        auto_trigger=False,
+    )
+
+    login_resp = client.post("/login", data={"username": "badge_user", "password": "badge123"})
+    assert login_resp.status_code == 302
+
+    db.award_badge(user_id, badge_type_id, awarded_by=admin_uid)
+
+    resp = client.get("/account")
+
+    assert resp.status_code == 200
+    assert b"You've earned 1 new badge!" in resp.data

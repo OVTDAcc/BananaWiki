@@ -21,6 +21,7 @@ This audit reviews a small set of older BananaWiki code paths against the curren
 | Password-change session-token rotation | `routes/users.py`, `routes/admin.py`, `reset_password.py`, `tests/test_video_embedding_and_session_limit.py`, `tests/test_fixes.py` | Fixed |
 | Deindex reservation compatibility | `routes/wiki.py`, `tests/test_page_reservations.py` | Fixed |
 | Reorder API category access | `routes/api.py`, `tests/test_feature_drift_fixes.py`, `tests/test_fixes.py` | Fixed |
+| Badge notification banner state | `app.py`, `app/templates/_badge_notifications_bar.html`, `routes/auth.py`, `routes/wiki.py`, `tests/test_feature_drift_fixes.py` | Fixed |
 
 ## Findings and changes
 
@@ -113,3 +114,9 @@ This audit reviews a small set of older BananaWiki code paths against the curren
 - **Why it drifted:** Reordering predates the current category write-access model, so these AJAX routes kept their original role-only gate while the rest of the edit surface moved to shared `editor_has_category_access()` guards.
 - **Changes made:** `routes/api.py` now validates every requested page/category through the current write-access checks before persisting a reorder, and `tests/test_feature_drift_fixes.py` adds regressions that prove restricted editors can no longer reorder blocked pages or categories.
 - **Remaining risk / edge case:** Any future bulk-edit API should validate each target through the same shared access helpers before performing batch database updates.
+
+### 16. Badge notification banner state
+- **Issue found:** The legacy badge banner rendered from the session cache even though unread badge notifications are stored in the database.
+- **Why it drifted:** Badge notifications originally behaved like a transient flash counter, but the badge system later moved to persistent `badge_notifications` rows. The login/create/edit flows still updated `session["badge_notifications"]`, so badges awarded after login could remain invisible until the next sign-in refreshed the session cache.
+- **Changes made:** `app.py` now injects a fresh `badge_notification_count` from the current database state into every template render, `_badge_notifications_bar.html` reads that current count instead of the session cache, and `tests/test_feature_drift_fixes.py` now verifies that a badge awarded after login appears in the banner without forcing a relogin.
+- **Remaining risk / edge case:** The session cache still exists for backwards compatibility in a few routes, so future cleanup could remove those redundant writes once no code depends on them.

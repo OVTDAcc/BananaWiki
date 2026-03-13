@@ -100,6 +100,7 @@ def inject_globals():
     user = get_current_user()
     active_announcements = db.get_active_announcements(bool(user))
     user_accessibility = db.get_user_accessibility(user["id"]) if user else {}
+    badge_notification_count = len(db.get_unnotified_badges(user["id"])) if user else 0
     sidebar_people = db.list_published_profiles()[:19] if user else []
     current_user_profile = db.get_user_profile(user["id"]) if user else None
     total_unread_dm = db.get_total_unread_dm_count(user["id"]) if user else 0
@@ -115,6 +116,7 @@ def inject_globals():
         "all_categories": db.list_categories(),
         "active_announcements": active_announcements,
         "user_accessibility": user_accessibility,
+        "badge_notification_count": badge_notification_count,
         "sidebar_people": sidebar_people,
         "current_user_profile": current_user_profile,
         "utcnow": datetime.now(timezone.utc).isoformat(),
