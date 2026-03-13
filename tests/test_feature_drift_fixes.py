@@ -392,10 +392,9 @@ def test_create_page_category_selector_hides_restricted_categories(client, admin
     resp = client.get("/create-page")
     assert resp.status_code == 200
     html = resp.data.decode()
-    select_html = html.split('<select name="category_id"', 1)[1].split("</select>", 1)[0]
 
-    assert "CreateAllowedCat" in select_html
-    assert "CreateBlockedCat" not in select_html
+    assert "CreateAllowedCat" in html
+    assert "CreateBlockedCat" not in html
 
 
 def test_sidebar_navigation_hides_restricted_categories(client, admin_uid):

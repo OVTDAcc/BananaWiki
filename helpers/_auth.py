@@ -151,6 +151,8 @@ def filter_visible_navigation(categories, uncategorized, user):
                 visible_node["pages"] = filtered_pages
                 visible_nodes.append(visible_node)
             else:
+                # Keep accessible descendants navigable without leaking the
+                # blocked parent category's name in the sidebar.
                 visible_nodes.extend(filtered_children)
         return visible_nodes
 
