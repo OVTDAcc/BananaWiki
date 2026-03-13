@@ -376,6 +376,52 @@ def test_contribution_counts_after_edit(admin_client, admin_uid):
     assert sum(contribs.values()) >= 1
 
 
+def test_public_profile_hides_inaccessible_contributions(alice_client, admin_uid, regular_uid):
+    """Published profiles only show contributions for pages the viewer can currently access."""
+    import db
+    from helpers._permissions import get_default_permissions
+
+    visible_cat = db.create_category("Visible Cat")
+    hidden_cat = db.create_category("Hidden Cat")
+    db.create_page(
+        "Visible Contribution Page",
+        "visible-contribution-page",
+        "Content",
+        category_id=visible_cat,
+        user_id=admin_uid,
+    )
+    db.create_page(
+        "Hidden Contribution Page",
+        "hidden-contribution-page",
+        "Content",
+        category_id=hidden_cat,
+        user_id=admin_uid,
+    )
+    deindexed_page_id = db.create_page(
+        "Deindexed Contribution Page",
+        "deindexed-contribution-page",
+        "Content",
+        category_id=visible_cat,
+        user_id=admin_uid,
+    )
+    db.set_page_deindexed(deindexed_page_id, True)
+    db.upsert_user_profile(admin_uid, page_published=True)
+    db.set_user_permissions(
+        regular_uid,
+        get_default_permissions("user"),
+        read_restricted=True,
+        read_category_ids=[visible_cat],
+    )
+
+    resp = alice_client.get("/users/admin")
+    contribution_section = resp.data.split(b'<div class="contribution-list-section">', 1)[1]
+    assert resp.status_code == 200
+    assert b"Visible Contribution Page" in contribution_section
+    assert b"Hidden Contribution Page" not in contribution_section
+    assert b"Deindexed Contribution Page" not in contribution_section
+    assert b"1 contribution in" in resp.data
+
+
 # ---------------------------------------------------------------------------
 # Admin moderation tools
 # ---------------------------------------------------------------------------
