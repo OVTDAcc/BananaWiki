@@ -69,7 +69,7 @@ def build_user_export_zip(user):
 def _filter_visible_profile_contributions(viewer, contribution_list, year):
     """Return only contribution rows whose current pages are visible to *viewer*."""
     if not isinstance(year, int):
-        raise ValueError("year must be an integer")
+        raise ValueError("year must be an integer representing the contribution year for heatmap filtering")
 
     visible = []
     visible_by_day = {}
