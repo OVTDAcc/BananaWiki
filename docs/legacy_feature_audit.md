@@ -19,6 +19,7 @@ This audit reviews a small set of older BananaWiki code paths against the curren
 | Invite validation after admin suspension | `db/_invites.py`, `routes/auth.py`, `tests/test_production.py` | Fixed |
 | Signup permission initialization | `routes/auth.py`, `routes/admin.py`, `tests/test_fixes.py` | Fixed |
 | Password-change session-token rotation | `routes/users.py`, `routes/admin.py`, `reset_password.py`, `tests/test_video_embedding_and_session_limit.py`, `tests/test_fixes.py` | Fixed |
+| Deindex reservation compatibility | `routes/wiki.py`, `tests/test_page_reservations.py` | Fixed |
 
 ## Findings and changes
 
@@ -99,3 +100,9 @@ This audit reviews a small set of older BananaWiki code paths against the curren
 - **Why it drifted:** Password resets and account password changes existed before `users.session_token` became the canonical single-session state, so those older flows never adopted token rotation.
 - **Changes made:** `routes/users.py`, `routes/admin.py`, and `reset_password.py` now rotate `session_token` whenever password changes happen while session limits are enabled, and the self-service account flow also updates the current browser session to keep it aligned. Regression coverage now verifies CLI resets rotate tokens, account password changes keep the active session usable, and admin-driven password changes invalidate the target's stale session.
 - **Remaining risk / edge case:** When session limits are disabled, BananaWiki still intentionally skips token enforcement, so password changes do not force re-authentication until that feature is enabled.
+
+### 14. Deindex reservation compatibility
+- **Issue found:** The older `/page/<slug>/deindex` route changed page visibility even when another editor had an active reservation on the page.
+- **Why it drifted:** Page deindexing was added before the newer reservation lock helper became the shared protection for destructive page edits, so it never adopted the same guard already used by title edits, tag changes, and page deletion.
+- **Changes made:** `routes/wiki.py` now routes deindex/reindex through `_guard_destructive_page_edit()`, and `tests/test_page_reservations.py` now verifies that non-admin editors cannot change deindex state while another editor holds the reservation.
+- **Remaining risk / edge case:** Other metadata-only page mutations should continue to reuse `_guard_destructive_page_edit()` so reservation enforcement stays consistent as the page-management surface evolves.
