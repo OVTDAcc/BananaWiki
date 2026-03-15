@@ -402,6 +402,25 @@ class TestSessionConflictPage:
         }, follow_redirects=True)
         assert resp.status_code == 200
 
+    def test_session_conflict_force_respects_disabled_session_limit(self, client, admin_user):
+        import db
+
+        db.update_site_settings(session_limit_enabled=0)
+        db.update_user(admin_user, session_token="legacytoken")
+
+        resp = client.post(
+            "/session-conflict/force",
+            data={"username": "admin", "password": "admin123"},
+            follow_redirects=True,
+        )
+
+        assert resp.status_code == 200
+        user = db.get_user_by_id(admin_user)
+        assert user["session_token"] is None
+        with client.session_transaction() as sess:
+            assert sess["user_id"] == admin_user
+            assert "session_token" not in sess
+
     def test_session_conflict_redirected_on_token_mismatch(self, client, admin_user):
         import db
         db.update_site_settings(session_limit_enabled=1)

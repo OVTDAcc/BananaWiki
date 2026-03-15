@@ -248,13 +248,16 @@ def register_auth_routes(app):
         if user["suspended"]:
             flash("Your account is suspended. Please contact a site administrator for help.", "error")
             return redirect(url_for("session_conflict"))
-        # Issue a new session token so all other sessions are invalidated
-        token = uuid.uuid4().hex
-        db.update_user(user["id"], session_token=token)
         session.clear()
         session.permanent = True
         session["user_id"] = user["id"]
-        session["session_token"] = token
+        if settings["session_limit_enabled"]:
+            # Issue a new session token so all other sessions are invalidated.
+            token = uuid.uuid4().hex
+            db.update_user(user["id"], session_token=token)
+            session["session_token"] = token
+        else:
+            db.update_user(user["id"], session_token=None)
         log_action("session_conflict_force", request, user=user)
         flash("Your other active sessions have been signed out. You are now signed in on this device.", "info")
         return redirect(url_for("home"))
