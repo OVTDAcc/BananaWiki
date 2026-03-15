@@ -8,7 +8,7 @@ This audit reviews older BananaWiki code paths against the current architecture,
 - Legacy drift regressions: the feature-specific fixes documented below remain covered by the corresponding pytest modules
 - Full-suite baseline: `. venv/bin/activate && python -m pytest tests/ -q`
 - Latest local result: `1329 passed`
-- Additional issues found during the current verification pass: none reproducible beyond the already-documented legacy fixes
+- Additional issues found during the current verification pass: no reproducible feature failures beyond the already-documented legacy fixes; only feature-inventory documentation gaps, now reflected in `docs/feature-reference.md`
 
 ## Reviewed features
 

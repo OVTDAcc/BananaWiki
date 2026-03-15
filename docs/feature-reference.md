@@ -17,7 +17,7 @@ This document summarizes the live feature set of BananaWiki as implemented in th
 
 - split-pane editor with preview
 - formatting toolbar for common syntax
-- internal page autocomplete when inserting links
+- permission-aware internal page autocomplete and `[[link]]` picker support in the editor
 - image upload flow with alt text, alignment, and width controls
 - attachment uploads with authenticated download routes
 - difficulty tags with predefined or custom colorized labels
@@ -38,13 +38,14 @@ This document summarizes the live feature set of BananaWiki as implemented in th
 
 ## History, drafts, and change safety
 
-- complete page history with rendered snapshot view
+- complete page history with rendered snapshot view, including stored HTML snapshots for revision detail pages
 - one-click revert that creates a new history record instead of deleting older ones
 - autosaved drafts stored server-side
-- concurrent-draft awareness when another editor is already working on a page
+- stale-draft warnings when the live page changed after a user's draft was last saved
+- concurrent-draft awareness when another editor already has an unsaved draft on the same page, including inline warnings and one-click draft transfer
 - draft transfer support
 - contributor attribution appended to edits when multiple people had drafts open
-- orphaned upload cleanup after commits or draft deletion
+- orphaned inline uploads and attachments are cleaned up after commits or draft deletion when no remaining references exist
 - attribution transfer and de-attribution workflows for correcting history ownership
 - page reservations can block destructive editing while still allowing some safe actions
 - a dedicated reservations view lists active checkouts and their effective expiry state
@@ -101,10 +102,11 @@ Editors can be limited to specific categories for write access, and user/categor
 
 ### Administration and governance
 
-- admin settings cover theme palettes, timezone, favicon choice/upload, lockdown behavior, session-limit toggles, chat controls, and reservation timing
-- admin user management includes role changes, suspension/unsuspension, password resets, accessibility/profile moderation, and protected-admin safeguards
+- admin settings cover theme palettes, timezone, favicon choice/upload, lockdown behavior, session-limit toggles, request/chat rate limits, chat cleanup controls, reservation timing, and default reservation quotas
+- admin user management includes role changes, suspension/unsuspension, password resets, accessibility/profile moderation, protected-admin safeguards, reservation quota review, and user-data export downloads
 - per-user custom tags can be created, recolored, reordered, and removed
-- user audit pages show recent activity log entries together with username history
+- user audit pages show recent activity log entries together with username history, newest-first from the runtime log file
+- role history records each role transition, shows who made the change when known, is visible to admins and the affected user, and supports admin cleanup of incorrect entries
 - account exports can be downloaded by the user or by an admin on the user's behalf
 
 ## Profiles and social features
@@ -119,7 +121,7 @@ Editors can be limited to specific categories for write access, and user/categor
 - group chats support invite-code join links, invite regeneration, owner/moderator roles, chat exports, message deletion, and admin monitoring pages
 - global group chats can auto-join users while keeping moderation reserved for site admins
 - chat quotas, retention windows, and cleanup scheduling are configurable from site settings
-- users can receive custom profile tags and published profile cards in shared UI widgets
+- admin-assigned custom profile tags appear on user profile pages and published profile cards in shared UI widgets
 - admins get read-only oversight views for direct-message and group-chat moderation workflows through `/admin/chats`, `/admin/chats/<id>`, `/admin/groups`, and `/admin/groups/<id>`
 
 ## Hidden and optional extras
@@ -159,7 +161,9 @@ When page reservations are enabled from site settings:
 - admins can set the reservation timeout in hours from **Admin → Settings** (default: 48)
 - reservations expire automatically using the configured timeout
 - admins can set the cooldown in hours from **Admin → Settings** (default: 24)
+- admins can set the default concurrent reservation quota from **Admin → Settings** (default: 5 pages)
 - a cooldown prevents immediate re-reservation by the same user
+- users can request reservation quota increases from **Account Settings**, and admins can approve or deny those requests from the admin user-management flow
 - admins can override or release reservations
 - some non-destructive actions remain available while a reservation is active
 
@@ -184,11 +188,11 @@ Site-wide defaults include:
 
 ## Data portability and backups
 
-- user data export as ZIP from account settings, including account metadata, username history, contributions, drafts, and accessibility settings
+- user data export as ZIP from account settings, containing `account.json`, `username_history.json`, `contributions.json`, `drafts.json`, and `accessibility.json`
 - full-site export/import with delete-all, override, or keep-existing modes
 - optional Telegram backup sync for database, logs, uploads, and other runtime data
 - site migration archives include runtime assets such as uploads, attachments, chat attachments, and custom favicons
-- group and direct chat export flows can package messages alone or bundle attachments into ZIP files
+- group and direct chat export flows can package message transcripts alone or bundle attachments into ZIP files, with group exports also including manifest metadata
 - experimental Obsidian sync can pull accessible wiki content into a local vault and push edited Markdown back into BananaWiki
 - Obsidian sync preserves category paths, copies assets into vault directories, records manifest metadata, and writes history entries on push
 
@@ -213,7 +217,7 @@ Site-wide defaults include:
 
 ## Audit notes on feature records
 
-The repository-wide audit for this feature list did not uncover additional major feature areas that were completely absent from the inventory above. The main follow-up from the audit was to make a few previously under-described records explicit here: the hidden easter egg flow, the admin chat-monitoring surfaces, the exact contents of account export ZIPs, and the feature-flagged/role-gated nature of the Obsidian sync workflow.
+The repository-wide audit for this feature list did not uncover additional major feature areas that were completely absent from the inventory above. The main follow-up from the latest pass was to make a few previously under-described records explicit here: role-history tracking, reservation-quota request workflows, the runtime-log-backed audit view, the exact contents of account export ZIPs, richer profile-tag moderation details, and the feature-flagged/role-gated nature of the Obsidian sync workflow.
 
 Representative implementation and verification anchors for the current feature records:
 
