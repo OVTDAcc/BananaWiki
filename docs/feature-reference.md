@@ -240,4 +240,4 @@ The repository includes dedicated pytest modules that exercise the major feature
 - `tests/test_obsidian_sync.py` for the experimental vault import/export workflow
 - `tests/test_migration.py`, `tests/test_sync.py`, and `tests/test_synchronize.py` for site export/import, backup-related behaviors, and broader regression coverage
 
-The current verification baseline for this inventory is a full local run of `. venv/bin/activate && python -m pytest tests/ -q`, which completed with `1329 passed`.
+The current verification baseline for this inventory is a full local run of `. venv/bin/activate && python -m pytest tests/ -q`, which completed with `1330 passed`.

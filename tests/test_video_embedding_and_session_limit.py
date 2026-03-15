@@ -124,6 +124,14 @@ class TestEmbedVideosInHtml:
         assert "video-embed" in result
         assert "https://www.youtube.com/embed/dQw4w9WgXcQ" in result
 
+    def test_render_markdown_embed_videos_true_bare_vimeo_url(self):
+        from app import render_markdown
+        # Bare URL on its own line → wrapped in <p> by markdown
+        md = "https://vimeo.com/123456789"
+        result = render_markdown(md, embed_videos=True)
+        assert "video-embed" in result
+        assert "https://player.vimeo.com/video/123456789" in result
+
     def test_render_markdown_embed_videos_true_linked_url(self):
         from app import render_markdown
         # Angle-bracket syntax → markdown produces <a> tag
